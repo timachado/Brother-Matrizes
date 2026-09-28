@@ -178,6 +178,15 @@ object MatrixConverter {
         var currentX = 0
         var currentY = 0
 
+        /*
+         * O primeiro ponto de costura não pode ser usado como um
+         * deslocamento costurado desde a origem do bastidor. A máquina
+         * precisa primeiro posicionar a agulha com JUMP e só então
+         * iniciar a perfuração naquele ponto.
+         */
+        var machinePositionInitialized =
+            false
+
         design.points.forEach { point ->
             val centeredXLong =
                 point.xUnits
@@ -214,15 +223,38 @@ object MatrixConverter {
 
             when (point.command) {
                 StitchCommand.STITCH -> {
-                    addSegmentedMove(
-                        pattern = pattern,
-                        fromX = currentX,
-                        fromY = currentY,
-                        toX = centeredX,
-                        toY = outputY,
-                        command =
+                    if (
+                        !machinePositionInitialized
+                    ) {
+                        addSegmentedMove(
+                            pattern = pattern,
+                            fromX = currentX,
+                            fromY = currentY,
+                            toX = centeredX,
+                            toY = outputY,
+                            command =
+                                EmbConstant.JUMP
+                        )
+
+                        pattern.addStitchAbs(
+                            centeredX.toFloat(),
+                            outputY.toFloat(),
                             EmbConstant.STITCH
-                    )
+                        )
+
+                        machinePositionInitialized =
+                            true
+                    } else {
+                        addSegmentedMove(
+                            pattern = pattern,
+                            fromX = currentX,
+                            fromY = currentY,
+                            toX = centeredX,
+                            toY = outputY,
+                            command =
+                                EmbConstant.STITCH
+                        )
+                    }
                 }
 
                 StitchCommand.JUMP -> {
@@ -235,6 +267,9 @@ object MatrixConverter {
                         command =
                             EmbConstant.JUMP
                     )
+
+                    machinePositionInitialized =
+                        true
                 }
 
                 StitchCommand.TRIM -> {
@@ -262,6 +297,23 @@ object MatrixConverter {
                 }
 
                 StitchCommand.SEQUIN -> {
+                    if (
+                        !machinePositionInitialized
+                    ) {
+                        addSegmentedMove(
+                            pattern = pattern,
+                            fromX = currentX,
+                            fromY = currentY,
+                            toX = centeredX,
+                            toY = outputY,
+                            command =
+                                EmbConstant.JUMP
+                        )
+
+                        machinePositionInitialized =
+                            true
+                    }
+
                     pattern.addStitchAbs(
                         centeredX.toFloat(),
                         outputY.toFloat(),
