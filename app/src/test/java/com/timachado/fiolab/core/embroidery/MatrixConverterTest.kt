@@ -232,6 +232,114 @@ class MatrixConverterTest {
         }
     }
 
+
+    @Test
+    fun machineExportJumpsToFirstNeedlePointBeforeSewing() {
+        val source =
+            shiftedDesign()
+
+        for (
+            format in
+                MatrixConverter
+                    .supportedFormats
+        ) {
+            val converted =
+                MatrixConverter
+                    .convert(
+                        source,
+                        format,
+                        outputSuffix =
+                            "primeiro-ponto"
+                    )
+                    .getOrThrow()
+
+            val parsed =
+                when (
+                    format
+                ) {
+                    "DST" ->
+                        DstParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    "PES",
+                    "JEF" ->
+                        EmbroideryIoParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    else ->
+                        error(
+                            "Formato inesperado."
+                        )
+                }
+
+            assertTrue(
+                parsed is
+                    EmbroideryLoadResult.Success
+            )
+
+            val target =
+                (
+                    parsed as
+                        EmbroideryLoadResult.Success
+                    ).design
+
+            val firstStitchIndex =
+                target.points
+                    .indexOfFirst {
+                        it.command ==
+                            StitchCommand.STITCH
+                    }
+
+            assertTrue(
+                "A exportação $format precisa conter ponto de costura.",
+                firstStitchIndex >=
+                    1
+            )
+
+            val jumpBeforeFirstStitch =
+                target.points
+                    .subList(
+                        0,
+                        firstStitchIndex
+                    )
+                    .lastOrNull {
+                        it.command ==
+                            StitchCommand.JUMP
+                    }
+
+            assertTrue(
+                "A exportação $format deve posicionar a agulha com JUMP antes do primeiro STITCH.",
+                jumpBeforeFirstStitch !=
+                    null
+            )
+
+            val firstStitch =
+                target.points[
+                    firstStitchIndex
+                ]
+
+            assertEquals(
+                "O primeiro STITCH em $format deve começar exatamente onde terminou o JUMP.",
+                jumpBeforeFirstStitch
+                    ?.xUnits,
+                firstStitch.xUnits
+            )
+
+            assertEquals(
+                "O primeiro STITCH em $format deve começar exatamente onde terminou o JUMP.",
+                jumpBeforeFirstStitch
+                    ?.yUnits,
+                firstStitch.yUnits
+            )
+        }
+    }
+
     private fun assertVisualGeometryPreserved(
         source: EmbroideryDesign,
         format: String
