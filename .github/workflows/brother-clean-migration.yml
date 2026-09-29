@@ -97,6 +97,8 @@ jobs:
               if path.as_posix() == "app/build.gradle.kts":
                   text = text.replace('versionCode = 69', 'versionCode = 70')
                   text = text.replace('versionName = "0.46.9"', 'versionName = "0.46.10"')
+                  # Normalize an old literal \\n left by the QAFix22 dependency edit.
+                  text = text.replace(')\\\\n    implementation(', ')\\n    implementation(')
 
               if path.as_posix() == ".github/workflows/android-apk.yml":
                   text = text.replace("0.46.9", "0.46.10")
