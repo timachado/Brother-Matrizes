@@ -96,6 +96,24 @@ object AccountErrorMessage {
                 ) ->
                 "Muitas tentativas em pouco tempo. Aguarde um pouco e tente novamente."
 
+            (
+                "activitynotfoundexception" in
+                    message ||
+                    "no activity found to handle intent" in
+                        message ||
+                    "unable to find custom tabs" in
+                        message
+                ) ->
+                "Não foi possível abrir o navegador seguro do Google neste aparelho."
+
+            (
+                "application context not initialized" in
+                    message ||
+                    "supabaseinitializer" in
+                        message
+                ) ->
+                "O login Google não foi inicializado corretamente no Android."
+
             else ->
                 fallback
         }
