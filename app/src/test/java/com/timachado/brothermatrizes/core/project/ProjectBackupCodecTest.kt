@@ -140,7 +140,7 @@ class ProjectBackupCodecTest {
             runCatching {
                 ProjectBackupCodec
                     .decode(
-                        "not-a-fioLab-backup"
+                        "not-a-brother-matrizes-backup"
                             .toByteArray()
                     )
             }
