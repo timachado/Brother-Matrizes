@@ -66,7 +66,12 @@ object MatrixConverter {
 
             val pattern =
                 buildOutputPattern(
-                    normalized
+                    design =
+                        normalized,
+                    rotateGeneratedPesForBrother =
+                        format == "PES" &&
+                            normalized.isModified &&
+                            normalized.sourceBytes.isEmpty()
                 )
 
             val extension =
@@ -154,7 +159,8 @@ object MatrixConverter {
         }
 
     private fun buildOutputPattern(
-        design: EmbroideryDesign
+        design: EmbroideryDesign,
+        rotateGeneratedPesForBrother: Boolean = false
     ): EmbPattern {
         val pattern =
             EmbPattern().apply {
@@ -230,12 +236,43 @@ object MatrixConverter {
                 centeredXLong
                     .toInt()
 
+            val centeredY =
+                centeredYLong
+                    .toInt()
+
+            /*
+             * A família Innov-is apresenta PES gerado no app com os eixos
+             * físicos a 90° da orientação usada pelo editor. Para matrizes
+             * criadas/editadas dentro do Brother Matrizes fazemos a
+             * compensação inversa antes de gravar o PEC.
+             *
+             * Importações reais (sourceBytes != vazio) não passam por esta
+             * compensação para não alterar arquivos externos que já possuem
+             * sua própria orientação de máquina.
+             */
+            val machineX =
+                if (
+                    rotateGeneratedPesForBrother
+                ) {
+                    -centeredY
+                } else {
+                    centeredX
+                }
+
+            val machineYBeforeWriter =
+                if (
+                    rotateGeneratedPesForBrother
+                ) {
+                    centeredX
+                } else {
+                    centeredY
+                }
+
             val outputY =
                 writerY(
                     design = design,
                     yUnits =
-                        centeredYLong
-                            .toInt()
+                        machineYBeforeWriter
                 )
 
             when (point.command) {
@@ -247,14 +284,14 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = centeredX,
+                            toX = machineX,
                             toY = outputY,
                             command =
                                 EmbConstant.JUMP
                         )
 
                         pattern.addStitchAbs(
-                            centeredX.toFloat(),
+                            machineX.toFloat(),
                             outputY.toFloat(),
                             EmbConstant.STITCH
                         )
@@ -266,7 +303,7 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = centeredX,
+                            toX = machineX,
                             toY = outputY,
                             command =
                                 EmbConstant.STITCH
@@ -279,7 +316,7 @@ object MatrixConverter {
                         pattern = pattern,
                         fromX = currentX,
                         fromY = currentY,
-                        toX = centeredX,
+                        toX = machineX,
                         toY = outputY,
                         command =
                             EmbConstant.JUMP
@@ -291,7 +328,7 @@ object MatrixConverter {
 
                 StitchCommand.TRIM -> {
                     pattern.addStitchAbs(
-                        centeredX.toFloat(),
+                        machineX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.TRIM
                     )
@@ -299,7 +336,7 @@ object MatrixConverter {
 
                 StitchCommand.STOP -> {
                     pattern.addStitchAbs(
-                        centeredX.toFloat(),
+                        machineX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.COLOR_CHANGE
                     )
@@ -307,7 +344,7 @@ object MatrixConverter {
 
                 StitchCommand.COLOR_CHANGE -> {
                     pattern.addStitchAbs(
-                        centeredX.toFloat(),
+                        machineX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.COLOR_CHANGE
                     )
@@ -321,7 +358,7 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = centeredX,
+                            toX = machineX,
                             toY = outputY,
                             command =
                                 EmbConstant.JUMP
@@ -332,7 +369,7 @@ object MatrixConverter {
                     }
 
                     pattern.addStitchAbs(
-                        centeredX.toFloat(),
+                        machineX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.STITCH
                     )
@@ -340,14 +377,14 @@ object MatrixConverter {
 
                 StitchCommand.END -> {
                     pattern.addStitchAbs(
-                        centeredX.toFloat(),
+                        machineX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.END
                     )
                 }
             }
 
-            currentX = centeredX
+            currentX = machineX
             currentY = outputY
         }
 
