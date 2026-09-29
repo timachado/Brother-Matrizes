@@ -75,7 +75,7 @@ class EmbroideryProfilesTest {
             TextMatrixGenerator
                 .generate(
                     TextMatrixOptions(
-                        text = "FIOLAB",
+                        text = "BROTHER",
                         heightMm = 20f,
                         style =
                             TextStitchStyle.SATIN,
