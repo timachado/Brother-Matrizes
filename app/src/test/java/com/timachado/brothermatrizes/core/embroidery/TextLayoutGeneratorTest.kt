@@ -176,7 +176,7 @@ class TextLayoutGeneratorTest {
                 .generate(
                     TextLayoutOptions(
                         textOptions =
-                            base("FIOLAB"),
+                            base("BROTHER MATRIZES"),
                         layoutMode =
                             TextLayoutMode
                                 .ARC_UP,
