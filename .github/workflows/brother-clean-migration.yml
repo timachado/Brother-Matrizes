@@ -219,7 +219,13 @@ jobs:
         run: |
           git config user.name "T.I. Machado CI"
           git config user.email "actions@users.noreply.github.com"
+          rm -f BROTHER_MATRIZES_CLEAN_MIGRATION.trigger
           git add -A
+          # Workflow files are finalized separately via the GitHub connector because
+          # GITHUB_TOKEN cannot push workflow changes without workflows permission.
+          git reset -- .github/workflows || true
+          git reset -- Brother-Matrizes-0.46.10-CleanIdentity-debug.apk || true
+          git reset -- Brother-Matrizes-0.46.10-CleanIdentity-SHA256.txt || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
