@@ -71,7 +71,7 @@ jobs:
               # Technical identifiers first.
               # Multiline fully-qualified package references used by formatted Kotlin.
               text = re.sub(
-                  r"com\\.timachado\\s*\\.\\s*fiolab",
+                  r"com\.timachado\s*\.\s*fiolab",
                   "com.timachado.brothermatrizes",
                   text
               )
