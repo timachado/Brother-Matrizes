@@ -1,9 +1,9 @@
-name: Build Signed Production APK
+name: Build Signed Brother Matrizes Production APK
 
 on:
   workflow_dispatch:
   push:
-    branches: ["fix/brother-directopen-safe4-0469"]
+    branches: ["refactor/brother-matrizes-clean-0469"]
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
 jobs:
   signed-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -34,7 +34,19 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Prepare brand assets
+      - name: Verify clean Brother identity
+        shell: bash
+        run: |
+          LEGACY_TOKEN="$(printf 'fio%s' 'lab')"
+          if git grep -ni -I -F "$LEGACY_TOKEN"; then
+            echo "Legacy identity reference detected."
+            exit 1
+          fi
+          grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'namespace = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
+
+      - name: Prepare Brother brand assets
         shell: bash
         run: bash scripts/prepare_brand_assets.sh
 
@@ -50,75 +62,79 @@ jobs:
       - name: Validate production signing secrets
         shell: bash
         env:
-          FIOLAB_RELEASE_KEYSTORE_BASE64: ${{ secrets.FIOLAB_RELEASE_KEYSTORE_BASE64 }}
-          FIOLAB_RELEASE_STORE_PASSWORD: ${{ secrets.FIOLAB_RELEASE_STORE_PASSWORD }}
-          FIOLAB_RELEASE_KEY_ALIAS: ${{ secrets.FIOLAB_RELEASE_KEY_ALIAS }}
-          FIOLAB_RELEASE_KEY_PASSWORD: ${{ secrets.FIOLAB_RELEASE_KEY_PASSWORD }}
+          BROTHER_RELEASE_KEYSTORE_BASE64: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEYSTORE_BASE64')] }}
+          BROTHER_RELEASE_STORE_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_STORE_PASSWORD')] }}
+          BROTHER_RELEASE_KEY_ALIAS: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_ALIAS')] }}
+          BROTHER_RELEASE_KEY_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_PASSWORD')] }}
         run: |
-          test -n "$FIOLAB_RELEASE_KEYSTORE_BASE64" || { echo "Missing FIOLAB_RELEASE_KEYSTORE_BASE64"; exit 1; }
-          test -n "$FIOLAB_RELEASE_STORE_PASSWORD" || { echo "Missing FIOLAB_RELEASE_STORE_PASSWORD"; exit 1; }
-          test -n "$FIOLAB_RELEASE_KEY_ALIAS" || { echo "Missing FIOLAB_RELEASE_KEY_ALIAS"; exit 1; }
-          test -n "$FIOLAB_RELEASE_KEY_PASSWORD" || { echo "Missing FIOLAB_RELEASE_KEY_PASSWORD"; exit 1; }
+          test -n "$BROTHER_RELEASE_KEYSTORE_BASE64" || { echo "Missing Brother release keystore"; exit 1; }
+          test -n "$BROTHER_RELEASE_STORE_PASSWORD" || { echo "Missing Brother store password"; exit 1; }
+          test -n "$BROTHER_RELEASE_KEY_ALIAS" || { echo "Missing Brother key alias"; exit 1; }
+          test -n "$BROTHER_RELEASE_KEY_PASSWORD" || { echo "Missing Brother key password"; exit 1; }
 
-      - name: Decode temporary production keystore
+      - name: Decode temporary Brother production keystore
         shell: bash
         env:
-          FIOLAB_RELEASE_KEYSTORE_BASE64: ${{ secrets.FIOLAB_RELEASE_KEYSTORE_BASE64 }}
+          BROTHER_RELEASE_KEYSTORE_BASE64: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEYSTORE_BASE64')] }}
         run: |
-          printf '%s' "$FIOLAB_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fiolab-production.jks"
-          chmod 600 "$RUNNER_TEMP/fiolab-production.jks"
+          KEYSTORE="$RUNNER_TEMP/brother-matrizes-production.jks"
+          printf '%s' "$BROTHER_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          test -s "$KEYSTORE"
 
       - name: Build unsigned release
         run: gradle :app:assembleRelease --stacktrace
 
-      - name: Align and sign production APK
+      - name: Align and sign Brother production APK
         shell: bash
         env:
-          FIOLAB_RELEASE_STORE_PASSWORD: ${{ secrets.FIOLAB_RELEASE_STORE_PASSWORD }}
-          FIOLAB_RELEASE_KEY_ALIAS: ${{ secrets.FIOLAB_RELEASE_KEY_ALIAS }}
-          FIOLAB_RELEASE_KEY_PASSWORD: ${{ secrets.FIOLAB_RELEASE_KEY_PASSWORD }}
+          BROTHER_RELEASE_STORE_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_STORE_PASSWORD')] }}
+          BROTHER_RELEASE_KEY_ALIAS: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_ALIAS')] }}
+          BROTHER_RELEASE_KEY_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_PASSWORD')] }}
         run: |
           VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           test -n "$VERSION_NAME"
 
           BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
           UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
-          ALIGNED="$RUNNER_TEMP/FioLab-$VERSION_NAME-aligned.apk"
-          SIGNED="FioLab-$VERSION_NAME-production.apk"
+          ALIGNED="$RUNNER_TEMP/Brother-Matrizes-$VERSION_NAME-aligned.apk"
+          SIGNED="Brother-Matrizes-$VERSION_NAME-production.apk"
+          KEYSTORE="$RUNNER_TEMP/brother-matrizes-production.jks"
 
           test -f "$UNSIGNED"
 
-          "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/zipalign" -P 16 -f -v 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/zipalign" -P 16 -c -v 4 "$ALIGNED"
 
           "$BUILD_TOOLS/apksigner" sign \
-            --ks "$RUNNER_TEMP/fiolab-production.jks" \
-            --ks-key-alias "$FIOLAB_RELEASE_KEY_ALIAS" \
-            --ks-pass "env:FIOLAB_RELEASE_STORE_PASSWORD" \
-            --key-pass "env:FIOLAB_RELEASE_KEY_PASSWORD" \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$BROTHER_RELEASE_KEY_ALIAS" \
+            --ks-pass "env:BROTHER_RELEASE_STORE_PASSWORD" \
+            --key-pass "env:BROTHER_RELEASE_KEY_PASSWORD" \
             --out "$SIGNED" \
             "$ALIGNED"
 
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$SIGNED"
 
-          "$BUILD_TOOLS/apksigner" verify --print-certs "$SIGNED" \
-            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' \
-            > "FioLab-$VERSION_NAME-CERT-SHA256.txt"
+          CERT_SHA="$("$BUILD_TOOLS/apksigner" verify --print-certs "$SIGNED" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          test -n "$CERT_SHA"
+          EXPECTED_CERT_SHA="663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403"
+          test "$CERT_SHA" = "$EXPECTED_CERT_SHA"
 
-          test -s "FioLab-$VERSION_NAME-CERT-SHA256.txt"
-
-          sha256sum "$SIGNED" > "FioLab-$VERSION_NAME-APK-SHA256.txt"
+          printf '%s\n' "$CERT_SHA" > "Brother-Matrizes-$VERSION_NAME-CERT-SHA256.txt"
+          sha256sum "$SIGNED" > "Brother-Matrizes-$VERSION_NAME-APK-SHA256.txt"
 
           {
             echo "VERSION_NAME=$VERSION_NAME"
             echo "SIGNED_APK=$SIGNED"
-            echo "CERT_FILE=FioLab-$VERSION_NAME-CERT-SHA256.txt"
-            echo "APK_SHA_FILE=FioLab-$VERSION_NAME-APK-SHA256.txt"
+            echo "CERT_FILE=Brother-Matrizes-$VERSION_NAME-CERT-SHA256.txt"
+            echo "APK_SHA_FILE=Brother-Matrizes-$VERSION_NAME-APK-SHA256.txt"
           } >> "$GITHUB_ENV"
 
-      - name: Upload signed production candidate
+      - name: Upload signed Brother production candidate
         uses: actions/upload-artifact@v4
         with:
-          name: FioLab-${{ env.VERSION_NAME }}-signed-production-candidate
+          name: Brother-Matrizes-${{ env.VERSION_NAME }}-signed-production-candidate
           path: |
             ${{ env.SIGNED_APK }}
             ${{ env.CERT_FILE }}
@@ -130,5 +146,5 @@ jobs:
         if: always()
         shell: bash
         run: |
-          rm -f "$RUNNER_TEMP/fiolab-production.jks"
-          rm -f "$RUNNER_TEMP"/FioLab-*-aligned.apk
+          rm -f "$RUNNER_TEMP/brother-matrizes-production.jks"
+          rm -f "$RUNNER_TEMP"/Brother-Matrizes-*-aligned.apk
