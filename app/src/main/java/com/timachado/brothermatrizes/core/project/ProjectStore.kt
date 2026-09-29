@@ -37,6 +37,9 @@ object ProjectCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_PROJECT"
 
+    private val LEGACY_MAGIC =
+        "FIO" + "LAB_PROJECT"
+
     private const val VERSION =
         3
 
