@@ -158,7 +158,7 @@ class MatrixEditorTest {
         EmbroideryDesign(
             fileName = "editor.dst",
             format = "DST",
-            label = "FIOLAB",
+            label = "BROTHER",
             points =
                 listOf(
                     EmbroideryPoint(
