@@ -2,7 +2,7 @@
 
 ## EmbroideryIO
 
-FioLab uses **EmbroideryIO** by the EmbroidePy project as a compatibility engine for selected embroidery formats.
+Brother Matrizes uses **EmbroideryIO** by the EmbroidePy project as a compatibility engine for selected embroidery formats.
 
 Repository: https://github.com/EmbroidePy/EmbroideryIO
 
@@ -22,4 +22,4 @@ https://github.com/EmbroidePy/samples
 
 The sample repository is distributed under the MIT License.
 
-These fixtures are not part of FioLab runtime functionality and are included solely to validate format parsing in CI.
+These fixtures are not part of Brother Matrizes runtime functionality and are included solely to validate format parsing in CI.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.46.10
+
+### Identidade técnica Brother Matrizes
+- Namespace e applicationId migrados para com.timachado.brothermatrizes.
+- Callback OAuth migrado para com.timachado.brothermatrizes://login-callback.
+- Identificadores, recursos, nomes de backup, artefatos e tabelas esperadas passam a usar Brother Matrizes.
+- Fluxo Google deixa de forçar Custom Tabs e usa a ação externa padrão do Android/Supabase.
+- Motor de bordado e correções da linha 0.46.9 permanecem preservados.
+
+
 ## 0.46.9
 
 ### Início correto da letra
@@ -13,14 +23,14 @@
 ## 0.46.8
 
 ### Sequência Satin refeita com referência no comportamento do Mão Design
-- A inspeção do APK de referência confirmou o uso de um pipeline baseado em amostragem/divisão de colunas Satin; a implementação do FioLab continua própria e não reutiliza código proprietário.
+- A inspeção do APK de referência confirmou o uso de um pipeline baseado em amostragem/divisão de colunas Satin; a implementação do Brother Matrizes continua própria e não reutiliza código proprietário.
 - Removida a estratégia agressiva da 0.46.7 que costurava todas as colunas da letra em sequência mesmo quando a ligação atravessava área vazia.
 - Cada coluna pode ser invertida e trocar os lados A/B para começar pelo ponto mais próximo e reduzir deslocamentos.
 - O underlay passa a fazer edge-run: uma borda para frente, cruza somente no final e retorna pela outra borda uma única vez.
 - O preenchimento Satin principal passa a alternar um único lado por linha amostrada, evitando a duplicação de cruzamentos que existia antes.
 - Entre colunas da mesma letra, a ligação vira ponto corrido somente quando todo o segmento permanece dentro ou encostado na área preenchida do glifo.
 - Quando a ligação atravessaria buraco/área vazia, o gerador usa JUMP em vez de costurar uma diagonal visível.
-- Entre caracteres consecutivos muito próximos (até 1,2 mm), o FioLab pode manter a ligação em ponto corrido, útil em fontes cursivas; acima disso reposiciona.
+- Entre caracteres consecutivos muito próximos (até 1,2 mm), o Brother Matrizes pode manter a ligação em ponto corrido, útil em fontes cursivas; acima disso reposiciona.
 - Locks internos do motor TTF/OTF foram removidos para evitar arremate duplicado; tie-in/tie-off continuam sendo aplicados uma única vez pela camada MachineFinishing.
 - Adicionados testes para colunas conectadas, áreas desconectadas, Satin alternado e underlay ida/volta.
 
@@ -51,9 +61,9 @@
 
 ### Ajuste automático ao bastidor
 - Criar Nome ganha a opção “Ajustar ao bastidor”, ativada por padrão.
-- Ao trocar o bastidor, texto, fonte, espaçamento, composição ou parâmetros que alteram a geometria, o FioLab recalcula automaticamente a maior altura que cabe na área útil.
+- Ao trocar o bastidor, texto, fonte, espaçamento, composição ou parâmetros que alteram a geometria, o Brother Matrizes recalcula automaticamente a maior altura que cabe na área útil.
 - O cálculo usa a área segura real do bastidor, preservando a margem de 5 mm por lado já existente.
-- O ajuste funciona com fontes FioLab e também TTF/OTF importadas.
+- O ajuste funciona com fontes Brother Matrizes e também TTF/OTF importadas.
 - O usuário pode desligar o modo automático e voltar ao controle manual de altura.
 - O limite interno de altura foi alinhado ao controle visual: 4 a 60 mm, mantendo a política de complexidade e segurança do gerador.
 - O redimensionamento acontece antes de criar/exportar a matriz; o fluxo Enviar para máquina continua sem redimensionamento oculto.
@@ -75,7 +85,7 @@
 
 ### Histórico de envios
 - Adicionado botão ✕ em cada item da aba Enviados para remover somente aquele registro do histórico.
-- Adicionada ação “Limpar recentes” para apagar de uma vez o histórico de envios exibido no FioLab.
+- Adicionada ação “Limpar recentes” para apagar de uma vez o histórico de envios exibido no Brother Matrizes.
 - A interface informa explicitamente que remover o histórico não apaga a matriz salva nem o arquivo já gravado no pendrive.
 - Nenhum arquivo do armazenamento USB, bordadeira ou Biblioteca é excluído por essas ações.
 - Correção de orientação da 0.46.2 permanece preservada.
@@ -83,7 +93,7 @@
 ## 0.46.2
 
 ### Correção crítica de orientação na máquina
-- Corrigida a adaptação do eixo Y entre as coordenadas cartesianas usadas por matrizes criadas no FioLab e o sistema interno do EmbroideryIO.
+- Corrigida a adaptação do eixo Y entre as coordenadas cartesianas usadas por matrizes criadas no Brother Matrizes e o sistema interno do EmbroideryIO.
 - PES, DST e JEF exportados pelo fluxo Enviar para máquina deixam de receber inversão vertical indevida.
 - Matrizes importadas por PES/JEF preservam a convenção de origem e não recebem dupla inversão.
 - Salvamento USB OTG continua apenas gravando os bytes preparados; nenhuma transformação é aplicada pelo pendrive.
@@ -95,7 +105,7 @@
 
 ### Clareza sobre armazenamento de fontes
 - Biblioteca de Fontes deixa explícito que TTF/OTF importadas ficam salvas somente no aparelho atual.
-- A interface informa que fontes importadas não são enviadas nem sincronizadas com a conta FioLab.
+- A interface informa que fontes importadas não são enviadas nem sincronizadas com a conta Brother Matrizes.
 - “Minhas fontes salvas” passa a “Minhas fontes neste aparelho”; o cabeçalho também aparece quando ainda não há fonte importada.
 - Mensagens após importação e os cards das fontes passam a reforçar o escopo local.
 - Smoke test instrumentado passa a validar essa comunicação no Android.
@@ -121,7 +131,7 @@
 
 ### Atualização segura e integridade de distribuição
 - Minha Conta passa a exibir um cartão próprio de atualizações para usuários autenticados e não autenticados.
-- A verificação consulta somente a release pública oficial do repositório FioLab por HTTPS e nunca instala APK silenciosamente.
+- A verificação consulta somente a release pública oficial do repositório Brother Matrizes por HTTPS e nunca instala APK silenciosamente.
 - Comparação de versões é feita localmente e o botão de atualização só abre a página HTTPS da release quando existir versão mais nova.
 - Falhas de rede ou indisponibilidade do serviço não bloqueiam o uso do aplicativo; o usuário pode tentar novamente manualmente.
 - A versão exibida na Home passa a usar BuildConfig.VERSION_NAME, evitando rótulo manual desatualizado em futuras builds.
@@ -135,7 +145,7 @@
 - Backup automático do Android desabilitado para evitar migração involuntária de sessão/tokens; a Biblioteca continua com backup próprio controlado pelo usuário.
 - Tráfego HTTP em texto claro desabilitado no aplicativo.
 - Adicionada detecção de conexão validada para os fluxos de Minha Conta.
-- Em modo offline, o FioLab informa claramente que a sessão não foi encerrada e preserva os dados já carregados na tela.
+- Em modo offline, o Brother Matrizes informa claramente que a sessão não foi encerrada e preserva os dados já carregados na tela.
 - Login, cadastro, atualização de perfil e assinatura passam a mostrar mensagens seguras para rede indisponível, credenciais inválidas, e-mail não confirmado, sessão expirada e excesso de tentativas.
 - Detalhes crus do backend deixam de aparecer no callback do Google.
 - Avatar remoto exige HTTPS, possui timeout e limite de 4 MB para reduzir risco de travamento/memória excessiva.
@@ -182,7 +192,7 @@
 - Contagens derivadas de pontos, saltos, trocas de cor, comando END e limites são recalculadas a partir dos comandos reais, evitando metadados inconsistentes.
 - Arquivos sem pontos de costura, sem coordenadas válidas ou com índices de cor impossíveis são rejeitados antes de chegar ao Viewer/Editor.
 - Matrizes sem comando END continuam aceitas quando estruturalmente válidas, mas são tratadas como caso de atenção no fluxo de envio.
-- Projetos FioLab são validados tanto ao salvar quanto ao reabrir; projeto estruturalmente inválido não é persistido silenciosamente.
+- Projetos Brother Matrizes são validados tanto ao salvar quanto ao reabrir; projeto estruturalmente inválido não é persistido silenciosamente.
 - Dimensões de `EmbroideryBounds` agora usam aritmética segura para evitar overflow com coordenadas extremas.
 - Importações de matriz possuem limite de segurança de 64 MB e leitura controlada, evitando consumo de memória ilimitado por arquivo malformado.
 - Adicionados testes de regressão para normalização de metadados, ausência de pontos, ausência de END e coordenadas extremas.
@@ -193,32 +203,32 @@
 
 ### Consolidação de conta, assinatura, biblioteca e envio
 - **Minha Conta:** avatar do Google quando disponível, nome/e-mail, plano, status, início, renovação, dispositivos conectados e saída da conta.
-- O aparelho autenticado é registrado com identificador derivado localmente, modelo, versão do FioLab e último acesso; nenhum IMEI ou número de telefone é armazenado.
+- O aparelho autenticado é registrado com identificador derivado localmente, modelo, versão do Brother Matrizes e último acesso; nenhum IMEI ou número de telefone é armazenado.
 - **Assinaturas:** botão Restaurar / atualizar assinatura, histórico existente preservado e suporte a link seguro de gerenciamento WooCommerce para renovar/cancelar quando a compra estiver vinculada.
 - Vitalício e Vitalício de Lançamento continuam sem renovação/cancelamento recorrente.
 - Adicionada política central de acesso `CORE` / `PRO_ONLY`; nenhum recurso atual foi bloqueado arbitrariamente antes de definirmos o mapa comercial dos produtos WooCommerce.
 - **Biblioteca:** unifica Minhas Matrizes, Recentes, Favoritos, Enviados e acesso às Fontes salvas.
 - Aberturas de projetos salvos alimentam Recentes; favoritos ficam persistentes no aparelho; arquivos entregues por USB/OTG ou Wi-Fi/app entram no histórico Enviados.
 - **Envio à máquina:** mantém PES/DST/JEF, USB OTG/pendrive e Wi-Fi/app, acrescentando validação obrigatória de formato, pontos, dimensões e encaixe no bastidor antes de liberar o envio.
-- O FioLab não redimensiona silenciosamente uma matriz apenas para fazê-la caber no bastidor.
+- O Brother Matrizes não redimensiona silenciosamente uma matriz apenas para fazê-la caber no bastidor.
 - Backend ganha tabela de dispositivos com RLS por usuário e campo opcional de URL de gerenciamento da assinatura.
 - Motor de bordado, TTF/OTF, Satin, orientação e simulação permanecem inalterados.
 
 ## 0.39.0
 
-### Sobre o FioLab e crédito de desenvolvimento
-- Minha Conta ganha a seção **Sobre o FioLab**, disponível com ou sem login.
+### Sobre o Brother Matrizes e crédito de desenvolvimento
+- Minha Conta ganha a seção **Sobre o Brother Matrizes**, disponível com ou sem login.
 - A seção mostra a versão instalada e a assinatura **Desenvolvido por T.I. Machado — Soluções em Tecnologia**.
 - Incluído acesso direto ao site/portfólio de T.I. Machado.
-- O crédito foi mantido discreto, fora da Home, preservando o protagonismo da marca FioLab.
+- O crédito foi mantido discreto, fora da Home, preservando o protagonismo da marca Brother Matrizes.
 - Login Google, assinaturas, biblioteca de fontes e motor de bordado permanecem inalterados.
 
 ## 0.38.0
 
 ### Login com Google
 - Adicionada a opção “Continuar com Google” em Minha Conta, mantendo login e cadastro por e-mail/senha.
-- OAuth do Supabase usa PKCE e callback próprio do Android: `com.timachado.fiolab://login-callback`.
-- Após autenticar no navegador, o FioLab retorna automaticamente para Minha Conta e recarrega perfil e assinatura.
+- OAuth do Supabase usa PKCE e callback próprio do Android: `com.timachado.brothermatrizes://login-callback`.
+- Após autenticar no navegador, o Brother Matrizes retorna automaticamente para Minha Conta e recarrega perfil e assinatura.
 - Login Google usa a mesma sessão Supabase dos demais logins; não cria um sistema de conta paralelo.
 - O fluxo continua compatível com o vínculo de planos do WooCommerce pelo usuário/e-mail no backend.
 - Adicionada tela de callback para sucesso/erro sem expor tokens no app.
@@ -228,7 +238,7 @@
 
 ### Minha Conta e assinaturas
 - Minha Conta passa a acompanhar o plano vinculado à conta Supabase com atualização manual imediata.
-- Catálogo oficial de planos: Gratuito, FioLab Pro Mensal, FioLab Pro Anual, FioLab Vitalício e FioLab Vitalício • Lançamento.
+- Catálogo oficial de planos: Gratuito, Brother Matrizes Pro Mensal, Brother Matrizes Pro Anual, Brother Matrizes Vitalício e Brother Matrizes Vitalício • Lançamento.
 - Planos vitalícios aparecem como acesso permanente e não exibem renovação ou próxima cobrança.
 - O Vitalício Promocional de Lançamento mantém identificação própria e recebe o selo de Membro de Lançamento.
 - A assinatura passa a guardar data da compra, preço pago, moeda, provedor e referência externa sem permitir alteração desses dados pelo APK.
@@ -245,9 +255,9 @@
 - Os pontos reais da matriz e os bytes originais não são invertidos, preservando exportação, transferência e sequência de bordado.
 - Viewer, Editor e Simulador passam a usar a mesma regra de orientação.
 - Sólida, Pontos e Realista passam a compartilhar o mesmo fundo de tecido, grade, bastidor, escala e enquadramento; somente o estilo de desenho dos pontos muda entre os modos.
-- A orientação de renderização passa a ser salva nos projetos FioLab para não se perder ao reabrir uma matriz salva.
+- A orientação de renderização passa a ser salva nos projetos Brother Matrizes para não se perder ao reabrir uma matriz salva.
 - O formato interno de projeto sobe para v3 mantendo leitura compatível com projetos v1/v2.
-- Incluídos testes de regressão para orientação de coordenadas importadas e coordenadas nativas do FioLab.
+- Incluídos testes de regressão para orientação de coordenadas importadas e coordenadas nativas do Brother Matrizes.
 - Geração de matrizes, TTF/OTF, Satin, conversão e sequência de pontos permanecem inalterados.
 
 ## 0.35.0
@@ -276,7 +286,7 @@
 
 ### Biblioteca de fontes persistente
 - A Home passa a exibir **Biblioteca de fontes** com acesso direto ao gerenciamento de TTF/OTF.
-- A ação principal agora é **Importar e salvar fonte TTF/OTF**, deixando explícito que a fonte fica armazenada no FioLab.
+- A ação principal agora é **Importar e salvar fonte TTF/OTF**, deixando explícito que a fonte fica armazenada no Brother Matrizes.
 - Fontes salvas continuam disponíveis em **Criar Nome** até serem excluídas pelo usuário.
 - Importações repetidas são reconhecidas e não criam cópias duplicadas.
 - A seção de Criar Nome passa a usar o rótulo **Fontes salvas** e orienta o usuário a usar a Biblioteca de fontes na Home.
@@ -337,7 +347,7 @@
 - Ponto Feijão: repete cada pequeno trecho em ida/volta/ida para engrossar e marcar o traçado sem depender de Satin.
 - Ponto Corrido Triplo: percorre o caminho completo três vezes, frente/volta/frente, aumentando durabilidade e visibilidade.
 - Ponto de Motivo: aplica um padrão decorativo repetido ao longo do traçado, com deslocamentos laterais controlados.
-- Os três modos funcionam tanto com fontes FioLab quanto com TTF/OTF importadas.
+- Os três modos funcionam tanto com fontes Brother Matrizes quanto com TTF/OTF importadas.
 - Ao selecionar um ponto especial, o motor usa automaticamente o traçado corrido como base; ao selecionar Satin ou Ponto corrido na aba Tamanho, o modo especial é limpo.
 - Underlay e short stitches continuam disponíveis internamente para o Satin conforme o perfil de tecido, sem poluir a interface.
 - Mantido o guia vetorial reforçado da simulação para comparar a fonte original com o bordado gerado.
@@ -351,7 +361,7 @@
 - O simulador desenha esse guia como silhueta translúcida rosé com contorno mais definido.
 - A linha realmente costurada continua por cima, permitindo comparar visualmente cobertura, direção e desvios do Satin.
 - O guia usa preenchimento EvenOdd para preservar contraformas e furos internos das letras.
-- Projetos FioLab passam ao formato interno v2 para persistir o guia vetorial; projetos v1 continuam sendo aceitos normalmente.
+- Projetos Brother Matrizes passam ao formato interno v2 para persistir o guia vetorial; projetos v1 continuam sendo aceitos normalmente.
 - Matrizes importadas sem guia vetorial continuam usando a prévia fantasma anterior como fallback.
 
 ## 0.26.0
@@ -388,7 +398,7 @@
 
 ### Satin de fontes e simulação
 - Analisado o comportamento do Mão Design a partir do vídeo e do APK fornecidos, usando apenas a arquitetura/comportamento como referência.
-- O FioLab passa a separar claramente digitalização da fonte e renderização da simulação.
+- O Brother Matrizes passa a separar claramente digitalização da fonte e renderização da simulação.
 - O modo Satin de TTF/OTF não possui mais fallback silencioso para preenchimento horizontal.
 - Glifos simples usam colunas Satin normais; geometrias complexas usam colunas Satin conservadoras, mantendo o mesmo princípio de costura.
 - Trechos do eixo são ordenados por proximidade para reduzir deslocamentos e manter uma sequência natural.
@@ -457,7 +467,7 @@
 - Cards secundários reorganizados com shapes maiores, elevação tonal e estados habilitado/desabilitado mais claros.
 - Barra inferior mantém cinco destinos e passa a usar ícones vetoriais reais em vez de caracteres de texto.
 - Ícones importados do conjunto oficial Material Symbols Rounded do Google para Início, Criar, Matrizes, Fontes, Conta, Abrir, Simular, Editar, Converter e Enviar.
-- Tema FioLab passa a definir escala própria de shapes e tipografia Material 3, preservando a identidade dourado + azul-escuro.
+- Tema Brother Matrizes passa a definir escala própria de shapes e tipografia Material 3, preservando a identidade dourado + azul-escuro.
 - Mantida a base Compose compatível com o SDK 36 atual do projeto, aplicando a linguagem visual M3 Expressive sem quebrar a pipeline.
 
 ## 0.22.0
@@ -467,7 +477,7 @@
 - Prévia permanece grande e atualiza em tempo real.
 - Controles separados em abas curtas: Texto, Fonte, Tamanho, Cor e Mais.
 - Texto concentra digitação e formato reto/arco.
-- Fonte concentra famílias FioLab e TTF/OTF importadas.
+- Fonte concentra famílias Brother Matrizes e TTF/OTF importadas.
 - Tamanho concentra altura, espaçamento e tipo/densidade de ponto.
 - Cor concentra a paleta de linha.
 - Bastidor, tecido, formato e ajustes técnicos ficam em Mais.
@@ -530,13 +540,13 @@
 - A fonte é validada antes do cadastro e copiada para o armazenamento privado do aplicativo.
 - Limite de 12 MB por arquivo e bloqueio de extensões fora de TTF/OTF.
 - Fontes importadas podem ser visualizadas e excluídas na própria biblioteca.
-- Fontes importadas aparecem em Criar Nome sem remover ou substituir as famílias nativas do FioLab.
+- Fontes importadas aparecem em Criar Nome sem remover ou substituir as famílias nativas do Brother Matrizes.
 - O desenho vetorial dos glifos é extraído da fonte e convertido em trajetórias de bordado.
 - Mantidos altura, espaçamento, ponto corrido/Satin, densidade, underlay, tecido, bastidor, cores, arco e ajustes por letra.
 - A fonte importada preserva maiúsculas/minúsculas e caracteres suportados pelo próprio arquivo de fonte.
 
 ### Preservado
-- Fontes nativas FioLab e o motor de texto existente.
+- Fontes nativas Brother Matrizes e o motor de texto existente.
 - Geração, simulação, edição, exportação e transferência já existentes.
 - Minha Conta/Supabase continua isolada da inicialização.
 - Identidade visual e recursos de logo/launcher da 0.21.4.
@@ -546,7 +556,7 @@
 ## 0.21.3
 
 ### Hotfix de logo e inicialização
-- Substituído o recurso de imagem corrompido por uma cópia válida da arte original FioLab Matrizes.
+- Substituído o recurso de imagem corrompido por uma cópia válida da arte original Brother Matrizes Matrizes.
 - A mesma arte válida é usada na Home e como ícone/roundIcon do aplicativo.
 - Removida a dependência do mipmap corrompido da versão anterior.
 - Mantido o isolamento de Minha Conta/Supabase da inicialização da Home.
@@ -560,13 +570,13 @@
 - O GitHub Actions reconstrói o JPG válido antes de executar testes e build.
 - Os binários corrompidos deixam de ficar armazenados diretamente no repositório.
 - O mesmo JPG reconstruído alimenta a Home e o ícone do launcher.
-- A imagem continua sendo a arte original FioLab Matrizes, sem redesenho.
+- A imagem continua sendo a arte original Brother Matrizes Matrizes, sem redesenho.
 
 
 ## 0.21.3
 
 ### Correção crítica de imagem
-- Substitui a logo interna corrompida por uma cópia válida da arte original FioLab Matrizes.
+- Substitui a logo interna corrompida por uma cópia válida da arte original Brother Matrizes Matrizes.
 - Substitui o recurso de launcher corrompido pela mesma arte original redimensionada.
 - Remove o PNG inválido que fazia o Android usar o ícone verde genérico.
 - A Home deixa de tentar decodificar o arquivo gráfico corrompido que podia causar fechamento imediato.
@@ -583,14 +593,14 @@
 
 ### Launcher
 - Ícone principal passa a usar recurso mipmap próprio.
-- A arte FioLab Matrizes fornecida pelo projeto continua sendo a identidade do app.
+- A arte Brother Matrizes Matrizes fornecida pelo projeto continua sendo a identidade do app.
 - Corrige o fallback visual para o ícone Android genérico em launchers/instaladores compatíveis.
 
 
 ## 0.21.1
 
 ### Identidade visual
-- A imagem FioLab Matrizes enviada pelo projeto passa a ser o ícone do launcher.
+- A imagem Brother Matrizes Matrizes enviada pelo projeto passa a ser o ícone do launcher.
 - A mesma arte aparece no cabeçalho da Home.
 - O ícone antigo com a letra "F" deixa de ser usado como identidade principal.
 - A arte foi apenas dimensionada para uso no Android; não foi redesenhada.
@@ -616,13 +626,13 @@
 - O aplicativo tem apenas leitura da assinatura; não consegue se autoatribuir plano pago.
 
 ### Backend
-- Tabelas próprias public.fiolab_profiles e public.fiolab_subscriptions.
+- Tabelas próprias public.brother_matrizes_profiles e public.brother_matrizes_subscriptions.
 - RLS habilitado.
 - Usuário só lê/edita o próprio perfil.
 - Usuário só lê a própria assinatura.
 - Nenhuma permissão de escrita de assinatura para o cliente Android.
-- Perfil/assinatura padrão são criados para cadastros identificados com app_slug=fiolab.
-- Estrutura versionada em supabase/fiolab_account_schema.sql.
+- Perfil/assinatura padrão são criados para cadastros identificados com app_slug=brother_matrizes.
+- Estrutura versionada em supabase/brother_matrizes_account_schema.sql.
 
 ### Dependências
 - supabase-kt 3.2.3.
@@ -643,7 +653,7 @@
 
 ### Segurança do backup
 - Formato de backup versionado.
-- Manifesto interno identifica backups válidos do FioLab.
+- Manifesto interno identifica backups válidos do Brother Matrizes.
 - Cada projeto é validado pelo codec antes de entrar no backup.
 - Restauração rejeita backup incompleto, corrompido ou com versão não suportada.
 - Proteções de quantidade e tamanho evitam arquivos ZIP malformados/excessivos.
@@ -660,7 +670,7 @@
 
 ### Minhas Matrizes
 - Nova biblioteca local "Minhas Matrizes".
-- Salva projetos dentro do armazenamento privado do FioLab.
+- Salva projetos dentro do armazenamento privado do Brother Matrizes.
 - Não exige conta, internet ou serviço externo.
 - Botão "Salvar em Minhas Matrizes" no visualizador.
 - Reabrir projeto salvo.
@@ -668,7 +678,7 @@
 - Enviar uma matriz salva diretamente para a máquina.
 - Salvar novamente a mesma matriz atualiza sua cópia local em vez de gerar duplicatas.
 
-### Projeto FioLab
+### Projeto Brother Matrizes
 - Formato interno versionado para preservar pontadas.
 - Preserva comandos STITCH/JUMP/TRIM/COLOR_CHANGE/END.
 - Preserva paleta de cores.
@@ -720,7 +730,7 @@
 ## 0.17.0
 
 ### Foco do produto
-- O FioLab permanece um app leve para criar fontes, nomes, monogramas e matrizes.
+- O Brother Matrizes permanece um app leve para criar fontes, nomes, monogramas e matrizes.
 - Não tenta substituir softwares completos de digitalização profissional.
 - O acabamento técnico continua automático por baixo, sem ocupar a interface principal.
 
@@ -778,7 +788,7 @@
 - Cor individual por letra no Criar Nome.
 - Cor individual por inicial no Criar Monograma.
 - Cores iguais consecutivas permanecem no mesmo bloco.
-- Quando a cor muda, o FioLab insere COLOR_CHANGE real na sequência.
+- Quando a cor muda, o Brother Matrizes insere COLOR_CHANGE real na sequência.
 - Se uma cor voltar depois de outro bloco, uma nova troca é criada.
 - Cada ponto recebe o índice de cor correspondente ao bloco.
 - Paleta da sequência preservada no modelo da matriz.
@@ -925,7 +935,7 @@
 - Testes de densidade, underlay e exportação.
 
 ### Observação
-- Esta é a primeira geração Satin do FioLab, baseada nos caminhos próprios das letras.
+- Esta é a primeira geração Satin do Brother Matrizes, baseada nos caminhos próprios das letras.
 - Curvas e encontros complexos ainda serão refinados em versões seguintes para melhorar compensação, cantos e acabamento profissional.
 
 
@@ -951,7 +961,7 @@
 - O simulador representa as pontadas que realmente existem na matriz.
 - Uma matriz satin aparece preenchendo progressivamente as letras.
 - Uma matriz de ponto corrido permanece como ponto corrido.
-- O FioLab não desenha preenchimento falso que não exista no arquivo.
+- O Brother Matrizes não desenha preenchimento falso que não exista no arquivo.
 
 ## 0.7.0
 

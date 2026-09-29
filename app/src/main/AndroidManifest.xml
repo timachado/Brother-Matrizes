@@ -9,11 +9,11 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:usesCleartextTraffic="false"
-        android:icon="@drawable/fiolab_brand_logo"
+        android:icon="@drawable/brother_matrizes_brand_logo"
         android:label="Brother Matrizes"
-        android:roundIcon="@drawable/fiolab_brand_logo"
+        android:roundIcon="@drawable/brother_matrizes_brand_logo"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FioLab">
+        android:theme="@style/Theme.BrotherMatrizes">
 
         <activity
             android:name=".AuthCallbackActivity"
@@ -23,7 +23,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.timachado.fiolab"
+                    android:scheme="com.timachado.brothermatrizes"
                     android:host="login-callback" />
             </intent-filter>
         </activity>

@@ -1,6 +1,6 @@
-# FioLab — assinatura de produção
+# Brother Matrizes — assinatura de produção
 
-A chave definitiva de produção **não deve ser adicionada ao repositório**. O FioLab possui um workflow manual separado em `.github/workflows/android-production-sign.yml`, que só funciona quando os secrets de assinatura estiverem configurados.
+A chave definitiva de produção **não deve ser adicionada ao repositório**. O Brother Matrizes possui um workflow manual separado em `.github/workflows/android-production-sign.yml`, que só funciona quando os secrets de assinatura estiverem configurados.
 
 ## Geradores locais prontos
 
@@ -9,7 +9,7 @@ O repositório inclui dois scripts que **não armazenam senha** e criam a chave 
 - Windows PowerShell: `scripts/create_production_keystore.ps1`
 - Linux/macOS: `scripts/create_production_keystore.sh`
 
-Por padrão, ambos usam `FioLab-Production-Key` dentro da pasta pessoal do usuário. Eles não sobrescrevem uma keystore já existente.
+Por padrão, ambos usam `Brother-Matrizes-Production-Key` dentro da pasta pessoal do usuário. Eles não sobrescrevem uma keystore já existente.
 
 Windows:
 
@@ -31,8 +31,8 @@ Em um computador confiável com JDK instalado:
 
 ```bash
 keytool -genkeypair -v \
-  -keystore fiolab-production.jks \
-  -alias fiolab-production \
+  -keystore brother-matrizes-production.jks \
+  -alias brother-matrizes-production \
   -keyalg RSA \
   -keysize 4096 \
   -validity 10000
@@ -47,13 +47,13 @@ Faça pelo menos duas cópias seguras da keystore em locais independentes. Perde
 Linux/macOS:
 
 ```bash
-base64 < fiolab-production.jks | tr -d '\n' > fiolab-production.base64.txt
+base64 < brother-matrizes-production.jks | tr -d '\n' > brother-matrizes-production.base64.txt
 ```
 
 PowerShell:
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("fiolab-production.jks")) | Set-Content -NoNewline fiolab-production.base64.txt
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("brother-matrizes-production.jks")) | Set-Content -NoNewline brother-matrizes-production.base64.txt
 ```
 
 O arquivo Base64 continua sendo material secreto e deve ser protegido como a própria keystore.
@@ -64,7 +64,7 @@ Configurar no repositório:
 
 - `FIOLAB_RELEASE_KEYSTORE_BASE64` — conteúdo Base64 completo da keystore.
 - `FIOLAB_RELEASE_STORE_PASSWORD` — senha da keystore.
-- `FIOLAB_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `fiolab-production`.
+- `FIOLAB_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `brother-matrizes-production`.
 - `FIOLAB_RELEASE_KEY_PASSWORD` — senha da chave.
 
 O workflow não imprime esses valores e cria a keystore somente no armazenamento temporário do runner.

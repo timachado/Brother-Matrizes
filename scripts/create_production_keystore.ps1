@@ -1,11 +1,11 @@
 param(
-    [string]$OutputDir = (Join-Path $HOME "FioLab-Production-Key")
+    [string]$OutputDir = (Join-Path $HOME "Brother-Matrizes-Production-Key")
 )
 
 $ErrorActionPreference = "Stop"
-$Alias = "fiolab-production"
-$Keystore = Join-Path $OutputDir "fiolab-production.jks"
-$Base64File = Join-Path $OutputDir "fiolab-production.base64.txt"
+$Alias = "brother-matrizes-production"
+$Keystore = Join-Path $OutputDir "brother-matrizes-production.jks"
+$Base64File = Join-Path $OutputDir "brother-matrizes-production.base64.txt"
 
 if (-not (Get-Command keytool -ErrorAction SilentlyContinue)) {
     throw "Java keytool não encontrado. Instale um JDK 17+ e tente novamente."
@@ -71,5 +71,5 @@ Write-Host ""
 Write-Host "IMPORTANTE:"
 Write-Host "- faça duas cópias seguras da keystore;"
 Write-Host "- não envie a keystore por chat/e-mail;"
-Write-Host "- não coloque a keystore dentro do projeto FioLab;"
+Write-Host "- não coloque a keystore dentro do projeto Brother Matrizes;"
 Write-Host "- perder essa chave pode impedir atualizações compatíveis futuras."

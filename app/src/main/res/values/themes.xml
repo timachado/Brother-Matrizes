@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.FioLab" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.BrotherMatrizes" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">#08131D</item>

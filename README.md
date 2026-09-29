@@ -1,4 +1,4 @@
-# FioLab 0.46.9
+# Brother Matrizes 0.46.9
 
 Aplicativo Android nativo para criar, visualizar, editar, simular e converter matrizes de bordado diretamente pelo celular.
 
@@ -47,7 +47,7 @@ Recursos:
 - leitura do plano e status da assinatura;
 - validade/renovação quando houver.
 
-O backend usa tabelas **fiolab_*** separadas de outros aplicativos no mesmo projeto Supabase e protege os dados com RLS. O cliente Android pode editar o próprio perfil, mas não pode conceder a si mesmo uma assinatura paga.
+O backend usa tabelas **brother_matrizes_*** separadas de outros aplicativos no mesmo projeto Supabase e protege os dados com RLS. O cliente Android pode editar o próprio perfil, mas não pode conceder a si mesmo uma assinatura paga.
 
 A integração do pagamento/portal de assinatura entra na etapa seguinte. **Minhas Matrizes** continua local e offline por padrão.
 
@@ -78,11 +78,11 @@ O usuário pode:
 - enviar diretamente para a máquina por OTG ou Wi-Fi/app;
 - excluir quando não precisar mais.
 
-Os projetos ficam no armazenamento privado do FioLab. O formato interno preserva a sequência de pontadas, cores, bastidor, tecido e acabamento necessário para gerar novamente DST, PES ou JEF.
+Os projetos ficam no armazenamento privado do Brother Matrizes. O formato interno preserva a sequência de pontadas, cores, bastidor, tecido e acabamento necessário para gerar novamente DST, PES ou JEF.
 
 ## Criar desenho/logo
 
-A v0.18 fecha o terceiro pilar do FioLab: além de nomes e monogramas, o usuário pode criar uma matriz a partir de um **SVG simples** ou desenhar diretamente com o dedo.
+A v0.18 fecha o terceiro pilar do Brother Matrizes: além de nomes e monogramas, o usuário pode criar uma matriz a partir de um **SVG simples** ou desenhar diretamente com o dedo.
 
 Fluxo:
 1. importar SVG ou desenhar;
@@ -94,9 +94,9 @@ Fluxo:
 
 O suporte SVG inicial entende caminhos com linhas e curvas Bézier, além de formas básicas. Esta versão não tenta preencher automaticamente logos complexos e não promete abrir todo SVG existente.
 
-## Objetivo do FioLab
+## Objetivo do Brother Matrizes
 
-O FioLab não pretende ser um Wilcom no celular.
+O Brother Matrizes não pretende ser um Wilcom no celular.
 
 O fluxo principal é:
 1. criar um nome, monograma ou matriz;
@@ -113,14 +113,14 @@ A v0.17 adiciona uma tela própria de transferência.
 - toca em "Salvar no pendrive OTG";
 - o seletor do Android abre;
 - escolhe o armazenamento USB;
-- o FioLab grava a matriz no destino escolhido.
+- o Brother Matrizes grava a matriz no destino escolhido.
 
 **Wi-Fi / app da máquina**
-- o FioLab gera a matriz no formato escolhido;
+- o Brother Matrizes gera a matriz no formato escolhido;
 - abre o compartilhamento Android;
 - o usuário escolhe o app da bordadeira, pasta de rede ou outro destino compatível.
 
-O envio Wi-Fi direto não é universal: depende do protocolo/app oferecido pelo modelo da bordadeira. O FioLab não anuncia suporte direto a uma máquina sem validar esse protocolo.
+O envio Wi-Fi direto não é universal: depende do protocolo/app oferecido pelo modelo da bordadeira. O Brother Matrizes não anuncia suporte direto a uma máquina sem validar esse protocolo.
 
 ## Acabamento de Máquina
 
@@ -137,13 +137,13 @@ Recursos:
 
 A otimização é propositalmente conservadora: ela limpa deslocamentos redundantes, mas não reordena cores ou blocos. Isso evita alterar a intenção visual e a sequência multicor definida pelo usuário.
 
-O visualizador informa se existem pontos acima de 7 mm ou saltos acima de 12 mm. Esses valores são alertas de projeto do FioLab, não uma garantia universal de compatibilidade com qualquer máquina.
+O visualizador informa se existem pontos acima de 7 mm ou saltos acima de 12 mm. Esses valores são alertas de projeto do Brother Matrizes, não uma garantia universal de compatibilidade com qualquer máquina.
 
 ## Multicor por Letra e Bloco
 
 A v0.15 permite escolher cores diferentes para letras do nome e iniciais do monograma.
 
-O FioLab agrupa letras consecutivas da mesma cor no mesmo bloco. Quando a cor muda, a própria matriz recebe um comando **COLOR_CHANGE**.
+O Brother Matrizes agrupa letras consecutivas da mesma cor no mesmo bloco. Quando a cor muda, a própria matriz recebe um comando **COLOR_CHANGE**.
 
 Na Simulação de Máquina:
 - a costura para no COLOR_CHANGE;
@@ -212,7 +212,7 @@ A v0.11 adiciona bastidores genéricos:
 - 160×260 mm;
 - 200×300 mm.
 
-O FioLab reserva uma margem de segurança padrão de 5 mm por lado. A prévia é desenhada na proporção física do bastidor e informa se a matriz ultrapassa a área segura. Quando ultrapassa, **Criar matriz** e **Simular agora** ficam bloqueados.
+O Brother Matrizes reserva uma margem de segurança padrão de 5 mm por lado. A prévia é desenhada na proporção física do bastidor e informa se a matriz ultrapassa a área segura. Quando ultrapassa, **Criar matriz** e **Simular agora** ficam bloqueados.
 
 Perfis iniciais de tecido:
 - Algodão;
@@ -237,13 +237,13 @@ A prévia, o simulador e os arquivos DST/PES/JEF usam a mesma sequência de pont
 
 ## Criar Nome com Satin
 
-A v0.9 adiciona **Satin real** aos nomes criados no FioLab.
+A v0.9 adiciona **Satin real** aos nomes criados no Brother Matrizes.
 
 O usuário pode escolher:
 - **Ponto corrido**;
 - **Satin**.
 
-No Satin o FioLab gera:
+No Satin o Brother Matrizes gera:
 - underlay central opcional;
 - coluna de zigue-zague real;
 - largura configurável;

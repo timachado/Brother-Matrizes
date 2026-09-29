@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.timachado.fiolab"
+    namespace = "com.timachado.brothermatrizes"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.timachado.fiolab"
+        applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 69
-        versionName = "0.46.9"
+        versionCode = 70
+        versionName = "0.46.10"
 
         buildConfigField(
             "String",
@@ -59,7 +59,6 @@ dependencies {
 
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
