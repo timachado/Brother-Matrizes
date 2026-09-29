@@ -69,6 +69,12 @@ jobs:
               original = text
 
               # Technical identifiers first.
+              # Multiline fully-qualified package references used by formatted Kotlin.
+              text = re.sub(
+                  r"com\\.timachado\\s*\\.\\s*fiolab",
+                  "com.timachado.brothermatrizes",
+                  text
+              )
               text = text.replace("com.timachado.fiolab", "com.timachado.brothermatrizes")
               text = text.replace("Theme.FioLab", "Theme.BrotherMatrizes")
               text = text.replace(".fiolab-backup", ".brother-matrizes-backup")
