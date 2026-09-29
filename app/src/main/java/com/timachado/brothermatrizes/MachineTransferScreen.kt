@@ -589,20 +589,44 @@ fun MachineTransferScreen(
             }
         }
 
-        Text(
-            "O Brother Matrizes não altera silenciosamente o tamanho da matriz para fazê-la caber. Se a validação bloquear o envio, ajuste o desenho ou escolha um bastidor compatível.",
+        Card(
             modifier =
-                Modifier.padding(
-                    top =
-                        12.dp,
-                    bottom =
-                        24.dp
-                ),
-            color =
-                FioTextMuted,
-            fontSize =
-                9.sp
-        )
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        top =
+                            12.dp,
+                        bottom =
+                            24.dp
+                    ),
+            colors =
+                CardDefaults
+                    .cardColors(
+                        containerColor =
+                            FioSurface
+                    ),
+            shape =
+                RoundedCornerShape(
+                    14.dp
+                )
+        ) {
+            Text(
+                "O Brother Matrizes mantém o tamanho original da matriz. Se o envio for bloqueado, ajuste o desenho ou escolha um bastidor compatível.",
+                modifier =
+                    Modifier.padding(
+                        horizontal =
+                            14.dp,
+                        vertical =
+                            10.dp
+                    ),
+                color =
+                    FioTextMuted,
+                fontSize =
+                    10.sp,
+                lineHeight =
+                    14.sp
+            )
+        }
     }
 }
 
