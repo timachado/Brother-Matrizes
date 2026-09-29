@@ -57,7 +57,7 @@ class MatrixStressTest {
                 .generate(
                     TextMatrixOptions(
                         text =
-                            "FIOLABTESTE1234567890ABC",
+                            "BROTHERTESTE1234567890ABC",
                         heightMm =
                             22f,
                         style =
