@@ -58,7 +58,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.7.0")
 
     implementation("androidx.activity:activity-compose:1.11.0")
-    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.core:core-ktx:1.16.0")\n    implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
