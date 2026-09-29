@@ -106,9 +106,26 @@ object MatrixConverter {
                     )
 
             if (format == "PES") {
+                /*
+                 * Compatibilidade Brother/Innov-is:
+                 *
+                 * O PES v6 completo do EmbroideryIO inclui blocos CEmbOne/CSewSeg
+                 * com uma transformação visual própria. Em máquinas Brother esses
+                 * metadados podem deslocar a prévia para fora do bastidor, mesmo
+                 * quando os pontos PEC estão corretamente centralizados.
+                 *
+                 * Para arquivos gerados pelo app usamos o contêiner PES v1
+                 * truncado: mantém os pontos/cores PEC que a máquina borda e
+                 * elimina o bloco visual problemático. DST e JEF não mudam.
+                 */
                 writer.set(
                     "pes version",
-                    6
+                    1
+                )
+
+                writer.set(
+                    "truncated",
+                    true
                 )
             }
 
