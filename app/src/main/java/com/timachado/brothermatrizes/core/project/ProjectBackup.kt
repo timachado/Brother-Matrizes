@@ -222,8 +222,10 @@ object ProjectBackupCodec {
                         require(
                             lines.size >=
                                 3 &&
-                                lines[0] ==
-                                    MAGIC
+                                (lines[0] ==
+                                    MAGIC ||
+                                    lines[0] ==
+                                    LEGACY_MAGIC)
                         ) {
                             "Arquivo não é um backup do Brother Matrizes."
                         }
