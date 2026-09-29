@@ -115,6 +115,18 @@ object FioLabAccountService {
             )
         }
 
+    fun googleOAuthUrl():
+        Result<String> =
+        runCatching {
+            client.auth
+                .getOAuthUrl(
+                    provider =
+                        Google,
+                    redirectUrl =
+                        AUTH_REDIRECT_URL
+                )
+        }
+
     suspend fun signInWithGoogle():
         Result<Unit> =
         runCatching {
