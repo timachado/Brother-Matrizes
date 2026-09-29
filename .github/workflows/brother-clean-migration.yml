@@ -78,10 +78,15 @@ jobs:
               text = text.replace("FioLab_", "BrotherMatrizes_")
               text = re.sub(r"\bFioLab(?=[A-Za-z0-9_])", "BrotherMatrizes", text)
               text = re.sub(r"\bFioLab\b", "Brother Matrizes", text)
-              text = re.sub(r"\bfiolab\b", "brother-matrizes", text)
+              text = re.sub(r"\bfiolab\b", "brother_matrizes", text)
               # Catch every embedded legacy token in identifiers, assets and SQL.
               text = text.replace("FioLab", "BrotherMatrizes")
               text = text.replace("fiolab", "brother_matrizes")
+
+              # Keep Kotlin/Java identifiers valid; user-facing/auth slug remains hyphenated.
+              if path.suffix.lower() in {".kt", ".kts", ".java"}:
+                  text = text.replace("brother-matrizes", "brother_matrizes")
+                  text = text.replace('"brother_matrizes"', '"brother-matrizes"')
 
               # OAuth: do not force Custom Tabs. Let supabase-kt use Android's default
               # external auth action/browser, matching the working auth flow.
@@ -176,6 +181,10 @@ jobs:
           grep -R 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
           grep -R 'AUTH_SCHEME' app/src/main/java/com/timachado/brothermatrizes -n
           ! grep -R "CustomTabs()" app/src/main/java
+
+      - name: Prepare Brother brand assets
+        shell: bash
+        run: bash scripts/prepare_brand_assets.sh
 
       - name: Repository safety checks
         run: bash scripts/pre_release_static_check.sh
