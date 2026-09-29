@@ -79,6 +79,9 @@ jobs:
               text = re.sub(r"\bFioLab(?=[A-Za-z0-9_])", "BrotherMatrizes", text)
               text = re.sub(r"\bFioLab\b", "Brother Matrizes", text)
               text = re.sub(r"\bfiolab\b", "brother-matrizes", text)
+              # Catch every embedded legacy token in identifiers, assets and SQL.
+              text = text.replace("FioLab", "BrotherMatrizes")
+              text = text.replace("fiolab", "brother_matrizes")
 
               # OAuth: do not force Custom Tabs. Let supabase-kt use Android's default
               # external auth action/browser, matching the working auth flow.
