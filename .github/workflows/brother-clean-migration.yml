@@ -1,0 +1,216 @@
+name: Brother Matrizes clean identity migration
+
+on:
+  push:
+    branches:
+      - refactor/brother-matrizes-clean-0469
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Prepare Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Setup Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Migrate identity to Brother Matrizes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re, os
+
+          root = Path(".")
+          skip_parts = {".git", ".gradle", "build", ".idea"}
+          text_suffixes = {
+              ".kt", ".kts", ".java", ".xml", ".gradle", ".properties",
+              ".yml", ".yaml", ".md", ".txt", ".json", ".sh", ".cs",
+              ".csproj", ".sln", ".props", ".targets", ".toml"
+          }
+
+          def eligible(path: Path) -> bool:
+              if any(part in skip_parts for part in path.parts):
+                  return False
+              if path.as_posix() == ".github/workflows/brother-clean-migration.yml":
+                  return False
+              return path.suffix.lower() in text_suffixes or path.name in {"gradlew", "gradlew.bat"}
+
+          for path in sorted(root.rglob("*")):
+              if not path.is_file() or not eligible(path):
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+
+              original = text
+
+              # Technical identifiers first.
+              text = text.replace("com.timachado.fiolab", "com.timachado.brothermatrizes")
+              text = text.replace("Theme.FioLab", "Theme.BrotherMatrizes")
+              text = text.replace(".fiolab-backup", ".brother-matrizes-backup")
+              text = text.replace("fiolab_", "brother_matrizes_")
+              text = text.replace("fiolab-", "brother-matrizes-")
+              text = text.replace("FioLab-", "Brother-Matrizes-")
+              text = text.replace("FioLab_", "BrotherMatrizes_")
+              text = re.sub(r"\bFioLab(?=[A-Za-z0-9_])", "BrotherMatrizes", text)
+              text = re.sub(r"\bFioLab\b", "Brother Matrizes", text)
+              text = re.sub(r"\bfiolab\b", "brother-matrizes", text)
+
+              # OAuth: do not force Custom Tabs. Let supabase-kt use Android's default
+              # external auth action/browser, matching the working auth flow.
+              text = text.replace("import io.github.jan.supabase.auth.ExternalAuthAction\n", "")
+              text = re.sub(
+                  r"\n\s*defaultExternalAuthAction\s*=\s*\n\s*ExternalAuthAction\s*\n\s*\.CustomTabs\(\)",
+                  "",
+                  text
+              )
+              text = text.replace('    implementation("androidx.browser:browser:1.10.0")\n', "")
+              text = text.replace('\\n    implementation("androidx.browser:browser:1.10.0")', "")
+
+              if path.as_posix() == "app/build.gradle.kts":
+                  text = text.replace('versionCode = 69', 'versionCode = 70')
+                  text = text.replace('versionName = "0.46.9"', 'versionName = "0.46.10"')
+
+              if path.as_posix() == ".github/workflows/android-apk.yml":
+                  text = text.replace("0.46.9", "0.46.10")
+                  text = text.replace("Brother Matrizes-0.46.10", "Brother-Matrizes-0.46.10")
+                  text = text.replace("Brother Matrizes 0.46.10", "Brother Matrizes 0.46.10")
+
+              if path.as_posix() == "CHANGELOG.md" and "## 0.46.10" not in text:
+                  text = text.replace(
+                      "# Changelog\n",
+                      "# Changelog\n\n"
+                      "## 0.46.10\n\n"
+                      "### Identidade técnica Brother Matrizes\n"
+                      "- Namespace e applicationId migrados para com.timachado.brothermatrizes.\n"
+                      "- Callback OAuth migrado para com.timachado.brothermatrizes://login-callback.\n"
+                      "- Identificadores, recursos, nomes de backup, artefatos e tabelas esperadas passam a usar Brother Matrizes.\n"
+                      "- Fluxo Google deixa de forçar Custom Tabs e usa a ação externa padrão do Android/Supabase.\n"
+                      "- Motor de bordado e correções da linha 0.46.9 permanecem preservados.\n\n"
+                  )
+
+              if text != original:
+                  path.write_text(text, encoding="utf-8")
+
+          # Rename paths deepest-first.
+          paths = sorted(
+              [p for p in root.rglob("*") if ".git" not in p.parts],
+              key=lambda p: len(p.parts),
+              reverse=True
+          )
+          for p in paths:
+              if not p.exists():
+                  continue
+              if p.as_posix() == ".github/workflows/brother-clean-migration.yml":
+                  continue
+              old = p.name
+              if old == "fiolab" and p.parent.as_posix().endswith("com/timachado"):
+                  new = "brothermatrizes"
+              else:
+                  new = old.replace("FioLab", "BrotherMatrizes").replace("fiolab", "brother_matrizes")
+              if new != old:
+                  target = p.with_name(new)
+                  if target.exists():
+                      if p.is_dir() and target.is_dir():
+                          for child in p.iterdir():
+                              os.rename(child, target / child.name)
+                          p.rmdir()
+                      else:
+                          raise RuntimeError(f"Rename collision: {p} -> {target}")
+                  else:
+                      p.rename(target)
+
+          # Ensure the temporary migration workflow is not part of the final tree.
+          migration = Path(".github/workflows/brother-clean-migration.yml")
+          if migration.exists():
+              migration.unlink()
+          PY
+
+      - name: Verify old identity is absent from current tree
+        shell: bash
+        run: |
+          if git grep -n -I -E 'FioLab|fiolab|com\.timachado\.fiolab' -- ':!CHANGELOG.md.bak'; then
+            echo "Legacy identity references remain."
+            exit 1
+          fi
+          if git ls-files | grep -Ei 'FioLab|fiolab'; then
+            echo "Legacy identity remains in tracked path names."
+            exit 1
+          fi
+
+      - name: Verify Brother package and OAuth callback
+        shell: bash
+        run: |
+          grep -R "applicationId = \"com.timachado.brothermatrizes\"" app/build.gradle.kts
+          grep -R "namespace = \"com.timachado.brothermatrizes\"" app/build.gradle.kts
+          grep -R 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
+          grep -R 'AUTH_SCHEME' app/src/main/java/com/timachado/brothermatrizes -n
+          ! grep -R "CustomTabs()" app/src/main/java
+
+      - name: Repository safety checks
+        run: bash scripts/pre_release_static_check.sh
+
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Android lint
+        run: gradle :app:lintDebug --stacktrace
+
+      - name: Build clean debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Validate APK
+        shell: bash
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Brother-Matrizes-0.46.10-CleanIdentity-debug.apk
+          sha256sum Brother-Matrizes-0.46.10-CleanIdentity-debug.apk > Brother-Matrizes-0.46.10-CleanIdentity-SHA256.txt
+
+      - name: Commit clean source tree
+        shell: bash
+        run: |
+          git config user.name "T.I. Machado CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "refactor: consolidate Brother Matrizes identity [skip ci]"
+            git push origin HEAD:refactor/brother-matrizes-clean-0469
+          fi
+
+      - name: Upload clean build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-0.46.10-CleanIdentity
+          path: |
+            Brother-Matrizes-0.46.10-CleanIdentity-debug.apk
+            Brother-Matrizes-0.46.10-CleanIdentity-SHA256.txt
+          if-no-files-found: error
