@@ -12,7 +12,7 @@ object ProjectBackupCodec {
         "brother_matrizes-backup.txt"
 
     private const val MAGIC =
-        "FIOLAB_BACKUP"
+        "BROTHER_MATRIZES_BACKUP"
 
     private const val VERSION =
         1
