@@ -153,6 +153,7 @@ jobs:
       - name: Verify old identity is absent from current tree
         shell: bash
         run: |
+          git add -A
           if git grep -n -I -E 'FioLab|fiolab|com\.timachado\.fiolab' -- ':!CHANGELOG.md.bak'; then
             echo "Legacy identity references remain."
             exit 1
