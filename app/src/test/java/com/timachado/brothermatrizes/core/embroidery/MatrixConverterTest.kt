@@ -612,7 +612,7 @@ class MatrixConverterTest {
         return EmbroideryDesign(
             fileName = "teste.dst",
             format = "DST",
-            label = "FIOLAB",
+            label = "BROTHER",
             points = points,
             bounds =
                 EmbroideryBounds(
