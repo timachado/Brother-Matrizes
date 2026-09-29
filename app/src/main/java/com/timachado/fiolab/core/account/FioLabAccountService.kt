@@ -4,6 +4,7 @@ import android.content.Intent
 import com.timachado.fiolab.BuildConfig
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.ExternalAuthAction
 import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
@@ -39,6 +40,11 @@ object FioLabAccountService {
                     AUTH_SCHEME
                 host =
                     AUTH_HOST
+                defaultRedirectUrl =
+                    AUTH_REDIRECT_URL
+                defaultExternalAuthAction =
+                    ExternalAuthAction
+                        .CustomTabs()
             }
 
             install(
@@ -114,7 +120,10 @@ object FioLabAccountService {
         runCatching {
             client.auth
                 .signInWith(
-                    Google
+                    provider =
+                        Google,
+                    redirectUrl =
+                        AUTH_REDIRECT_URL
                 )
         }
 
