@@ -35,7 +35,7 @@ data class SavedProjectSummary(
 
 object ProjectCodec {
     private const val MAGIC =
-        "FIOLAB_PROJECT"
+        "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
         3
