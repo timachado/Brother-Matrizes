@@ -21,9 +21,6 @@ object PendingDocumentCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_PENDING_DOCUMENT"
 
-    private val LEGACY_MAGIC =
-        "FIO" + "LAB_PENDING_DOCUMENT"
-
     private const val VERSION =
         1
 
@@ -128,9 +125,7 @@ object PendingDocumentCodec {
 
         require(
             magic ==
-                MAGIC ||
-                magic ==
-                LEGACY_MAGIC
+                MAGIC
         ) {
             "Documento pendente inválido."
         }
