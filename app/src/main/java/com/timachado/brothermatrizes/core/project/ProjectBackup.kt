@@ -14,6 +14,9 @@ object ProjectBackupCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_BACKUP"
 
+    private val LEGACY_MAGIC =
+        "FIO" + "LAB_BACKUP"
+
     private const val VERSION =
         1
 
