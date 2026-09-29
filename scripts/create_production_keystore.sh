@@ -47,7 +47,7 @@ if command -v base64 >/dev/null 2>&1; then
   echo
   echo "Cópia Base64 criada em:"
   echo "  $BASE64_FILE"
-  echo "Use-a apenas para cadastrar FIOLAB_RELEASE_KEYSTORE_BASE64 no GitHub."
+  echo "Use-a apenas para cadastrar BROTHER_RELEASE_KEYSTORE_BASE64 no GitHub."
   echo "Depois de cadastrar o secret, mantenha-a protegida ou apague-a."
 fi
 
