@@ -21,6 +21,9 @@ object PendingDocumentCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_PENDING_DOCUMENT"
 
+    private val LEGACY_MAGIC =
+        "FIO" + "LAB_PENDING_DOCUMENT"
+
     private const val VERSION =
         1
 
