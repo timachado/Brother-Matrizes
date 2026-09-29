@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.core.embroidery
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -69,6 +70,127 @@ class MatrixConverterTest {
                 design.bounds.heightMm > 0f
             )
         }
+    }
+
+    @Test
+    fun pesUsesBrotherCompatibleContainerWithoutVisualOffsetBlocks() {
+        val converted =
+            MatrixConverter
+                .convert(
+                    shiftedDesign(),
+                    "PES",
+                    outputSuffix =
+                        "brother"
+                )
+                .getOrThrow()
+
+        val bytes =
+            converted.bytes
+
+        assertTrue(
+            bytes.size >
+                22
+        )
+
+        assertEquals(
+            "#PES0001",
+            bytes
+                .copyOfRange(
+                    0,
+                    8
+                )
+                .toString(
+                    Charsets.US_ASCII
+                )
+        )
+
+        // PES v1 truncado aponta o bloco PEC diretamente para 0x16.
+        assertEquals(
+            0x16,
+            bytes[8]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[9]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[10]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[11]
+                .toInt() and
+                0xFF
+        )
+
+        val ascii =
+            bytes.toString(
+                Charsets.ISO_8859_1
+            )
+
+        assertFalse(
+            "PES de máquina não deve carregar CEmbOne com transformação visual.",
+            ascii.contains(
+                "CEmbOne"
+            )
+        )
+
+        assertFalse(
+            "PES de máquina não deve carregar CSewSeg com offset de preview.",
+            ascii.contains(
+                "CSewSeg"
+            )
+        )
+
+        val parsed =
+            EmbroideryIoParser
+                .parse(
+                    converted.fileName,
+                    bytes
+                )
+
+        assertTrue(
+            parsed is
+                EmbroideryLoadResult.Success
+        )
+
+        val target =
+            (
+                parsed as
+                    EmbroideryLoadResult.Success
+                ).design
+
+        assertEquals(
+            shiftedDesign()
+                .bounds
+                .maxXUnits -
+                shiftedDesign()
+                    .bounds
+                    .minXUnits,
+            target.bounds.maxXUnits -
+                target.bounds.minXUnits
+        )
+
+        assertEquals(
+            shiftedDesign()
+                .bounds
+                .maxYUnits -
+                shiftedDesign()
+                    .bounds
+                    .minYUnits,
+            target.bounds.maxYUnits -
+                target.bounds.minYUnits
+        )
     }
 
     @Test
