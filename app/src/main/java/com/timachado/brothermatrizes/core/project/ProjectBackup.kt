@@ -14,9 +14,6 @@ object ProjectBackupCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_BACKUP"
 
-    private val LEGACY_MAGIC =
-        "FIO" + "LAB_BACKUP"
-
     private const val VERSION =
         1
 
@@ -226,9 +223,7 @@ object ProjectBackupCodec {
                             lines.size >=
                                 3 &&
                                 (lines[0] ==
-                                    MAGIC ||
-                                    lines[0] ==
-                                    LEGACY_MAGIC)
+                                    MAGIC)
                         ) {
                             "Arquivo não é um backup do Brother Matrizes."
                         }
