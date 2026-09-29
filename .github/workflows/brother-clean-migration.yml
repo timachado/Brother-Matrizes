@@ -48,7 +48,7 @@ jobs:
           text_suffixes = {
               ".kt", ".kts", ".java", ".xml", ".gradle", ".properties",
               ".yml", ".yaml", ".md", ".txt", ".json", ".sh", ".cs",
-              ".csproj", ".sln", ".props", ".targets", ".toml"
+              ".csproj", ".sln", ".props", ".targets", ".toml", ".pro", ".ps1"
           }
 
           def eligible(path: Path) -> bool:
