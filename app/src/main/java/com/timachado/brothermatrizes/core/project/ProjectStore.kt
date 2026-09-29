@@ -280,9 +280,14 @@ object ProjectCodec {
             }
         ).use {
                 input ->
+            val magic =
+                input.readUTF()
+
             require(
-                input.readUTF() ==
-                    MAGIC
+                magic ==
+                    MAGIC ||
+                    magic ==
+                    LEGACY_MAGIC
             ) {
                 "Arquivo de projeto inválido."
             }
