@@ -19,7 +19,7 @@ data class DurablePendingDocument(
 
 object PendingDocumentCodec {
     private const val MAGIC =
-        "FIOLAB_PENDING_DOCUMENT"
+        "BROTHER_MATRIZES_PENDING_DOCUMENT"
 
     private const val VERSION =
         1
