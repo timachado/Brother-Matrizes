@@ -37,9 +37,6 @@ object ProjectCodec {
     private const val MAGIC =
         "BROTHER_MATRIZES_PROJECT"
 
-    private val LEGACY_MAGIC =
-        "FIO" + "LAB_PROJECT"
-
     private const val VERSION =
         3
 
@@ -288,9 +285,7 @@ object ProjectCodec {
 
             require(
                 magic ==
-                    MAGIC ||
-                    magic ==
-                    LEGACY_MAGIC
+                    MAGIC
             ) {
                 "Arquivo de projeto inválido."
             }
