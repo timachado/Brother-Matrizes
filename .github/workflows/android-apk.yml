@@ -1,17 +1,17 @@
-name: Build Android APK
+name: Build Brother Matrizes Android APK
 
 on:
   push:
-    branches: ["main", "fix/brother-directopen-safe4-0469"]
+    branches: ["refactor/brother-matrizes-clean-0469"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -35,14 +35,23 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
+      - name: Verify clean Brother identity
+        shell: bash
+        run: |
+          if git grep -n -I -E 'FioLab|fiolab|com\.timachado\.fiolab'; then
+            echo "Legacy identity reference detected."
+            exit 1
+          fi
+          grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'namespace = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
 
-      - name: Prepare brand assets
+      - name: Prepare Brother brand assets
         shell: bash
         run: |
           bash scripts/prepare_brand_assets.sh
-          file app/src/main/res/drawable-nodpi/fiolab_brand_logo.jpg
-          file app/src/main/res/mipmap-xxxhdpi/ic_launcher_fiolab.jpg
-
+          file app/src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg
+          file app/src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg
 
       - name: Repository safety checks
         run: bash scripts/pre_release_static_check.sh
@@ -75,7 +84,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: android-test-report
+          name: brother-matrizes-android-test-report
           path: |
             app/build/reports/androidTests/connected/debug
             app/build/outputs/androidTest-results/connected
@@ -87,30 +96,26 @@ jobs:
       - name: Build unsigned release candidate
         run: gradle :app:assembleRelease --stacktrace
 
+      - name: Validate APK alignment and signature
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+
       - name: Prepare downloadable files
         shell: bash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk FioLab-0.46.9-debug.apk
-          zip -9 FioLab-0.46.9-debug.zip FioLab-0.46.9-debug.apk
-          sha256sum FioLab-0.46.9-debug.apk FioLab-0.46.9-debug.zip > FioLab-0.46.9-SHA256.txt
+          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.46.10-debug.apk
+          zip -9 Brother-Matrizes-0.46.10-debug.zip Brother-Matrizes-0.46.10-debug.apk
+          sha256sum Brother-Matrizes-0.46.10-debug.apk Brother-Matrizes-0.46.10-debug.zip > Brother-Matrizes-0.46.10-SHA256.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FioLab-0.46.9-downloads
+          name: Brother-Matrizes-0.46.10-downloads
           path: |
-            FioLab-0.46.9-debug.apk
-            FioLab-0.46.9-debug.zip
-            FioLab-0.46.9-SHA256.txt
+            Brother-Matrizes-0.46.10-debug.apk
+            Brother-Matrizes-0.46.10-debug.zip
+            Brother-Matrizes-0.46.10-SHA256.txt
           if-no-files-found: error
-
-      - name: Publish GitHub Release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view v0.46.9 >/dev/null 2>&1; then
-            gh release upload v0.46.9               FioLab-0.46.9-debug.apk               FioLab-0.46.9-debug.zip               FioLab-0.46.9-SHA256.txt               --clobber
-          else
-            gh release create v0.46.9               FioLab-0.46.9-debug.apk               FioLab-0.46.9-debug.zip               FioLab-0.46.9-SHA256.txt               --target main               --title "FioLab 0.46.9"               --notes "FioLab 0.46.9: fixa o início do Satin no começo visual da letra, priorizando a região mais à esquerda antes da otimização do restante do percurso."
-          fi
