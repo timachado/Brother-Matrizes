@@ -62,23 +62,23 @@ jobs:
       - name: Validate production signing secrets
         shell: bash
         env:
-          BROTHER_RELEASE_KEYSTORE_BASE64: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEYSTORE_BASE64')] }}
-          BROTHER_RELEASE_STORE_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_STORE_PASSWORD')] }}
-          BROTHER_RELEASE_KEY_ALIAS: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_ALIAS')] }}
-          BROTHER_RELEASE_KEY_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_PASSWORD')] }}
+          BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          BROTHER_MATRIZES_RELEASE_STORE_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          BROTHER_MATRIZES_RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          BROTHER_MATRIZES_RELEASE_KEY_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
         run: |
-          test -n "$BROTHER_RELEASE_KEYSTORE_BASE64" || { echo "Missing Brother release keystore"; exit 1; }
-          test -n "$BROTHER_RELEASE_STORE_PASSWORD" || { echo "Missing Brother store password"; exit 1; }
-          test -n "$BROTHER_RELEASE_KEY_ALIAS" || { echo "Missing Brother key alias"; exit 1; }
-          test -n "$BROTHER_RELEASE_KEY_PASSWORD" || { echo "Missing Brother key password"; exit 1; }
+          test -n "$BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64" || { echo "Missing Brother release keystore"; exit 1; }
+          test -n "$BROTHER_MATRIZES_RELEASE_STORE_PASSWORD" || { echo "Missing Brother store password"; exit 1; }
+          test -n "$BROTHER_MATRIZES_RELEASE_KEY_ALIAS" || { echo "Missing Brother key alias"; exit 1; }
+          test -n "$BROTHER_MATRIZES_RELEASE_KEY_PASSWORD" || { echo "Missing Brother key password"; exit 1; }
 
       - name: Decode temporary Brother production keystore
         shell: bash
         env:
-          BROTHER_RELEASE_KEYSTORE_BASE64: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEYSTORE_BASE64')] }}
+          BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
         run: |
           KEYSTORE="$RUNNER_TEMP/brother-matrizes-production.jks"
-          printf '%s' "$BROTHER_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          printf '%s' "$BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
           chmod 600 "$KEYSTORE"
           test -s "$KEYSTORE"
 
@@ -88,9 +88,9 @@ jobs:
       - name: Align and sign Brother production APK
         shell: bash
         env:
-          BROTHER_RELEASE_STORE_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_STORE_PASSWORD')] }}
-          BROTHER_RELEASE_KEY_ALIAS: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_ALIAS')] }}
-          BROTHER_RELEASE_KEY_PASSWORD: ${{ secrets[format('{0}{1}', 'FIO', 'LAB_RELEASE_KEY_PASSWORD')] }}
+          BROTHER_MATRIZES_RELEASE_STORE_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          BROTHER_MATRIZES_RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          BROTHER_MATRIZES_RELEASE_KEY_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
         run: |
           VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
           test -n "$VERSION_NAME"
@@ -108,9 +108,9 @@ jobs:
 
           "$BUILD_TOOLS/apksigner" sign \
             --ks "$KEYSTORE" \
-            --ks-key-alias "$BROTHER_RELEASE_KEY_ALIAS" \
-            --ks-pass "env:BROTHER_RELEASE_STORE_PASSWORD" \
-            --key-pass "env:BROTHER_RELEASE_KEY_PASSWORD" \
+            --ks-key-alias "$BROTHER_MATRIZES_RELEASE_KEY_ALIAS" \
+            --ks-pass "env:BROTHER_MATRIZES_RELEASE_STORE_PASSWORD" \
+            --key-pass "env:BROTHER_MATRIZES_RELEASE_KEY_PASSWORD" \
             --out "$SIGNED" \
             "$ALIGNED"
 
