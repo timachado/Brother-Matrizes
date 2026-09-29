@@ -120,9 +120,14 @@ object PendingDocumentCodec {
                 input
             )
 
+        val magic =
+            data.readUTF()
+
         require(
-            data.readUTF() ==
-                MAGIC
+            magic ==
+                MAGIC ||
+                magic ==
+                LEGACY_MAGIC
         ) {
             "Documento pendente inválido."
         }
