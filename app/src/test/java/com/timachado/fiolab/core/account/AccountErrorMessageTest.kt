@@ -59,4 +59,33 @@ class AccountErrorMessageTest {
                 )
         )
     }
+
+    @Test
+    fun mapsAndroidOAuthLauncherFailure() {
+        assertEquals(
+            "Não foi possível abrir o navegador seguro do Google neste aparelho.",
+            AccountErrorMessage
+                .forUser(
+                    IllegalStateException(
+                        "ActivityNotFoundException: No Activity found to handle Intent"
+                    ),
+                    "Falha."
+                )
+        )
+    }
+
+    @Test
+    fun mapsMissingSupabaseAndroidInitializer() {
+        assertEquals(
+            "O login Google não foi inicializado corretamente no Android.",
+            AccountErrorMessage
+                .forUser(
+                    IllegalStateException(
+                        "Application context not initialized"
+                    ),
+                    "Falha."
+                )
+        )
+    }
+
 }
