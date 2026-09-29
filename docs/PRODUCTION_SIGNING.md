@@ -23,7 +23,7 @@ Linux/macOS:
 bash scripts/create_production_keystore.sh
 ```
 
-Os scripts também criam uma representação Base64 local para facilitar o cadastro do secret `FIOLAB_RELEASE_KEYSTORE_BASE64`. Essa cópia continua sendo sensível.
+Os scripts também criam uma representação Base64 local para facilitar o cadastro do secret `BROTHER_RELEASE_KEYSTORE_BASE64`. Essa cópia continua sendo sensível.
 
 ## 1. Criar a keystore fora do repositório
 
@@ -62,10 +62,10 @@ O arquivo Base64 continua sendo material secreto e deve ser protegido como a pr�
 
 Configurar no repositório:
 
-- `FIOLAB_RELEASE_KEYSTORE_BASE64` — conteúdo Base64 completo da keystore.
-- `FIOLAB_RELEASE_STORE_PASSWORD` — senha da keystore.
-- `FIOLAB_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `brother-matrizes-production`.
-- `FIOLAB_RELEASE_KEY_PASSWORD` — senha da chave.
+- `BROTHER_RELEASE_KEYSTORE_BASE64` — conteúdo Base64 completo da keystore.
+- `BROTHER_RELEASE_STORE_PASSWORD` — senha da keystore.
+- `BROTHER_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `brother-matrizes-production`.
+- `BROTHER_RELEASE_KEY_PASSWORD` — senha da chave.
 
 O workflow não imprime esses valores e cria a keystore somente no armazenamento temporário do runner.
 
