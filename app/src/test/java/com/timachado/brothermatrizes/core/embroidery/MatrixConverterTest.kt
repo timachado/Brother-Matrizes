@@ -489,21 +489,44 @@ class MatrixConverterTest {
                     ) /
                     2f
 
-            assertTrue(
-                "A exportação $format precisa ficar centralizada no eixo X.",
-                kotlin.math.abs(
-                    centerX
-                ) <=
-                    1f
-            )
+            if (
+                format ==
+                    "PES"
+            ) {
+                /*
+                 * PEC usa os words de origem para deslocar a geometria
+                 * centralizada para dentro da área positiva declarada.
+                 * Por isso o round-trip PES não fica mais centrado em zero:
+                 * ele deve ocupar aproximadamente 0..largura / 0..altura.
+                 */
+                assertTrue(
+                    "A exportação PES deve ficar dentro da área positiva no eixo X.",
+                    target.bounds.minXUnits >=
+                        -1
+                )
 
-            assertTrue(
-                "A exportação $format precisa ficar centralizada no eixo Y.",
-                kotlin.math.abs(
-                    centerY
-                ) <=
-                    1f
-            )
+                assertTrue(
+                    "A exportação PES deve ficar dentro da área positiva no eixo Y.",
+                    target.bounds.minYUnits >=
+                        -1
+                )
+            } else {
+                assertTrue(
+                    "A exportação $format precisa ficar centralizada no eixo X.",
+                    kotlin.math.abs(
+                        centerX
+                    ) <=
+                        1f
+                )
+
+                assertTrue(
+                    "A exportação $format precisa ficar centralizada no eixo Y.",
+                    kotlin.math.abs(
+                        centerY
+                    ) <=
+                        1f
+                )
+            }
         }
     }
 
