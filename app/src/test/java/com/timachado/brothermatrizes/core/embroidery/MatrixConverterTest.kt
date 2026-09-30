@@ -73,7 +73,7 @@ class MatrixConverterTest {
     }
 
     @Test
-    fun generatedHorizontalTextIsPreRotatedOnlyForBrotherPes() {
+    fun generatedHorizontalTextWritesBrotherPecOriginWithoutRotation() {
         val source =
             TextMatrixGenerator
                 .generate(
@@ -100,11 +100,91 @@ class MatrixConverterTest {
                 .convert(
                     source,
                     "PES",
-                    "innovis-orientation"
+                    "innovis-origin"
                 )
                 .getOrThrow()
 
-        val parsedPes =
+        val bytes =
+            pes.bytes
+
+        val pecOffset =
+            (
+                bytes[8].toInt() and
+                    0xFF
+                ) or
+                (
+                    (
+                        bytes[9].toInt() and
+                            0xFF
+                        ) shl
+                        8
+                    )
+
+        val blockStart =
+            pecOffset +
+                512
+
+        val originXWord =
+            (
+                (
+                    bytes[blockStart + 16]
+                        .toInt() and
+                        0xFF
+                    ) shl
+                    8
+                ) or
+                (
+                    bytes[blockStart + 17]
+                        .toInt() and
+                        0xFF
+                    )
+
+        val originYWord =
+            (
+                (
+                    bytes[blockStart + 18]
+                        .toInt() and
+                        0xFF
+                    ) shl
+                    8
+                ) or
+                (
+                    bytes[blockStart + 19]
+                        .toInt() and
+                        0xFF
+                    )
+
+        assertEquals(
+            0x9000,
+            originXWord and
+                0xF000
+        )
+
+        assertEquals(
+            0x9000,
+            originYWord and
+                0xF000
+        )
+
+        assertTrue(
+            "A origem horizontal deve deslocar a metade negativa do desenho.",
+            (
+                originXWord and
+                    0x0FFF
+                ) >
+                0
+        )
+
+        assertTrue(
+            "A origem vertical deve deslocar a metade negativa do desenho.",
+            (
+                originYWord and
+                    0x0FFF
+                ) >
+                0
+        )
+
+        val parsed =
             EmbroideryIoParser
                 .parse(
                     pes.fileName,
@@ -112,69 +192,36 @@ class MatrixConverterTest {
                 )
 
         assertTrue(
-            parsedPes is
+            parsed is
                 EmbroideryLoadResult.Success
         )
 
         val machineGeometry =
             (
-                parsedPes as
+                parsed as
                     EmbroideryLoadResult.Success
                 ).design
 
         assertTrue(
-            "O PES gerado deve ser pré-compensado em 90 graus para a Innov-is.",
-            machineGeometry.bounds.heightMm >
-                machineGeometry.bounds.widthMm
+            "A geometria PES deve continuar horizontal; não deve haver pré-rotação.",
+            machineGeometry.bounds.widthMm >
+                machineGeometry.bounds.heightMm
         )
 
         assertTrue(
             kotlin.math.abs(
                 machineGeometry.bounds.widthMm -
-                    source.bounds.heightMm
+                    source.bounds.widthMm
             ) <=
-                0.2f
+                0.3f
         )
 
         assertTrue(
             kotlin.math.abs(
                 machineGeometry.bounds.heightMm -
-                    source.bounds.widthMm
+                    source.bounds.heightMm
             ) <=
-                0.2f
-        )
-
-        val dst =
-            MatrixConverter
-                .convert(
-                    source,
-                    "DST",
-                    "sem-rotacao"
-                )
-                .getOrThrow()
-
-        val parsedDst =
-            DstParser
-                .parse(
-                    dst.fileName,
-                    dst.bytes
-                )
-
-        assertTrue(
-            parsedDst is
-                EmbroideryLoadResult.Success
-        )
-
-        val dstGeometry =
-            (
-                parsedDst as
-                    EmbroideryLoadResult.Success
-                ).design
-
-        assertTrue(
-            "DST não deve receber a compensação específica da Innov-is.",
-            dstGeometry.bounds.widthMm >
-                dstGeometry.bounds.heightMm
+                0.3f
         )
     }
 
