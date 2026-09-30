@@ -66,12 +66,7 @@ object MatrixConverter {
 
             val pattern =
                 buildOutputPattern(
-                    design =
-                        normalized,
-                    rotateGeneratedPesForBrother =
-                        format == "PES" &&
-                            normalized.isModified &&
-                            normalized.sourceBytes.isEmpty()
+                    normalized
                 )
 
             val extension =
@@ -142,14 +137,26 @@ object MatrixConverter {
                 output
             )
 
-            val bytes =
+            val rawBytes =
                 output.toByteArray()
 
             require(
-                bytes.isNotEmpty()
+                rawBytes.isNotEmpty()
             ) {
                 "A conversão não gerou dados."
             }
+
+            val bytes =
+                if (
+                    format == "PES"
+                ) {
+                    addBrotherPecOrigin(
+                        rawBytes,
+                        pattern
+                    )
+                } else {
+                    rawBytes
+                }
 
             ConvertedMatrix(
                 fileName = outputName,
@@ -159,8 +166,7 @@ object MatrixConverter {
         }
 
     private fun buildOutputPattern(
-        design: EmbroideryDesign,
-        rotateGeneratedPesForBrother: Boolean = false
+        design: EmbroideryDesign
     ): EmbPattern {
         val pattern =
             EmbPattern().apply {
@@ -240,39 +246,11 @@ object MatrixConverter {
                 centeredYLong
                     .toInt()
 
-            /*
-             * A família Innov-is apresenta PES gerado no app com os eixos
-             * físicos a 90° da orientação usada pelo editor. Para matrizes
-             * criadas/editadas dentro do Brother Matrizes fazemos a
-             * compensação inversa antes de gravar o PEC.
-             *
-             * Importações reais (sourceBytes != vazio) não passam por esta
-             * compensação para não alterar arquivos externos que já possuem
-             * sua própria orientação de máquina.
-             */
-            val machineX =
-                if (
-                    rotateGeneratedPesForBrother
-                ) {
-                    -centeredY
-                } else {
-                    centeredX
-                }
-
-            val machineYBeforeWriter =
-                if (
-                    rotateGeneratedPesForBrother
-                ) {
-                    centeredX
-                } else {
-                    centeredY
-                }
-
             val outputY =
                 writerY(
                     design = design,
                     yUnits =
-                        machineYBeforeWriter
+                        centeredY
                 )
 
             when (point.command) {
@@ -284,14 +262,14 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = machineX,
+                            toX = centeredX,
                             toY = outputY,
                             command =
                                 EmbConstant.JUMP
                         )
 
                         pattern.addStitchAbs(
-                            machineX.toFloat(),
+                            centeredX.toFloat(),
                             outputY.toFloat(),
                             EmbConstant.STITCH
                         )
@@ -303,7 +281,7 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = machineX,
+                            toX = centeredX,
                             toY = outputY,
                             command =
                                 EmbConstant.STITCH
@@ -316,7 +294,7 @@ object MatrixConverter {
                         pattern = pattern,
                         fromX = currentX,
                         fromY = currentY,
-                        toX = machineX,
+                        toX = centeredX,
                         toY = outputY,
                         command =
                             EmbConstant.JUMP
@@ -328,7 +306,7 @@ object MatrixConverter {
 
                 StitchCommand.TRIM -> {
                     pattern.addStitchAbs(
-                        machineX.toFloat(),
+                        centeredX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.TRIM
                     )
@@ -336,7 +314,7 @@ object MatrixConverter {
 
                 StitchCommand.STOP -> {
                     pattern.addStitchAbs(
-                        machineX.toFloat(),
+                        centeredX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.COLOR_CHANGE
                     )
@@ -344,7 +322,7 @@ object MatrixConverter {
 
                 StitchCommand.COLOR_CHANGE -> {
                     pattern.addStitchAbs(
-                        machineX.toFloat(),
+                        centeredX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.COLOR_CHANGE
                     )
@@ -358,7 +336,7 @@ object MatrixConverter {
                             pattern = pattern,
                             fromX = currentX,
                             fromY = currentY,
-                            toX = machineX,
+                            toX = centeredX,
                             toY = outputY,
                             command =
                                 EmbConstant.JUMP
@@ -369,7 +347,7 @@ object MatrixConverter {
                     }
 
                     pattern.addStitchAbs(
-                        machineX.toFloat(),
+                        centeredX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.STITCH
                     )
@@ -377,14 +355,14 @@ object MatrixConverter {
 
                 StitchCommand.END -> {
                     pattern.addStitchAbs(
-                        machineX.toFloat(),
+                        centeredX.toFloat(),
                         outputY.toFloat(),
                         EmbConstant.END
                     )
                 }
             }
 
-            currentX = machineX
+            currentX = centeredX
             currentY = outputY
         }
 
@@ -395,6 +373,254 @@ object MatrixConverter {
         pattern.fixColorCount()
 
         return pattern
+    }
+
+    /*
+     * A Innov-is usa os dois words de origem do segundo bloco PEC para
+     * deslocar as coordenadas da matriz para dentro da área declarada.
+     *
+     * O EmbroideryIO 0.1.23 escreve largura/altura e começa imediatamente
+     * as pontadas, omitindo esses 4 bytes. Como este app centraliza a
+     * geometria em torno de (0,0), isso deixa coordenadas negativas e a
+     * máquina corta o desenho no canto.
+     *
+     * Inserimos:
+     *   u16BE 0x9000 | distanceLeft
+     *   u16BE 0x9000 | distanceUp
+     * e corrigimos o tamanho u24LE do stitch block.
+     */
+    private fun addBrotherPecOrigin(
+        raw: ByteArray,
+        pattern: EmbPattern
+    ): ByteArray {
+        require(
+            raw.size >
+                554
+        ) {
+            "PES gerado ficou pequeno demais para conter o bloco PEC."
+        }
+
+        val signature =
+            raw.copyOfRange(
+                0,
+                8
+            ).toString(
+                Charsets.US_ASCII
+            )
+
+        require(
+            signature ==
+                "#PES0001"
+        ) {
+            "PES Brother esperado na versão 1."
+        }
+
+        val pecOffset =
+            (
+                raw[8].toInt() and
+                    0xFF
+                ) or
+                (
+                    (
+                        raw[9].toInt() and
+                            0xFF
+                        ) shl
+                        8
+                    ) or
+                (
+                    (
+                        raw[10].toInt() and
+                            0xFF
+                        ) shl
+                        16
+                    ) or
+                (
+                    (
+                        raw[11].toInt() and
+                            0xFF
+                        ) shl
+                        24
+                    )
+
+        val blockStart =
+            pecOffset +
+                512
+
+        require(
+            blockStart +
+                20 <=
+                raw.size
+        ) {
+            "Bloco PEC inválido."
+        }
+
+        require(
+            raw[blockStart + 5]
+                .toInt() and
+                0xFF ==
+                0x31 &&
+                raw[blockStart + 6]
+                    .toInt() and
+                    0xFF ==
+                    0xFF &&
+                raw[blockStart + 7]
+                    .toInt() and
+                    0xFF ==
+                    0xF0
+        ) {
+            "Assinatura interna PEC inválida."
+        }
+
+        val oldBlockLength =
+            (
+                raw[blockStart + 2]
+                    .toInt() and
+                    0xFF
+                ) or
+                (
+                    (
+                        raw[blockStart + 3]
+                            .toInt() and
+                            0xFF
+                        ) shl
+                        8
+                    ) or
+                (
+                    (
+                        raw[blockStart + 4]
+                            .toInt() and
+                            0xFF
+                        ) shl
+                        16
+                    )
+
+        val distanceLeft =
+            kotlin.math
+                .round(
+                    -pattern
+                        .getMinX()
+                        .toDouble()
+                )
+                .toInt()
+
+        val distanceUp =
+            kotlin.math
+                .round(
+                    -pattern
+                        .getMinY()
+                        .toDouble()
+                )
+                .toInt()
+
+        require(
+            distanceLeft in
+                0..0x0FFF &&
+                distanceUp in
+                    0..0x0FFF
+        ) {
+            "A origem PEC ficou fora do intervalo de 12 bits suportado pela máquina."
+        }
+
+        val insertAt =
+            blockStart +
+                16
+
+        val result =
+            ByteArray(
+                raw.size +
+                    4
+            )
+
+        raw.copyInto(
+            result,
+            destinationOffset =
+                0,
+            startIndex =
+                0,
+            endIndex =
+                insertAt
+        )
+
+        writePecOriginWord(
+            result,
+            insertAt,
+            distanceLeft
+        )
+
+        writePecOriginWord(
+            result,
+            insertAt + 2,
+            distanceUp
+        )
+
+        raw.copyInto(
+            result,
+            destinationOffset =
+                insertAt +
+                    4,
+            startIndex =
+                insertAt,
+            endIndex =
+                raw.size
+        )
+
+        val newBlockLength =
+            oldBlockLength +
+                4
+
+        result[blockStart + 2] =
+            (
+                newBlockLength and
+                    0xFF
+                ).toByte()
+
+        result[blockStart + 3] =
+            (
+                (
+                    newBlockLength shr
+                        8
+                    ) and
+                    0xFF
+                ).toByte()
+
+        result[blockStart + 4] =
+            (
+                (
+                    newBlockLength shr
+                        16
+                    ) and
+                    0xFF
+                ).toByte()
+
+        return result
+    }
+
+    private fun writePecOriginWord(
+        target: ByteArray,
+        offset: Int,
+        distance: Int
+    ) {
+        val word =
+            0x9000 or
+                (
+                    distance and
+                        0x0FFF
+                    )
+
+        target[offset] =
+            (
+                (
+                    word shr
+                        8
+                    ) and
+                    0xFF
+                ).toByte()
+
+        target[offset + 1] =
+            (
+                word and
+                    0xFF
+                ).toByte()
     }
 
     private fun writerY(
