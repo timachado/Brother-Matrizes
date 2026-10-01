@@ -85,16 +85,16 @@ jobs:
       - name: Prepare downloadable files
         shell: bash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.46.21-debug.apk
-          zip -9 Brother-Matrizes-0.46.21-debug.zip Brother-Matrizes-0.46.21-debug.apk
-          sha256sum Brother-Matrizes-0.46.21-debug.apk Brother-Matrizes-0.46.21-debug.zip > Brother-Matrizes-0.46.21-SHA256.txt
+          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.46.22-debug.apk
+          zip -9 Brother-Matrizes-0.46.22-debug.zip Brother-Matrizes-0.46.22-debug.apk
+          sha256sum Brother-Matrizes-0.46.22-debug.apk Brother-Matrizes-0.46.22-debug.zip > Brother-Matrizes-0.46.22-SHA256.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-0.46.21-downloads
+          name: Brother-Matrizes-0.46.22-downloads
           path: |
-            Brother-Matrizes-0.46.21-debug.apk
-            Brother-Matrizes-0.46.21-debug.zip
-            Brother-Matrizes-0.46.21-SHA256.txt
+            Brother-Matrizes-0.46.22-debug.apk
+            Brother-Matrizes-0.46.22-debug.zip
+            Brother-Matrizes-0.46.22-SHA256.txt
           if-no-files-found: error
