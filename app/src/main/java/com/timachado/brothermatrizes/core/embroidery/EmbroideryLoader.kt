@@ -112,6 +112,18 @@ object EmbroideryLoader {
                 "O arquivo não pôde ser aberto."
             )
 
+        return loadBytes(
+            displayName =
+                displayName,
+            bytes =
+                bytes
+        )
+    }
+
+    fun loadBytes(
+        displayName: String,
+        bytes: ByteArray
+    ): EmbroideryLoadResult {
         if (
             bytes.isEmpty()
         ) {
@@ -119,6 +131,29 @@ object EmbroideryLoader {
                 "O arquivo selecionado está vazio."
             )
         }
+
+        if (
+            bytes.size >
+                MAX_FILE_BYTES
+        ) {
+            return EmbroideryLoadResult.Error(
+                "O arquivo é grande demais para importar com segurança.",
+                "Limite: 64 MB"
+            )
+        }
+
+        val declaredExtension =
+            displayName
+                .substringAfterLast(
+                    '.',
+                    ""
+                )
+                .lowercase(
+                    Locale.ROOT
+                )
+                .takeIf {
+                    it.isNotBlank()
+                }
 
         if (
             declaredExtension !=
