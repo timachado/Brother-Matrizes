@@ -37,6 +37,7 @@ import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
+import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
@@ -1839,61 +1840,22 @@ private fun BrotherMatrizesApp(
                         onCreate = {
                                 created,
                                 displayMode ->
-                            activateDesign(
-                                created
-                            )
-
-                            screen =
-                                Screen.Viewer(
-                                    design =
-                                        created,
-                                    displayMode =
-                                        displayMode
-                                )
-                        },
-                        onSimulate = {
-                                created,
-                                displayMode ->
                             scope.launch {
                                 loading =
                                     true
 
-                                val converted =
+                                val opened =
                                     withContext(
                                         Dispatchers.IO
                                     ) {
-                                        MatrixConverter
-                                            .convert(
+                                        GeneratedMatrixPipeline
+                                            .canonicalize(
                                                 design =
                                                     created,
-                                                targetFormat =
-                                                    created.format,
                                                 outputSuffix =
-                                                    "simulacao"
+                                                    "criado"
                                             )
                                     }
-
-                                val opened =
-                                    converted.fold(
-                                        onSuccess = {
-                                                matrix ->
-                                            EmbroideryLoader
-                                                .loadBytes(
-                                                    displayName =
-                                                        matrix.fileName,
-                                                    bytes =
-                                                        matrix.bytes
-                                                )
-                                        },
-                                        onFailure = {
-                                                error ->
-                                            EmbroideryLoadResult
-                                                .Error(
-                                                    "Não foi possível preparar a matriz para simulação.",
-                                                    error.message
-                                                )
-                                        }
-                                    )
 
                                 loading =
                                     false
@@ -1903,48 +1865,71 @@ private fun BrotherMatrizesApp(
                                 ) {
                                     is EmbroideryLoadResult
                                         .Success -> {
-                                        val simulated =
-                                            opened.design
-                                                .copy(
-                                                    threadColors =
-                                                        if (
-                                                            created
-                                                                .threadColors
-                                                                .isNotEmpty()
-                                                        ) {
-                                                            created
-                                                                .threadColors
-                                                        } else {
-                                                            opened.design
-                                                                .threadColors
-                                                        },
-                                                    hoopProfile =
-                                                        created
-                                                            .hoopProfile,
-                                                    fabricProfile =
-                                                        created
-                                                            .fabricProfile,
-                                                    label =
-                                                        created.label
-                                                            ?: opened.design
-                                                                .label
-                                                )
-
                                         activateDesign(
-                                            simulated
+                                            opened.design
+                                        )
+
+                                        screen =
+                                            Screen.Viewer(
+                                                design =
+                                                    opened.design,
+                                                displayMode =
+                                                    displayMode
+                                            )
+                                    }
+
+                                    is EmbroideryLoadResult
+                                        .Error -> {
+                                        snackbar.showSnackbar(
+                                            opened.userMessage
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        onSimulate = {
+                                created,
+                                displayMode ->
+                            scope.launch {
+                                loading =
+                                    true
+
+                                val opened =
+                                    withContext(
+                                        Dispatchers.IO
+                                    ) {
+                                        GeneratedMatrixPipeline
+                                            .canonicalize(
+                                                design =
+                                                    created,
+                                                outputSuffix =
+                                                    "simulacao"
+                                            )
+                                    }
+
+                                loading =
+                                    false
+
+                                when (
+                                    opened
+                                ) {
+                                    is EmbroideryLoadResult
+                                        .Success -> {
+                                        activateDesign(
+                                            opened.design
                                         )
 
                                         screen =
                                             Screen.Simulator(
                                                 design =
-                                                    simulated,
+                                                    opened.design,
                                                 displayMode =
                                                     displayMode,
                                                 referenceHoop =
-                                                    created
+                                                    opened.design
                                                         .hoopProfile
                                                         ?: recommendedHoopFor(
-                                                            simulated
+                                                            opened.design
                                                         ),
                                                 showConnections =
                                                     false
