@@ -87,32 +87,25 @@ fun MachineSimulationCanvas(
                     transform
             )
 
-            if (
-                design.guidePoints
-                    .isNotEmpty()
-            ) {
-                drawReferenceGuide(
-                    design =
-                        design,
-                    transform =
-                        transform
-                )
-            } else {
-                drawStitches(
-                    design =
-                        design,
-                    transform =
-                        transform,
-                    pointLimit =
-                        design.points.size,
-                    ghost =
-                        true,
-                    displayMode =
-                        displayMode,
-                    showConnections =
-                        showConnections
-                )
-            }
+            // A simulação deve representar a sequência real de pontos,
+            // inclusive em nomes gerados no app. guidePoints é apenas uma
+            // referência vetorial de edição e não deve substituir o fantasma
+            // das pontadas. Assim, Criar Nome e matrizes abertas usam a mesma
+            // reprodução de bordado durante a simulação.
+            drawStitches(
+                design =
+                    design,
+                transform =
+                    transform,
+                pointLimit =
+                    design.points.size,
+                ghost =
+                    true,
+                displayMode =
+                    displayMode,
+                showConnections =
+                    showConnections
+            )
 
             drawStitches(
                 design =
