@@ -30,76 +30,42 @@ object ImportedFontMatrixGenerator {
         char: Char,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            /*
-             * Satin usa o motor progressivo por regiões: cada coluna é
-             * concluída no sentido mais próximo antes de avançar. O
-             * underlay entra junto da cobertura da própria região, sem
-             * percorrer a letra inteira e depois voltar para refazê-la.
-             */
-            ReferenceImportedFontEngine
-                .generate(
-                    font =
-                        font,
-                    sourceText =
-                        char.toString(),
-                    options =
-                        options,
-                    filePrefix =
-                        "fonte"
-                )
-        } else {
-            generateTextInternal(
-                font =
-                    font,
-                sourceText =
-                    char.toString(),
-                options =
-                    options,
-                filePrefix =
-                    "fonte"
-            )
-        }
+        /*
+         * Para criação de nomes, cada glifo deve seguir o próprio traço
+         * até o fim antes de avançar. O pipeline interno usa o esqueleto
+         * do glifo para orientar o Satin e evita a varredura por regiões
+         * do ReferenceImportedFontEngine, que podia saltar visualmente
+         * entre partes da letra.
+         */
+        generateTextInternal(
+            font = font,
+            sourceText =
+                char.toString(),
+            options =
+                options,
+            filePrefix =
+                "fonte"
+        )
 
     fun generateText(
         font: ImportedFont,
         text: String,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            ReferenceImportedFontEngine
-                .generate(
-                    font =
-                        font,
-                    sourceText =
-                        text,
-                    options =
-                        options,
-                    filePrefix =
-                        "nome"
-                )
-        } else {
-            generateTextInternal(
-                font =
-                    font,
-                sourceText =
-                    text,
-                options =
-                    options,
-                filePrefix =
-                    "nome"
-            )
-        }
+        /*
+         * Mantém as métricas/avanços reais da TTF/OTF para a palavra,
+         * mas digitaliza cada glifo separadamente e na ordem do texto.
+         * Assim uma letra precisa terminar antes de a próxima começar.
+         */
+        generateTextInternal(
+            font = font,
+            sourceText =
+                text,
+            options =
+                options,
+            filePrefix =
+                "nome"
+        )
 
     private fun generateTextInternal(
         font: ImportedFont,

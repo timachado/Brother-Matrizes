@@ -36,7 +36,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +50,6 @@ import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
-import com.timachado.brothermatrizes.core.embroidery.SimulationMatrixRoundTrip
 import com.timachado.brothermatrizes.core.embroidery.SpecialStitchMode
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
 import com.timachado.brothermatrizes.core.embroidery.TextHoopAutoFit
@@ -70,7 +68,6 @@ import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val namePalette =
@@ -96,9 +93,6 @@ fun CreateNameScreen(
 ) {
     val context =
         LocalContext.current
-
-    val scope =
-        rememberCoroutineScope()
 
     val importedFonts =
         remember {
@@ -229,16 +223,6 @@ fun CreateNameScreen(
         >(null)
     }
 
-    var simulationPreparing by remember {
-        mutableStateOf(false)
-    }
-
-    var simulationError by remember {
-        mutableStateOf<String?>(
-            null
-        )
-    }
-
     simulationPreview
         ?.let {
                 previewState ->
@@ -355,6 +339,29 @@ fun CreateNameScreen(
             glyphProvider =
                 glyphProvider
         )
+
+    /*
+     * O arquivo/matriz continua usando exatamente o pipeline estável.
+     * Somente a reprodução visual omite o underlay para mostrar uma única
+     * passagem Satin, como no vídeo de referência: desenho completo em
+     * fantasma + preenchimento progressivo sem refazer a palavra.
+     */
+    fun simulationLayoutOptionsFor(
+        targetHeightMm: Float
+    ): TextLayoutOptions {
+        val base =
+            layoutOptionsFor(
+                targetHeightMm
+            )
+
+        return base.copy(
+            textOptions =
+                base.textOptions.copy(
+                    satinUnderlayMode =
+                        SatinUnderlayMode.NONE
+                )
+        )
+    }
 
     LaunchedEffect(
         autoFitToHoop,
@@ -1597,71 +1604,46 @@ fun CreateNameScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val source =
-                                preview
-
                             if (
-                                source !=
+                                preview !=
                                     null
                             ) {
-                                simulationPreparing =
-                                    true
-                                simulationError =
-                                    null
+                                val simulationDesign =
+                                    TextLayoutGenerator
+                                        .generate(
+                                            simulationLayoutOptionsFor(
+                                                heightMm
+                                            )
+                                        )
+                                        .getOrNull()
+                                        ?.copy(
+                                            // Sem guia vetorial: o simulador
+                                            // exibe o bordado completo em
+                                            // fantasma, igual à referência.
+                                            guidePoints =
+                                                emptyList()
+                                        )
 
-                                scope.launch {
-                                    val prepared =
-                                        withContext(
-                                            Dispatchers.Default
-                                        ) {
-                                            SimulationMatrixRoundTrip
-                                                .prepare(
-                                                    design =
-                                                        source,
-                                                    targetFormat =
-                                                        outputFormat
-                                                )
-                                        }
-
-                                    prepared.fold(
-                                        onSuccess = {
-                                                finalDesign ->
-                                            simulationPreview =
-                                                finalDesign to
-                                                    EmbroideryDisplayMode
-                                                        .REALISTIC
-                                        },
-                                        onFailure = {
-                                                error ->
-                                            simulationError =
-                                                error.message
-                                                    ?: "Não foi possível preparar a simulação final."
-                                        }
-                                    )
-
-                                    simulationPreparing =
-                                        false
-                                }
+                                simulationDesign
+                                    ?.let {
+                                            design ->
+                                        simulationPreview =
+                                            design to
+                                                displayMode
+                                    }
                             }
                         },
                         enabled =
                             preview !=
                                 null &&
-                                fitsHoop &&
-                                !simulationPreparing,
+                                fitsHoop,
                         modifier =
                             Modifier.weight(
                                 1f
                             )
                     ) {
                         Text(
-                            if (
-                                simulationPreparing
-                            ) {
-                                "Preparando…"
-                            } else {
-                                "▶ Simular"
-                            }
+                            "▶ Simular"
                         )
                     }
 
@@ -1698,24 +1680,6 @@ fun CreateNameScreen(
                         )
                     }
                 }
-
-                simulationError
-                    ?.let {
-                            message ->
-                        Text(
-                            message,
-                            modifier =
-                                Modifier.padding(
-                                    top = 6.dp
-                                ),
-                            color =
-                                Color(
-                                    0xFFFF9F9A
-                                ),
-                            fontSize =
-                                10.sp
-                        )
-                    }
 
                 Spacer(
                     Modifier.height(
