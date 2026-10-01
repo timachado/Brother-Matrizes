@@ -30,76 +30,32 @@ object ImportedFontMatrixGenerator {
         char: Char,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            ReferenceImportedFontEngine
-                .generate(
-                    font =
-                        font,
-                    sourceText =
-                        char.toString(),
-                    options =
-                        options,
-                    filePrefix =
-                        "fonte"
-                )
-        } else {
-            generateTextInternal(
-                font =
-                    font,
-                sourceText =
-                    char.toString(),
-                options =
-                    options,
-                filePrefix =
-                    "fonte"
-            )
-        }
+        generateTextInternal(
+            font =
+                font,
+            sourceText =
+                char.toString(),
+            options =
+                options,
+            filePrefix =
+                "fonte"
+        )
 
     fun generateText(
         font: ImportedFont,
         text: String,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            /*
-             * TTF/OTF em Satin usa o mesmo pipeline de colunas do motor
-             * de referência: contorno fechado -> spans -> colunas locais ->
-             * underlay/travas/cobertura. Depois a matriz ainda passa pelo
-             * mesmo MatrixConverter/EmbroideryLoader de Abrir Matriz.
-             */
-            ReferenceImportedFontEngine
-                .generate(
-                    font =
-                        font,
-                    sourceText =
-                        text,
-                    options =
-                        options,
-                    filePrefix =
-                        "nome"
-                )
-        } else {
-            generateTextInternal(
-                font =
-                    font,
-                sourceText =
-                    text,
-                options =
-                    options,
-                filePrefix =
-                    "nome"
-            )
-        }
+        generateTextInternal(
+            font =
+                font,
+            sourceText =
+                text,
+            options =
+                options,
+            filePrefix =
+                "nome"
+        )
 
     private fun generateTextInternal(
         font: ImportedFont,
@@ -707,22 +663,32 @@ object ImportedFontMatrixGenerator {
                 TextStitchStyle.SATIN
         ) {
             /*
-             * Referência comportamental Mão Design 18.1.2:
-             * a posição atual é compartilhada entre colunas e glifos.
-             * Não existe TRIM obrigatório entre letras; o TRIM só entra
-             * quando o deslocamento real ultrapassa o limiar de viagem.
+             * O vídeo de referência mostra um percurso guiado pelo eixo
+             * central real do traço da letra:
+             *
+             *   centro até a ponta -> Satin voltando pelo mesmo ramo.
+             *
+             * Portanto a criação TTF/OTF usa o esqueleto medial da forma
+             * preenchida e mede a largura real do contorno em cada amostra.
+             * A antiga varredura horizontal/vertical gerava um percurso
+             * diferente do arquivo aberto no simulador.
              */
-            val state =
-                ReferenceSatinState()
-
             glyphGroups.forEach {
                     contours ->
-                appendReferenceSatinGlyph(
-                    output = output,
-                    contours = contours,
-                    options = options,
-                    state = state
-                )
+                val glyphPoints =
+                    buildSatinByAxis(
+                        contours =
+                            contours,
+                        options =
+                            options
+                    )
+
+                if (
+                    glyphPoints.isNotEmpty()
+                ) {
+                    output +=
+                        glyphPoints
+                }
             }
 
             return output
@@ -2534,17 +2500,31 @@ object ImportedFontMatrixGenerator {
                 it.second
             }
 
+        val spanUnits =
+            maxOf(
+                maxX -
+                    minX,
+                maxY -
+                    minY
+            )
+                .coerceAtLeast(
+                    1
+                )
+
         /*
-         * O contorno vetorial continua sendo a fonte da forma.
-         * A máscara/esqueleto serve somente para estimar a direção local
-         * do traço. As bordas Satin são recalculadas contra a máscara em
-         * cada amostra, portanto não usamos o esqueleto como desenho.
+         * 0,75 unidade = 0,075 mm por pixel nas letras comuns.
+         * Para glifos muito grandes aumentamos a escala de forma limitada
+         * para manter o processamento seguro no celular.
          */
         val unitsPerPixel =
-            0.75f
+            maxOf(
+                0.75f,
+                spanUnits /
+                    1500f
+            )
 
         val padding =
-            6
+            8
 
         val width =
             (
@@ -2730,19 +2710,14 @@ object ImportedFontMatrixGenerator {
                 .filter {
                     it.size >=
                         5 &&
-                        skeletonLineLength(
-                            it
-                        ) >=
-                            7f
+                    skeletonLineLength(
+                        it
+                    ) >=
+                        7f
                 }
 
-        val lines =
-            orderSkeletonLinesByProximity(
-                rawLines
-            )
-
         if (
-            lines.isEmpty()
+            rawLines.isEmpty()
         ) {
             return buildRunningOutline(
                 contours =
@@ -2752,6 +2727,145 @@ object ImportedFontMatrixGenerator {
                         .stitchLengthMm *
                         10f
             )
+        }
+
+        val naturalStart =
+            allPoints.minWithOrNull(
+                compareBy<Pair<Int, Int>> {
+                    it.first
+                }.thenBy {
+                    it.second
+                }
+            )
+
+        val startHint =
+            naturalStart
+                ?.let {
+                        point ->
+                    SkeletonPoint(
+                        x =
+                            (
+                                (
+                                    point.first -
+                                        minX
+                                    ) /
+                                    unitsPerPixel +
+                                    padding
+                                ).roundToInt(),
+                        y =
+                            (
+                                (
+                                    maxY -
+                                        point.second
+                                    ) /
+                                    unitsPerPixel +
+                                    padding
+                                ).roundToInt()
+                    )
+                }
+
+        fun endpointDistance(
+            point: SkeletonPoint,
+            line: List<SkeletonPoint>
+        ): Double =
+            minOf(
+                pointDistance(
+                    point,
+                    line.first()
+                ),
+                pointDistance(
+                    point,
+                    line.last()
+                )
+            )
+
+        fun orientFrom(
+            line: List<SkeletonPoint>,
+            anchor: SkeletonPoint
+        ): List<SkeletonPoint> =
+            if (
+                pointDistance(
+                    anchor,
+                    line.last()
+                ) <
+                pointDistance(
+                    anchor,
+                    line.first()
+                )
+            ) {
+                line.asReversed()
+            } else {
+                line
+            }
+
+        /*
+         * Cada linha retornará ao próprio ponto inicial após o Satin
+         * reverso. Por isso a próxima linha é escolhida pela proximidade
+         * desse ponto inicial, preservando ramos que compartilham a mesma
+         * junção antes de saltar para outra região.
+         */
+        val remaining =
+            rawLines
+                .toMutableList()
+
+        val ordered =
+            mutableListOf<
+                List<SkeletonPoint>
+            >()
+
+        var anchor =
+            startHint
+
+        while (
+            remaining.isNotEmpty()
+        ) {
+            val selected =
+                if (
+                    anchor !=
+                        null
+                ) {
+                    remaining.minByOrNull {
+                            line ->
+                        endpointDistance(
+                            anchor!!,
+                            line
+                        )
+                    }
+                } else {
+                    remaining.minByOrNull {
+                            line ->
+                        minOf(
+                            line.first().x,
+                            line.last().x
+                        )
+                    }
+                }
+                    ?: break
+
+            remaining.remove(
+                selected
+            )
+
+            val oriented =
+                if (
+                    anchor !=
+                        null
+                ) {
+                    orientFrom(
+                        selected,
+                        anchor!!
+                    )
+                } else {
+                    orientSkeletonLine(
+                        selected
+                    )
+                }
+
+            ordered +=
+                oriented
+
+            anchor =
+                oriented.first()
         }
 
         val stepPixels =
@@ -2771,12 +2885,201 @@ object ImportedFontMatrixGenerator {
                 10f /
                 unitsPerPixel
 
+        val maximumHalfWidthPixels =
+            (
+                35f /
+                    unitsPerPixel
+                ).coerceAtLeast(
+                1f
+            )
+
         val output =
             mutableListOf<
                 EmbroideryPoint
             >()
 
-        lines.forEach {
+        var currentX:
+            Int? =
+            null
+
+        var currentY:
+            Int? =
+            null
+
+        fun travelTo(
+            targetX: Int,
+            targetY: Int
+        ) {
+            val fromX =
+                currentX
+
+            val fromY =
+                currentY
+
+            if (
+                fromX ==
+                    null ||
+                fromY ==
+                    null
+            ) {
+                output +=
+                    EmbroideryPoint(
+                        targetX,
+                        targetY,
+                        StitchCommand.JUMP,
+                        0
+                    )
+
+                currentX =
+                    targetX
+
+                currentY =
+                    targetY
+
+                return
+            }
+
+            val distance =
+                hypot(
+                    (
+                        targetX -
+                            fromX
+                        ).toDouble(),
+                    (
+                        targetY -
+                            fromY
+                        ).toDouble()
+                )
+
+            if (
+                distance <
+                    0.5
+            ) {
+                currentX =
+                    targetX
+
+                currentY =
+                    targetY
+
+                return
+            }
+
+            if (
+                distance >
+                    50.0
+            ) {
+                output +=
+                    EmbroideryPoint(
+                        fromX,
+                        fromY,
+                        StitchCommand.TRIM,
+                        0
+                    )
+            }
+
+            val segments =
+                max(
+                    1,
+                    ceil(
+                        distance /
+                            70.0
+                    ).toInt()
+                )
+
+            for (
+                part in
+                    1..segments
+            ) {
+                val ratio =
+                    part.toDouble() /
+                        segments
+
+                output +=
+                    EmbroideryPoint(
+                        (
+                            fromX +
+                                (
+                                    targetX -
+                                        fromX
+                                    ) *
+                                    ratio
+                            ).roundToInt(),
+                        (
+                            fromY +
+                                (
+                                    targetY -
+                                        fromY
+                                    ) *
+                                    ratio
+                            ).roundToInt(),
+                        StitchCommand.JUMP,
+                        0
+                    )
+            }
+
+            currentX =
+                targetX
+
+            currentY =
+                targetY
+        }
+
+        fun stitchTo(
+            targetX: Int,
+            targetY: Int
+        ) {
+            val fromX =
+                currentX
+
+            val fromY =
+                currentY
+
+            if (
+                fromX ==
+                    null ||
+                fromY ==
+                    null
+            ) {
+                travelTo(
+                    targetX,
+                    targetY
+                )
+
+                return
+            }
+
+            if (
+                fromX ==
+                    targetX &&
+                fromY ==
+                    targetY
+            ) {
+                return
+            }
+
+            appendSplitStitch(
+                output =
+                    output,
+                fromX =
+                    fromX,
+                fromY =
+                    fromY,
+                toX =
+                    targetX,
+                toY =
+                    targetY,
+                maxLengthUnits =
+                    82f
+            )
+
+            currentX =
+                targetX
+
+            currentY =
+                targetY
+        }
+
+        ordered.forEach {
                 rawLine ->
             val samples =
                 smoothAndResampleSkeleton(
@@ -2797,171 +3100,124 @@ object ImportedFontMatrixGenerator {
                 return@forEach
             }
 
-            if (
-                output.isNotEmpty()
-            ) {
-                val last =
-                    output.last()
+            fun sampleX(
+                sample: FloatSkeletonPoint
+            ): Int =
+                skeletonXToUnits(
+                    sample.x,
+                    minX,
+                    padding,
+                    unitsPerPixel
+                )
 
-                if (
-                    last.command !=
-                        StitchCommand.TRIM
+            fun sampleY(
+                sample: FloatSkeletonPoint
+            ): Int =
+                skeletonYToUnits(
+                    sample.y,
+                    maxY,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val first =
+                samples.first()
+
+            travelTo(
+                sampleX(
+                    first
+                ),
+                sampleY(
+                    first
+                )
+            )
+
+            val useReferenceUnderlay =
+                options.satinUnderlayMode !=
+                    com.timachado.brothermatrizes
+                        .core
+                        .embroidery
+                        .SatinUnderlayMode
+                        .NONE
+
+            if (
+                useReferenceUnderlay
+            ) {
+                /*
+                 * PASSADA 1 — a linha central do vídeo.
+                 *
+                 * Percorre o ramo uma única vez até a ponta. Não volta pelo
+                 * centro, não corta e não executa um segundo underlay.
+                 */
+                var lastUnderlay =
+                    first
+
+                var accumulatedUnits =
+                    0.0
+
+                for (
+                    index in
+                        1 until
+                            samples.size
                 ) {
-                    output +=
-                        EmbroideryPoint(
-                            last.xUnits,
-                            last.yUnits,
-                            StitchCommand.TRIM,
-                            0
+                    val sample =
+                        samples[index]
+
+                    accumulatedUnits +=
+                        hypot(
+                            (
+                                sample.x -
+                                    lastUnderlay.x
+                                ).toDouble(),
+                            (
+                                sample.y -
+                                    lastUnderlay.y
+                                ).toDouble()
+                        ) *
+                            unitsPerPixel
+
+                    val isLast =
+                        index ==
+                            samples.lastIndex
+
+                    if (
+                        accumulatedUnits >=
+                            14.0 ||
+                        isLast
+                    ) {
+                        stitchTo(
+                            sampleX(
+                                sample
+                            ),
+                            sampleY(
+                                sample
+                            )
                         )
+
+                        lastUnderlay =
+                            sample
+
+                        accumulatedUnits =
+                            0.0
+                    }
                 }
             }
 
-            if (
-                options
-                    .satinUnderlayMode ==
-                    com.timachado.brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .CENTER ||
-                options
-                    .satinUnderlayMode ==
-                    com.timachado.brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .BOTH
-            ) {
-                val first =
-                    samples.first()
-
-                output +=
-                    EmbroideryPoint(
-                        skeletonXToUnits(
-                            first.x,
-                            minX,
-                            padding,
-                            unitsPerPixel
-                        ),
-                        skeletonYToUnits(
-                            first.y,
-                            maxY,
-                            padding,
-                            unitsPerPixel
-                        ),
-                        StitchCommand.JUMP,
-                        0
-                    )
-
-                var previous =
-                    first
-
-                samples.drop(1)
-                    .forEach {
-                            sample ->
-                        val distance =
-                            hypot(
-                                (
-                                    sample.x -
-                                        previous.x
-                                    ).toDouble(),
-                                (
-                                    sample.y -
-                                        previous.y
-                                    ).toDouble()
-                            ) *
-                                unitsPerPixel
-
-                        if (
-                            distance >=
-                                14f
-                        ) {
-                            output +=
-                                EmbroideryPoint(
-                                    skeletonXToUnits(
-                                        sample.x,
-                                        minX,
-                                        padding,
-                                        unitsPerPixel
-                                    ),
-                                    skeletonYToUnits(
-                                        sample.y,
-                                        maxY,
-                                        padding,
-                                        unitsPerPixel
-                                    ),
-                                    StitchCommand.STITCH,
-                                    0
-                                )
-
-                            previous =
-                                sample
-                        }
-                    }
-
-                val last =
-                    output.last()
-
-                output +=
-                    EmbroideryPoint(
-                        last.xUnits,
-                        last.yUnits,
-                        StitchCommand.TRIM,
-                        0
-                    )
-            }
-
             /*
-             * CAMADA 2 — underlay de suporte.
+             * PASSADA 2 — Satin retornando pelo MESMO ramo.
              *
-             * ZIGZAG/BOTH usam um zigue-zague estreito centralizado,
-             * cuja normal gira junto com o eixo local da letra. Assim
-             * a base acompanha curvas em vez de permanecer horizontal
-             * ou vertical.
+             * Quando existe underlay, a cobertura começa na ponta onde a
+             * passada central terminou e volta até a entrada. Esse é o
+             * percurso visível no vídeo de referência.
              */
-            if (
-                options
-                    .satinUnderlayMode ==
-                    com.timachado.brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .ZIGZAG ||
-                options
-                    .satinUnderlayMode ==
-                    com.timachado.brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .BOTH
-            ) {
-                appendDynamicZigzagUnderlay(
-                    output = output,
-                    samples = samples,
-                    minX = minX,
-                    maxY = maxY,
-                    padding = padding,
-                    unitsPerPixel = unitsPerPixel,
-                    satinWidthUnits =
-                        options.satinWidthMm *
-                            10f
-                )
-            }
-
-            /*
-             * CAMADA 3 — Satin visível.
-             *
-             * O ângulo continua sendo calculado pela tangente do
-             * esqueleto e pela normal local em cada amostra.
-             */
-            var currentX:
-                Int? =
-                null
-
-            var currentY:
-                Int? =
-                null
+            val satinSamples =
+                if (
+                    useReferenceUnderlay
+                ) {
+                    samples.asReversed()
+                } else {
+                    samples
+                }
 
             var positiveWidth:
                 Double? =
@@ -2971,11 +3227,11 @@ object ImportedFontMatrixGenerator {
                 Double? =
                 null
 
-            samples.forEachIndexed {
+            satinSamples.forEachIndexed {
                     index,
                     sample ->
                 val before =
-                    samples[
+                    satinSamples[
                         (
                             index -
                                 3
@@ -2985,12 +3241,12 @@ object ImportedFontMatrixGenerator {
                     ]
 
                 val after =
-                    samples[
+                    satinSamples[
                         (
                             index +
                                 3
                             ).coerceAtMost(
-                            samples.lastIndex
+                            satinSamples.lastIndex
                         )
                     ]
 
@@ -3050,6 +3306,10 @@ object ImportedFontMatrixGenerator {
                         direction =
                             1.0
                     )
+                        .coerceAtMost(
+                            maximumHalfWidthPixels
+                                .toDouble()
+                        )
 
                 val rawNegative =
                     boundaryDistance(
@@ -3072,6 +3332,10 @@ object ImportedFontMatrixGenerator {
                         direction =
                             -1.0
                     )
+                        .coerceAtMost(
+                            maximumHalfWidthPixels
+                                .toDouble()
+                        )
 
                 val positive =
                     positiveWidth
@@ -3122,16 +3386,17 @@ object ImportedFontMatrixGenerator {
                     }
 
                 val boundary =
-                    if (
-                        side >
-                            0.0
-                    ) {
-                        positive +
-                            pullPixels
-                    } else {
-                        negative +
-                            pullPixels
-                    }
+                    (
+                        if (
+                            side >
+                                0.0
+                        ) {
+                            positive
+                        } else {
+                            negative
+                        }
+                        ) +
+                        pullPixels
 
                 val edgeX =
                     sample.x +
@@ -3145,16 +3410,14 @@ object ImportedFontMatrixGenerator {
                             boundary *
                             side
 
-                val targetX =
+                stitchTo(
                     skeletonXToUnits(
                         edgeX
                             .toFloat(),
                         minX,
                         padding,
                         unitsPerPixel
-                    )
-
-                val targetY =
+                    ),
                     skeletonYToUnits(
                         edgeY
                             .toFloat(),
@@ -3162,131 +3425,17 @@ object ImportedFontMatrixGenerator {
                         padding,
                         unitsPerPixel
                     )
-
-                val fromX =
-                    currentX
-
-                val fromY =
-                    currentY
-
-                if (
-                    fromX ==
-                        null ||
-                    fromY ==
-                        null
-                ) {
-                    output +=
-                        EmbroideryPoint(
-                            targetX,
-                            targetY,
-                            StitchCommand.JUMP,
-                            0
-                        )
-                } else if (
-                    fromX !=
-                        targetX ||
-                    fromY !=
-                        targetY
-                ) {
-                    appendSplitStitch(
-                        output =
-                            output,
-                        fromX =
-                            fromX,
-                        fromY =
-                            fromY,
-                        toX =
-                            targetX,
-                        toY =
-                            targetY,
-                        maxLengthUnits =
-                            82f
-                    )
-                }
-
-                currentX =
-                    targetX
-
-                currentY =
-                    targetY
-            }
-        }
-
-        /*
-         * CAMADA 4 — fechamento/contorno.
-         *
-         * O contorno vetorial original só entra depois que todas as
-         * regiões Satin do glifo foram preenchidas. Isso evita que o
-         * preenchimento puxe o tecido depois de um outline já pronto.
-         */
-        if (
-            output.isNotEmpty() &&
-            output.last().command !=
-                StitchCommand.TRIM
-        ) {
-            val last =
-                output.last()
-
-            output +=
-                EmbroideryPoint(
-                    last.xUnits,
-                    last.yUnits,
-                    StitchCommand.TRIM,
-                    0
-                )
-        }
-
-        output +=
-            buildRunningOutline(
-                contours = contours,
-                stitchLengthUnits =
-                    (
-                        options.stitchLengthMm *
-                            10f
-                        ).coerceIn(
-                        12f,
-                        20f
-                    )
-            )
-
-        val quality =
-            AdaptiveFontPolicy
-                .qualityFromCoordinates(
-                    output.map {
-                            point ->
-                        Triple(
-                            point.xUnits,
-                            point.yUnits,
-                            point.command ==
-                                StitchCommand.STITCH
-                        )
-                    }
-                )
-
-        val repaired =
-            if (
-                AdaptiveFontPolicy
-                    .isAcceptable(
-                        quality
-                    )
-            ) {
-                output
-            } else {
-                repairSatinSequence(
-                    output =
-                        output,
-                    maxLengthUnits =
-                        82f
                 )
             }
+        }
 
         return if (
-            repaired.any {
+            output.any {
                 it.command ==
                     StitchCommand.STITCH
             }
         ) {
-            repaired
+            output
         } else {
             buildRunningOutline(
                 contours =
