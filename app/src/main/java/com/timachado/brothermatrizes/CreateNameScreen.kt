@@ -1583,10 +1583,6 @@ fun CreateNameScreen(
                         onClick = {
                             preview
                                 ?.copy(
-                                    // A simulação usa exatamente a sequência
-                                    // que será exportada. O guia é removido
-                                    // apenas para o fundo fantasma nascer das
-                                    // próprias pontadas.
                                     guidePoints =
                                         emptyList()
                                 )
