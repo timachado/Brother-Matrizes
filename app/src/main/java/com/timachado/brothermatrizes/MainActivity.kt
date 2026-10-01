@@ -1850,6 +1850,115 @@ private fun BrotherMatrizesApp(
                                     displayMode =
                                         displayMode
                                 )
+                        },
+                        onSimulate = {
+                                created,
+                                displayMode ->
+                            scope.launch {
+                                loading =
+                                    true
+
+                                val converted =
+                                    withContext(
+                                        Dispatchers.IO
+                                    ) {
+                                        MatrixConverter
+                                            .convert(
+                                                design =
+                                                    created,
+                                                targetFormat =
+                                                    created.format,
+                                                outputSuffix =
+                                                    "simulacao"
+                                            )
+                                    }
+
+                                val opened =
+                                    converted.fold(
+                                        onSuccess = {
+                                                matrix ->
+                                            EmbroideryLoader
+                                                .loadBytes(
+                                                    displayName =
+                                                        matrix.fileName,
+                                                    bytes =
+                                                        matrix.bytes
+                                                )
+                                        },
+                                        onFailure = {
+                                                error ->
+                                            EmbroideryLoadResult
+                                                .Error(
+                                                    "Não foi possível preparar a matriz para simulação.",
+                                                    error.message
+                                                )
+                                        }
+                                    )
+
+                                loading =
+                                    false
+
+                                when (
+                                    opened
+                                ) {
+                                    is EmbroideryLoadResult
+                                        .Success -> {
+                                        val simulated =
+                                            opened.design
+                                                .copy(
+                                                    threadColors =
+                                                        if (
+                                                            created
+                                                                .threadColors
+                                                                .isNotEmpty()
+                                                        ) {
+                                                            created
+                                                                .threadColors
+                                                        } else {
+                                                            opened.design
+                                                                .threadColors
+                                                        },
+                                                    hoopProfile =
+                                                        created
+                                                            .hoopProfile,
+                                                    fabricProfile =
+                                                        created
+                                                            .fabricProfile,
+                                                    label =
+                                                        created.label
+                                                            ?: opened.design
+                                                                .label
+                                                )
+
+                                        activateDesign(
+                                            simulated
+                                        )
+
+                                        screen =
+                                            Screen.Simulator(
+                                                design =
+                                                    simulated,
+                                                displayMode =
+                                                    displayMode,
+                                                referenceHoop =
+                                                    created
+                                                        .hoopProfile
+                                                        ?: recommendedHoopFor(
+                                                            simulated
+                                                        ),
+                                                showConnections =
+                                                    false
+                                            )
+                                    }
+
+                                    is EmbroideryLoadResult
+                                        .Error -> {
+                                        snackbar.showSnackbar(
+                                            opened.userMessage
+                                        )
+                                    }
+                                }
+                            }
                         }
                     )
                 }
