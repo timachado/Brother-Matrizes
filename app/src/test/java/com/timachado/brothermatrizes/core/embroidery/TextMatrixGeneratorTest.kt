@@ -421,17 +421,46 @@ class TextMatrixGeneratorTest {
                             )
                             .getOrThrow()
 
-                    design.points
-                        .take(80)
-                        .joinToString(
-                            separator = ";"
-                        ) {
-                                point ->
-                            point.xUnits
-                                .toString() +
-                                "," +
-                                point.yUnits
-                        }
+                    buildString {
+                        append(
+                            design.bounds
+                                .minXUnits
+                        )
+                        append(':')
+                        append(
+                            design.bounds
+                                .maxXUnits
+                        )
+                        append(':')
+                        append(
+                            design.bounds
+                                .minYUnits
+                        )
+                        append(':')
+                        append(
+                            design.bounds
+                                .maxYUnits
+                        )
+                        append('|')
+
+                        design.points
+                            .forEach {
+                                    point ->
+                                append(
+                                    point.xUnits
+                                )
+                                append(',')
+                                append(
+                                    point.yUnits
+                                )
+                                append(',')
+                                append(
+                                    point.command
+                                        .ordinal
+                                )
+                                append(';')
+                            }
+                    }
                 }
 
         assertEquals(
