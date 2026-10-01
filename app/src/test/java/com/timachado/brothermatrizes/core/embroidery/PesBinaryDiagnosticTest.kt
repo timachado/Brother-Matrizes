@@ -36,15 +36,12 @@ class PesBinaryDiagnosticTest {
         out.writeBytes(converted.bytes)
 
         val meta = File("build/diagnostics/maria-app.txt")
+        val nl = System.lineSeparator()
         meta.writeText(
-            "sourceWidthMm=" + design.bounds.widthMm + "
-" +
-                "sourceHeightMm=" + design.bounds.heightMm + "
-" +
-                "points=" + design.points.size + "
-" +
-                "stitches=" + design.stitchCount + "
-"
+            "sourceWidthMm=" + design.bounds.widthMm + nl +
+                "sourceHeightMm=" + design.bounds.heightMm + nl +
+                "points=" + design.points.size + nl +
+                "stitches=" + design.stitchCount + nl
         )
 
         assertTrue(out.length() > 600)
