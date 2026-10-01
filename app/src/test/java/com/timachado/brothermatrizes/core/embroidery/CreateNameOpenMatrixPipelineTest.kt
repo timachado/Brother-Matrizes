@@ -7,7 +7,7 @@ import org.junit.Test
 class CreateNameOpenMatrixPipelineTest {
 
     @Test
-    fun generatedNameUsesTheSameParserAsOpenedMatrix() {
+    fun generatedNameUsesTheSameCanonicalPipelineAsOpenedMatrix() {
         val source =
             TextMatrixGenerator
                 .generate(
@@ -24,25 +24,13 @@ class CreateNameOpenMatrixPipelineTest {
                 )
                 .getOrThrow()
 
-        val converted =
-            MatrixConverter
-                .convert(
+        val result =
+            GeneratedMatrixPipeline
+                .canonicalize(
                     design =
                         source,
-                    targetFormat =
-                        source.format,
                     outputSuffix =
-                        "simulacao"
-                )
-                .getOrThrow()
-
-        val result =
-            EmbroideryLoader
-                .loadBytes(
-                    displayName =
-                        converted.fileName,
-                    bytes =
-                        converted.bytes
+                        "teste"
                 )
 
         assertTrue(
@@ -74,6 +62,21 @@ class CreateNameOpenMatrixPipelineTest {
         assertTrue(
             opened.stitchCount >
                 0
+        )
+
+        assertEquals(
+            source.threadColors,
+            opened.threadColors
+        )
+
+        assertEquals(
+            source.hoopProfile,
+            opened.hoopProfile
+        )
+
+        assertEquals(
+            source.fabricProfile,
+            opened.fabricProfile
         )
     }
 }
