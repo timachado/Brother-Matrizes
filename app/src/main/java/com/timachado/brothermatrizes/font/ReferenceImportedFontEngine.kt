@@ -1544,116 +1544,291 @@ internal object ReferenceImportedFontEngine {
             underlayMode: SatinUnderlayMode,
             densityMm: Float
         ) {
-            val remaining =
-                columns
-                    .filter {
-                        it.rows
-                            .isNotEmpty()
-                    }
-                    .toMutableList()
+            /*
+             * O motor de referência não escolhe colunas por proximidade nem
+             * intercala underlay com a cobertura linha a linha.
+             *
+             * Ele recebe as colunas já ordenadas pelo SatinColumnSampler e
+             * executa cada uma por completo:
+             * travel -> underlay central ida/volta -> trava -> Satin A/B -> trava.
+             *
+             * Esse é o comportamento observado no motor usado como referência
+             * para criação de nomes.
+             */
+            columns
+                .filter {
+                    it.rows
+                        .isNotEmpty()
+                }
+                .forEach {
+                        column ->
+                    emitReferenceColumn(
+                        column =
+                            column,
+                        includeUnderlay =
+                            underlayMode !=
+                                SatinUnderlayMode.NONE,
+                        densityMm =
+                            densityMm
+                    )
+                }
+        }
+
+        private fun emitReferenceColumn(
+            column: SatinColumn,
+            includeUnderlay: Boolean,
+            densityMm: Float
+        ) {
+            val rows =
+                column.rows
 
             if (
-                remaining.isEmpty()
+                rows.isEmpty()
             ) {
                 return
             }
 
-            var firstColumn =
-                true
+            val first =
+                rows.first()
 
-            while (
-                remaining
-                    .isNotEmpty()
+            emitReferenceTravel(
+                first.a
+            )
+
+            if (
+                includeUnderlay &&
+                rows.size >=
+                    4
             ) {
-                val anchor =
-                    if (
-                        firstColumn
-                    ) {
-                        startHint
-                            ?: current
-                            ?: remaining
-                                .first()
-                                .rows
-                                .first()
-                                .a
-                    } else {
-                        current
-                            ?: startHint
-                            ?: remaining
-                                .first()
-                                .rows
-                                .first()
-                                .a
-                    }
-
-                /*
-                 * A ordem física dos blocos Satin deve ser estável.
-                 * Escolher o próximo bloco apenas pela menor distância
-                 * pode avançar visualmente para a próxima parte da letra
-                 * e depois voltar para uma região anterior que ainda não
-                 * foi concluída. Para nomes cursivos isso parece que a
-                 * máquina começou outra letra e voltou.
-                 *
-                 * Mantemos a progressão espacial da esquerda para a
-                 * direita. A distância atual é usada somente para
-                 * escolher a melhor orientação de entrada do bloco.
-                 */
-                val nextColumn =
-                    nextColumnInReadingOrder(
-                        remaining
-                    )!!
-
-                val choice =
-                    closestOrientation(
-                        column =
-                            nextColumn,
-                        anchor =
-                            if (
-                                firstColumn
-                            ) {
-                                startHint
-                                    ?: nextColumn
-                                        .rows
-                                        .first()
-                                        .a
-                            } else {
-                                anchor
-                            }
-                    )
-
-                val column =
-                    choice.oriented
-
-                val entry =
-                    column.rows
-                        .first()
-                        .a
-
-                travelTo(
-                    target =
-                        entry,
-                    polygons =
-                        polygons,
-                    firstColumn =
-                        firstColumn
-                )
-
-                emitProgressiveSatinColumn(
+                emitReferenceCenterRunUnderlay(
                     column =
                         column,
-                    underlayMode =
-                        underlayMode,
                     densityMm =
                         densityMm
                 )
+            }
 
-                remaining.remove(
-                    choice.original
+            emitReferenceLock(
+                first
+            )
+
+            rows.forEach {
+                    row ->
+                stitchTo(
+                    row.a
                 )
 
-                firstColumn =
-                    false
+                stitchTo(
+                    row.b
+                )
             }
+
+            emitReferenceLock(
+                rows.last()
+            )
+        }
+
+        private fun emitReferenceCenterRunUnderlay(
+            column: SatinColumn,
+            densityMm: Float
+        ) {
+            val rows =
+                column.rows
+
+            if (
+                rows.isEmpty()
+            ) {
+                return
+            }
+
+            val pitchUnits =
+                (
+                    densityMm *
+                        10f
+                    ).coerceAtLeast(
+                    0.5f
+                )
+
+            val rowStep =
+                max(
+                    1,
+                    (
+                        20f /
+                            pitchUnits
+                        ).roundToInt()
+                )
+
+            val centers =
+                mutableListOf<
+                    FPoint
+                >()
+
+            var index =
+                0
+
+            while (
+                index <
+                    rows.size
+            ) {
+                centers +=
+                    center(
+                        rows[index]
+                    )
+
+                index +=
+                    rowStep
+            }
+
+            val lastCenter =
+                center(
+                    rows.last()
+                )
+
+            if (
+                centers.lastOrNull() !=
+                    lastCenter
+            ) {
+                centers +=
+                    lastCenter
+            }
+
+            centers.forEach {
+                    point ->
+                stitchTo(
+                    point
+                )
+            }
+
+            for (
+                reverseIndex in
+                    centers.size -
+                        2 downTo
+                        0
+            ) {
+                stitchTo(
+                    centers[
+                        reverseIndex
+                    ]
+                )
+            }
+        }
+
+        private fun emitReferenceLock(
+            row: SatinRow
+        ) {
+            val dx =
+                row.b.x -
+                    row.a.x
+
+            val dy =
+                row.b.y -
+                    row.a.y
+
+            val length =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
+                    .toFloat()
+
+            val ux =
+                if (
+                    length >
+                        0.001f
+                ) {
+                    dx /
+                        length
+                } else {
+                    1f
+                }
+
+            val uy =
+                if (
+                    length >
+                        0.001f
+                ) {
+                    dy /
+                        length
+                } else {
+                    0f
+                }
+
+            stitchTo(
+                row.a
+            )
+
+            stitchTo(
+                FPoint(
+                    x =
+                        row.a.x +
+                            ux *
+                                6f,
+                    y =
+                        row.a.y +
+                            uy *
+                                6f
+                )
+            )
+
+            stitchTo(
+                row.a
+            )
+        }
+
+        private fun emitReferenceTravel(
+            target: FPoint
+        ) {
+            val before =
+                current
+
+            if (
+                before ==
+                    null
+            ) {
+                emit(
+                    target,
+                    StitchCommand.JUMP
+                )
+
+                return
+            }
+
+            val travelDistance =
+                distance(
+                    before,
+                    target
+                )
+
+            if (
+                travelDistance <
+                    0.5f
+            ) {
+                current =
+                    target
+
+                return
+            }
+
+            if (
+                travelDistance >
+                    50f
+            ) {
+                emit(
+                    before,
+                    StitchCommand.TRIM
+                )
+            }
+
+            emitSegmented(
+                from =
+                    before,
+                to =
+                    target,
+                command =
+                    StitchCommand.JUMP,
+                maxSegmentUnits =
+                    MAX_STITCH_UNITS
+            )
         }
 
         private fun closestOrientation(
