@@ -1903,7 +1903,7 @@ private fun BrotherMatrizesApp(
                                                 design =
                                                     created,
                                                 outputSuffix =
-                                                    "simulacao"
+                                                    "criado"
                                             )
                                     }
 
