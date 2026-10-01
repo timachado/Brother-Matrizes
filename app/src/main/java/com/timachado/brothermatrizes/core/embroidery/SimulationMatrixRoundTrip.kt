@@ -62,6 +62,25 @@ object SimulationMatrixRoundTrip {
                         .Success ->
                         parsed.design
                             .copy(
+                                // DST não carrega informação de cor de linha e
+                                // PES/JEF podem quantizar a cor para a paleta do
+                                // formato. Na simulação de uma criação devemos
+                                // respeitar exatamente a cor que o usuário
+                                // selecionou no editor.
+                                threadColors =
+                                    if (
+                                        design.threadColors
+                                            .isNotEmpty()
+                                    ) {
+                                        design.threadColors
+                                    } else {
+                                        parsed.design
+                                            .threadColors
+                                    },
+                                label =
+                                    design.label
+                                        ?: parsed.design
+                                            .label,
                                 hoopProfile =
                                     design.hoopProfile,
                                 fabricProfile =

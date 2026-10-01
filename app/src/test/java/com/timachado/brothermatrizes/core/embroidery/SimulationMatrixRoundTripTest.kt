@@ -49,6 +49,11 @@ class SimulationMatrixRoundTripTest {
             simulated.sourceYAxisDown
         )
 
+        assertEquals(
+            source.threadColors,
+            simulated.threadColors
+        )
+
         assertTrue(
             simulated.guidePoints
                 .isEmpty()
@@ -74,5 +79,54 @@ class SimulationMatrixRoundTripTest {
             ) <
                 0.2f
         )
+    }
+
+    @Test
+    fun preservesSelectedThreadColorInEverySimulationFormat() {
+        val selectedColor =
+            0xE63946
+
+        val source =
+            TextMatrixGenerator
+                .generate(
+                    TextMatrixOptions(
+                        text = "MARIA",
+                        heightMm = 18f,
+                        style =
+                            TextStitchStyle
+                                .SATIN,
+                        color =
+                            selectedColor
+                    )
+                )
+                .getOrThrow()
+
+        listOf(
+            "DST",
+            "PES",
+            "JEF"
+        ).forEach {
+                format ->
+            val simulated =
+                SimulationMatrixRoundTrip
+                    .prepare(
+                        design =
+                            source.copy(
+                                format =
+                                    format
+                            ),
+                        targetFormat =
+                            format
+                    )
+                    .getOrThrow()
+
+            assertEquals(
+                "A simulação de $format deve manter a cor escolhida no Criar Nome.",
+                listOf(
+                    selectedColor
+                ),
+                simulated.threadColors
+            )
+        }
     }
 }
