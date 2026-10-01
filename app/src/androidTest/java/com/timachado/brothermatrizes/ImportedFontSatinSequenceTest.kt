@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
@@ -570,5 +572,77 @@ class ImportedFontSatinSequenceTest {
                 5f
         )
     }
+
+    @Test
+    fun importedTtfOtfCreationUsesOpenMatrixCanonicalPipeline() {
+        val source =
+            ImportedFontMatrixGenerator
+                .generateText(
+                    font =
+                        systemFont(),
+                    text =
+                        "Maria",
+                    options =
+                        TextMatrixOptions(
+                            text =
+                                "Maria",
+                            heightMm =
+                                18f,
+                            style =
+                                TextStitchStyle.SATIN,
+                            outputFormat =
+                                "PES",
+                            color =
+                                0xE63946,
+                            enforceHoop =
+                                false
+                        )
+                )
+                .getOrThrow()
+
+        val result =
+            GeneratedMatrixPipeline
+                .canonicalize(
+                    design =
+                        source,
+                    outputSuffix =
+                        "android-test"
+                )
+
+        assertTrue(
+            result is
+                EmbroideryLoadResult.Success
+        )
+
+        val opened =
+            (
+                result as
+                    EmbroideryLoadResult.Success
+                ).design
+
+        assertTrue(
+            "A fonte importada precisa virar uma matriz real antes de entrar no Viewer/Simulator.",
+            opened.sourceBytes
+                .isNotEmpty()
+        )
+
+        assertTrue(
+            "Depois de reabrir como Abrir Matriz, a sequência deve vir sem guia vetorial do editor.",
+            opened.guidePoints
+                .isEmpty()
+        )
+
+        assertTrue(
+            "A matriz canonizada precisa manter pontadas válidas.",
+            opened.stitchCount >
+                0
+        )
+
+        assertEquals(
+            source.threadColors,
+            opened.threadColors
+        )
+    }
+
 
 }
