@@ -166,22 +166,18 @@ class MatrixConverterTest {
                 0xF000
         )
 
-        assertTrue(
-            "A origem horizontal deve deslocar a metade negativa do desenho.",
-            (
-                originXWord and
-                    0x0FFF
-                ) >
-                0
+        assertEquals(
+            "PES compatível com Innov-is deve começar em área positiva, sem offset X negativo.",
+            0,
+            originXWord and
+                0x0FFF
         )
 
-        assertTrue(
-            "A origem vertical deve deslocar a metade negativa do desenho.",
-            (
-                originYWord and
-                    0x0FFF
-                ) >
-                0
+        assertEquals(
+            "PES compatível com Innov-is deve começar em área positiva, sem offset Y negativo.",
+            0,
+            originYWord and
+                0x0FFF
         )
 
         val parsed =
@@ -206,6 +202,18 @@ class MatrixConverterTest {
             "A geometria PES deve continuar horizontal; não deve haver pré-rotação.",
             machineGeometry.bounds.widthMm >
                 machineGeometry.bounds.heightMm
+        )
+
+        assertTrue(
+            "O PES Brother deve manter X em área positiva.",
+            machineGeometry.bounds.minXUnits >=
+                -1
+        )
+
+        assertTrue(
+            "O PES Brother deve manter Y em área positiva.",
+            machineGeometry.bounds.minYUnits >=
+                -1
         )
 
         assertTrue(
