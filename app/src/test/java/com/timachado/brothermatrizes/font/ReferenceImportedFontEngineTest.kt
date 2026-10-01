@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun firstSatinRegionStartsAtLeftEdgeEvenWhenHintIsMisleading() {
+    fun emitterPreservesTheColumnOrderProducedByTheSampler() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -75,15 +75,15 @@ class ReferenceImportedFontEngineTest {
             first.command
         )
 
-        assertTrue(
-            "O primeiro ponto deve começar na região esquerda da letra.",
-            first.xUnits <=
-                20
+        assertEquals(
+            "O emitter não pode reordenar as colunas recebidas do sampler.",
+            70,
+            first.xUnits
         )
     }
 
     @Test
-    fun connectedColumnsUseHiddenRunningConnector() {
+    fun adjacentColumnsUseReferenceJumpWithoutForcedTrim() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -100,16 +100,20 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            points
-                .drop(
-                    1
-                )
-                .none {
-                    it.command ==
-                        StitchCommand.JUMP ||
-                        it.command ==
-                        StitchCommand.TRIM
-                }
+            "Cada coluna começa com o travel do motor de referência.",
+            points.count {
+                it.command ==
+                    StitchCommand.JUMP
+            } >=
+                2
+        )
+
+        assertTrue(
+            "Colunas próximas não devem forçar corte de linha.",
+            points.none {
+                it.command ==
+                    StitchCommand.TRIM
+            }
         )
     }
 
@@ -134,7 +138,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun satinUsesOneAlternatingStitchPerSampleRow() {
+    fun satinUsesReferenceLocksAndBothEdgesOfEverySampleRow() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -150,15 +154,16 @@ class ReferenceImportedFontEngineTest {
                     StitchCommand.STITCH
             }
 
-        // 4 linhas em cada coluna + ligação contínua entre as colunas.
+        // O motor de referência usa trava inicial/final e costura A/B
+        // em cada linha Satin.
         assertTrue(
-            stitches in
-                9..12
+            stitches >=
+                20
         )
     }
 
     @Test
-    fun centerUnderlayNeverReversesBackAcrossFinishedRows() {
+    fun centerUnderlayMakesTheReferenceForwardAndReturnPass() {
         val stitches =
             ReferenceImportedFontEngine
                 .debugProgressiveCenterUnderlayPath()
@@ -173,12 +178,12 @@ class ReferenceImportedFontEngineTest {
             }
 
         assertTrue(
-            "Underlay + Satin não pode voltar para uma linha anterior; " +
-                "pequena oscilação dentro da largura Satin é permitida.",
-            xSequence.zipWithNext()
-                .all {
+            "O underlay central de referência precisa fazer ida e retorno antes da cobertura.",
+            xSequence
+                .zipWithNext()
+                .any {
                         pair ->
-                    pair.second >=
+                    pair.second <
                         pair.first -
                             3
                 }
@@ -249,7 +254,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun adjacentSatinColumnsContinueFromNearestEndInsteadOfJumpingBackToTop() {
+    fun adjacentSatinColumnsFollowSamplerOrientationWithoutSerpentineRewrite() {
         val jumps =
             ReferenceImportedFontEngine
                 .debugSerpentineTransitionJumpTargets()
@@ -263,7 +268,7 @@ class ReferenceImportedFontEngineTest {
             jumps.last()
 
         assertEquals(
-            20,
+            0,
             transition.second
         )
     }
