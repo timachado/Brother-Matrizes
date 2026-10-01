@@ -1,1 +1,52 @@
-package com.timachado.brothermatrizes.core.embroidery\n\nimport java.io.File\nimport org.junit.Assert.assertTrue\nimport org.junit.Test\n\nclass PesBinaryDiagnosticTest {\n    @Test\n    fun writeMariaPesFixtureForExternalDecoder() {\n        val design =\n            TextMatrixGenerator\n                .generate(\n                    TextMatrixOptions(\n                        text = "MARIA",\n                        heightMm = 29.9f,\n                        spacingMm = 0f,\n                        style = TextStitchStyle.SATIN,\n                        outputFormat = "PES",\n                        hoopProfile = HoopProfile.H100X100,\n                        enforceHoop = false\n                    )\n                )\n                .getOrThrow()\n\n        val converted =\n            MatrixConverter\n                .convert(\n                    design,\n                    "PES",\n                    "binary-diagnostic"\n                )\n                .getOrThrow()\n\n        val out = File("build/diagnostics/maria-app.pes")\n        out.parentFile?.mkdirs()\n        out.writeBytes(converted.bytes)\n\n        val meta = File("build/diagnostics/maria-app.txt")\n        meta.writeText(\n            "sourceWidthMm=" + design.bounds.widthMm + "\n" +\n                "sourceHeightMm=" + design.bounds.heightMm + "\n" +\n                "points=" + design.points.size + "\n" +\n                "stitches=" + design.stitchCount + "\n"\n        )\n\n        assertTrue(out.length() > 600)\n    }\n}\n
+package com.timachado.brothermatrizes.core.embroidery
+
+import java.io.File
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PesBinaryDiagnosticTest {
+    @Test
+    fun writeMariaPesFixtureForExternalDecoder() {
+        val design =
+            TextMatrixGenerator
+                .generate(
+                    TextMatrixOptions(
+                        text = "MARIA",
+                        heightMm = 29.9f,
+                        spacingMm = 0f,
+                        style = TextStitchStyle.SATIN,
+                        outputFormat = "PES",
+                        hoopProfile = HoopProfile.H100X100,
+                        enforceHoop = false
+                    )
+                )
+                .getOrThrow()
+
+        val converted =
+            MatrixConverter
+                .convert(
+                    design,
+                    "PES",
+                    "binary-diagnostic"
+                )
+                .getOrThrow()
+
+        val out = File("build/diagnostics/maria-app.pes")
+        out.parentFile?.mkdirs()
+        out.writeBytes(converted.bytes)
+
+        val meta = File("build/diagnostics/maria-app.txt")
+        meta.writeText(
+            "sourceWidthMm=" + design.bounds.widthMm + "
+" +
+                "sourceHeightMm=" + design.bounds.heightMm + "
+" +
+                "points=" + design.points.size + "
+" +
+                "stitches=" + design.stitchCount + "
+"
+        )
+
+        assertTrue(out.length() > 600)
+    }
+}
