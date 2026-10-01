@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.SimulationMatrixRoundTrip
 import com.timachado.brothermatrizes.core.embroidery.SpecialStitchMode
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
 import com.timachado.brothermatrizes.core.embroidery.TextHoopAutoFit
@@ -68,6 +70,7 @@ import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val namePalette =
@@ -93,6 +96,9 @@ fun CreateNameScreen(
 ) {
     val context =
         LocalContext.current
+
+    val scope =
+        rememberCoroutineScope()
 
     val importedFonts =
         remember {
@@ -221,6 +227,16 @@ fun CreateNameScreen(
                 EmbroideryDisplayMode
             >?
         >(null)
+    }
+
+    var simulationPreparing by remember {
+        mutableStateOf(false)
+    }
+
+    var simulationError by remember {
+        mutableStateOf<String?>(
+            null
+        )
     }
 
     simulationPreview
@@ -1581,23 +1597,71 @@ fun CreateNameScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            preview?.let {
-                                simulationPreview =
-                                    it to
-                                        displayMode
+                            val source =
+                                preview
+
+                            if (
+                                source !=
+                                    null
+                            ) {
+                                simulationPreparing =
+                                    true
+                                simulationError =
+                                    null
+
+                                scope.launch {
+                                    val prepared =
+                                        withContext(
+                                            Dispatchers.Default
+                                        ) {
+                                            SimulationMatrixRoundTrip
+                                                .prepare(
+                                                    design =
+                                                        source,
+                                                    targetFormat =
+                                                        outputFormat
+                                                )
+                                        }
+
+                                    prepared.fold(
+                                        onSuccess = {
+                                                finalDesign ->
+                                            simulationPreview =
+                                                finalDesign to
+                                                    EmbroideryDisplayMode
+                                                        .REALISTIC
+                                        },
+                                        onFailure = {
+                                                error ->
+                                            simulationError =
+                                                error.message
+                                                    ?: "Não foi possível preparar a simulação final."
+                                        }
+                                    )
+
+                                    simulationPreparing =
+                                        false
+                                }
                             }
                         },
                         enabled =
                             preview !=
                                 null &&
-                                fitsHoop,
+                                fitsHoop &&
+                                !simulationPreparing,
                         modifier =
                             Modifier.weight(
                                 1f
                             )
                     ) {
                         Text(
-                            "▶ Simular"
+                            if (
+                                simulationPreparing
+                            ) {
+                                "Preparando…"
+                            } else {
+                                "▶ Simular"
+                            }
                         )
                     }
 
@@ -1634,6 +1698,24 @@ fun CreateNameScreen(
                         )
                     }
                 }
+
+                simulationError
+                    ?.let {
+                            message ->
+                        Text(
+                            message,
+                            modifier =
+                                Modifier.padding(
+                                    top = 6.dp
+                                ),
+                            color =
+                                Color(
+                                    0xFFFF9F9A
+                                ),
+                            fontSize =
+                                10.sp
+                        )
+                    }
 
                 Spacer(
                     Modifier.height(
