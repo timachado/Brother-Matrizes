@@ -1,8 +1,6 @@
 name: Build Signed Brother Matrizes Production APK
 
 on:
-  push:
-    branches: ["refactor/brother-matrizes-clean-0469"]
   workflow_dispatch:
   
 permissions:
