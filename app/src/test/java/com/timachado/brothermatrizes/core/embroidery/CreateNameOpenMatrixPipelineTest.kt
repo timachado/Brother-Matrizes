@@ -7,7 +7,7 @@ import org.junit.Test
 class CreateNameOpenMatrixPipelineTest {
 
     @Test
-    fun generatedNameUsesTheSameCanonicalPipelineAsOpenedMatrix() {
+    fun generatedNameSequenceIsExactlyTheOpenMatrixSequence() {
         val source =
             TextMatrixGenerator
                 .generate(
@@ -24,59 +24,112 @@ class CreateNameOpenMatrixPipelineTest {
                 )
                 .getOrThrow()
 
-        val result =
+        val converted =
+            MatrixConverter
+                .convert(
+                    design =
+                        source,
+                    targetFormat =
+                        source.format,
+                    outputSuffix =
+                        "referencia"
+                )
+                .getOrThrow()
+
+        val openedDirectly =
+            EmbroideryLoader
+                .loadBytes(
+                    displayName =
+                        converted.fileName,
+                    bytes =
+                        converted.bytes
+                )
+
+        val canonical =
             GeneratedMatrixPipeline
                 .canonicalize(
                     design =
                         source,
                     outputSuffix =
-                        "teste"
+                        "referencia"
                 )
 
         assertTrue(
-            result is
+            openedDirectly is
                 EmbroideryLoadResult.Success
         )
 
-        val opened =
+        assertTrue(
+            canonical is
+                EmbroideryLoadResult.Success
+        )
+
+        val directDesign =
             (
-                result as
+                openedDirectly as
                     EmbroideryLoadResult.Success
                 ).design
 
+        val canonicalDesign =
+            (
+                canonical as
+                    EmbroideryLoadResult.Success
+                ).design
+
+        val directSequence =
+            directDesign.points.map {
+                listOf(
+                    it.xUnits,
+                    it.yUnits,
+                    it.command.ordinal,
+                    it.colorIndex
+                )
+            }
+
+        val canonicalSequence =
+            canonicalDesign.points.map {
+                listOf(
+                    it.xUnits,
+                    it.yUnits,
+                    it.command.ordinal,
+                    it.colorIndex
+                )
+            }
+
         assertEquals(
-            "PES",
-            opened.format
+            "Criar Nome precisa usar exatamente os mesmos pontos/comandos de Abrir Matriz.",
+            directSequence,
+            canonicalSequence
+        )
+
+        assertEquals(
+            directDesign.stitchCount,
+            canonicalDesign.stitchCount
+        )
+
+        assertEquals(
+            directDesign.jumpCount,
+            canonicalDesign.jumpCount
+        )
+
+        assertEquals(
+            directDesign.colorChanges,
+            canonicalDesign.colorChanges
         )
 
         assertTrue(
-            opened.sourceBytes
+            canonicalDesign.sourceBytes
                 .isNotEmpty()
         )
 
         assertTrue(
-            opened.guidePoints
+            canonicalDesign.guidePoints
                 .isEmpty()
-        )
-
-        assertTrue(
-            opened.stitchCount >
-                0
         )
 
         assertEquals(
             source.threadColors,
-            opened.threadColors
-        )
-
-        assertEquals(
-            source.hoopProfile,
-            opened.hoopProfile
-        )
-
-        assertEquals(
-            source.fabricProfile,
-            opened.fabricProfile
+            canonicalDesign.threadColors
         )
     }
 }
