@@ -673,23 +673,74 @@ object ImportedFontMatrixGenerator {
                 TextStitchStyle.SATIN
         ) {
             /*
-             * Referência comportamental Mão Design 18.1.2:
-             * a posição atual é compartilhada entre colunas e glifos.
-             * Não existe TRIM obrigatório entre letras; o TRIM só entra
-             * quando o deslocamento real ultrapassa o limiar de viagem.
+             * Fluxo de referência para criação de nome:
+             *
+             * 1) uma costura-base contínua percorre o nome uma única vez;
+             * 2) só depois começa a cobertura Satin;
+             * 3) a cobertura não repete o underlay de cada coluna;
+             * 4) deslocamentos curtos continuam costurando e deslocamentos
+             *    realmente separados usam JUMP, evitando cortes excessivos.
              */
+            val columnsByGlyph =
+                glyphGroups.map {
+                        contours ->
+                    buildReferenceSatinColumns(
+                        contours =
+                            contours,
+                        options =
+                            options
+                    )
+                }
+
             val state =
                 ReferenceSatinState()
 
-            glyphGroups.forEach {
-                    contours ->
-                appendReferenceSatinGlyph(
-                    output = output,
-                    contours = contours,
-                    options = options,
-                    state = state
-                )
+            if (
+                options.satinUnderlayMode !=
+                    com.timachado.brothermatrizes
+                        .core
+                        .embroidery
+                        .SatinUnderlayMode
+                        .NONE
+            ) {
+                columnsByGlyph
+                    .flatten()
+                    .forEach {
+                            column ->
+                        emitReferenceFoundationColumn(
+                            output =
+                                output,
+                            column =
+                                column,
+                            densityUnits =
+                                options
+                                    .satinDensityMm *
+                                    10f,
+                            state =
+                                state
+                        )
+                    }
             }
+
+            columnsByGlyph
+                .flatten()
+                .forEach {
+                        column ->
+                    emitReferenceColumn(
+                        output =
+                            output,
+                        column =
+                            column,
+                        densityUnits =
+                            options
+                                .satinDensityMm *
+                                10f,
+                        includeUnderlay =
+                            false,
+                        state =
+                            state
+                    )
+                }
 
             return output
         }
@@ -781,16 +832,14 @@ object ImportedFontMatrixGenerator {
             mutableListOf()
     )
 
-    private fun appendReferenceSatinGlyph(
-        output: MutableList<EmbroideryPoint>,
+    private fun buildReferenceSatinColumns(
         contours: List<SampledContour>,
-        options: TextMatrixOptions,
-        state: ReferenceSatinState
-    ) {
+        options: TextMatrixOptions
+    ): List<ReferenceColumn> {
         if (
             contours.isEmpty()
         ) {
-            return
+            return emptyList()
         }
 
         val polygons =
@@ -802,7 +851,7 @@ object ImportedFontMatrixGenerator {
         if (
             polygons.isEmpty()
         ) {
-            return
+            return emptyList()
         }
 
         val horizontal =
@@ -837,35 +886,15 @@ object ImportedFontMatrixGenerator {
                 horizontal
             }
 
-        val columns =
-            buildReferenceColumns(
-                layers = chosen,
-                pullCompensationUnits =
-                    options
-                        .satinPullCompensationMm *
-                        10f,
-                maxSatinWidthUnits =
-                    70f
-            )
-
-        columns.forEach {
-                column ->
-            emitReferenceColumn(
-                output = output,
-                column = column,
-                densityUnits =
-                    options.satinDensityMm *
-                        10f,
-                includeUnderlay =
-                    options.satinUnderlayMode !=
-                        com.timachado.brothermatrizes
-                            .core
-                            .embroidery
-                            .SatinUnderlayMode
-                            .NONE,
-                state = state
-            )
-        }
+        return buildReferenceColumns(
+            layers = chosen,
+            pullCompensationUnits =
+                options
+                    .satinPullCompensationMm *
+                    10f,
+            maxSatinWidthUnits =
+                70f
+        )
     }
 
     private fun densifyReferenceContours(
@@ -1536,6 +1565,230 @@ object ImportedFontMatrixGenerator {
         }
     }
 
+    private fun emitReferenceFoundationColumn(
+        output: MutableList<EmbroideryPoint>,
+        column: ReferenceColumn,
+        densityUnits: Float,
+        state: ReferenceSatinState
+    ) {
+        val rows =
+            column.rows
+
+        if (
+            rows.isEmpty()
+        ) {
+            return
+        }
+
+        val safeDensity =
+            densityUnits
+                .coerceAtLeast(
+                    0.5f
+                )
+
+        val rowStep =
+            max(
+                1,
+                (
+                    20f /
+                        safeDensity
+                    ).roundToInt()
+            )
+
+        val rowIndices =
+            mutableListOf<Int>()
+
+        var index =
+            0
+
+        while (
+            index <
+                rows.size
+        ) {
+            rowIndices +=
+                index
+
+            index +=
+                rowStep
+        }
+
+        if (
+            rowIndices.lastOrNull() !=
+                rows.lastIndex
+        ) {
+            rowIndices +=
+                rows.lastIndex
+        }
+
+        rowIndices.forEachIndexed {
+                pointIndex,
+                rowIndex ->
+            val row =
+                rows[
+                    rowIndex
+                ]
+
+            val centerX =
+                (
+                    row.ax +
+                        row.bx
+                    ) /
+                    2f
+
+            val centerY =
+                (
+                    row.ay +
+                        row.by
+                    ) /
+                    2f
+
+            if (
+                pointIndex ==
+                    0
+            ) {
+                emitReferenceFoundationTravel(
+                    output =
+                        output,
+                    targetX =
+                        centerX,
+                    targetY =
+                        centerY,
+                    state =
+                        state
+                )
+            } else {
+                emitReferenceStitchTo(
+                    output =
+                        output,
+                    targetX =
+                        centerX,
+                    targetY =
+                        centerY,
+                    state =
+                        state
+                )
+            }
+        }
+    }
+
+    private fun emitReferenceFoundationTravel(
+        output: MutableList<EmbroideryPoint>,
+        targetX: Float,
+        targetY: Float,
+        state: ReferenceSatinState
+    ) {
+        if (
+            !state.started
+        ) {
+            output +=
+                EmbroideryPoint(
+                    targetX
+                        .roundToInt(),
+                    targetY
+                        .roundToInt(),
+                    StitchCommand.JUMP,
+                    0
+                )
+
+            state.currentX =
+                targetX
+
+            state.currentY =
+                targetY
+
+            state.started =
+                true
+
+            return
+        }
+
+        val dx =
+            targetX -
+                state.currentX
+
+        val dy =
+            targetY -
+                state.currentY
+
+        val distance =
+            hypot(
+                dx.toDouble(),
+                dy.toDouble()
+            )
+                .toFloat()
+
+        if (
+            distance <
+                0.5f
+        ) {
+            return
+        }
+
+        if (
+            distance <=
+                30f
+        ) {
+            emitReferenceStitchTo(
+                output =
+                    output,
+                targetX =
+                    targetX,
+                targetY =
+                    targetY,
+                state =
+                    state
+            )
+
+            return
+        }
+
+        val segments =
+            max(
+                1,
+                ceil(
+                    distance /
+                        70f
+                ).toInt()
+            )
+
+        val startX =
+            state.currentX
+
+        val startY =
+            state.currentY
+
+        for (
+            part in
+                1..segments
+        ) {
+            val ratio =
+                part.toFloat() /
+                    segments
+
+            output +=
+                EmbroideryPoint(
+                    (
+                        startX +
+                            dx *
+                                ratio
+                        ).roundToInt(),
+                    (
+                        startY +
+                            dy *
+                                ratio
+                        ).roundToInt(),
+                    StitchCommand.JUMP,
+                    0
+                )
+        }
+
+        state.currentX =
+            targetX
+
+        state.currentY =
+            targetY
+    }
+
     private fun emitReferenceColumn(
         output: MutableList<EmbroideryPoint>,
         column: ReferenceColumn,
@@ -1963,6 +2216,126 @@ object ImportedFontMatrixGenerator {
 
         state.currentY =
             targetY
+    }
+
+    internal fun debugTwoPhaseReferencePath():
+        List<EmbroideryPoint> {
+        val columns =
+            listOf(
+                ReferenceColumn(
+                    mutableListOf(
+                        ReferenceRow(
+                            0f,
+                            0f,
+                            20f,
+                            0f
+                        ),
+                        ReferenceRow(
+                            0f,
+                            10f,
+                            20f,
+                            10f
+                        ),
+                        ReferenceRow(
+                            0f,
+                            20f,
+                            20f,
+                            20f
+                        ),
+                        ReferenceRow(
+                            0f,
+                            30f,
+                            20f,
+                            30f
+                        )
+                    )
+                ),
+                ReferenceColumn(
+                    mutableListOf(
+                        ReferenceRow(
+                            25f,
+                            30f,
+                            45f,
+                            30f
+                        ),
+                        ReferenceRow(
+                            25f,
+                            20f,
+                            45f,
+                            20f
+                        ),
+                        ReferenceRow(
+                            25f,
+                            10f,
+                            45f,
+                            10f
+                        ),
+                        ReferenceRow(
+                            25f,
+                            0f,
+                            45f,
+                            0f
+                        )
+                    )
+                )
+            )
+
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val state =
+            ReferenceSatinState()
+
+        columns.forEach {
+                column ->
+            emitReferenceFoundationColumn(
+                output =
+                    output,
+                column =
+                    column,
+                densityUnits =
+                    4f,
+                state =
+                    state
+            )
+        }
+
+        val foundationEnd =
+            output.size
+
+        columns.forEach {
+                column ->
+            emitReferenceColumn(
+                output =
+                    output,
+                column =
+                    column,
+                densityUnits =
+                    4f,
+                includeUnderlay =
+                    false,
+                state =
+                    state
+            )
+        }
+
+        return output.mapIndexed {
+                index,
+                point ->
+            point.copy(
+                colorIndex =
+                    if (
+                        index <
+                            foundationEnd
+                    ) {
+                        0
+                    } else {
+                        1
+                    }
+            )
+        }
     }
 
     private fun buildCenterlineRunning(

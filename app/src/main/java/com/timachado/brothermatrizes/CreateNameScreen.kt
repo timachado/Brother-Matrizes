@@ -340,29 +340,6 @@ fun CreateNameScreen(
                 glyphProvider
         )
 
-    /*
-     * O arquivo/matriz continua usando exatamente o pipeline estável.
-     * Somente a reprodução visual omite o underlay para mostrar uma única
-     * passagem Satin, como no vídeo de referência: desenho completo em
-     * fantasma + preenchimento progressivo sem refazer a palavra.
-     */
-    fun simulationLayoutOptionsFor(
-        targetHeightMm: Float
-    ): TextLayoutOptions {
-        val base =
-            layoutOptionsFor(
-                targetHeightMm
-            )
-
-        return base.copy(
-            textOptions =
-                base.textOptions.copy(
-                    satinUnderlayMode =
-                        SatinUnderlayMode.NONE
-                )
-        )
-    }
-
     LaunchedEffect(
         autoFitToHoop,
         text,
@@ -1604,34 +1581,21 @@ fun CreateNameScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            if (
-                                preview !=
-                                    null
-                            ) {
-                                val simulationDesign =
-                                    TextLayoutGenerator
-                                        .generate(
-                                            simulationLayoutOptionsFor(
-                                                heightMm
-                                            )
-                                        )
-                                        .getOrNull()
-                                        ?.copy(
-                                            // Sem guia vetorial: o simulador
-                                            // exibe o bordado completo em
-                                            // fantasma, igual à referência.
-                                            guidePoints =
-                                                emptyList()
-                                        )
-
-                                simulationDesign
-                                    ?.let {
-                                            design ->
-                                        simulationPreview =
-                                            design to
-                                                displayMode
-                                    }
-                            }
+                            preview
+                                ?.copy(
+                                    // A simulação usa exatamente a sequência
+                                    // que será exportada. O guia é removido
+                                    // apenas para o fundo fantasma nascer das
+                                    // próprias pontadas.
+                                    guidePoints =
+                                        emptyList()
+                                )
+                                ?.let {
+                                        design ->
+                                    simulationPreview =
+                                        design to
+                                            displayMode
+                                }
                         },
                         enabled =
                             preview !=
