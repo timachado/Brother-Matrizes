@@ -1,79 +1,14 @@
 package com.timachado.brothermatrizes.core.embroidery
 
 import kotlin.math.abs
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SatinGeneratorReferenceProgressionTest {
 
     @Test
-    fun firstLocalSegmentIsFilledBeforeAdvancingThroughTheNextSegment() {
-        val points =
-            mutableListOf<
-                EmbroideryPoint
-            >()
-
-        SatinGenerator.append(
-            points =
-                points,
-            stroke =
-                listOf(
-                    0 to 0,
-                    100 to 0,
-                    100 to 100
-                ),
-            currentX =
-                0,
-            currentY =
-                0,
-            widthUnits =
-                40f,
-            stepUnits =
-                4f,
-            pullCompensationUnits =
-                0f,
-            shortStitches =
-                true,
-            underlayMode =
-                SatinUnderlayMode.CENTER
-        )
-
-        val firstFilledEdge =
-            points.indexOfFirst {
-                it.command ==
-                    StitchCommand.STITCH &&
-                abs(
-                    it.yUnits
-                ) >=
-                    15
-            }
-
-        val deepIntoSecondSegment =
-            points.indexOfFirst {
-                it.command ==
-                    StitchCommand.STITCH &&
-                it.yUnits >=
-                    50 &&
-                abs(
-                    it.xUnits -
-                        100
-                ) <=
-                    6
-            }
-
-        assertTrue(
-            "O Satin do primeiro trecho precisa começar antes de o underlay percorrer o trecho seguinte.",
-            firstFilledEdge >=
-                0 &&
-                deepIntoSecondSegment >=
-                    0 &&
-                firstFilledEdge <
-                    deepIntoSecondSegment
-        )
-    }
-
-    @Test
-    fun centerUnderlayIsLocalAndSatinCreatesRealWidth() {
+    fun centerWalkReachesBranchTipBeforeReverseSatinStarts() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -96,35 +31,142 @@ class SatinGeneratorReferenceProgressionTest {
             stepUnits =
                 4f,
             pullCompensationUnits =
-                2f,
+                0f,
             shortStitches =
                 true,
             underlayMode =
-                SatinUnderlayMode.CENTER
+                SatinUnderlayMode.BOTH
         )
 
-        val sewn =
-            points.filter {
+        val firstWideIndex =
+            points.indexOfFirst {
                 it.command ==
-                    StitchCommand.STITCH
-            }
-
-        assertTrue(
-            sewn.any {
+                    StitchCommand.STITCH &&
                 abs(
                     it.yUnits
                 ) >=
-                    18
+                    15
             }
+
+        assertTrue(
+            firstWideIndex >
+                0
+        )
+
+        val foundation =
+            points
+                .take(
+                    firstWideIndex
+                )
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+
+        assertTrue(
+            "A passada central precisa avançar somente até a ponta do ramo.",
+            foundation
+                .zipWithNext()
+                .all {
+                        pair ->
+                    pair.second.xUnits >=
+                        pair.first.xUnits
+                }
+        )
+
+        assertEquals(
+            "O underlay deve chegar ao fim do ramo antes do Satin.",
+            100,
+            foundation.last()
+                .xUnits
+        )
+
+        assertEquals(
+            "O primeiro ponto largo deve começar na mesma ponta, sem salto.",
+            StitchCommand.STITCH,
+            points[firstWideIndex]
+                .command
         )
 
         assertTrue(
-            sewn.any {
+            "Depois da ponta, o Satin precisa retornar pelo mesmo ramo.",
+            points
+                .drop(
+                    firstWideIndex
+                )
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+                .any {
+                    it.xUnits <
+                        80
+                }
+        )
+    }
+
+    @Test
+    fun bothDoesNotAddTheOldThirdGlobalPass() {
+        val points =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        SatinGenerator.append(
+            points =
+                points,
+            stroke =
+                listOf(
+                    0 to 0,
+                    100 to 0
+                ),
+            currentX =
+                0,
+            currentY =
+                0,
+            widthUnits =
+                40f,
+            stepUnits =
+                4f,
+            pullCompensationUnits =
+                0f,
+            shortStitches =
+                true,
+            underlayMode =
+                SatinUnderlayMode.BOTH
+        )
+
+        val firstWideIndex =
+            points.indexOfFirst {
+                it.command ==
+                    StitchCommand.STITCH &&
                 abs(
                     it.yUnits
-                ) <=
-                    2
+                ) >=
+                    15
             }
+
+        assertTrue(
+            firstWideIndex >
+                0
+        )
+
+        assertTrue(
+            "Antes do Satin deve existir somente a linha central de fundação.",
+            points
+                .take(
+                    firstWideIndex
+                )
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+                .all {
+                    abs(
+                        it.yUnits
+                    ) <=
+                        1
+                }
         )
     }
 }
