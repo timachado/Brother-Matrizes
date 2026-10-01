@@ -168,12 +168,6 @@ fun CreateNameScreen(
         mutableStateOf(true)
     }
 
-    var satinUnderlayMode by remember {
-        mutableStateOf(
-            SatinUnderlayMode.CENTER
-        )
-    }
-
     var specialStitchMode by remember {
         mutableStateOf<
             SpecialStitchMode?
@@ -333,8 +327,12 @@ fun CreateNameScreen(
                         satinPullCompensationMm,
                     satinShortStitches =
                         satinShortStitches,
+                    // Criar Nome deve reproduzir uma única passagem visível
+                    // do Satin. O underlay automático dos perfis de tecido
+                    // fazia ida + volta + cobertura e parecia repetir o mesmo
+                    // processo duas ou três vezes no simulador e na matriz.
                     satinUnderlayMode =
-                        satinUnderlayMode,
+                        SatinUnderlayMode.NONE,
                     specialStitchMode =
                         specialStitchMode,
                     color =
@@ -366,7 +364,6 @@ fun CreateNameScreen(
         satinDensityMm,
         satinPullCompensationMm,
         satinShortStitches,
-        satinUnderlayMode,
         specialStitchMode,
         font,
         importedFontId,
@@ -1397,9 +1394,6 @@ fun CreateNameScreen(
                                                 satinPullCompensationMm =
                                                     option
                                                         .pullCompensationMm
-                                                satinUnderlayMode =
-                                                    option
-                                                        .underlayMode
                                                 satinShortStitches =
                                                     option
                                                         .shortStitches
