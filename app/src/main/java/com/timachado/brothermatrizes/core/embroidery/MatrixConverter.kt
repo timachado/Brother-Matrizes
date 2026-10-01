@@ -66,7 +66,11 @@ object MatrixConverter {
 
             val pattern =
                 buildOutputPattern(
-                    normalized
+                    design =
+                        normalized,
+                    positiveOriginForPes =
+                        format ==
+                            "PES"
                 )
 
             val extension =
@@ -166,7 +170,8 @@ object MatrixConverter {
         }
 
     private fun buildOutputPattern(
-        design: EmbroideryDesign
+        design: EmbroideryDesign,
+        positiveOriginForPes: Boolean = false
     ): EmbPattern {
         val pattern =
             EmbPattern().apply {
@@ -182,9 +187,16 @@ object MatrixConverter {
         )
 
         /*
-         * Formatos de máquina trabalham melhor com a origem do desenho
-         * centralizada no bastidor. Preservamos tamanho, sequência e
-         * distâncias; somente removemos o offset absoluto acumulado.
+         * DST/JEF preservam a origem centralizada usada historicamente
+         * pelo app.
+         *
+         * PEC/PES Brother é diferente: a Innov-is lê as coordenadas
+         * das pontadas dentro da área declarada. Se centralizarmos em
+         * (0,0), metade da matriz fica negativa e máquinas reais podem
+         * cortá-la no canto mesmo com largura/altura corretas.
+         *
+         * Para PES deslocamos a geometria para 0..largura / 0..altura,
+         * sem alterar tamanho, ordem, distâncias ou orientação.
          */
         val centerX =
             (
@@ -204,6 +216,48 @@ object MatrixConverter {
                 ) /
                 2L
 
+        val originX =
+            if (
+                positiveOriginForPes
+            ) {
+                design.bounds
+                    .minXUnits
+                    .toLong()
+            } else {
+                centerX
+            }
+
+        val centeredWriterY =
+            writerY(
+                design = design,
+                yUnits =
+                    centerY
+                        .toInt()
+            )
+                .toLong()
+
+        val minimumWriterY =
+            if (
+                design.sourceYAxisDown
+            ) {
+                design.bounds
+                    .minYUnits
+                    .toLong()
+            } else {
+                -design.bounds
+                    .maxYUnits
+                    .toLong()
+            }
+
+        val originWriterY =
+            if (
+                positiveOriginForPes
+            ) {
+                minimumWriterY
+            } else {
+                centeredWriterY
+            }
+
         var currentX = 0
         var currentY = 0
 
@@ -217,41 +271,41 @@ object MatrixConverter {
             false
 
         design.points.forEach { point ->
-            val centeredXLong =
+            val outputXLong =
                 point.xUnits
                     .toLong() -
-                    centerX
+                    originX
 
-            val centeredYLong =
-                point.yUnits
-                    .toLong() -
-                    centerY
-
-            require(
-                centeredXLong in
-                    Int.MIN_VALUE.toLong()..
-                        Int.MAX_VALUE.toLong() &&
-                    centeredYLong in
-                        Int.MIN_VALUE.toLong()..
-                            Int.MAX_VALUE.toLong()
-            ) {
-                "A matriz possui coordenadas fora do intervalo seguro para centralização."
-            }
-
-            val centeredX =
-                centeredXLong
-                    .toInt()
-
-            val centeredY =
-                centeredYLong
-                    .toInt()
-
-            val outputY =
+            val rawWriterY =
                 writerY(
                     design = design,
                     yUnits =
-                        centeredY
+                        point.yUnits
                 )
+                    .toLong()
+
+            val outputYLong =
+                rawWriterY -
+                    originWriterY
+
+            require(
+                outputXLong in
+                    Int.MIN_VALUE.toLong()..
+                        Int.MAX_VALUE.toLong() &&
+                    outputYLong in
+                        Int.MIN_VALUE.toLong()..
+                            Int.MAX_VALUE.toLong()
+            ) {
+                "A matriz possui coordenadas fora do intervalo seguro para exportação."
+            }
+
+            val centeredX =
+                outputXLong
+                    .toInt()
+
+            val outputY =
+                outputYLong
+                    .toInt()
 
             when (point.command) {
                 StitchCommand.STITCH -> {
