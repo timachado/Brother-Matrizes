@@ -747,10 +747,9 @@ object ImportedFontMatrixGenerator {
      * - escolhe o eixo cuja largura média dos vãos é menor;
      * - agrupa vãos sobrepostos em colunas;
      * - divide colunas acima de 7 mm;
-     * - underlay central em uma única direção;
-     * - a cobertura Satin começa no fim desse underlay e retorna pela coluna;
+     * - underlay central de ida e volta;
      * - trava de 0,6 mm no início e no fim;
-     * - cada linha Satin é bordada sem refazer a passada central;
+     * - cada linha Satin é bordada A -> B;
      * - viagem > 5 mm gera TRIM;
      * - saltos e pontos longos são quebrados em trechos de até 7 mm.
      *
@@ -1550,49 +1549,20 @@ object ImportedFontMatrixGenerator {
             return
         }
 
-        val useCenterUnderlay =
-            includeUnderlay &&
-                column.rows.size >=
-                    4
-
-        val firstPhysicalRow =
+        val first =
             column.rows.first()
-
-        val entryX =
-            if (
-                useCenterUnderlay
-            ) {
-                (
-                    firstPhysicalRow.ax +
-                        firstPhysicalRow.bx
-                    ) /
-                    2f
-            } else {
-                firstPhysicalRow.ax
-            }
-
-        val entryY =
-            if (
-                useCenterUnderlay
-            ) {
-                (
-                    firstPhysicalRow.ay +
-                        firstPhysicalRow.by
-                    ) /
-                    2f
-            } else {
-                firstPhysicalRow.ay
-            }
 
         emitReferenceTravel(
             output = output,
-            targetX = entryX,
-            targetY = entryY,
+            targetX = first.ax,
+            targetY = first.ay,
             state = state
         )
 
         if (
-            useCenterUnderlay
+            includeUnderlay &&
+            column.rows.size >=
+                4
         ) {
             emitReferenceCenterUnderlay(
                 output = output,
@@ -1602,32 +1572,13 @@ object ImportedFontMatrixGenerator {
             )
         }
 
-        /*
-         * O vídeo de referência mostra a agulha terminando a passada
-         * central em um extremo e iniciando o Satin dali mesmo.
-         * Portanto a cobertura percorre a coluna no sentido inverso,
-         * sem voltar pelo centro.
-         */
-        val satinRows =
-            if (
-                useCenterUnderlay
-            ) {
-                column.rows
-                    .asReversed()
-            } else {
-                column.rows
-            }
-
-        val satinFirst =
-            satinRows.first()
-
         emitReferenceLock(
             output = output,
-            row = satinFirst,
+            row = first,
             state = state
         )
 
-        satinRows.forEach {
+        column.rows.forEach {
                 row ->
             emitReferenceStitchTo(
                 output = output,
@@ -1647,7 +1598,7 @@ object ImportedFontMatrixGenerator {
         emitReferenceLock(
             output = output,
             row =
-                satinRows.last(),
+                column.rows.last(),
             state = state
         )
     }
@@ -1709,7 +1660,7 @@ object ImportedFontMatrixGenerator {
         val last =
             column.rows.last()
 
-        val lastCenter =
+        centers +=
             Pair(
                 (
                     last.ax +
@@ -1723,14 +1674,6 @@ object ImportedFontMatrixGenerator {
                     2f
             )
 
-        if (
-            centers.lastOrNull() !=
-                lastCenter
-        ) {
-            centers +=
-                lastCenter
-        }
-
         centers.forEach {
                 center ->
             emitReferenceStitchTo(
@@ -1743,39 +1686,26 @@ object ImportedFontMatrixGenerator {
             )
         }
 
-        // Sem retorno central: o Satin começa neste mesmo extremo.
-    }
+        for (
+            reverseIndex in
+                centers.size -
+                    2 downTo
+                    0
+        ) {
+            val center =
+                centers[
+                    reverseIndex
+                ]
 
-    internal fun debugReferenceOneWayUnderlaySequence():
-        List<EmbroideryPoint> {
-        val output =
-            mutableListOf<
-                EmbroideryPoint
-            >()
-
-        val column =
-            ReferenceColumn(
-                rows =
-                    mutableListOf(
-                        ReferenceRow(0f, 0f, 20f, 0f),
-                        ReferenceRow(0f, 10f, 20f, 10f),
-                        ReferenceRow(0f, 20f, 20f, 20f),
-                        ReferenceRow(0f, 30f, 20f, 30f),
-                        ReferenceRow(0f, 40f, 20f, 40f),
-                        ReferenceRow(0f, 50f, 20f, 50f)
-                    )
+            emitReferenceStitchTo(
+                output = output,
+                targetX =
+                    center.first,
+                targetY =
+                    center.second,
+                state = state
             )
-
-        emitReferenceColumn(
-            output = output,
-            column = column,
-            densityUnits = 4f,
-            includeUnderlay = true,
-            state =
-                ReferenceSatinState()
-        )
-
-        return output
+        }
     }
 
     private fun emitReferenceLock(
