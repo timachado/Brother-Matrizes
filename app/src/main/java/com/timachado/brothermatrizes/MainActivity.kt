@@ -1889,7 +1889,7 @@ private fun BrotherMatrizesApp(
                         },
                         onSimulate = {
                                 created,
-                                displayMode ->
+                                _ ->
                             scope.launch {
                                 loading =
                                     true
@@ -1924,7 +1924,8 @@ private fun BrotherMatrizesApp(
                                                 design =
                                                     opened.design,
                                                 displayMode =
-                                                    displayMode,
+                                                    EmbroideryDisplayMode
+                                                        .REALISTIC,
                                                 referenceHoop =
                                                     opened.design
                                                         .hoopProfile
