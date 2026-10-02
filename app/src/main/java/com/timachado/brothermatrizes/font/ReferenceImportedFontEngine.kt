@@ -1422,27 +1422,15 @@ internal object ReferenceImportedFontEngine {
                 compareBy<SatinColumn> {
                     column ->
                     column.rows
-                        .flatMap {
-                                row ->
-                            listOf(
-                                row.a.x,
-                                row.b.x
-                            )
-                        }
-                        .minOrNull()
-                        ?: Float.MAX_VALUE
+                        .first()
+                        .a
+                        .x
                 }.thenBy {
                         column ->
                     column.rows
-                        .flatMap {
-                                row ->
-                            listOf(
-                                row.a.y,
-                                row.b.y
-                            )
-                        }
-                        .minOrNull()
-                        ?: Float.MAX_VALUE
+                        .first()
+                        .a
+                        .y
                 }
             )
     }
