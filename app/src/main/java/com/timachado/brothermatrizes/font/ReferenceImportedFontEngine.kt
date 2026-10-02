@@ -1575,88 +1575,65 @@ internal object ReferenceImportedFontEngine {
                     }
 
                 /*
-                 * O vídeo de referência não volta sempre para o começo da
-                 * próxima coluna. A próxima região é escolhida pelo ponto de
-                 * entrada fisicamente mais próximo da posição atual, e a
-                 * coluna pode ser invertida/trocada A<->B para continuar pelo
-                 * lado mais próximo.
+                 * Comparação direta dos dois vídeos:
+                 * a referência não começa obrigatoriamente pela região mais
+                 * à esquerda. Ela entra pela coluna cujo ponto de entrada está
+                 * mais próximo do início natural do glifo/posição atual da
+                 * agulha e pode inverter a coluna e A/B para manter o percurso.
                  */
-                val selectedOriginal =
-                    if (
-                        firstColumn
-                    ) {
-                        remaining.minWithOrNull(
-                            compareBy<SatinColumn> {
-                                column ->
-                                column.rows
-                                    .flatMap {
-                                            row ->
-                                        listOf(
-                                            row.a.x,
-                                            row.b.x
-                                        )
-                                    }
-                                    .minOrNull()
-                                    ?: Float.MAX_VALUE
-                            }.thenBy {
-                                column ->
-                                column.rows
-                                    .flatMap {
-                                            row ->
-                                        listOf(
-                                            row.a.y,
-                                            row.b.y
-                                        )
-                                    }
-                                    .minOrNull()
-                                    ?: Float.MAX_VALUE
-                            }
-                        )
-                    } else {
-                        remaining
-                            .map {
-                                    column ->
-                                closestOrientation(
-                                    column =
-                                        column,
-                                    anchor =
-                                        anchor
-                                )
-                            }
-                            .minByOrNull {
-                                it.entryDistance
-                            }
-                            ?.original
-                    }
-                        ?: break
-
                 val choice =
-                    closestOrientation(
-                        column =
-                            selectedOriginal,
-                        anchor =
-                            anchor
-                    )
+                    remaining
+                        .map {
+                                column ->
+                            closestOrientation(
+                                column =
+                                    column,
+                                anchor =
+                                    anchor
+                            )
+                        }
+                        .minByOrNull {
+                            it.entryDistance
+                        }
+                        ?: break
 
                 val column =
                     choice.oriented
 
-                travelTo(
-                    target =
+                val includeUnderlay =
+                    underlayMode !=
+                        SatinUnderlayMode.NONE &&
+                    column.rows.size >=
+                        4
+
+                val entry =
+                    if (
+                        includeUnderlay
+                    ) {
+                        center(
+                            column.rows
+                                .first()
+                        )
+                    } else {
                         column.rows
                             .first()
-                            .a,
+                            .a
+                    }
+
+                travelTo(
+                    target =
+                        entry,
                     polygons =
                         polygons,
                     firstColumn =
                         firstColumn
                 )
 
-                emitProgressiveColumn(
+                emitReferenceColumn(
                     column =
                         column,
-                    underlayMode =
-                        underlayMode,
+                    includeUnderlay =
+                        includeUnderlay,
                     densityMm =
                         densityMm
                 )
@@ -1812,9 +1789,9 @@ internal object ReferenceImportedFontEngine {
             return indices
         }
 
-        private fun emitProgressiveColumn(
+        private fun emitReferenceColumn(
             column: SatinColumn,
-            underlayMode: SatinUnderlayMode,
+            includeUnderlay: Boolean,
             densityMm: Float
         ) {
             val rows =
@@ -1826,89 +1803,44 @@ internal object ReferenceImportedFontEngine {
                 return
             }
 
-            val sparseUnderlayRows =
-                underlayIndices(
-                    rows =
-                        rows,
+            /*
+             * O vídeo de referência mostra duas fases separadas:
+             * 1) fundação fina da coluna;
+             * 2) cobertura Satin da mesma coluna.
+             *
+             * A versão anterior intercalava fundação e cobertura linha a
+             * linha, por isso o Brother "pintava" a região cedo demais e
+             * seguia um percurso visual diferente.
+             */
+            if (
+                includeUnderlay
+            ) {
+                emitCenterRunUnderlay(
+                    column =
+                        column,
                     densityMm =
                         densityMm
                 )
-
-            val before =
-                current
-
-            var nextIsA =
-                if (
-                    before ==
-                        null
-                ) {
-                    true
-                } else {
-                    distance(
-                        before,
-                        rows.first().a
-                    ) <=
-                        distance(
-                            before,
-                            rows.first().b
-                        )
-                }
-
-            /*
-             * Cada amostra Satin precisa costurar os DOIS lados da coluna.
-             * A implementação anterior emitia apenas A ou B por linha e,
-             * por isso, terminava a sequência antes de completar visualmente
-             * o traço e deixava o bordado ralo.
-             *
-             * Mantemos a fundação curta/local e alternamos o lado de entrada
-             * da próxima amostra para preservar o percurso serpenteado:
-             * A->B, depois B->A, depois A->B...
-             */
-            rows.forEachIndexed {
-                    rowIndex,
-                    row ->
-                if (
-                    underlayMode !=
-                        SatinUnderlayMode.NONE &&
-                    rowIndex in
-                        sparseUnderlayRows
-                ) {
-                    emitStitchTo(
-                        center(
-                            row
-                        )
-                    )
-                }
-
-                val first =
-                    if (
-                        nextIsA
-                    ) {
-                        row.a
-                    } else {
-                        row.b
-                    }
-
-                val second =
-                    if (
-                        nextIsA
-                    ) {
-                        row.b
-                    } else {
-                        row.a
-                    }
-
-                emitStitchTo(
-                    first
-                )
-
-                emitStitchTo(
-                    second
-                )
-
-                nextIsA =
-                    !nextIsA
             }
+
+            emitLock(
+                rows.first()
+            )
+
+            rows.forEach {
+                    row ->
+                emitStitchTo(
+                    row.a
+                )
+
+                emitStitchTo(
+                    row.b
+                )
+            }
+
+            emitLock(
+                rows.last()
+            )
         }
 
         private fun emitCenterRunUnderlay(
