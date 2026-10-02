@@ -49,14 +49,204 @@ object SatinGenerator {
         shortStitches: Boolean,
         underlayMode: SatinUnderlayMode
     ): SatinBuildResult {
-        require(stroke.size >= 2) {
+        require(
+            stroke.size >=
+                2
+        ) {
             "Satin precisa de pelo menos dois pontos."
         }
+
+        data class Sample(
+            val centerX: Double,
+            val centerY: Double,
+            val normalX: Double,
+            val normalY: Double,
+            val turnCross: Double,
+            val cornerInfluence: Double
+        )
 
         val frames =
             buildFrames(
                 stroke
             )
+
+        val safeStep =
+            stepUnits
+                .coerceAtLeast(
+                    0.5f
+                )
+
+        val baseHalfWidth =
+            widthUnits /
+                2f +
+                pullCompensationUnits
+
+        val samples =
+            mutableListOf<
+                Sample
+            >()
+
+        for (
+            segmentIndex in
+                1 until
+                    stroke.size
+        ) {
+            val startPoint =
+                stroke[
+                    segmentIndex -
+                        1
+                ]
+
+            val endPoint =
+                stroke[
+                    segmentIndex
+                ]
+
+            val dx =
+                endPoint.first -
+                    startPoint.first
+
+            val dy =
+                endPoint.second -
+                    startPoint.second
+
+            val distance =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
+
+            if (
+                distance <
+                    0.001
+            ) {
+                continue
+            }
+
+            val count =
+                max(
+                    1,
+                    ceil(
+                        distance /
+                            safeStep
+                    ).toInt()
+                )
+
+            val firstPart =
+                if (
+                    segmentIndex ==
+                        1
+                ) {
+                    0
+                } else {
+                    1
+                }
+
+            val startFrame =
+                frames[
+                    segmentIndex -
+                        1
+                ]
+
+            val endFrame =
+                frames[
+                    segmentIndex
+                ]
+
+            for (
+                part in
+                    firstPart..count
+            ) {
+                val ratio =
+                    part.toDouble() /
+                        count
+
+                val normal =
+                    normalize(
+                        x =
+                            startFrame.normalX *
+                                (
+                                    1.0 -
+                                        ratio
+                                    ) +
+                                endFrame.normalX *
+                                    ratio,
+                        y =
+                            startFrame.normalY *
+                                (
+                                    1.0 -
+                                        ratio
+                                    ) +
+                                endFrame.normalY *
+                                    ratio
+                    )
+
+                val startInfluence =
+                    startFrame.sharpness *
+                        (
+                            1.0 -
+                                ratio
+                            ) *
+                        (
+                            1.0 -
+                                ratio
+                            )
+
+                val endInfluence =
+                    endFrame.sharpness *
+                        ratio *
+                        ratio
+
+                val cornerFrame =
+                    if (
+                        startInfluence >=
+                            endInfluence
+                    ) {
+                        startFrame
+                    } else {
+                        endFrame
+                    }
+
+                samples +=
+                    Sample(
+                        centerX =
+                            startPoint.first +
+                                dx *
+                                    ratio,
+                        centerY =
+                            startPoint.second +
+                                dy *
+                                    ratio,
+                        normalX =
+                            normal.first,
+                        normalY =
+                            normal.second,
+                        turnCross =
+                            cornerFrame
+                                .turnCross,
+                        cornerInfluence =
+                            max(
+                                startInfluence,
+                                endInfluence
+                            )
+                    )
+            }
+        }
+
+        if (
+            samples.isEmpty()
+        ) {
+            return SatinBuildResult(
+                currentX =
+                    currentX,
+                currentY =
+                    currentY,
+                stitchCount =
+                    0,
+                jumpCount =
+                    0
+            )
+        }
 
         var x =
             currentX
@@ -70,54 +260,206 @@ object SatinGenerator {
         var jumps =
             0
 
-        val halfWidth =
-            widthUnits /
-                2f +
-                pullCompensationUnits
+        fun emitStitch(
+            targetX: Int,
+            targetY: Int
+        ) {
+            val dx =
+                targetX -
+                    x
 
-        val firstFrame =
-            frames.first()
+            val dy =
+                targetY -
+                    y
 
-        val firstCenter =
-            stroke.first()
+            val distance =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
 
-        val firstA =
-            Pair(
+            if (
+                distance <
+                    0.001
+            ) {
+                x =
+                    targetX
+
+                y =
+                    targetY
+
+                return
+            }
+
+            val segments =
+                max(
+                    1,
+                    ceil(
+                        distance /
+                            70.0
+                    ).toInt()
+                )
+
+            val startX =
+                x
+
+            val startY =
+                y
+
+            for (
+                part in
+                    1..segments
+            ) {
+                val ratio =
+                    part.toDouble() /
+                        segments
+
+                points +=
+                    EmbroideryPoint(
+                        (
+                            startX +
+                                dx *
+                                    ratio
+                            ).roundToInt(),
+                        (
+                            startY +
+                                dy *
+                                    ratio
+                            ).roundToInt(),
+                        StitchCommand.STITCH,
+                        0
+                    )
+
+                stitches++
+            }
+
+            x =
+                targetX
+
+            y =
+                targetY
+        }
+
+        fun targetFor(
+            sample: Sample,
+            side: Double,
+            scale: Double =
+                1.0
+        ): Pair<Int, Int> {
+            val inner =
+                sample.turnCross *
+                    side >
+                    0.0
+
+            val shortFactor =
+                if (
+                    shortStitches &&
+                    inner
+                ) {
+                    (
+                        1.0 -
+                            0.45 *
+                                sample.cornerInfluence
+                        ).coerceIn(
+                        0.55,
+                        1.0
+                    )
+                } else {
+                    1.0
+                }
+
+            val half =
+                baseHalfWidth *
+                    shortFactor *
+                    scale
+
+            return Pair(
                 (
-                    firstCenter.first +
-                        firstFrame.normalX *
-                            halfWidth
+                    sample.centerX +
+                        sample.normalX *
+                            half *
+                            side
                     ).roundToInt(),
                 (
-                    firstCenter.second +
-                        firstFrame.normalY *
-                            halfWidth
+                    sample.centerY +
+                        sample.normalY *
+                            half *
+                            side
                     ).roundToInt()
+            )
+        }
+
+        val first =
+            samples.first()
+
+        val firstA =
+            targetFor(
+                first,
+                1.0
             )
 
         val firstB =
-            Pair(
-                (
-                    firstCenter.first -
-                        firstFrame.normalX *
-                            halfWidth
-                    ).roundToInt(),
-                (
-                    firstCenter.second -
-                        firstFrame.normalY *
-                            halfWidth
-                    ).roundToInt()
+            targetFor(
+                first,
+                -1.0
             )
+
+        val distanceA =
+            hypot(
+                (
+                    firstA.first -
+                        x
+                    ).toDouble(),
+                (
+                    firstA.second -
+                        y
+                    ).toDouble()
+            )
+
+        val distanceB =
+            hypot(
+                (
+                    firstB.first -
+                        x
+                    ).toDouble(),
+                (
+                    firstB.second -
+                        y
+                    ).toDouble()
+            )
+
+        var nextSide =
+            if (
+                distanceA <=
+                    distanceB
+            ) {
+                1.0
+            } else {
+                -1.0
+            }
+
+        val entry =
+            if (
+                nextSide >
+                    0.0
+            ) {
+                firstA
+            } else {
+                firstB
+            }
 
         val travel =
             appendReferenceTravel(
-                points = points,
-                currentX = x,
-                currentY = y,
+                points =
+                    points,
+                currentX =
+                    x,
+                currentY =
+                    y,
                 targetX =
-                    firstA.first,
+                    entry.first,
                 targetY =
-                    firstA.second
+                    entry.second
             )
 
         x =
@@ -129,170 +471,109 @@ object SatinGenerator {
         jumps +=
             travel.jumps
 
-        /*
-         * Mesmo ciclo do SatinTextStitchGenerator:
-         * travel -> center-run ida/volta -> lock -> Satin -> lock.
-         * Qualquer modo de underlay diferente de NONE equivale ao
-         * IncludeUnderlay do motor de referência.
-         */
-        if (
-            underlayMode !=
-                SatinUnderlayMode.NONE
-        ) {
-            val forward =
-                appendCenterUnderlay(
-                    points = points,
-                    stroke = stroke,
-                    currentX = x,
-                    currentY = y,
-                    stepUnits =
-                        20f,
-                    connectFirstWithStitch =
-                        true
+        val underlayStep =
+            max(
+                1,
+                (
+                    20f /
+                        safeStep
+                    ).roundToInt()
+            )
+
+        var underlaySide =
+            1.0
+
+        samples.forEachIndexed {
+                index,
+                sample ->
+            if (
+                index %
+                    underlayStep ==
+                    0 ||
+                index ==
+                    samples.lastIndex
+            ) {
+                when (
+                    underlayMode
+                ) {
+                    SatinUnderlayMode.NONE ->
+                        Unit
+
+                    SatinUnderlayMode.CENTER ->
+                        emitStitch(
+                            sample.centerX
+                                .roundToInt(),
+                            sample.centerY
+                                .roundToInt()
+                        )
+
+                    SatinUnderlayMode.ZIGZAG -> {
+                        val underlay =
+                            targetFor(
+                                sample,
+                                underlaySide,
+                                0.60
+                            )
+
+                        emitStitch(
+                            underlay.first,
+                            underlay.second
+                        )
+
+                        underlaySide *=
+                            -1.0
+                    }
+
+                    SatinUnderlayMode.BOTH -> {
+                        emitStitch(
+                            sample.centerX
+                                .roundToInt(),
+                            sample.centerY
+                                .roundToInt()
+                        )
+
+                        val underlay =
+                            targetFor(
+                                sample,
+                                underlaySide,
+                                0.60
+                            )
+
+                        emitStitch(
+                            underlay.first,
+                            underlay.second
+                        )
+
+                        underlaySide *=
+                            -1.0
+                    }
+                }
+            }
+
+            val edge =
+                targetFor(
+                    sample,
+                    nextSide
                 )
 
-            x =
-                forward.x
+            emitStitch(
+                edge.first,
+                edge.second
+            )
 
-            y =
-                forward.y
-
-            stitches +=
-                forward.stitches
-
-            jumps +=
-                forward.jumps
-
-            val backward =
-                appendCenterUnderlay(
-                    points = points,
-                    stroke =
-                        stroke.asReversed(),
-                    currentX = x,
-                    currentY = y,
-                    stepUnits =
-                        20f,
-                    connectFirstWithStitch =
-                        false
-                )
-
-            x =
-                backward.x
-
-            y =
-                backward.y
-
-            stitches +=
-                backward.stitches
-
-            jumps +=
-                backward.jumps
+            nextSide *=
+                -1.0
         }
-
-        val tieIn =
-            appendReferenceLock(
-                points = points,
-                currentX = x,
-                currentY = y,
-                a = firstA,
-                b = firstB
-            )
-
-        x =
-            tieIn.x
-
-        y =
-            tieIn.y
-
-        stitches +=
-            tieIn.stitches
-
-        jumps +=
-            tieIn.jumps
-
-        val top =
-            appendZigzagPass(
-                points = points,
-                stroke = stroke,
-                frames = frames,
-                currentX = x,
-                currentY = y,
-                halfWidth =
-                    halfWidth,
-                stepUnits =
-                    stepUnits,
-                shortStitches =
-                    shortStitches,
-                connectFirstWithStitch =
-                    true
-            )
-
-        x =
-            top.x
-
-        y =
-            top.y
-
-        stitches +=
-            top.stitches
-
-        jumps +=
-            top.jumps
-
-        val lastFrame =
-            frames.last()
-
-        val lastCenter =
-            stroke.last()
-
-        val lastA =
-            Pair(
-                (
-                    lastCenter.first +
-                        lastFrame.normalX *
-                            halfWidth
-                    ).roundToInt(),
-                (
-                    lastCenter.second +
-                        lastFrame.normalY *
-                            halfWidth
-                    ).roundToInt()
-            )
-
-        val lastB =
-            Pair(
-                (
-                    lastCenter.first -
-                        lastFrame.normalX *
-                            halfWidth
-                    ).roundToInt(),
-                (
-                    lastCenter.second -
-                        lastFrame.normalY *
-                            halfWidth
-                    ).roundToInt()
-            )
-
-        val tieOff =
-            appendReferenceLock(
-                points = points,
-                currentX = x,
-                currentY = y,
-                a = lastA,
-                b = lastB
-            )
 
         return SatinBuildResult(
             currentX =
-                tieOff.x,
+                x,
             currentY =
-                tieOff.y,
+                y,
             stitchCount =
-                stitches +
-                    tieOff.stitches,
+                stitches,
             jumpCount =
-                jumps +
-                    tieOff.jumps
+                jumps
         )
     }
 
