@@ -8,7 +8,7 @@ import org.junit.Test
 class SatinGeneratorReferenceProgressionTest {
 
     @Test
-    fun centerWalkReachesBranchTipBeforeReverseSatinStarts() {
+    fun centerUnderlayGoesForwardAndBackBeforeSatinCoverage() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -64,32 +64,37 @@ class SatinGeneratorReferenceProgressionTest {
                 }
 
         assertTrue(
-            "A passada central precisa avançar somente até a ponta do ramo.",
-            foundation
-                .zipWithNext()
-                .all {
-                        pair ->
-                    pair.second.xUnits >=
-                        pair.first.xUnits
-                }
+            "O underlay central precisa alcançar o fim do traço.",
+            foundation.any {
+                it.xUnits ==
+                    100 &&
+                abs(
+                    it.yUnits
+                ) <=
+                    1
+            }
         )
 
         assertEquals(
-            "O underlay deve chegar ao fim do ramo antes do Satin.",
-            100,
+            "O underlay de referência retorna ao início antes da trava e do Satin.",
+            0,
             foundation.last()
                 .xUnits
         )
 
-        assertEquals(
-            "O primeiro ponto largo deve começar na mesma ponta, sem salto.",
-            StitchCommand.STITCH,
-            points[firstWideIndex]
-                .command
+        assertTrue(
+            "O underlay precisa conter a passada de retorno.",
+            foundation
+                .zipWithNext()
+                .any {
+                        pair ->
+                    pair.second.xUnits <
+                        pair.first.xUnits
+                }
         )
 
         assertTrue(
-            "Depois da ponta, o Satin precisa retornar pelo mesmo ramo.",
+            "Depois do underlay/trava, o Satin deve avançar pelo traço.",
             points
                 .drop(
                     firstWideIndex
@@ -99,14 +104,18 @@ class SatinGeneratorReferenceProgressionTest {
                         StitchCommand.STITCH
                 }
                 .any {
-                    it.xUnits <
-                        80
+                    it.xUnits >
+                        80 &&
+                    abs(
+                        it.yUnits
+                    ) >=
+                        15
                 }
         )
     }
 
     @Test
-    fun bothDoesNotAddTheOldThirdGlobalPass() {
+    fun bothUsesOnlyCenterUnderlayBeforeLockAndSatin() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -151,8 +160,7 @@ class SatinGeneratorReferenceProgressionTest {
                 0
         )
 
-        assertTrue(
-            "Antes do Satin deve existir somente a linha central de fundação.",
+        val beforeCoverage =
             points
                 .take(
                     firstWideIndex
@@ -161,12 +169,22 @@ class SatinGeneratorReferenceProgressionTest {
                     it.command ==
                         StitchCommand.STITCH
                 }
-                .all {
-                    abs(
-                        it.yUnits
-                    ) <=
-                        1
-                }
+
+        assertTrue(
+            "Antes da trava/Satin deve existir somente o center-run, sem zigue-zague extra.",
+            beforeCoverage.all {
+                abs(
+                    it.yUnits
+                ) <=
+                    1
+            }
+        )
+
+        assertTrue(
+            beforeCoverage.any {
+                it.xUnits ==
+                    100
+            }
         )
     }
 }
