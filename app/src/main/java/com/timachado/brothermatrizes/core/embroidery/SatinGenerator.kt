@@ -70,61 +70,6 @@ object SatinGenerator {
         var jumps =
             0
 
-        /*
-         * O gerador de texto de referência trata underlay como uma única
-         * opção booleana. Quando ativo ele faz center-run de ida e volta;
-         * não existe uma terceira passada de zigue-zague antes do Satin.
-         */
-        if (
-            underlayMode !=
-                SatinUnderlayMode.NONE
-        ) {
-            val forward =
-                appendCenterUnderlay(
-                    points = points,
-                    stroke = stroke,
-                    currentX = x,
-                    currentY = y,
-                    stepUnits =
-                        20f
-                )
-
-            x =
-                forward.x
-
-            y =
-                forward.y
-
-            stitches +=
-                forward.stitches
-
-            jumps +=
-                forward.jumps
-
-            val backward =
-                appendCenterUnderlay(
-                    points = points,
-                    stroke =
-                        stroke.asReversed(),
-                    currentX = x,
-                    currentY = y,
-                    stepUnits =
-                        20f
-                )
-
-            x =
-                backward.x
-
-            y =
-                backward.y
-
-            stitches +=
-                backward.stitches
-
-            jumps +=
-                backward.jumps
-        }
-
         val halfWidth =
             widthUnits /
                 2f +
@@ -163,6 +108,86 @@ object SatinGenerator {
                             halfWidth
                     ).roundToInt()
             )
+
+        val travel =
+            appendReferenceTravel(
+                points = points,
+                currentX = x,
+                currentY = y,
+                targetX =
+                    firstA.first,
+                targetY =
+                    firstA.second
+            )
+
+        x =
+            travel.x
+
+        y =
+            travel.y
+
+        jumps +=
+            travel.jumps
+
+        /*
+         * Mesmo ciclo do SatinTextStitchGenerator:
+         * travel -> center-run ida/volta -> lock -> Satin -> lock.
+         * Qualquer modo de underlay diferente de NONE equivale ao
+         * IncludeUnderlay do motor de referência.
+         */
+        if (
+            underlayMode !=
+                SatinUnderlayMode.NONE
+        ) {
+            val forward =
+                appendCenterUnderlay(
+                    points = points,
+                    stroke = stroke,
+                    currentX = x,
+                    currentY = y,
+                    stepUnits =
+                        20f,
+                    connectFirstWithStitch =
+                        true
+                )
+
+            x =
+                forward.x
+
+            y =
+                forward.y
+
+            stitches +=
+                forward.stitches
+
+            jumps +=
+                forward.jumps
+
+            val backward =
+                appendCenterUnderlay(
+                    points = points,
+                    stroke =
+                        stroke.asReversed(),
+                    currentX = x,
+                    currentY = y,
+                    stepUnits =
+                        20f,
+                    connectFirstWithStitch =
+                        false
+                )
+
+            x =
+                backward.x
+
+            y =
+                backward.y
+
+            stitches +=
+                backward.stitches
+
+            jumps +=
+                backward.jumps
+        }
 
         val tieIn =
             appendReferenceLock(
@@ -268,6 +293,136 @@ object SatinGenerator {
             jumpCount =
                 jumps +
                     tieOff.jumps
+        )
+    }
+
+    private fun appendReferenceTravel(
+        points: MutableList<EmbroideryPoint>,
+        currentX: Int,
+        currentY: Int,
+        targetX: Int,
+        targetY: Int
+    ): PassResult {
+        var x =
+            currentX
+
+        var y =
+            currentY
+
+        var jumps =
+            0
+
+        val dx =
+            targetX -
+                x
+
+        val dy =
+            targetY -
+                y
+
+        val distance =
+            hypot(
+                dx.toDouble(),
+                dy.toDouble()
+            )
+
+        if (
+            points.isEmpty()
+        ) {
+            points +=
+                EmbroideryPoint(
+                    targetX,
+                    targetY,
+                    StitchCommand.JUMP,
+                    0
+                )
+
+            return PassResult(
+                x = targetX,
+                y = targetY,
+                stitches = 0,
+                jumps = 1
+            )
+        }
+
+        if (
+            distance <
+                0.5
+        ) {
+            return PassResult(
+                x = targetX,
+                y = targetY,
+                stitches = 0,
+                jumps = 0
+            )
+        }
+
+        if (
+            distance >
+                50.0
+        ) {
+            points +=
+                EmbroideryPoint(
+                    x,
+                    y,
+                    StitchCommand.TRIM,
+                    0
+                )
+        }
+
+        val segments =
+            max(
+                1,
+                ceil(
+                    distance /
+                        70.0
+                ).toInt()
+            )
+
+        val startX =
+            x
+
+        val startY =
+            y
+
+        for (
+            part in
+                1..segments
+        ) {
+            val ratio =
+                part.toDouble() /
+                    segments
+
+            points +=
+                EmbroideryPoint(
+                    (
+                        startX +
+                            dx *
+                                ratio
+                        ).roundToInt(),
+                    (
+                        startY +
+                            dy *
+                                ratio
+                        ).roundToInt(),
+                    StitchCommand.JUMP,
+                    0
+                )
+
+            jumps++
+        }
+
+        x =
+            targetX
+
+        y =
+            targetY
+
+        return PassResult(
+            x = x,
+            y = y,
+            stitches = 0,
+            jumps = jumps
         )
     }
 
@@ -448,7 +603,9 @@ object SatinGenerator {
         stroke: List<Pair<Int, Int>>,
         currentX: Int,
         currentY: Int,
-        stepUnits: Float
+        stepUnits: Float,
+        connectFirstWithStitch: Boolean =
+            false
     ): PassResult {
         var x = currentX
         var y = currentY
@@ -463,17 +620,38 @@ object SatinGenerator {
             x != first.first ||
             y != first.second
         ) {
+            val command =
+                if (
+                    connectFirstWithStitch &&
+                    points.isNotEmpty()
+                ) {
+                    StitchCommand.STITCH
+                } else {
+                    StitchCommand.JUMP
+                }
+
             points +=
                 EmbroideryPoint(
                     first.first,
                     first.second,
-                    StitchCommand.JUMP,
+                    command,
                     0
                 )
 
-            x = first.first
-            y = first.second
-            jumps++
+            x =
+                first.first
+
+            y =
+                first.second
+
+            if (
+                command ==
+                    StitchCommand.STITCH
+            ) {
+                stitches++
+            } else {
+                jumps++
+            }
         }
 
         for (
