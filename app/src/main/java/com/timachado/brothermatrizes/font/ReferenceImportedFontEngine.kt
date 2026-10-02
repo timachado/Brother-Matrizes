@@ -1526,53 +1526,241 @@ internal object ReferenceImportedFontEngine {
             underlayMode: SatinUnderlayMode,
             densityMm: Float
         ) {
-            /*
-             * Compatibilidade comportamental com o motor de texto Satin
-             * analisado no APK de referência:
-             *
-             * - respeita exatamente a ordem entregue pelo SatinColumnSampler;
-             * - não reordena por proximidade;
-             * - não inverte rows nem troca A/B;
-             * - cada coluna é concluída antes da próxima:
-             *   travel -> center-run ida/volta -> lock -> A/B por row -> lock.
-             *
-             * polygons/startHint pertencem à interface histórica deste
-             * emitter; o motor de referência não os usa para reordenar.
-             */
-            @Suppress("UNUSED_VARIABLE")
-            val compatibilityContext =
-                polygons.size +
+            val remaining =
+                columns
+                    .filter {
+                        it.rows
+                            .isNotEmpty()
+                    }
+                    .toMutableList()
+
+            if (
+                remaining.isEmpty()
+            ) {
+                return
+            }
+
+            var firstColumn =
+                true
+
+            while (
+                remaining.isNotEmpty()
+            ) {
+                val anchor =
                     if (
-                        startHint !=
-                            null
+                        firstColumn
                     ) {
-                        1
+                        startHint
+                            ?: current
+                            ?: remaining
+                                .first()
+                                .rows
+                                .first()
+                                .a
                     } else {
-                        0
+                        current
+                            ?: remaining
+                                .first()
+                                .rows
+                                .first()
+                                .a
                     }
 
-            columns
-                .filter {
-                    it.rows
-                        .isNotEmpty()
-                }
-                .forEach {
-                        column ->
-                    emitColumn(
-                        column =
-                            column,
-                        includeUnderlay =
-                            underlayMode !=
-                                SatinUnderlayMode.NONE,
-                        densityMm =
-                            densityMm
-                    )
-                }
+                /*
+                 * O vídeo de referência não volta sempre para o começo da
+                 * próxima coluna. A próxima região é escolhida pelo ponto de
+                 * entrada fisicamente mais próximo da posição atual, e a
+                 * coluna pode ser invertida/trocada A<->B para continuar pelo
+                 * lado mais próximo.
+                 */
+                val choice =
+                    remaining
+                        .map {
+                                column ->
+                            closestOrientation(
+                                column =
+                                    column,
+                                anchor =
+                                    anchor
+                            )
+                        }
+                        .minByOrNull {
+                            it.entryDistance
+                        }
+                        ?: break
+
+                val column =
+                    choice.oriented
+
+                emitTravel(
+                    column.rows
+                        .first()
+                        .a
+                )
+
+                emitProgressiveColumn(
+                    column =
+                        column,
+                    underlayMode =
+                        underlayMode,
+                    densityMm =
+                        densityMm
+                )
+
+                remaining.remove(
+                    choice.original
+                )
+
+                firstColumn =
+                    false
+            }
         }
 
-        private fun emitColumn(
+        private data class OrientedChoice(
+            val original: SatinColumn,
+            val oriented: SatinColumn,
+            val entryDistance: Float
+        )
+
+        private fun closestOrientation(
             column: SatinColumn,
-            includeUnderlay: Boolean,
+            anchor: FPoint
+        ): OrientedChoice {
+            val normal =
+                column.rows
+                    .toList()
+
+            val reversed =
+                normal.asReversed()
+
+            val candidates =
+                listOf(
+                    orientRows(
+                        normal,
+                        swap =
+                            false
+                    ),
+                    orientRows(
+                        normal,
+                        swap =
+                            true
+                    ),
+                    orientRows(
+                        reversed,
+                        swap =
+                            false
+                    ),
+                    orientRows(
+                        reversed,
+                        swap =
+                            true
+                    )
+                )
+
+            val best =
+                candidates.minBy {
+                        candidate ->
+                    distance(
+                        anchor,
+                        candidate.rows
+                            .first()
+                            .a
+                    )
+                }
+
+            return OrientedChoice(
+                original =
+                    column,
+                oriented =
+                    best,
+                entryDistance =
+                    distance(
+                        anchor,
+                        best.rows
+                            .first()
+                            .a
+                    )
+            )
+        }
+
+        private fun orientRows(
+            rows: List<SatinRow>,
+            swap: Boolean
+        ): SatinColumn =
+            SatinColumn(
+                rows =
+                    rows
+                        .map {
+                                row ->
+                            if (
+                                swap
+                            ) {
+                                SatinRow(
+                                    a =
+                                        row.b,
+                                    b =
+                                        row.a
+                                )
+                            } else {
+                                row
+                            }
+                        }
+                        .toMutableList()
+            )
+
+        private fun underlayIndices(
+            rows: List<SatinRow>,
+            densityMm: Float
+        ): Set<Int> {
+            if (
+                rows.isEmpty()
+            ) {
+                return emptySet()
+            }
+
+            val pitchUnits =
+                (
+                    densityMm *
+                        10f
+                    ).coerceAtLeast(
+                    0.5f
+                )
+
+            val step =
+                max(
+                    1,
+                    (
+                        20f /
+                            pitchUnits
+                        ).roundToInt()
+                )
+
+            val indices =
+                mutableSetOf<Int>()
+
+            var index =
+                0
+
+            while (
+                index <
+                    rows.size
+            ) {
+                indices +=
+                    index
+
+                index +=
+                    step
+            }
+
+            indices +=
+                rows.lastIndex
+
+            return indices
+        }
+
+        private fun emitProgressiveColumn(
+            column: SatinColumn,
+            underlayMode: SatinUnderlayMode,
             densityMm: Float
         ) {
             val rows =
@@ -1584,51 +1772,69 @@ internal object ReferenceImportedFontEngine {
                 return
             }
 
-            val first =
-                rows.first()
-
-            emitTravel(
-                first.a
-            )
-
-            if (
-                includeUnderlay &&
-                rows.size >=
-                    4
-            ) {
-                emitCenterRunUnderlay(
-                    column =
-                        column,
+            val sparseUnderlayRows =
+                underlayIndices(
+                    rows =
+                        rows,
                     densityMm =
                         densityMm
                 )
-            }
 
-            emitLock(
-                first
-            )
+            val before =
+                current
+
+            var nextIsA =
+                if (
+                    before ==
+                        null
+                ) {
+                    true
+                } else {
+                    distance(
+                        before,
+                        rows.first().a
+                    ) <=
+                        distance(
+                            before,
+                            rows.first().b
+                        )
+                }
 
             /*
-             * Ponto crítico da correção:
-             * o Satin de referência emite OS DOIS LADOS em cada linha,
-             * A e depois B. A implementação experimental emitia apenas
-             * um lado alternado por linha, o que produzia a aparência de
-             * mola/contorno e reduzia drasticamente a contagem de pontos.
+             * A referência mostra fundação CURTA e LOCAL: alguns pontos de
+             * centro são colocados logo antes da cobertura daquele mesmo
+             * trecho. Não existe mais o center-run completo da coluna antes
+             * de começar o Satin.
              */
-            rows.forEach {
+            rows.forEachIndexed {
+                    rowIndex,
                     row ->
-                emitStitchTo(
-                    row.a
-                )
+                if (
+                    underlayMode !=
+                        SatinUnderlayMode.NONE &&
+                    rowIndex in
+                        sparseUnderlayRows
+                ) {
+                    emitStitchTo(
+                        center(
+                            row
+                        )
+                    )
+                }
 
                 emitStitchTo(
-                    row.b
+                    if (
+                        nextIsA
+                    ) {
+                        row.a
+                    } else {
+                        row.b
+                    }
                 )
+
+                nextIsA =
+                    !nextIsA
             }
-
-            emitLock(
-                rows.last()
-            )
         }
 
         private fun emitCenterRunUnderlay(
