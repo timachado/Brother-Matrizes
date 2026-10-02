@@ -3235,6 +3235,138 @@ internal object ReferenceImportedFontEngine {
         return output
     }
 
+    internal fun debugConnectedPriorityPath():
+        List<EmbroideryPoint> {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val emitter =
+            SatinEmitter(
+                output
+            )
+
+        fun column(
+            left: Float
+        ) =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            left,
+                            5f
+                        ),
+                        FPoint(
+                            left +
+                                10f,
+                            5f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            left,
+                            15f
+                        ),
+                        FPoint(
+                            left +
+                                10f,
+                            15f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            left,
+                            25f
+                        ),
+                        FPoint(
+                            left +
+                                10f,
+                            25f
+                        )
+                    )
+                )
+            )
+
+        val first =
+            column(
+                0f
+            )
+
+        val far =
+            column(
+                80f
+            )
+
+        val connected =
+            column(
+                20f
+            )
+
+        emitter.emitGlyph(
+            columns =
+                listOf(
+                    first,
+                    far,
+                    connected
+                ),
+            polygons =
+                listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                -2f,
+                                0f
+                            ),
+                            FPoint(
+                                35f,
+                                0f
+                            ),
+                            FPoint(
+                                35f,
+                                30f
+                            ),
+                            FPoint(
+                                -2f,
+                                30f
+                            )
+                        )
+                    ),
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                78f,
+                                0f
+                            ),
+                            FPoint(
+                                95f,
+                                0f
+                            ),
+                            FPoint(
+                                95f,
+                                30f
+                            ),
+                            FPoint(
+                                78f,
+                                30f
+                            )
+                        )
+                    )
+                ),
+            startHint =
+                FPoint(
+                    0f,
+                    5f
+                ),
+            underlayMode =
+                SatinUnderlayMode.NONE,
+            densityMm =
+                0.4f
+        )
+
+        return output
+    }
+
     private fun buildGuidePoints(
         polygons: List<Polygon>
     ): List<EmbroideryPoint> {
