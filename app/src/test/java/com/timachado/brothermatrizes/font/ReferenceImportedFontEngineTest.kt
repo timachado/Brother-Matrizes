@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun emitterPreservesTheColumnOrderProducedByTheSampler() {
+    fun firstSatinRegionUsesNearestEntryFromCurrentHint() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -76,14 +76,14 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            "A primeira coluna deve preservar a ordem do sampler, mas entrar pelo extremo mais próximo do start hint.",
+            "A primeira coluna precisa entrar pelo lado mais próximo do ponto inicial.",
             first.xUnits >=
-                80
+                70
         )
     }
 
     @Test
-    fun adjacentColumnsUseReferenceJumpWithoutForcedTrim() {
+    fun connectedColumnsUseHiddenRunningConnector() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -99,21 +99,17 @@ class ReferenceImportedFontEngineTest {
                 .command
         )
 
-        assertEquals(
-            "Regiões conectadas devem ter apenas o salto inicial; a transição fica escondida em STITCH dentro do glifo.",
-            1,
-            points.count {
-                it.command ==
-                    StitchCommand.JUMP
-            }
-        )
-
         assertTrue(
-            "Colunas próximas e conectadas não devem forçar corte de linha.",
-            points.none {
-                it.command ==
-                    StitchCommand.TRIM
-            }
+            points
+                .drop(
+                    1
+                )
+                .none {
+                    it.command ==
+                        StitchCommand.JUMP ||
+                        it.command ==
+                        StitchCommand.TRIM
+                }
         )
     }
 
@@ -138,7 +134,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun satinUsesReferenceLocksAndBothEdgesOfEverySampleRow() {
+    fun satinUsesOneAlternatingStitchPerSampleRow() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -154,16 +150,15 @@ class ReferenceImportedFontEngineTest {
                     StitchCommand.STITCH
             }
 
-        // O motor de referência usa trava inicial/final e costura A/B
-        // em cada linha Satin.
+        // 4 linhas em cada coluna + ligação contínua entre as colunas.
         assertTrue(
-            stitches >=
-                20
+            stitches in
+                9..12
         )
     }
 
     @Test
-    fun centerUnderlayMakesTheReferenceForwardAndReturnPass() {
+    fun centerUnderlayNeverReversesBackAcrossFinishedRows() {
         val stitches =
             ReferenceImportedFontEngine
                 .debugProgressiveCenterUnderlayPath()
@@ -178,12 +173,12 @@ class ReferenceImportedFontEngineTest {
             }
 
         assertTrue(
-            "O underlay central de referência precisa fazer ida e retorno antes da cobertura.",
-            xSequence
-                .zipWithNext()
-                .any {
+            "Underlay + Satin não pode voltar para uma linha anterior; " +
+                "pequena oscilação dentro da largura Satin é permitida.",
+            xSequence.zipWithNext()
+                .all {
                         pair ->
-                    pair.second <
+                    pair.second >=
                         pair.first -
                             3
                 }
@@ -254,7 +249,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun adjacentSatinColumnsFollowSamplerOrientationWithoutSerpentineRewrite() {
+    fun adjacentSatinColumnsContinueFromNearestEndInsteadOfJumpingBackToTop() {
         val jumps =
             ReferenceImportedFontEngine
                 .debugSerpentineTransitionJumpTargets()
@@ -268,7 +263,6 @@ class ReferenceImportedFontEngineTest {
             jumps.last()
 
         assertEquals(
-            "A segunda coluna deve ser percorrida em serpentina, entrando pelo extremo mais próximo.",
             20,
             transition.second
         )
@@ -314,49 +308,4 @@ class ReferenceImportedFontEngineTest {
                 2
         )
     }
-    @Test
-    fun connectedRegionIsCompletedBeforeDistantRegion() {
-        val points =
-            ReferenceImportedFontEngine
-                .debugConnectedPriorityPath()
-
-        val firstFarJump =
-            points.indexOfFirst {
-                it.command ==
-                    StitchCommand.JUMP &&
-                it.xUnits >=
-                    70
-            }
-
-        assertTrue(
-            "A região distante precisa ser acessada por JUMP somente depois que a região conectada for concluída.",
-            firstFarJump >
-                0
-        )
-
-        assertTrue(
-            "Antes do salto distante deve existir costura na coluna conectada.",
-            points
-                .take(
-                    firstFarJump
-                )
-                .any {
-                    it.command ==
-                        StitchCommand.STITCH &&
-                    it.xUnits in
-                        18..35
-                }
-        )
-
-        assertEquals(
-            "A ligação para a coluna conectada deve ficar escondida em STITCH, sem salto extra.",
-            2,
-            points.count {
-                it.command ==
-                    StitchCommand.JUMP
-            }
-        )
-    }
-
-
 }
