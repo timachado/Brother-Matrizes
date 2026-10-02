@@ -75,10 +75,10 @@ class ReferenceImportedFontEngineTest {
             first.command
         )
 
-        assertEquals(
-            "O emitter não pode reordenar as colunas recebidas do sampler.",
-            70,
-            first.xUnits
+        assertTrue(
+            "A primeira coluna deve preservar a ordem do sampler, mas entrar pelo extremo mais próximo do start hint.",
+            first.xUnits >=
+                80
         )
     }
 
@@ -99,17 +99,17 @@ class ReferenceImportedFontEngineTest {
                 .command
         )
 
-        assertTrue(
-            "Cada coluna começa com o travel do motor de referência.",
+        assertEquals(
+            "Regiões conectadas devem ter apenas o salto inicial; a transição fica escondida em STITCH dentro do glifo.",
+            1,
             points.count {
                 it.command ==
                     StitchCommand.JUMP
-            } >=
-                2
+            }
         )
 
         assertTrue(
-            "Colunas próximas não devem forçar corte de linha.",
+            "Colunas próximas e conectadas não devem forçar corte de linha.",
             points.none {
                 it.command ==
                     StitchCommand.TRIM
@@ -268,7 +268,8 @@ class ReferenceImportedFontEngineTest {
             jumps.last()
 
         assertEquals(
-            0,
+            "A segunda coluna deve ser percorrida em serpentina, entrando pelo extremo mais próximo.",
+            20,
             transition.second
         )
     }
