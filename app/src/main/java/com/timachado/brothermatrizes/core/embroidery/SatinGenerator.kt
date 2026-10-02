@@ -533,7 +533,7 @@ object SatinGenerator {
                     )
                 }
 
-                val target =
+                val firstTarget =
                     if (
                         nextSideA
                     ) {
@@ -542,9 +542,28 @@ object SatinGenerator {
                         sideB
                     }
 
+                val secondTarget =
+                    if (
+                        nextSideA
+                    ) {
+                        sideB
+                    } else {
+                        sideA
+                    }
+
+                /*
+                 * Uma amostra Satin completa precisa atravessar toda a largura
+                 * do traço. A versão anterior usava apenas um lado por amostra,
+                 * reduzindo a cobertura e fazendo a simulação terminar cedo.
+                 */
                 stitchTo(
-                    target.first,
-                    target.second
+                    firstTarget.first,
+                    firstTarget.second
+                )
+
+                stitchTo(
+                    secondTarget.first,
+                    secondTarget.second
                 )
 
                 nextSideA =
