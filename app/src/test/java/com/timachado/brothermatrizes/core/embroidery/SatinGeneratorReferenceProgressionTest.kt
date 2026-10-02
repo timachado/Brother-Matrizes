@@ -7,7 +7,7 @@ import org.junit.Test
 class SatinGeneratorReferenceProgressionTest {
 
     @Test
-    fun satinCoverageStartsBeforeAFullCenterPassCrossesTheStroke() {
+    fun centerUnderlayRunsForwardAndBackBeforeFullSatinCoverage() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -48,11 +48,11 @@ class SatinGeneratorReferenceProgressionTest {
             }
 
         assertTrue(
-            firstWideIndex >=
+            firstWideIndex >
                 0
         )
 
-        val beforeFirstWide =
+        val foundation =
             points
                 .take(
                     firstWideIndex
@@ -63,22 +63,31 @@ class SatinGeneratorReferenceProgressionTest {
                 }
 
         assertTrue(
-            "A cobertura precisa começar localmente; não pode atravessar o traço inteiro como underlay antes do Satin.",
-            beforeFirstWide.none {
+            "O center-run precisa alcançar o fim do traço antes do Satin.",
+            foundation.any {
                 it.xUnits >=
-                    80
+                    95 &&
+                abs(
+                    it.yUnits
+                ) <=
+                    2
             }
         )
 
         assertTrue(
-            "O primeiro Satin deve começar próximo da entrada da coluna.",
-            points[firstWideIndex]
-                .xUnits <=
-                20
+            "O center-run precisa voltar para a entrada antes da cobertura.",
+            foundation
+                .zipWithNext()
+                .any {
+                        pair ->
+                    pair.second.xUnits <
+                        pair.first.xUnits -
+                            10
+                }
         )
 
         assertTrue(
-            "Depois a cobertura precisa continuar até o fim do traço.",
+            "Depois da fundação, a cobertura deve atingir os dois lados do traço.",
             points
                 .drop(
                     firstWideIndex
@@ -86,18 +95,16 @@ class SatinGeneratorReferenceProgressionTest {
                 .any {
                     it.command ==
                         StitchCommand.STITCH &&
-                    it.xUnits >=
-                        80 &&
                     abs(
                         it.yUnits
                     ) >=
-                        15
+                        18
                 }
         )
     }
 
     @Test
-    fun progressiveRouteDoesNotInsertTrimInsideOneConnectedStroke() {
+    fun eachSatinSampleUsesBothEdgesAndKeepsConnectedStrokeWithoutTrim() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -135,10 +142,20 @@ class SatinGeneratorReferenceProgressionTest {
             }
         )
 
-        assertTrue(
-            points.any {
+        val sewn =
+            points.filter {
                 it.command ==
-                    StitchCommand.STITCH &&
+                    StitchCommand.STITCH
+            }
+
+        assertTrue(
+            "A cobertura A/B deve gerar uma quantidade densa de pontos.",
+            sewn.size >
+                100
+        )
+
+        assertTrue(
+            sewn.any {
                 abs(
                     it.xUnits -
                         100
