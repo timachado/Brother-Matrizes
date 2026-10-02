@@ -134,7 +134,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun satinUsesOneAlternatingStitchPerSampleRow() {
+    fun satinUsesBothEdgesOfEverySampleRow() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -150,10 +150,11 @@ class ReferenceImportedFontEngineTest {
                     StitchCommand.STITCH
             }
 
-        // 4 linhas em cada coluna + ligação contínua entre as colunas.
+        // 2 colunas x 4 linhas x 2 lados + conector contínuo.
         assertTrue(
-            stitches in
-                9..12
+            "Cada linha Satin precisa costurar A e B para concluir visualmente a coluna.",
+            stitches >=
+                17
         )
     }
 
@@ -254,17 +255,10 @@ class ReferenceImportedFontEngineTest {
             ReferenceImportedFontEngine
                 .debugSerpentineTransitionJumpTargets()
 
-        assertTrue(
-            jumps.size >=
-                2
-        )
-
-        val transition =
-            jumps.last()
-
         assertEquals(
-            20,
-            transition.second
+            "Transição curta entre colunas adjacentes deve virar conector costurado, não JUMP.",
+            1,
+            jumps.size
         )
     }
 
