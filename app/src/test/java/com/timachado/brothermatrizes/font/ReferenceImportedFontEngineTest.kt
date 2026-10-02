@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun firstSatinRegionFollowsNaturalGlyphStartHint() {
+    fun firstSatinRegionKeepsStableSpatialOrderEvenWithMisleadingHint() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -76,14 +76,14 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            "O primeiro ponto deve começar na região mais próxima do startHint do glifo.",
-            first.xUnits >=
-                70
+            "A primeira coluna precisa permanecer na região espacial esquerda; o startHint só orienta a entrada.",
+            first.xUnits <=
+                20
         )
     }
 
     @Test
-    fun connectedColumnsUseHiddenRunningConnector() {
+    fun nearbyColumnsUseRealJumpWithoutForcedTrim() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -100,16 +100,20 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            points
-                .drop(
-                    1
-                )
-                .none {
-                    it.command ==
-                        StitchCommand.JUMP ||
-                        it.command ==
-                        StitchCommand.TRIM
-                }
+            "Além do salto inicial, a transição entre colunas precisa continuar sendo JUMP real.",
+            points.count {
+                it.command ==
+                    StitchCommand.JUMP
+            } >=
+                2
+        )
+
+        assertTrue(
+            "Transição curta entre colunas não deve cortar a linha.",
+            points.none {
+                it.command ==
+                    StitchCommand.TRIM
+            }
         )
     }
 
@@ -255,9 +259,16 @@ class ReferenceImportedFontEngineTest {
                 .debugSerpentineTransitionJumpTargets()
 
         assertEquals(
-            "Transição curta entre colunas adjacentes deve virar conector costurado, não JUMP.",
-            1,
+            "Deve existir o JUMP inicial e o JUMP de transição para a segunda coluna.",
+            2,
             jumps.size
+        )
+
+        assertEquals(
+            "Terminando a primeira coluna embaixo, a próxima deve entrar pelo extremo inferior.",
+            20,
+            jumps.last()
+                .second
         )
     }
 
