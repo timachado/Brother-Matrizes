@@ -50,6 +50,14 @@ internal object ReferenceImportedFontEngine {
     private const val CONTINUOUS_CONNECTOR_STITCH_UNITS =
         15f
 
+    /*
+     * Colunas do mesmo traço podem terminar alguns milímetros separadas
+     * pela discretização do contorno. Até 2,5 mm a referência continua
+     * costurando em vez de transformar a transição em salto.
+     */
+    private const val NEAR_COLUMN_JOIN_UNITS =
+        25f
+
     private const val GLYPH_JOIN_UNITS =
         12f
 
@@ -2093,7 +2101,7 @@ internal object ReferenceImportedFontEngine {
                         GLYPH_JOIN_UNITS
                 } else {
                     travelDistance <=
-                        CONTINUOUS_CONNECTOR_STITCH_UNITS ||
+                        NEAR_COLUMN_JOIN_UNITS ||
                         segmentInsideGlyph(
                             from =
                                 before,
