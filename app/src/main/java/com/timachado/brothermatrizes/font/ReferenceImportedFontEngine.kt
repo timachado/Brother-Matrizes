@@ -1847,10 +1847,14 @@ internal object ReferenceImportedFontEngine {
                 }
 
             /*
-             * A referência mostra fundação CURTA e LOCAL: alguns pontos de
-             * centro são colocados logo antes da cobertura daquele mesmo
-             * trecho. Não existe mais o center-run completo da coluna antes
-             * de começar o Satin.
+             * Cada amostra Satin precisa costurar os DOIS lados da coluna.
+             * A implementação anterior emitia apenas A ou B por linha e,
+             * por isso, terminava a sequência antes de completar visualmente
+             * o traço e deixava o bordado ralo.
+             *
+             * Mantemos a fundação curta/local e alternamos o lado de entrada
+             * da próxima amostra para preservar o percurso serpenteado:
+             * A->B, depois B->A, depois A->B...
              */
             rows.forEachIndexed {
                     rowIndex,
@@ -1868,7 +1872,7 @@ internal object ReferenceImportedFontEngine {
                     )
                 }
 
-                emitStitchTo(
+                val first =
                     if (
                         nextIsA
                     ) {
@@ -1876,6 +1880,22 @@ internal object ReferenceImportedFontEngine {
                     } else {
                         row.b
                     }
+
+                val second =
+                    if (
+                        nextIsA
+                    ) {
+                        row.b
+                    } else {
+                        row.a
+                    }
+
+                emitStitchTo(
+                    first
+                )
+
+                emitStitchTo(
+                    second
                 )
 
                 nextIsA =
@@ -2072,14 +2092,16 @@ internal object ReferenceImportedFontEngine {
                     travelDistance <=
                         GLYPH_JOIN_UNITS
                 } else {
-                    segmentInsideGlyph(
-                        from =
-                            before,
-                        to =
-                            target,
-                        polygons =
-                            polygons
-                    )
+                    travelDistance <=
+                        CONTINUOUS_CONNECTOR_STITCH_UNITS ||
+                        segmentInsideGlyph(
+                            from =
+                                before,
+                            to =
+                                target,
+                            polygons =
+                                polygons
+                        )
                 }
 
             emitSegmented(
