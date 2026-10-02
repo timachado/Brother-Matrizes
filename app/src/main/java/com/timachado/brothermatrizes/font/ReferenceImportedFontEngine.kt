@@ -3269,7 +3269,28 @@ internal object ReferenceImportedFontEngine {
                     second
                 ),
             polygons =
-                emptyList(),
+                listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                -2f,
+                                -2f
+                            ),
+                            FPoint(
+                                42f,
+                                -2f
+                            ),
+                            FPoint(
+                                42f,
+                                22f
+                            ),
+                            FPoint(
+                                -2f,
+                                22f
+                            )
+                        )
+                    )
+                ),
             startHint =
                 FPoint(
                     0f,
