@@ -505,15 +505,17 @@ object SatinGenerator {
 
         fun center(
             row: SatinRow
-        ): Pair<Int, Int> =
-            (
+        ): Pair<Int, Int> {
+            val centerX =
                 (
-                    row.ax +
-                        row.bx
-                    ) /
-                    2f
-                ).roundToInt()
-            ) to
+                    (
+                        row.ax +
+                            row.bx
+                        ) /
+                        2f
+                    ).roundToInt()
+
+            val centerY =
                 (
                     (
                         row.ay +
@@ -521,7 +523,10 @@ object SatinGenerator {
                         ) /
                         2f
                     ).roundToInt()
-                )
+
+            return centerX to
+                centerY
+        }
 
         fun emitLock(
             row: SatinRow
