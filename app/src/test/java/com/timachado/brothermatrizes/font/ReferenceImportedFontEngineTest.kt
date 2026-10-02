@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun firstSatinRegionUsesNearestEntryFromCurrentHint() {
+    fun emitterKeepsSamplerColumnOrder() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -67,23 +67,23 @@ class ReferenceImportedFontEngineTest {
             points.isNotEmpty()
         )
 
-        val first =
-            points.first()
-
         assertEquals(
             StitchCommand.JUMP,
-            first.command
+            points.first()
+                .command
         )
 
-        assertTrue(
-            "A primeira coluna precisa entrar pelo lado mais próximo do ponto inicial.",
-            first.xUnits >=
-                70
+        // A lista sintética é [right, left]. O emitter não deve
+        // reordenar pela posição atual/startHint.
+        assertEquals(
+            70,
+            points.first()
+                .xUnits
         )
     }
 
     @Test
-    fun connectedColumnsUseHiddenRunningConnector() {
+    fun everyColumnStartsWithReferenceTravel() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -94,28 +94,33 @@ class ReferenceImportedFontEngineTest {
                 )
 
         assertEquals(
-            StitchCommand.JUMP,
-            points.first()
-                .command
+            2,
+            points.count {
+                it.command ==
+                    StitchCommand.JUMP
+            }
         )
 
         assertTrue(
-            points
-                .drop(
-                    1
-                )
-                .none {
-                    it.command ==
-                        StitchCommand.JUMP ||
-                        it.command ==
-                        StitchCommand.TRIM
-                }
+            points.none {
+                it.command ==
+                    StitchCommand.TRIM
+            }
         )
     }
 
     @Test
-    fun disconnectedColumnsJumpInsteadOfCrossingEmptyArea() {
-        val points =
+    fun connectedAndDisconnectedGeometryDoNotRewriteColumnTravel() {
+        val connected =
+            ReferenceImportedFontEngine
+                .debugReferencePath(
+                    connected =
+                        true,
+                    includeUnderlay =
+                        false
+                )
+
+        val disconnected =
             ReferenceImportedFontEngine
                 .debugReferencePath(
                     connected =
@@ -124,17 +129,18 @@ class ReferenceImportedFontEngineTest {
                         false
                 )
 
-        assertTrue(
-            points.count {
-                it.command ==
-                    StitchCommand.JUMP
-            } >=
-                2
+        assertEquals(
+            connected.map {
+                it.command
+            },
+            disconnected.map {
+                it.command
+            }
         )
     }
 
     @Test
-    fun satinUsesOneAlternatingStitchPerSampleRow() {
+    fun satinEmitsBothAAndBForEverySampleRow() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -150,15 +156,19 @@ class ReferenceImportedFontEngineTest {
                     StitchCommand.STITCH
             }
 
-        // 4 linhas em cada coluna + ligação contínua entre as colunas.
-        assertTrue(
-            stitches in
-                9..12
+        /*
+         * Duas colunas com quatro rows:
+         * por coluna = lock 3 + (A,B)*4 + lock 3 = 14 STITCH.
+         * Total exato = 28 STITCH.
+         */
+        assertEquals(
+            28,
+            stitches
         )
     }
 
     @Test
-    fun centerUnderlayNeverReversesBackAcrossFinishedRows() {
+    fun centerUnderlayRunsForwardAndBackBeforeCoverage() {
         val stitches =
             ReferenceImportedFontEngine
                 .debugProgressiveCenterUnderlayPath()
@@ -173,44 +183,28 @@ class ReferenceImportedFontEngineTest {
             }
 
         assertTrue(
-            "Underlay + Satin não pode voltar para uma linha anterior; " +
-                "pequena oscilação dentro da largura Satin é permitida.",
-            xSequence.zipWithNext()
-                .all {
+            "O center-run precisa alcançar a extremidade.",
+            xSequence.any {
+                it >=
+                    31
+            }
+        )
+
+        assertTrue(
+            "O center-run de referência precisa retornar antes do Satin.",
+            xSequence
+                .zipWithNext()
+                .any {
                         pair ->
-                    pair.second >=
+                    pair.second <
                         pair.first -
-                            3
+                            10
                 }
         )
     }
 
     @Test
-    fun centerUnderlayStartsOnColumnCenterInsteadOfWalkingEdges() {
-        val points =
-            ReferenceImportedFontEngine
-                .debugReferencePath(
-                    connected =
-                        true,
-                    includeUnderlay =
-                        true
-                )
-
-        val firstStitch =
-            points.first {
-                it.command ==
-                    StitchCommand.STITCH
-            }
-
-        assertTrue(
-            "Underlay central deve começar no centro da coluna, não na borda.",
-            firstStitch.xUnits in
-                11..14
-        )
-    }
-
-    @Test
-    fun centerUnderlayAddsAFoundationPass() {
+    fun centerUnderlayAddsFoundationWithoutExtraTrim() {
         val without =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -249,7 +243,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun adjacentSatinColumnsContinueFromNearestEndInsteadOfJumpingBackToTop() {
+    fun fixedColumnOrderDoesNotApplySerpentineRewrite() {
         val jumps =
             ReferenceImportedFontEngine
                 .debugSerpentineTransitionJumpTargets()
@@ -263,7 +257,12 @@ class ReferenceImportedFontEngineTest {
             jumps.last()
 
         assertEquals(
-            20,
+            30,
+            transition.first
+        )
+
+        assertEquals(
+            0,
             transition.second
         )
     }
