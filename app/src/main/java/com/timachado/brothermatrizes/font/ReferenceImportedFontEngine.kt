@@ -1532,69 +1532,116 @@ internal object ReferenceImportedFontEngine {
             underlayMode: SatinUnderlayMode,
             densityMm: Float
         ) {
-            val ordered =
+            val remaining =
                 columns.filter {
                     it.rows
                         .isNotEmpty()
                 }
+                    .toMutableList()
 
             if (
-                ordered.isEmpty()
+                remaining.isEmpty()
             ) {
                 return
             }
 
-            ordered.forEachIndexed {
-                    index,
-                    original ->
+            var firstColumn =
+                true
+
+            while (
+                remaining.isNotEmpty()
+            ) {
                 val anchor =
                     if (
-                        index ==
-                            0
+                        firstColumn
                     ) {
                         startHint
                             ?: current
-                            ?: original.rows
-                                .first()
+                            ?: remaining.first()
+                                .rows.first()
                                 .a
                     } else {
                         current
-                            ?: original.rows
-                                .first()
+                            ?: remaining.first()
+                                .rows.first()
                                 .a
                     }
 
+                val candidates =
+                    remaining.map {
+                            column ->
+                        closestOrientation(
+                            column =
+                                column,
+                            anchor =
+                                anchor
+                        )
+                    }
+
                 /*
-                 * A ordem das colunas continua sendo a ordem entregue pelo
-                 * SatinColumnSampler. O que muda é o SENTIDO de entrada:
-                 * escolhemos entre normal/reversa e A/B o ponto mais próximo
-                 * da posição atual. Isso reproduz a continuidade observada no
-                 * vídeo de referência e evita voltar desnecessariamente ao
-                 * começo de uma coluna.
+                 * O vídeo de referência mantém a agulha no mesmo corpo
+                 * conectado da letra sempre que é possível esconder a
+                 * transição dentro do próprio glifo.
+                 *
+                 * Se houver uma coluna alcançável por uma ligação interna,
+                 * ela vence pela menor distância. Quando não houver, usamos
+                 * a primeira coluna restante do SatinColumnSampler e apenas
+                 * escolhemos sua melhor orientação de entrada.
                  */
-                val oriented =
-                    closestOrientation(
-                        column =
-                            original,
-                        anchor =
-                            anchor
-                    )
-                        .oriented
+                val connected =
+                    if (
+                        firstColumn ||
+                        current ==
+                            null
+                    ) {
+                        emptyList()
+                    } else {
+                        candidates.filter {
+                                choice ->
+                            segmentInsideGlyph(
+                                from =
+                                    current!!,
+                                to =
+                                    choice.oriented
+                                        .rows.first()
+                                        .a,
+                                polygons =
+                                    polygons
+                            )
+                        }
+                    }
+
+                val choice =
+                    if (
+                        connected.isNotEmpty()
+                    ) {
+                        connected.minBy {
+                            it.entryDistance
+                        }
+                    } else {
+                        candidates.first()
+                    }
 
                 emitReferenceColumn(
                     column =
-                        oriented,
+                        choice.oriented,
                     polygons =
                         polygons,
                     firstColumn =
-                        index ==
-                            0,
+                        firstColumn,
                     includeUnderlay =
                         underlayMode !=
                             SatinUnderlayMode.NONE,
                     densityMm =
                         densityMm
                 )
+
+                remaining.remove(
+                    choice.original
+                )
+
+                firstColumn =
+                    false
             }
         }
 
