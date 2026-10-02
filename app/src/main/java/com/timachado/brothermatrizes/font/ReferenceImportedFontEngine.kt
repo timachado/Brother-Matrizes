@@ -1772,30 +1772,34 @@ internal object ReferenceImportedFontEngine {
             }
 
             /*
-             * O vídeo de referência mostra duas fases separadas:
-             * 1) fundação fina da coluna;
-             * 2) cobertura Satin da mesma coluna.
+             * Vídeo de referência oficial:
              *
-             * A versão anterior intercalava fundação e cobertura linha a
-             * linha, por isso o Brother "pintava" a região cedo demais e
-             * seguia um percurso visual diferente.
+             * 1) percorre o centro da coluna uma única vez até o extremo;
+             * 2) sem retornar pelo centro, trava nesse extremo;
+             * 3) o Satin começa dali e percorre as linhas no sentido inverso,
+             *    preenchendo de volta até a entrada da coluna.
              */
-            if (
-                includeUnderlay
-            ) {
-                emitCenterRunUnderlay(
-                    column =
-                        column,
-                    densityMm =
-                        densityMm
-                )
-            }
+            val coverageRows =
+                if (
+                    includeUnderlay
+                ) {
+                    emitCenterRunUnderlay(
+                        column =
+                            column,
+                        densityMm =
+                            densityMm
+                    )
+
+                    rows.asReversed()
+                } else {
+                    rows
+                }
 
             emitLock(
-                rows.first()
+                coverageRows.first()
             )
 
-            rows.forEach {
+            coverageRows.forEach {
                     row ->
                 emitStitchTo(
                     row.a
@@ -1807,7 +1811,7 @@ internal object ReferenceImportedFontEngine {
             }
 
             emitLock(
-                rows.last()
+                coverageRows.last()
             )
         }
 
@@ -1874,23 +1878,11 @@ internal object ReferenceImportedFontEngine {
                     lastCenter
             }
 
+            // Uma única passada central até o extremo.
             centers.forEach {
                     point ->
                 emitStitchTo(
                     point
-                )
-            }
-
-            for (
-                reverseIndex in
-                    centers.size -
-                        2 downTo
-                        0
-            ) {
-                emitStitchTo(
-                    centers[
-                        reverseIndex
-                    ]
                 )
             }
         }
