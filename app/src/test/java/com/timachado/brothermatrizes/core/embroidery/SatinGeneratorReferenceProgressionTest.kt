@@ -1,14 +1,13 @@
 package com.timachado.brothermatrizes.core.embroidery
 
 import kotlin.math.abs
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SatinGeneratorReferenceProgressionTest {
 
     @Test
-    fun centerUnderlayGoesForwardAndBackBeforeSatinCoverage() {
+    fun satinCoverageStartsBeforeAFullCenterPassCrossesTheStroke() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -49,11 +48,11 @@ class SatinGeneratorReferenceProgressionTest {
             }
 
         assertTrue(
-            firstWideIndex >
+            firstWideIndex >=
                 0
         )
 
-        val foundation =
+        val beforeFirstWide =
             points
                 .take(
                     firstWideIndex
@@ -64,47 +63,30 @@ class SatinGeneratorReferenceProgressionTest {
                 }
 
         assertTrue(
-            "O underlay central precisa alcançar o fim do traço.",
-            foundation.any {
-                it.xUnits ==
-                    100 &&
-                abs(
-                    it.yUnits
-                ) <=
-                    1
+            "A cobertura precisa começar localmente; não pode atravessar o traço inteiro como underlay antes do Satin.",
+            beforeFirstWide.none {
+                it.xUnits >=
+                    80
             }
         )
 
-        assertEquals(
-            "O underlay de referência retorna ao início antes da trava e do Satin.",
-            0,
-            foundation.last()
-                .xUnits
+        assertTrue(
+            "O primeiro Satin deve começar próximo da entrada da coluna.",
+            points[firstWideIndex]
+                .xUnits <=
+                20
         )
 
         assertTrue(
-            "O underlay precisa conter a passada de retorno.",
-            foundation
-                .zipWithNext()
-                .any {
-                        pair ->
-                    pair.second.xUnits <
-                        pair.first.xUnits
-                }
-        )
-
-        assertTrue(
-            "Depois do underlay/trava, o Satin deve avançar pelo traço.",
+            "Depois a cobertura precisa continuar até o fim do traço.",
             points
                 .drop(
                     firstWideIndex
                 )
-                .filter {
-                    it.command ==
-                        StitchCommand.STITCH
-                }
                 .any {
-                    it.xUnits >
+                    it.command ==
+                        StitchCommand.STITCH &&
+                    it.xUnits >=
                         80 &&
                     abs(
                         it.yUnits
@@ -115,7 +97,7 @@ class SatinGeneratorReferenceProgressionTest {
     }
 
     @Test
-    fun bothUsesOnlyCenterUnderlayBeforeLockAndSatin() {
+    fun progressiveRouteDoesNotInsertTrimInsideOneConnectedStroke() {
         val points =
             mutableListOf<
                 EmbroideryPoint
@@ -127,7 +109,8 @@ class SatinGeneratorReferenceProgressionTest {
             stroke =
                 listOf(
                     0 to 0,
-                    100 to 0
+                    100 to 0,
+                    100 to 100
                 ),
             currentX =
                 0,
@@ -142,48 +125,27 @@ class SatinGeneratorReferenceProgressionTest {
             shortStitches =
                 true,
             underlayMode =
-                SatinUnderlayMode.BOTH
+                SatinUnderlayMode.CENTER
         )
 
-        val firstWideIndex =
-            points.indexOfFirst {
+        assertTrue(
+            points.none {
+                it.command ==
+                    StitchCommand.TRIM
+            }
+        )
+
+        assertTrue(
+            points.any {
                 it.command ==
                     StitchCommand.STITCH &&
                 abs(
-                    it.yUnits
-                ) >=
-                    15
-            }
-
-        assertTrue(
-            firstWideIndex >
-                0
-        )
-
-        val beforeCoverage =
-            points
-                .take(
-                    firstWideIndex
-                )
-                .filter {
-                    it.command ==
-                        StitchCommand.STITCH
-                }
-
-        assertTrue(
-            "Antes da trava/Satin deve existir somente o center-run, sem zigue-zague extra.",
-            beforeCoverage.all {
-                abs(
-                    it.yUnits
+                    it.xUnits -
+                        100
                 ) <=
-                    1
-            }
-        )
-
-        assertTrue(
-            beforeCoverage.any {
-                it.xUnits ==
-                    100
+                    25 &&
+                it.yUnits >=
+                    70
             }
         )
     }
