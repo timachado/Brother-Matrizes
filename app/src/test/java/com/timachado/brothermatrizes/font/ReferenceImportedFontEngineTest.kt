@@ -314,4 +314,49 @@ class ReferenceImportedFontEngineTest {
                 2
         )
     }
+    @Test
+    fun connectedRegionIsCompletedBeforeDistantRegion() {
+        val points =
+            ReferenceImportedFontEngine
+                .debugConnectedPriorityPath()
+
+        val firstFarJump =
+            points.indexOfFirst {
+                it.command ==
+                    StitchCommand.JUMP &&
+                it.xUnits >=
+                    70
+            }
+
+        assertTrue(
+            "A região distante precisa ser acessada por JUMP somente depois que a região conectada for concluída.",
+            firstFarJump >
+                0
+        )
+
+        assertTrue(
+            "Antes do salto distante deve existir costura na coluna conectada.",
+            points
+                .take(
+                    firstFarJump
+                )
+                .any {
+                    it.command ==
+                        StitchCommand.STITCH &&
+                    it.xUnits in
+                        18..35
+                }
+        )
+
+        assertEquals(
+            "A ligação para a coluna conectada deve ficar escondida em STITCH, sem salto extra.",
+            2,
+            points.count {
+                it.command ==
+                    StitchCommand.JUMP
+            }
+        )
+    }
+
+
 }
