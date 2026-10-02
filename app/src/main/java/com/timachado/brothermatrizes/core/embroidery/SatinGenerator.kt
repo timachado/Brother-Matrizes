@@ -49,10 +49,7 @@ object SatinGenerator {
         shortStitches: Boolean,
         underlayMode: SatinUnderlayMode
     ): SatinBuildResult {
-        require(
-            stroke.size >=
-                2
-        ) {
+        require(stroke.size >= 2) {
             "Satin precisa de pelo menos dois pontos."
         }
 
@@ -63,11 +60,9 @@ object SatinGenerator {
 
         var x =
             currentX
-                .toFloat()
 
         var y =
             currentY
-                .toFloat()
 
         var stitches =
             0
@@ -75,513 +70,229 @@ object SatinGenerator {
         var jumps =
             0
 
-        var started =
-            points.isNotEmpty()
-
-        fun jumpTo(
-            targetX: Float,
-            targetY: Float
-        ) {
-            if (
-                !started
-            ) {
-                points +=
-                    EmbroideryPoint(
-                        targetX.roundToInt(),
-                        targetY.roundToInt(),
-                        StitchCommand.JUMP,
-                        0
-                    )
-
-                x =
-                    targetX
-
-                y =
-                    targetY
-
-                jumps++
-
-                started =
-                    true
-
-                return
-            }
-
-            val dx =
-                targetX -
-                    x
-
-            val dy =
-                targetY -
-                    y
-
-            val distance =
-                hypot(
-                    dx.toDouble(),
-                    dy.toDouble()
-                )
-                    .toFloat()
-
-            if (
-                distance <
-                    0.5f
-            ) {
-                x =
-                    targetX
-
-                y =
-                    targetY
-
-                return
-            }
-
-            if (
-                distance >
-                    50f
-            ) {
-                points +=
-                    EmbroideryPoint(
-                        x.roundToInt(),
-                        y.roundToInt(),
-                        StitchCommand.TRIM,
-                        0
-                    )
-            }
-
-            val segments =
-                max(
-                    1,
-                    ceil(
-                        distance /
-                            70f
-                    ).toInt()
-                )
-
-            val startX =
-                x
-
-            val startY =
-                y
-
-            for (
-                part in
-                    1..segments
-            ) {
-                val ratio =
-                    part.toFloat() /
-                        segments
-
-                points +=
-                    EmbroideryPoint(
-                        (
-                            startX +
-                                dx *
-                                    ratio
-                            ).roundToInt(),
-                        (
-                            startY +
-                                dy *
-                                    ratio
-                            ).roundToInt(),
-                        StitchCommand.JUMP,
-                        0
-                    )
-
-                jumps++
-            }
-
-            x =
-                targetX
-
-            y =
-                targetY
-        }
-
-        fun stitchTo(
-            targetX: Float,
-            targetY: Float
-        ) {
-            if (
-                !started
-            ) {
-                jumpTo(
-                    targetX,
-                    targetY
-                )
-
-                return
-            }
-
-            val dx =
-                targetX -
-                    x
-
-            val dy =
-                targetY -
-                    y
-
-            val distance =
-                hypot(
-                    dx.toDouble(),
-                    dy.toDouble()
-                )
-                    .toFloat()
-
-            if (
-                distance <
-                    0.001f
-            ) {
-                x =
-                    targetX
-
-                y =
-                    targetY
-
-                return
-            }
-
-            val segments =
-                max(
-                    1,
-                    ceil(
-                        distance /
-                            70f
-                    ).toInt()
-                )
-
-            val startX =
-                x
-
-            val startY =
-                y
-
-            for (
-                part in
-                    1..segments
-            ) {
-                val ratio =
-                    part.toFloat() /
-                        segments
-
-                points +=
-                    EmbroideryPoint(
-                        (
-                            startX +
-                                dx *
-                                    ratio
-                            ).roundToInt(),
-                        (
-                            startY +
-                                dy *
-                                    ratio
-                            ).roundToInt(),
-                        StitchCommand.STITCH,
-                        0
-                    )
-
-                stitches++
-            }
-
-            x =
-                targetX
-
-            y =
-                targetY
-        }
-
-        val safeStep =
-            stepUnits
-                .coerceAtLeast(
-                    0.5f
-                )
-
-        val underlayStride =
-            max(
-                1,
-                (
-                    20f /
-                        safeStep
-                    ).roundToInt()
-            )
-
         val halfWidth =
             widthUnits /
                 2f +
                 pullCompensationUnits
 
-        var globalSampleIndex =
-            0
+        val firstFrame =
+            frames.first()
 
-        var nextSideA =
-            true
+        val firstCenter =
+            stroke.first()
 
-        var firstSample =
-            true
+        val firstA =
+            Pair(
+                (
+                    firstCenter.first +
+                        firstFrame.normalX *
+                            halfWidth
+                    ).roundToInt(),
+                (
+                    firstCenter.second +
+                        firstFrame.normalY *
+                            halfWidth
+                    ).roundToInt()
+            )
 
-        for (
-            segmentIndex in
-                1 until
-                    stroke.size
+        val firstB =
+            Pair(
+                (
+                    firstCenter.first -
+                        firstFrame.normalX *
+                            halfWidth
+                    ).roundToInt(),
+                (
+                    firstCenter.second -
+                        firstFrame.normalY *
+                            halfWidth
+                    ).roundToInt()
+            )
+
+        val travel =
+            appendReferenceTravel(
+                points = points,
+                currentX = x,
+                currentY = y,
+                targetX =
+                    firstA.first,
+                targetY =
+                    firstA.second
+            )
+
+        x =
+            travel.x
+
+        y =
+            travel.y
+
+        jumps +=
+            travel.jumps
+
+        /*
+         * Mesmo ciclo do SatinTextStitchGenerator:
+         * travel -> center-run ida/volta -> lock -> Satin -> lock.
+         * Qualquer modo de underlay diferente de NONE equivale ao
+         * IncludeUnderlay do motor de referência.
+         */
+        if (
+            underlayMode !=
+                SatinUnderlayMode.NONE
         ) {
-            val startPoint =
-                stroke[
-                    segmentIndex -
-                        1
-                ]
-
-            val endPoint =
-                stroke[
-                    segmentIndex
-                ]
-
-            val dx =
-                endPoint.first -
-                    startPoint.first
-
-            val dy =
-                endPoint.second -
-                    startPoint.second
-
-            val distance =
-                hypot(
-                    dx.toDouble(),
-                    dy.toDouble()
-                )
-                    .toFloat()
-
-            if (
-                distance <
-                    0.001f
-            ) {
-                continue
-            }
-
-            val samples =
-                max(
-                    1,
-                    ceil(
-                        distance /
-                            safeStep
-                    ).toInt()
+            val forward =
+                appendCenterUnderlay(
+                    points = points,
+                    stroke = stroke,
+                    currentX = x,
+                    currentY = y,
+                    stepUnits =
+                        20f,
+                    connectFirstWithStitch =
+                        true
                 )
 
-            val startFrame =
-                frames[
-                    segmentIndex -
-                        1
-                ]
+            x =
+                forward.x
 
-            val endFrame =
-                frames[
-                    segmentIndex
-                ]
+            y =
+                forward.y
 
-            for (
-                part in
-                    0..samples
-            ) {
-                if (
-                    segmentIndex >
-                        1 &&
-                    part ==
-                        0
-                ) {
-                    continue
-                }
+            stitches +=
+                forward.stitches
 
-                val ratio =
-                    part.toFloat() /
-                        samples
+            jumps +=
+                forward.jumps
 
-                val centerX =
-                    startPoint.first +
-                        dx *
-                            ratio
-
-                val centerY =
-                    startPoint.second +
-                        dy *
-                            ratio
-
-                val normal =
-                    normalize(
-                        x =
-                            startFrame.normalX *
-                                (1.0 -
-                                    ratio) +
-                                endFrame.normalX *
-                                    ratio,
-                        y =
-                            startFrame.normalY *
-                                (1.0 -
-                                    ratio) +
-                                endFrame.normalY *
-                                    ratio
-                    )
-
-                var localHalfWidth =
-                    halfWidth
-
-                if (
-                    shortStitches
-                ) {
-                    val startInfluence =
-                        startFrame.sharpness *
-                            (1.0 -
-                                ratio) *
-                            (1.0 -
-                                ratio)
-
-                    val endInfluence =
-                        endFrame.sharpness *
-                            ratio *
-                            ratio
-
-                    val cornerInfluence =
-                        max(
-                            startInfluence,
-                            endInfluence
-                        )
-
-                    localHalfWidth *=
-                        (
-                            1.0 -
-                                0.18 *
-                                    cornerInfluence
-                            )
-                            .coerceIn(
-                                0.82,
-                                1.0
-                            )
-                            .toFloat()
-                }
-
-                val sideA =
-                    Pair(
-                        (
-                            centerX +
-                                normal.first *
-                                    localHalfWidth
-                            ).toFloat(),
-                        (
-                            centerY +
-                                normal.second *
-                                    localHalfWidth
-                            ).toFloat()
-                    )
-
-                val sideB =
-                    Pair(
-                        (
-                            centerX -
-                                normal.first *
-                                    localHalfWidth
-                            ).toFloat(),
-                        (
-                            centerY -
-                                normal.second *
-                                    localHalfWidth
-                            ).toFloat()
-                    )
-
-                if (
-                    firstSample
-                ) {
-                    if (
-                        underlayMode !=
-                            SatinUnderlayMode.NONE
-                    ) {
-                        jumpTo(
-                            centerX,
-                            centerY
-                        )
-                    } else {
-                        val firstEdge =
-                            if (
-                                nextSideA
-                            ) {
-                                sideA
-                            } else {
-                                sideB
-                            }
-
-                        jumpTo(
-                            firstEdge.first,
-                            firstEdge.second
-                        )
-                    }
-
-                    firstSample =
+            val backward =
+                appendCenterUnderlay(
+                    points = points,
+                    stroke =
+                        stroke.asReversed(),
+                    currentX = x,
+                    currentY = y,
+                    stepUnits =
+                        20f,
+                    connectFirstWithStitch =
                         false
-                }
-
-                /*
-                 * O vídeo de referência intercala fundação e cobertura:
-                 * a linha fina aparece apenas alguns pontos à frente do Satin,
-                 * nunca percorre o caractere inteiro antes de preencher.
-                 */
-                if (
-                    underlayMode !=
-                        SatinUnderlayMode.NONE &&
-                    globalSampleIndex %
-                        underlayStride ==
-                        0
-                ) {
-                    stitchTo(
-                        centerX,
-                        centerY
-                    )
-                }
-
-                val firstTarget =
-                    if (
-                        nextSideA
-                    ) {
-                        sideA
-                    } else {
-                        sideB
-                    }
-
-                val secondTarget =
-                    if (
-                        nextSideA
-                    ) {
-                        sideB
-                    } else {
-                        sideA
-                    }
-
-                /*
-                 * Uma amostra Satin completa precisa atravessar toda a largura
-                 * do traço. A versão anterior usava apenas um lado por amostra,
-                 * reduzindo a cobertura e fazendo a simulação terminar cedo.
-                 */
-                stitchTo(
-                    firstTarget.first,
-                    firstTarget.second
                 )
 
-                stitchTo(
-                    secondTarget.first,
-                    secondTarget.second
-                )
+            x =
+                backward.x
 
-                nextSideA =
-                    !nextSideA
+            y =
+                backward.y
 
-                globalSampleIndex++
-            }
+            stitches +=
+                backward.stitches
+
+            jumps +=
+                backward.jumps
         }
+
+        val tieIn =
+            appendReferenceLock(
+                points = points,
+                currentX = x,
+                currentY = y,
+                a = firstA,
+                b = firstB
+            )
+
+        x =
+            tieIn.x
+
+        y =
+            tieIn.y
+
+        stitches +=
+            tieIn.stitches
+
+        jumps +=
+            tieIn.jumps
+
+        val top =
+            appendZigzagPass(
+                points = points,
+                stroke = stroke,
+                frames = frames,
+                currentX = x,
+                currentY = y,
+                halfWidth =
+                    halfWidth,
+                stepUnits =
+                    stepUnits,
+                shortStitches =
+                    shortStitches,
+                connectFirstWithStitch =
+                    true
+            )
+
+        x =
+            top.x
+
+        y =
+            top.y
+
+        stitches +=
+            top.stitches
+
+        jumps +=
+            top.jumps
+
+        val lastFrame =
+            frames.last()
+
+        val lastCenter =
+            stroke.last()
+
+        val lastA =
+            Pair(
+                (
+                    lastCenter.first +
+                        lastFrame.normalX *
+                            halfWidth
+                    ).roundToInt(),
+                (
+                    lastCenter.second +
+                        lastFrame.normalY *
+                            halfWidth
+                    ).roundToInt()
+            )
+
+        val lastB =
+            Pair(
+                (
+                    lastCenter.first -
+                        lastFrame.normalX *
+                            halfWidth
+                    ).roundToInt(),
+                (
+                    lastCenter.second -
+                        lastFrame.normalY *
+                            halfWidth
+                    ).roundToInt()
+            )
+
+        val tieOff =
+            appendReferenceLock(
+                points = points,
+                currentX = x,
+                currentY = y,
+                a = lastA,
+                b = lastB
+            )
 
         return SatinBuildResult(
             currentX =
-                x.roundToInt(),
+                tieOff.x,
             currentY =
-                y.roundToInt(),
+                tieOff.y,
             stitchCount =
-                stitches,
+                stitches +
+                    tieOff.stitches,
             jumpCount =
-                jumps
+                jumps +
+                    tieOff.jumps
         )
     }
 
