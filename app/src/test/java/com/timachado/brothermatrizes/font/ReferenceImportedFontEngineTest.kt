@@ -294,6 +294,13 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
+            "Ao inverter o sentido, a entrada continua no lado A da linha Satin.",
+            30,
+            jumps.last()
+                .first
+        )
+
+        assertEquals(
             "Terminando a primeira coluna embaixo, a próxima deve entrar pelo extremo inferior.",
             20,
             jumps.last()
