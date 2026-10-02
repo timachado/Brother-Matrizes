@@ -1573,29 +1573,75 @@ internal object ReferenceImportedFontEngine {
                  * coluna pode ser invertida/trocada A<->B para continuar pelo
                  * lado mais próximo.
                  */
-                val choice =
-                    remaining
-                        .map {
+                val selectedOriginal =
+                    if (
+                        firstColumn
+                    ) {
+                        remaining.minWithOrNull(
+                            compareBy<SatinColumn> {
                                 column ->
-                            closestOrientation(
-                                column =
-                                    column,
-                                anchor =
-                                    anchor
-                            )
-                        }
-                        .minByOrNull {
-                            it.entryDistance
-                        }
+                                column.rows
+                                    .flatMap {
+                                            row ->
+                                        listOf(
+                                            row.a.x,
+                                            row.b.x
+                                        )
+                                    }
+                                    .minOrNull()
+                                    ?: Float.MAX_VALUE
+                            }.thenBy {
+                                column ->
+                                column.rows
+                                    .flatMap {
+                                            row ->
+                                        listOf(
+                                            row.a.y,
+                                            row.b.y
+                                        )
+                                    }
+                                    .minOrNull()
+                                    ?: Float.MAX_VALUE
+                            }
+                        )
+                    } else {
+                        remaining
+                            .map {
+                                    column ->
+                                closestOrientation(
+                                    column =
+                                        column,
+                                    anchor =
+                                        anchor
+                                )
+                            }
+                            .minByOrNull {
+                                it.entryDistance
+                            }
+                            ?.original
+                    }
                         ?: break
+
+                val choice =
+                    closestOrientation(
+                        column =
+                            selectedOriginal,
+                        anchor =
+                            anchor
+                    )
 
                 val column =
                     choice.oriented
 
-                emitTravel(
-                    column.rows
-                        .first()
-                        .a
+                travelTo(
+                    target =
+                        column.rows
+                            .first()
+                            .a,
+                    polygons =
+                        polygons,
+                    firstColumn =
+                        firstColumn
                 )
 
                 emitProgressiveColumn(
@@ -1983,8 +2029,10 @@ internal object ReferenceImportedFontEngine {
             )
         }
 
-        private fun emitTravel(
-            target: FPoint
+        private fun travelTo(
+            target: FPoint,
+            polygons: List<Polygon>,
+            firstColumn: Boolean
         ) {
             val before =
                 current
@@ -2017,15 +2065,22 @@ internal object ReferenceImportedFontEngine {
                 return
             }
 
-            if (
-                travelDistance >
-                    50f
-            ) {
-                emit(
-                    before,
-                    StitchCommand.TRIM
-                )
-            }
+            val canHideConnector =
+                if (
+                    firstColumn
+                ) {
+                    travelDistance <=
+                        GLYPH_JOIN_UNITS
+                } else {
+                    segmentInsideGlyph(
+                        from =
+                            before,
+                        to =
+                            target,
+                        polygons =
+                            polygons
+                    )
+                }
 
             emitSegmented(
                 from =
@@ -2033,9 +2088,310 @@ internal object ReferenceImportedFontEngine {
                 to =
                     target,
                 command =
-                    StitchCommand.JUMP,
+                    if (
+                        canHideConnector
+                    ) {
+                        StitchCommand.STITCH
+                    } else {
+                        StitchCommand.JUMP
+                    },
                 maxSegmentUnits =
-                    70f
+                    if (
+                        canHideConnector
+                    ) {
+                        CONTINUOUS_CONNECTOR_STITCH_UNITS
+                    } else {
+                        MAX_STITCH_UNITS
+                    }
+            )
+        }
+
+        private fun segmentInsideGlyph(
+            from: FPoint,
+            to: FPoint,
+            polygons: List<Polygon>
+        ): Boolean {
+            if (
+                polygons.isEmpty()
+            ) {
+                return false
+            }
+
+            val total =
+                distance(
+                    from,
+                    to
+                )
+
+            val samples =
+                max(
+                    2,
+                    ceil(
+                        total /
+                            CONNECTOR_SAMPLE_UNITS
+                    ).toInt()
+                )
+
+            for (
+                part in
+                    1 until
+                        samples
+            ) {
+                val ratio =
+                    part.toFloat() /
+                        samples
+
+                val point =
+                    lerp(
+                        from,
+                        to,
+                        ratio
+                    )
+
+                if (
+                    !pointInsideOrNearGlyph(
+                        point =
+                            point,
+                        polygons =
+                            polygons
+                    )
+                ) {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        private fun pointInsideOrNearGlyph(
+            point: FPoint,
+            polygons: List<Polygon>
+        ): Boolean {
+            var inside =
+                false
+
+            polygons.forEach {
+                    polygon ->
+                if (
+                    pointInsidePolygon(
+                        point =
+                            point,
+                        polygon =
+                            polygon
+                    )
+                ) {
+                    inside =
+                        !inside
+                }
+            }
+
+            if (
+                inside
+            ) {
+                return true
+            }
+
+            return polygons.any {
+                    polygon ->
+                pointNearPolygonEdge(
+                    point =
+                        point,
+                    polygon =
+                        polygon,
+                    margin =
+                        CONNECTOR_EDGE_MARGIN_UNITS
+                )
+            }
+        }
+
+        private fun pointInsidePolygon(
+            point: FPoint,
+            polygon: Polygon
+        ): Boolean {
+            val points =
+                polygon.points
+
+            if (
+                points.size <
+                    3
+            ) {
+                return false
+            }
+
+            var inside =
+                false
+
+            var previous =
+                points.last()
+
+            points.forEach {
+                    currentPoint ->
+                val crosses =
+                    (
+                        currentPoint.y >
+                            point.y
+                        ) !=
+                        (
+                            previous.y >
+                                point.y
+                            )
+
+                if (
+                    crosses
+                ) {
+                    val denominator =
+                        previous.y -
+                            currentPoint.y
+
+                    if (
+                        abs(
+                            denominator
+                        ) >
+                            0.00001f
+                    ) {
+                        val crossingX =
+                            (
+                                previous.x -
+                                    currentPoint.x
+                                ) *
+                                (
+                                    point.y -
+                                        currentPoint.y
+                                    ) /
+                                denominator +
+                                currentPoint.x
+
+                        if (
+                            point.x <
+                                crossingX
+                        ) {
+                            inside =
+                                !inside
+                        }
+                    }
+                }
+
+                previous =
+                    currentPoint
+            }
+
+            return inside
+        }
+
+        private fun pointNearPolygonEdge(
+            point: FPoint,
+            polygon: Polygon,
+            margin: Float
+        ): Boolean {
+            val points =
+                polygon.points
+
+            if (
+                points.size <
+                    2
+            ) {
+                return false
+            }
+
+            for (
+                index in
+                    points.indices
+            ) {
+                val a =
+                    points[index]
+
+                val b =
+                    points[
+                        (
+                            index +
+                                1
+                            ) %
+                            points.size
+                    ]
+
+                if (
+                    pointToSegmentDistance(
+                        point =
+                            point,
+                        a =
+                            a,
+                        b =
+                            b
+                    ) <=
+                    margin
+                ) {
+                    return true
+                }
+            }
+
+            return false
+        }
+
+        private fun pointToSegmentDistance(
+            point: FPoint,
+            a: FPoint,
+            b: FPoint
+        ): Float {
+            val dx =
+                b.x -
+                    a.x
+
+            val dy =
+                b.y -
+                    a.y
+
+            val lengthSquared =
+                dx *
+                    dx +
+                    dy *
+                        dy
+
+            if (
+                lengthSquared <=
+                    0.00001f
+            ) {
+                return distance(
+                    point,
+                    a
+                )
+            }
+
+            val projection =
+                (
+                    (
+                        point.x -
+                            a.x
+                        ) *
+                        dx +
+                        (
+                            point.y -
+                                a.y
+                            ) *
+                            dy
+                    ) /
+                    lengthSquared
+
+            val ratio =
+                projection.coerceIn(
+                    0f,
+                    1f
+                )
+
+            val closest =
+                FPoint(
+                    x =
+                        a.x +
+                            dx *
+                                ratio,
+                    y =
+                        a.y +
+                            dy *
+                                ratio
+                )
+
+            return distance(
+                point,
+                closest
             )
         }
 
