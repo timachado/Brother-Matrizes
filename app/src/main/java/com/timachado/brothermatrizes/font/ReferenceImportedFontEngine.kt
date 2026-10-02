@@ -1532,38 +1532,76 @@ internal object ReferenceImportedFontEngine {
             underlayMode: SatinUnderlayMode,
             densityMm: Float
         ) {
-            /*
-             * O motor de referência não escolhe colunas por proximidade nem
-             * intercala underlay com a cobertura linha a linha.
-             *
-             * Ele recebe as colunas já ordenadas pelo SatinColumnSampler e
-             * executa cada uma por completo:
-             * travel -> underlay central ida/volta -> trava -> Satin A/B -> trava.
-             *
-             * Esse é o comportamento observado no motor usado como referência
-             * para criação de nomes.
-             */
-            columns
-                .filter {
+            val ordered =
+                columns.filter {
                     it.rows
                         .isNotEmpty()
                 }
-                .forEach {
-                        column ->
-                    emitReferenceColumn(
+
+            if (
+                ordered.isEmpty()
+            ) {
+                return
+            }
+
+            ordered.forEachIndexed {
+                    index,
+                    original ->
+                val anchor =
+                    if (
+                        index ==
+                            0
+                    ) {
+                        startHint
+                            ?: current
+                            ?: original.rows
+                                .first()
+                                .a
+                    } else {
+                        current
+                            ?: original.rows
+                                .first()
+                                .a
+                    }
+
+                /*
+                 * A ordem das colunas continua sendo a ordem entregue pelo
+                 * SatinColumnSampler. O que muda é o SENTIDO de entrada:
+                 * escolhemos entre normal/reversa e A/B o ponto mais próximo
+                 * da posição atual. Isso reproduz a continuidade observada no
+                 * vídeo de referência e evita voltar desnecessariamente ao
+                 * começo de uma coluna.
+                 */
+                val oriented =
+                    closestOrientation(
                         column =
-                            column,
-                        includeUnderlay =
-                            underlayMode !=
-                                SatinUnderlayMode.NONE,
-                        densityMm =
-                            densityMm
+                            original,
+                        anchor =
+                            anchor
                     )
-                }
+                        .oriented
+
+                emitReferenceColumn(
+                    column =
+                        oriented,
+                    polygons =
+                        polygons,
+                    firstColumn =
+                        index ==
+                            0,
+                    includeUnderlay =
+                        underlayMode !=
+                            SatinUnderlayMode.NONE,
+                    densityMm =
+                        densityMm
+                )
+            }
         }
 
         private fun emitReferenceColumn(
             column: SatinColumn,
+            polygons: List<Polygon>,
+            firstColumn: Boolean,
             includeUnderlay: Boolean,
             densityMm: Float
         ) {
@@ -1579,8 +1617,13 @@ internal object ReferenceImportedFontEngine {
             val first =
                 rows.first()
 
-            emitReferenceTravel(
-                first.a
+            travelTo(
+                target =
+                    first.a,
+                polygons =
+                    polygons,
+                firstColumn =
+                    firstColumn
             )
 
             if (
