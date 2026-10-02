@@ -56,13 +56,11 @@ object SatinGenerator {
             "Satin precisa de pelo menos dois pontos."
         }
 
-        data class Sample(
-            val centerX: Double,
-            val centerY: Double,
-            val normalX: Double,
-            val normalY: Double,
-            val turnCross: Double,
-            val cornerInfluence: Double
+        data class SatinRow(
+            val ax: Int,
+            val ay: Int,
+            val bx: Int,
+            val by: Int
         )
 
         val frames =
@@ -81,9 +79,9 @@ object SatinGenerator {
                 2f +
                 pullCompensationUnits
 
-        val samples =
+        val rows =
             mutableListOf<
-                Sample
+                SatinRow
             >()
 
         for (
@@ -123,7 +121,7 @@ object SatinGenerator {
                 continue
             }
 
-            val count =
+            val sampleCount =
                 max(
                     1,
                     ceil(
@@ -155,11 +153,11 @@ object SatinGenerator {
 
             for (
                 part in
-                    firstPart..count
+                    firstPart..sampleCount
             ) {
                 val ratio =
                     part.toDouble() /
-                        count
+                        sampleCount
 
                 val normal =
                     normalize(
@@ -207,34 +205,93 @@ object SatinGenerator {
                         endFrame
                     }
 
-                samples +=
-                    Sample(
-                        centerX =
-                            startPoint.first +
-                                dx *
-                                    ratio,
-                        centerY =
-                            startPoint.second +
-                                dy *
-                                    ratio,
-                        normalX =
-                            normal.first,
-                        normalY =
-                            normal.second,
-                        turnCross =
-                            cornerFrame
-                                .turnCross,
-                        cornerInfluence =
-                            max(
-                                startInfluence,
-                                endInfluence
+                val cornerInfluence =
+                    max(
+                        startInfluence,
+                        endInfluence
+                    )
+
+                fun localHalfWidth(
+                    side: Double
+                ): Double {
+                    val inner =
+                        cornerFrame.turnCross *
+                            side >
+                            0.0
+
+                    val shortFactor =
+                        if (
+                            shortStitches &&
+                            inner
+                        ) {
+                            (
+                                1.0 -
+                                    0.45 *
+                                        cornerInfluence
+                                ).coerceIn(
+                                0.55,
+                                1.0
                             )
+                        } else {
+                            1.0
+                        }
+
+                    return baseHalfWidth *
+                        shortFactor
+                }
+
+                val centerX =
+                    startPoint.first +
+                        dx *
+                            ratio
+
+                val centerY =
+                    startPoint.second +
+                        dy *
+                            ratio
+
+                val halfA =
+                    localHalfWidth(
+                        1.0
+                    )
+
+                val halfB =
+                    localHalfWidth(
+                        -1.0
+                    )
+
+                rows +=
+                    SatinRow(
+                        ax =
+                            (
+                                centerX +
+                                    normal.first *
+                                        halfA
+                                ).roundToInt(),
+                        ay =
+                            (
+                                centerY +
+                                    normal.second *
+                                        halfA
+                                ).roundToInt(),
+                        bx =
+                            (
+                                centerX -
+                                    normal.first *
+                                        halfB
+                                ).roundToInt(),
+                        by =
+                            (
+                                centerY -
+                                    normal.second *
+                                        halfB
+                                ).roundToInt()
                     )
             }
         }
 
         if (
-            samples.isEmpty()
+            rows.isEmpty()
         ) {
             return SatinBuildResult(
                 currentX =
@@ -260,7 +317,7 @@ object SatinGenerator {
         var jumps =
             0
 
-        fun emitStitch(
+        fun emitTravelTo(
             targetX: Int,
             targetY: Int
         ) {
@@ -279,8 +336,30 @@ object SatinGenerator {
                 )
 
             if (
+                points.isEmpty()
+            ) {
+                points +=
+                    EmbroideryPoint(
+                        targetX,
+                        targetY,
+                        StitchCommand.JUMP,
+                        0
+                    )
+
+                x =
+                    targetX
+
+                y =
+                    targetY
+
+                jumps++
+
+                return
+            }
+
+            if (
                 distance <
-                    0.001
+                    0.5
             ) {
                 x =
                     targetX
@@ -291,6 +370,90 @@ object SatinGenerator {
                 return
             }
 
+            if (
+                distance >
+                    50.0
+            ) {
+                points +=
+                    EmbroideryPoint(
+                        x,
+                        y,
+                        StitchCommand.TRIM,
+                        0
+                    )
+            }
+
+            val segments =
+                max(
+                    1,
+                    ceil(
+                        distance /
+                            70.0
+                    ).toInt()
+                )
+
+            val startX =
+                x
+
+            val startY =
+                y
+
+            for (
+                part in
+                    1..segments
+            ) {
+                val ratio =
+                    part.toDouble() /
+                        segments
+
+                points +=
+                    EmbroideryPoint(
+                        (
+                            startX +
+                                dx *
+                                    ratio
+                            ).roundToInt(),
+                        (
+                            startY +
+                                dy *
+                                    ratio
+                            ).roundToInt(),
+                        StitchCommand.JUMP,
+                        0
+                    )
+
+                jumps++
+            }
+
+            x =
+                targetX
+
+            y =
+                targetY
+        }
+
+        fun emitStitchTo(
+            targetX: Int,
+            targetY: Int
+        ) {
+            val dx =
+                targetX -
+                    x
+
+            val dy =
+                targetY -
+                    y
+
+            val distance =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
+
+            /*
+             * O motor de referência emite pelo menos um STITCH por alvo,
+             * inclusive quando o alvo coincide com a posição atual.
+             */
             val segments =
                 max(
                     1,
@@ -340,230 +503,196 @@ object SatinGenerator {
                 targetY
         }
 
-        fun targetFor(
-            sample: Sample,
-            side: Double,
-            scale: Double =
-                1.0
-        ): Pair<Int, Int> {
-            val inner =
-                sample.turnCross *
-                    side >
-                    0.0
-
-            val shortFactor =
-                if (
-                    shortStitches &&
-                    inner
-                ) {
+        fun center(
+            row: SatinRow
+        ): Pair<Int, Int> =
+            (
+                (
+                    row.ax +
+                        row.bx
+                    ) /
+                    2f
+                ).roundToInt()
+            ) to
+                (
                     (
-                        1.0 -
-                            0.45 *
-                                sample.cornerInfluence
-                        ).coerceIn(
-                        0.55,
-                        1.0
-                    )
+                        row.ay +
+                            row.by
+                        ) /
+                        2f
+                    ).roundToInt()
+                )
+
+        fun emitLock(
+            row: SatinRow
+        ) {
+            val dx =
+                row.bx -
+                    row.ax
+
+            val dy =
+                row.by -
+                    row.ay
+
+            val length =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
+
+            val ux =
+                if (
+                    length >
+                        0.001
+                ) {
+                    dx /
+                        length
                 } else {
                     1.0
                 }
 
-            val half =
-                baseHalfWidth *
-                    shortFactor *
-                    scale
+            val uy =
+                if (
+                    length >
+                        0.001
+                ) {
+                    dy /
+                        length
+                } else {
+                    0.0
+                }
 
-            return Pair(
+            emitStitchTo(
+                row.ax,
+                row.ay
+            )
+
+            emitStitchTo(
                 (
-                    sample.centerX +
-                        sample.normalX *
-                            half *
-                            side
+                    row.ax +
+                        ux *
+                            6.0
                     ).roundToInt(),
                 (
-                    sample.centerY +
-                        sample.normalY *
-                            half *
-                            side
+                    row.ay +
+                        uy *
+                            6.0
                     ).roundToInt()
+            )
+
+            emitStitchTo(
+                row.ax,
+                row.ay
             )
         }
 
         val first =
-            samples.first()
+            rows.first()
 
-        val firstA =
-            targetFor(
-                first,
-                1.0
-            )
+        emitTravelTo(
+            first.ax,
+            first.ay
+        )
 
-        val firstB =
-            targetFor(
-                first,
-                -1.0
-            )
-
-        val distanceA =
-            hypot(
-                (
-                    firstA.first -
-                        x
-                    ).toDouble(),
-                (
-                    firstA.second -
-                        y
-                    ).toDouble()
-            )
-
-        val distanceB =
-            hypot(
-                (
-                    firstB.first -
-                        x
-                    ).toDouble(),
-                (
-                    firstB.second -
-                        y
-                    ).toDouble()
-            )
-
-        var nextSide =
-            if (
-                distanceA <=
-                    distanceB
-            ) {
-                1.0
-            } else {
-                -1.0
-            }
-
-        val entry =
-            if (
-                nextSide >
-                    0.0
-            ) {
-                firstA
-            } else {
-                firstB
-            }
-
-        val travel =
-            appendReferenceTravel(
-                points =
-                    points,
-                currentX =
-                    x,
-                currentY =
-                    y,
-                targetX =
-                    entry.first,
-                targetY =
-                    entry.second
-            )
-
-        x =
-            travel.x
-
-        y =
-            travel.y
-
-        jumps +=
-            travel.jumps
-
-        val underlayStep =
-            max(
-                1,
-                (
-                    20f /
-                        safeStep
-                    ).roundToInt()
-            )
-
-        var underlaySide =
-            1.0
-
-        samples.forEachIndexed {
-                index,
-                sample ->
-            if (
-                index %
-                    underlayStep ==
-                    0 ||
-                index ==
-                    samples.lastIndex
-            ) {
-                when (
-                    underlayMode
-                ) {
-                    SatinUnderlayMode.NONE ->
-                        Unit
-
-                    SatinUnderlayMode.CENTER ->
-                        emitStitch(
-                            sample.centerX
-                                .roundToInt(),
-                            sample.centerY
-                                .roundToInt()
-                        )
-
-                    SatinUnderlayMode.ZIGZAG -> {
-                        val underlay =
-                            targetFor(
-                                sample,
-                                underlaySide,
-                                0.60
-                            )
-
-                        emitStitch(
-                            underlay.first,
-                            underlay.second
-                        )
-
-                        underlaySide *=
-                            -1.0
-                    }
-
-                    SatinUnderlayMode.BOTH -> {
-                        emitStitch(
-                            sample.centerX
-                                .roundToInt(),
-                            sample.centerY
-                                .roundToInt()
-                        )
-
-                        val underlay =
-                            targetFor(
-                                sample,
-                                underlaySide,
-                                0.60
-                            )
-
-                        emitStitch(
-                            underlay.first,
-                            underlay.second
-                        )
-
-                        underlaySide *=
-                            -1.0
-                    }
-                }
-            }
-
-            val edge =
-                targetFor(
-                    sample,
-                    nextSide
+        if (
+            underlayMode !=
+                SatinUnderlayMode.NONE &&
+            rows.size >=
+                4
+        ) {
+            val underlayStep =
+                max(
+                    1,
+                    (
+                        20f /
+                            safeStep
+                        ).roundToInt()
                 )
 
-            emitStitch(
-                edge.first,
-                edge.second
+            val centers =
+                mutableListOf<
+                    Pair<Int, Int>
+                >()
+
+            var index =
+                0
+
+            while (
+                index <
+                    rows.size
+            ) {
+                centers +=
+                    center(
+                        rows[index]
+                    )
+
+                index +=
+                    underlayStep
+            }
+
+            val lastCenter =
+                center(
+                    rows.last()
+                )
+
+            if (
+                centers.lastOrNull() !=
+                    lastCenter
+            ) {
+                centers +=
+                    lastCenter
+            }
+
+            centers.forEach {
+                    target ->
+                emitStitchTo(
+                    target.first,
+                    target.second
+                )
+            }
+
+            for (
+                reverseIndex in
+                    centers.size -
+                        2 downTo
+                        0
+            ) {
+                val target =
+                    centers[
+                        reverseIndex
+                    ]
+
+                emitStitchTo(
+                    target.first,
+                    target.second
+                )
+            }
+        }
+
+        emitLock(
+            first
+        )
+
+        /*
+         * Assim como no SatinTextStitchGenerator de referência, cada linha
+         * Satin costura os DOIS lados: A e depois B.
+         */
+        rows.forEach {
+                row ->
+            emitStitchTo(
+                row.ax,
+                row.ay
             )
 
-            nextSide *=
-                -1.0
+            emitStitchTo(
+                row.bx,
+                row.by
+            )
         }
+
+        emitLock(
+            rows.last()
+        )
 
         return SatinBuildResult(
             currentX =
