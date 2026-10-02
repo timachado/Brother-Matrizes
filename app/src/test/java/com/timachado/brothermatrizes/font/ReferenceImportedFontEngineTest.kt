@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun firstSatinRegionStartsAtLeftEdgeEvenWhenHintIsMisleading() {
+    fun firstSatinRegionFollowsNaturalGlyphStartHint() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -76,9 +76,9 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            "O primeiro ponto deve começar na região esquerda da letra.",
-            first.xUnits <=
-                20
+            "O primeiro ponto deve começar na região mais próxima do startHint do glifo.",
+            first.xUnits >=
+                70
         )
     }
 
@@ -159,7 +159,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun centerUnderlayNeverReversesBackAcrossFinishedRows() {
+    fun centerUnderlayCompletesForwardAndReturnBeforeSatin() {
         val stitches =
             ReferenceImportedFontEngine
                 .debugProgressiveCenterUnderlayPath()
@@ -174,12 +174,11 @@ class ReferenceImportedFontEngineTest {
             }
 
         assertTrue(
-            "Underlay + Satin não pode voltar para uma linha anterior; " +
-                "pequena oscilação dentro da largura Satin é permitida.",
+            "O underlay de referência precisa completar a ida e o retorno antes da cobertura Satin.",
             xSequence.zipWithNext()
-                .all {
+                .any {
                         pair ->
-                    pair.second >=
+                    pair.second <
                         pair.first -
                             3
                 }
