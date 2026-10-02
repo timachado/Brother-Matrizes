@@ -30,42 +30,76 @@ object ImportedFontMatrixGenerator {
         char: Char,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        /*
-         * Para criação de nomes, cada glifo deve seguir o próprio traço
-         * até o fim antes de avançar. O pipeline interno usa o esqueleto
-         * do glifo para orientar o Satin e evita a varredura por regiões
-         * do ReferenceImportedFontEngine, que podia saltar visualmente
-         * entre partes da letra.
-         */
-        generateTextInternal(
-            font = font,
-            sourceText =
-                char.toString(),
-            options =
-                options,
-            filePrefix =
-                "fonte"
-        )
+        if (
+            options.style ==
+                TextStitchStyle.SATIN &&
+            options.specialStitchMode ==
+                null
+        ) {
+            /*
+             * O Criar Nome/TTF usa o mesmo motor de percurso validado
+             * contra a simulação de matriz pronta: próxima coluna pela
+             * posição atual da agulha, orientação reversível e conectores
+             * internos escondidos quando permanecem dentro do glifo.
+             */
+            ReferenceImportedFontEngine
+                .generate(
+                    font =
+                        font,
+                    sourceText =
+                        char.toString(),
+                    options =
+                        options,
+                    filePrefix =
+                        "fonte"
+                )
+        } else {
+            generateTextInternal(
+                font =
+                    font,
+                sourceText =
+                    char.toString(),
+                options =
+                    options,
+                filePrefix =
+                    "fonte"
+            )
+        }
 
     fun generateText(
         font: ImportedFont,
         text: String,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        /*
-         * Mantém as métricas/avanços reais da TTF/OTF para a palavra,
-         * mas digitaliza cada glifo separadamente e na ordem do texto.
-         * Assim uma letra precisa terminar antes de a próxima começar.
-         */
-        generateTextInternal(
-            font = font,
-            sourceText =
-                text,
-            options =
-                options,
-            filePrefix =
-                "nome"
-        )
+        if (
+            options.style ==
+                TextStitchStyle.SATIN &&
+            options.specialStitchMode ==
+                null
+        ) {
+            ReferenceImportedFontEngine
+                .generate(
+                    font =
+                        font,
+                    sourceText =
+                        text,
+                    options =
+                        options,
+                    filePrefix =
+                        "nome"
+                )
+        } else {
+            generateTextInternal(
+                font =
+                    font,
+                sourceText =
+                    text,
+                options =
+                    options,
+                filePrefix =
+                    "nome"
+            )
+        }
 
     private fun generateTextInternal(
         font: ImportedFont,
