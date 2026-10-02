@@ -1533,10 +1533,11 @@ internal object ReferenceImportedFontEngine {
             densityMm: Float
         ) {
             val remaining =
-                columns.filter {
-                    it.rows
-                        .isNotEmpty()
-                }
+                columns
+                    .filter {
+                        it.rows
+                            .isNotEmpty()
+                    }
                     .toMutableList()
 
             if (
@@ -1552,20 +1553,13 @@ internal object ReferenceImportedFontEngine {
                 remaining.isNotEmpty()
             ) {
                 val anchor =
-                    if (
-                        firstColumn
-                    ) {
-                        startHint
-                            ?: current
-                            ?: remaining.first()
-                                .rows.first()
-                                .a
-                    } else {
-                        current
-                            ?: remaining.first()
-                                .rows.first()
-                                .a
-                    }
+                    current
+                        ?: startHint
+                        ?: remaining
+                            .first()
+                            .rows
+                            .first()
+                            .a
 
                 val candidates =
                     remaining.map {
@@ -1579,18 +1573,17 @@ internal object ReferenceImportedFontEngine {
                     }
 
                 /*
-                 * O vídeo de referência mantém a agulha no mesmo corpo
-                 * conectado da letra sempre que é possível esconder a
-                 * transição dentro do próprio glifo.
+                 * Comparação quadro a quadro com a matriz pronta:
+                 * a agulha não reinicia cada coluna pelo "topo".
+                 * Ela entra pela extremidade mais próxima do ponto atual.
                  *
-                 * Se houver uma coluna alcançável por uma ligação interna,
-                 * ela vence pela menor distância. Quando não houver, usamos
-                 * a primeira coluna restante do SatinColumnSampler e apenas
-                 * escolhemos sua melhor orientação de entrada.
+                 * Quando existe uma transição que pode ficar escondida
+                 * dentro do próprio glifo, essa coluna tem prioridade.
+                 * Caso contrário seguimos para a menor distância real,
+                 * ainda podendo inverter rows e A/B.
                  */
                 val connected =
                     if (
-                        firstColumn ||
                         current ==
                             null
                     ) {
@@ -1603,7 +1596,8 @@ internal object ReferenceImportedFontEngine {
                                     current!!,
                                 to =
                                     choice.oriented
-                                        .rows.first()
+                                        .rows
+                                        .first()
                                         .a,
                                 polygons =
                                     polygons
@@ -1612,26 +1606,44 @@ internal object ReferenceImportedFontEngine {
                     }
 
                 val choice =
-                    if (
-                        connected.isNotEmpty()
-                    ) {
-                        connected.minBy {
+                    (
+                        if (
+                            connected.isNotEmpty()
+                        ) {
+                            connected
+                        } else {
+                            candidates
+                        }
+                        )
+                        .minBy {
                             it.entryDistance
                         }
-                    } else {
-                        candidates.first()
-                    }
 
-                emitReferenceColumn(
-                    column =
-                        choice.oriented,
+                val column =
+                    choice.oriented
+
+                travelTo(
+                    target =
+                        column.rows
+                            .first()
+                            .a,
                     polygons =
                         polygons,
                     firstColumn =
-                        firstColumn,
-                    includeUnderlay =
-                        underlayMode !=
-                            SatinUnderlayMode.NONE,
+                        firstColumn
+                )
+
+                /*
+                 * No vídeo de referência a região vermelha cresce junto
+                 * com o avanço: underlay e Satin são resolvidos
+                 * progressivamente na coluna atual, em vez de fazer um
+                 * center-run inteiro, voltar e somente então preencher.
+                 */
+                emitProgressiveSatinColumn(
+                    column =
+                        column,
+                    underlayMode =
+                        underlayMode,
                     densityMm =
                         densityMm
                 )
