@@ -47,6 +47,9 @@ internal object ReferenceImportedFontEngine {
     private const val MAX_STITCH_UNITS =
         70f
 
+    private const val TRIM_DISTANCE_UNITS =
+        50f
+
     private const val CONTINUOUS_CONNECTOR_STITCH_UNITS =
         15f
 
@@ -1554,57 +1557,55 @@ internal object ReferenceImportedFontEngine {
             while (
                 remaining.isNotEmpty()
             ) {
-                val anchor =
-                    if (
-                        firstColumn
-                    ) {
-                        startHint
-                            ?: current
-                            ?: remaining
-                                .first()
-                                .rows
-                                .first()
-                                .a
-                    } else {
-                        current
-                            ?: remaining
-                                .first()
-                                .rows
-                                .first()
-                                .a
-                    }
-
                 /*
-                 * Comparação direta dos dois vídeos:
-                 * a referência não começa obrigatoriamente pela região mais
-                 * à esquerda. Ela entra pela coluna cujo ponto de entrada está
-                 * mais próximo do início natural do glifo/posição atual da
-                 * agulha e pode inverter a coluna e A/B para manter o percurso.
+                 * A comparação quadro a quadro com o vídeo de referência
+                 * confirma duas regras independentes:
+                 *
+                 * 1) a ORDEM dos blocos/colunas é espacial e estável;
+                 * 2) somente o SENTIDO da coluna pode inverter para entrar
+                 *    pelo extremo mais próximo da agulha atual.
+                 *
+                 * O erro anterior deixava a distância escolher qualquer
+                 * coluna remanescente e ainda trocava A/B, alterando o
+                 * percurso mesmo quando o desenho final parecia correto.
                  */
-                val choice =
-                    remaining
-                        .map {
-                                column ->
-                            closestOrientation(
-                                column =
-                                    column,
-                                anchor =
-                                    anchor
-                            )
-                        }
-                        .minByOrNull {
-                            it.entryDistance
-                        }
+                val selected =
+                    nextColumnInReadingOrder(
+                        remaining
+                    )
                         ?: break
-
-                val column =
-                    choice.oriented
 
                 val includeUnderlay =
                     underlayMode !=
                         SatinUnderlayMode.NONE &&
-                    column.rows.size >=
+                    selected.rows.size >=
                         4
+
+                val anchor =
+                    current
+                        ?: startHint
+                        ?: if (
+                            includeUnderlay
+                        ) {
+                            center(
+                                selected.rows
+                                    .first()
+                            )
+                        } else {
+                            selected.rows
+                                .first()
+                                .a
+                        }
+
+                val column =
+                    orientColumnFromNearestEnd(
+                        column =
+                            selected,
+                        anchor =
+                            anchor,
+                        includeUnderlay =
+                            includeUnderlay
+                    )
 
                 val entry =
                     if (
@@ -1622,11 +1623,7 @@ internal object ReferenceImportedFontEngine {
 
                 travelTo(
                     target =
-                        entry,
-                    polygons =
-                        polygons,
-                    firstColumn =
-                        firstColumn
+                        entry
                 )
 
                 emitReferenceColumn(
@@ -1639,7 +1636,7 @@ internal object ReferenceImportedFontEngine {
                 )
 
                 remaining.remove(
-                    choice.original
+                    selected
                 )
 
                 firstColumn =
@@ -1647,97 +1644,68 @@ internal object ReferenceImportedFontEngine {
             }
         }
 
-        private data class OrientedChoice(
-            val original: SatinColumn,
-            val oriented: SatinColumn,
-            val entryDistance: Float
-        )
-
-        private fun closestOrientation(
+        private fun orientColumnFromNearestEnd(
             column: SatinColumn,
-            anchor: FPoint
-        ): OrientedChoice {
-            val normal =
+            anchor: FPoint,
+            includeUnderlay: Boolean
+        ): SatinColumn {
+            val normalRows =
                 column.rows
                     .toList()
 
-            val reversed =
-                normal.asReversed()
+            val reversedRows =
+                normalRows
+                    .asReversed()
 
-            val candidates =
-                listOf(
-                    orientRows(
-                        normal,
-                        swap =
-                            false
-                    ),
-                    orientRows(
-                        normal,
-                        swap =
-                            true
-                    ),
-                    orientRows(
-                        reversed,
-                        swap =
-                            false
-                    ),
-                    orientRows(
-                        reversed,
-                        swap =
-                            true
+            fun entryOf(
+                rows: List<SatinRow>
+            ): FPoint =
+                if (
+                    includeUnderlay
+                ) {
+                    center(
+                        rows.first()
+                    )
+                } else {
+                    rows.first()
+                        .a
+                }
+
+            val normalDistance =
+                distance(
+                    anchor,
+                    entryOf(
+                        normalRows
                     )
                 )
 
-            val best =
-                candidates.minBy {
-                        candidate ->
-                    distance(
-                        anchor,
-                        candidate.rows
-                            .first()
-                            .a
+            val reversedDistance =
+                distance(
+                    anchor,
+                    entryOf(
+                        reversedRows
                     )
-                }
+                )
 
-            return OrientedChoice(
-                original =
-                    column,
-                oriented =
-                    best,
-                entryDistance =
-                    distance(
-                        anchor,
-                        best.rows
-                            .first()
-                            .a
-                    )
-            )
-        }
-
-        private fun orientRows(
-            rows: List<SatinRow>,
-            swap: Boolean
-        ): SatinColumn =
-            SatinColumn(
+            /*
+             * Ao inverter a coluna, invertemos apenas a ordem das linhas.
+             * A e B permanecem A -> B dentro de cada linha Satin.
+             */
+            return SatinColumn(
                 rows =
-                    rows
-                        .map {
-                                row ->
-                            if (
-                                swap
-                            ) {
-                                SatinRow(
-                                    a =
-                                        row.b,
-                                    b =
-                                        row.a
-                                )
-                            } else {
-                                row
-                            }
+                    (
+                        if (
+                            reversedDistance <
+                                normalDistance
+                        ) {
+                            reversedRows
+                        } else {
+                            normalRows
                         }
+                        )
                         .toMutableList()
             )
+        }
 
         private fun underlayIndices(
             rows: List<SatinRow>,
@@ -1990,9 +1958,7 @@ internal object ReferenceImportedFontEngine {
         }
 
         private fun travelTo(
-            target: FPoint,
-            polygons: List<Polygon>,
-            firstColumn: Boolean
+            target: FPoint
         ) {
             val before =
                 current
@@ -2015,6 +1981,7 @@ internal object ReferenceImportedFontEngine {
                     target
                 )
 
+            // 0,05 mm: não emite deslocamento.
             if (
                 travelDistance <
                     0.5f
@@ -2025,24 +1992,16 @@ internal object ReferenceImportedFontEngine {
                 return
             }
 
-            val canHideConnector =
-                if (
-                    firstColumn
-                ) {
-                    travelDistance <=
-                        GLYPH_JOIN_UNITS
-                } else {
-                    travelDistance <=
-                        NEAR_COLUMN_JOIN_UNITS ||
-                        segmentInsideGlyph(
-                            from =
-                                before,
-                            to =
-                                target,
-                            polygons =
-                                polygons
-                        )
-                }
+            // Acima de 5 mm a referência corta antes de viajar.
+            if (
+                travelDistance >
+                    TRIM_DISTANCE_UNITS
+            ) {
+                emit(
+                    before,
+                    StitchCommand.TRIM
+                )
+            }
 
             emitSegmented(
                 from =
@@ -2050,21 +2009,9 @@ internal object ReferenceImportedFontEngine {
                 to =
                     target,
                 command =
-                    if (
-                        canHideConnector
-                    ) {
-                        StitchCommand.STITCH
-                    } else {
-                        StitchCommand.JUMP
-                    },
+                    StitchCommand.JUMP,
                 maxSegmentUnits =
-                    if (
-                        canHideConnector
-                    ) {
-                        CONTINUOUS_CONNECTOR_STITCH_UNITS
-                    } else {
-                        MAX_STITCH_UNITS
-                    }
+                    MAX_STITCH_UNITS
             )
         }
 
