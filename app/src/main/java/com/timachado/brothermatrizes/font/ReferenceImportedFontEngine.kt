@@ -57,7 +57,7 @@ internal object ReferenceImportedFontEngine {
         2f
 
     private const val CONNECTOR_EDGE_MARGIN_UNITS =
-        2f
+        1f
 
     private const val MAX_CONTOUR_SAMPLES =
         50_000
