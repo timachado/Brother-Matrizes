@@ -163,7 +163,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun centerUnderlayCompletesForwardAndReturnBeforeSatin() {
+    fun centerUnderlayRunsOnceToFarEndBeforeReverseSatin() {
         val stitches =
             ReferenceImportedFontEngine
                 .debugProgressiveCenterUnderlayPath()
@@ -177,14 +177,43 @@ class ReferenceImportedFontEngineTest {
                 it.xUnits
             }
 
+        val farIndex =
+            xSequence.indexOfFirst {
+                it >=
+                    31
+            }
+
         assertTrue(
-            "O underlay de referência precisa completar a ida e o retorno antes da cobertura Satin.",
-            xSequence.zipWithNext()
-                .any {
+            "A passada central precisa alcançar o extremo da coluna.",
+            farIndex >=
+                1
+        )
+
+        assertTrue(
+            "Antes de chegar ao extremo, a passada central não pode retornar.",
+            xSequence
+                .take(
+                    farIndex +
+                        1
+                )
+                .zipWithNext()
+                .all {
                         pair ->
-                    pair.second <
-                        pair.first -
-                            3
+                    pair.second >=
+                        pair.first
+                }
+        )
+
+        assertTrue(
+            "Depois do extremo, a cobertura Satin deve retornar pela coluna.",
+            xSequence
+                .drop(
+                    farIndex +
+                        1
+                )
+                .any {
+                    it <
+                        25
                 }
         )
     }
