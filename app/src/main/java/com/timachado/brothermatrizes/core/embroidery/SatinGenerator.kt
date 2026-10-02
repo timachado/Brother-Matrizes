@@ -53,11 +53,6 @@ object SatinGenerator {
             "Satin precisa de pelo menos dois pontos."
         }
 
-        val frames =
-            buildFrames(
-                stroke
-            )
-
         var x =
             currentX
 
@@ -75,11 +70,88 @@ object SatinGenerator {
                 2f +
                 pullCompensationUnits
 
+        val hasUnderlay =
+            underlayMode !=
+                SatinUnderlayMode.NONE
+
+        /*
+         * Referência do vídeo:
+         * 1) travel até o início do eixo central;
+         * 2) center-run UMA vez até o outro extremo;
+         * 3) trava no extremo;
+         * 4) Satin volta pelo mesmo traço no sentido inverso;
+         * 5) trava final no ponto de retorno.
+         */
+        if (
+            hasUnderlay
+        ) {
+            val centerStart =
+                stroke.first()
+
+            val travel =
+                appendReferenceTravel(
+                    points = points,
+                    currentX = x,
+                    currentY = y,
+                    targetX =
+                        centerStart.first,
+                    targetY =
+                        centerStart.second
+                )
+
+            x =
+                travel.x
+
+            y =
+                travel.y
+
+            jumps +=
+                travel.jumps
+
+            val foundation =
+                appendCenterUnderlay(
+                    points = points,
+                    stroke = stroke,
+                    currentX = x,
+                    currentY = y,
+                    stepUnits =
+                        20f,
+                    connectFirstWithStitch =
+                        false
+                )
+
+            x =
+                foundation.x
+
+            y =
+                foundation.y
+
+            stitches +=
+                foundation.stitches
+
+            jumps +=
+                foundation.jumps
+        }
+
+        val satinStroke =
+            if (
+                hasUnderlay
+            ) {
+                stroke.asReversed()
+            } else {
+                stroke
+            }
+
+        val satinFrames =
+            buildFrames(
+                satinStroke
+            )
+
         val firstFrame =
-            frames.first()
+            satinFrames.first()
 
         val firstCenter =
-            stroke.first()
+            satinStroke.first()
 
         val firstA =
             Pair(
@@ -109,84 +181,28 @@ object SatinGenerator {
                     ).roundToInt()
             )
 
-        val travel =
-            appendReferenceTravel(
-                points = points,
-                currentX = x,
-                currentY = y,
-                targetX =
-                    firstA.first,
-                targetY =
-                    firstA.second
-            )
-
-        x =
-            travel.x
-
-        y =
-            travel.y
-
-        jumps +=
-            travel.jumps
-
-        /*
-         * Mesmo ciclo do SatinTextStitchGenerator:
-         * travel -> center-run ida/volta -> lock -> Satin -> lock.
-         * Qualquer modo de underlay diferente de NONE equivale ao
-         * IncludeUnderlay do motor de referência.
-         */
         if (
-            underlayMode !=
-                SatinUnderlayMode.NONE
+            !hasUnderlay
         ) {
-            val forward =
-                appendCenterUnderlay(
+            val travel =
+                appendReferenceTravel(
                     points = points,
-                    stroke = stroke,
                     currentX = x,
                     currentY = y,
-                    stepUnits =
-                        20f,
-                    connectFirstWithStitch =
-                        true
+                    targetX =
+                        firstA.first,
+                    targetY =
+                        firstA.second
                 )
 
             x =
-                forward.x
+                travel.x
 
             y =
-                forward.y
-
-            stitches +=
-                forward.stitches
+                travel.y
 
             jumps +=
-                forward.jumps
-
-            val backward =
-                appendCenterUnderlay(
-                    points = points,
-                    stroke =
-                        stroke.asReversed(),
-                    currentX = x,
-                    currentY = y,
-                    stepUnits =
-                        20f,
-                    connectFirstWithStitch =
-                        false
-                )
-
-            x =
-                backward.x
-
-            y =
-                backward.y
-
-            stitches +=
-                backward.stitches
-
-            jumps +=
-                backward.jumps
+                travel.jumps
         }
 
         val tieIn =
@@ -210,11 +226,11 @@ object SatinGenerator {
         jumps +=
             tieIn.jumps
 
-        val top =
+        val coverage =
             appendZigzagPass(
                 points = points,
-                stroke = stroke,
-                frames = frames,
+                stroke = satinStroke,
+                frames = satinFrames,
                 currentX = x,
                 currentY = y,
                 halfWidth =
@@ -228,22 +244,22 @@ object SatinGenerator {
             )
 
         x =
-            top.x
+            coverage.x
 
         y =
-            top.y
+            coverage.y
 
         stitches +=
-            top.stitches
+            coverage.stitches
 
         jumps +=
-            top.jumps
+            coverage.jumps
 
         val lastFrame =
-            frames.last()
+            satinFrames.last()
 
         val lastCenter =
-            stroke.last()
+            satinStroke.last()
 
         val lastA =
             Pair(
