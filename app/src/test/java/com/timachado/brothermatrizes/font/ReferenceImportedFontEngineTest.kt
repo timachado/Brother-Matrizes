@@ -486,15 +486,17 @@ class ReferenceImportedFontEngineTest {
             ReferenceImportedFontEngine
                 .debugStructuralSatinStartX()
 
-        assertNotNull(
+        assertTrue(
             "O início Satin estrutural não pode ser nulo.",
-            x
+            x !=
+                null
         )
 
         assertEquals(
             "O início Satin deve cair no primeiro traço estrutural após o floreio curvo.",
             24f,
-            x!!,
+            x
+                ?: Float.NaN,
             1.5f
         )
     }
