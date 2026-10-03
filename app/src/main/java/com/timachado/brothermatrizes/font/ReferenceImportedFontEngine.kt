@@ -1856,36 +1856,37 @@ internal object ReferenceImportedFontEngine {
                         ?: startHint
 
                 val selected =
-                    if (
-                        firstColumn &&
-                        startsDesignAtVisualHint &&
-                        startHint !=
-                            null
-                    ) {
-                        nextColumnFromAnchorGeometry(
-                            columns =
-                                remaining,
-                            anchor =
-                                startHint
-                        )
-                    } else if (
-                        selectionAnchor !=
-                            null
-                    ) {
-                        nextColumnFromNearestEntry(
-                            columns =
-                                remaining,
-                            anchor =
-                                selectionAnchor,
-                            underlayMode =
-                                underlayMode
-                        )
-                    } else {
-                        nextColumnInReadingOrder(
-                            remaining
-                        )
-                    }
-                        ?: break
+                    (
+                        if (
+                            firstColumn &&
+                            startsDesignAtVisualHint &&
+                            startHint !=
+                                null
+                        ) {
+                            nextColumnFromAnchorGeometry(
+                                columns =
+                                    remaining,
+                                anchor =
+                                    startHint
+                            )
+                        } else if (
+                            selectionAnchor !=
+                                null
+                        ) {
+                            nextColumnFromNearestEntry(
+                                columns =
+                                    remaining,
+                                anchor =
+                                    selectionAnchor,
+                                underlayMode =
+                                    underlayMode
+                            )
+                        } else {
+                            nextColumnInReadingOrder(
+                                remaining
+                            )
+                        }
+                    ) ?: break
 
                 val includeUnderlay =
                     underlayMode !=
