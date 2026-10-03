@@ -1853,7 +1853,9 @@ private fun BrotherMatrizesApp(
                                                 design =
                                                     created,
                                                 outputSuffix =
-                                                    "criado"
+                                                    "criado",
+                                                preserveGuidePoints =
+                                                    true
                                             )
                                     }
 
