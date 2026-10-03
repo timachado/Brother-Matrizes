@@ -49,25 +49,6 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.delay
 import java.util.Locale
 
-internal fun initialSimulationIndex(
-    points: List<com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint>
-): Int {
-    val firstStitchIndex =
-        points.indexOfFirst {
-            it.command ==
-                StitchCommand.STITCH
-        }
-
-    return if (
-        firstStitchIndex >
-            0
-    ) {
-        firstStitchIndex
-    } else {
-        0
-    }
-}
-
 @Composable
 fun SimulatorScreen(
     design: EmbroideryDesign,
@@ -124,11 +105,7 @@ fun SimulatorScreen(
     var index by remember(
         design.fileName
     ) {
-        mutableIntStateOf(
-            initialSimulationIndex(
-                points
-            )
-        )
+        mutableIntStateOf(0)
     }
 
     var playing by remember(
