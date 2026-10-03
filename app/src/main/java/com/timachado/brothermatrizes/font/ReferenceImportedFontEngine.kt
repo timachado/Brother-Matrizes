@@ -1476,6 +1476,1433 @@ internal object ReferenceImportedFontEngine {
         }
     }
 
+    private const val MAX_FLOW_GRID_CELLS =
+        250_000
+
+    private const val MAX_FLOW_THIN_ITERATIONS =
+        300
+
+    private data class FlowGrid(
+        val originX: Float,
+        val originY: Float,
+        val step: Float,
+        val mask: Array<BooleanArray>
+    ) {
+        val rows: Int
+            get() =
+                mask.size
+
+        val columns: Int
+            get() =
+                mask.firstOrNull()
+                    ?.size
+                    ?: 0
+
+        fun point(
+            row: Int,
+            column: Int
+        ): FPoint =
+            FPoint(
+                x =
+                    originX +
+                        column *
+                            step,
+                y =
+                    originY +
+                        row *
+                            step
+            )
+    }
+
+    private data class GridPoint(
+        val row: Int,
+        val column: Int
+    )
+
+    private fun sampleAdaptiveFlowColumns(
+        polygons: List<Polygon>,
+        densityMm: Float,
+        maxSatinWidthMm: Float,
+        pullCompensationMm: Float
+    ): List<SatinColumn> {
+        if (
+            polygons.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val grid =
+            buildFlowGrid(
+                polygons =
+                    polygons,
+                densityMm =
+                    densityMm
+            )
+                ?: return emptyList()
+
+        val skeleton =
+            thinFlowMask(
+                grid.mask
+            )
+
+        val paths =
+            extractFlowPaths(
+                skeleton =
+                    skeleton,
+                columns =
+                    grid.columns
+            )
+
+        if (
+            paths.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val pitchUnits =
+            (
+                densityMm *
+                    10f
+                ).coerceAtLeast(
+                1.5f
+            )
+
+        val pullUnits =
+            pullCompensationMm *
+                10f
+
+        val maxWidthUnits =
+            maxSatinWidthMm *
+                10f
+
+        val columns =
+            mutableListOf<
+                SatinColumn
+            >()
+
+        paths.forEach {
+                gridPath ->
+            val guide =
+                gridPath.map {
+                        pixel ->
+                    grid.point(
+                        row =
+                            pixel.row,
+                        column =
+                            pixel.column
+                    )
+                }
+
+            val sampled =
+                resampleFlowPath(
+                    guide,
+                    pitchUnits
+                )
+
+            if (
+                sampled.isEmpty()
+            ) {
+                return@forEach
+            }
+
+            val rows =
+                mutableListOf<
+                    SatinRow
+                >()
+
+            sampled.forEachIndexed {
+                    index,
+                    centerPoint ->
+                val tangent =
+                    localFlowTangent(
+                        points =
+                            sampled,
+                        index =
+                            index
+                    )
+                        ?: return@forEachIndexed
+
+                val row =
+                    satinRowFromFlow(
+                        center =
+                            centerPoint,
+                        tangent =
+                            tangent,
+                        polygons =
+                            polygons,
+                        pullUnits =
+                            pullUnits,
+                        maxWidthUnits =
+                            maxWidthUnits
+                    )
+
+                if (
+                    row !=
+                        null
+                ) {
+                    val previous =
+                        rows.lastOrNull()
+
+                    if (
+                        previous ==
+                            null ||
+                        distance(
+                            center(
+                                previous
+                            ),
+                            center(
+                                row
+                            )
+                        ) >=
+                            pitchUnits *
+                                0.45f
+                    ) {
+                        rows +=
+                            row
+                    }
+                }
+            }
+
+            if (
+                rows.isNotEmpty()
+            ) {
+                splitWideColumn(
+                    column =
+                        SatinColumn(
+                            rows
+                        ),
+                    maxWidthUnits =
+                        maxWidthUnits
+                ).forEach {
+                        piece ->
+                    if (
+                        piece.rows
+                            .isNotEmpty()
+                    ) {
+                        columns +=
+                            piece
+                    }
+                }
+            }
+        }
+
+        val usefulRows =
+            columns.sumOf {
+                it.rows.size
+            }
+
+        return if (
+            usefulRows >=
+                3
+        ) {
+            columns
+        } else {
+            emptyList()
+        }
+    }
+
+    private fun buildFlowGrid(
+        polygons: List<Polygon>,
+        densityMm: Float
+    ): FlowGrid? {
+        val points =
+            polygons.flatMap {
+                it.points
+            }
+
+        if (
+            points.isEmpty()
+        ) {
+            return null
+        }
+
+        val minX =
+            points.minOf {
+                it.x
+            }
+
+        val maxX =
+            points.maxOf {
+                it.x
+            }
+
+        val minY =
+            points.minOf {
+                it.y
+            }
+
+        val maxY =
+            points.maxOf {
+                it.y
+            }
+
+        var step =
+            max(
+                2.5f,
+                densityMm *
+                    10f *
+                    0.7f
+            )
+
+        fun dimensions(
+            candidateStep: Float
+        ): Pair<Int, Int> {
+            val columns =
+                ceil(
+                    (
+                        maxX -
+                            minX
+                        ) /
+                        candidateStep
+                )
+                    .toInt() +
+                    3
+
+            val rows =
+                ceil(
+                    (
+                        maxY -
+                            minY
+                        ) /
+                        candidateStep
+                )
+                    .toInt() +
+                    3
+
+            return rows to
+                columns
+        }
+
+        var dims =
+            dimensions(
+                step
+            )
+
+        while (
+            dims.first.toLong() *
+                dims.second.toLong() >
+                MAX_FLOW_GRID_CELLS
+        ) {
+            step *=
+                1.2f
+
+            dims =
+                dimensions(
+                    step
+                )
+        }
+
+        val rows =
+            dims.first
+
+        val columns =
+            dims.second
+
+        if (
+            rows <
+                3 ||
+            columns <
+                3
+        ) {
+            return null
+        }
+
+        val originX =
+            minX -
+                step
+
+        val originY =
+            minY -
+                step
+
+        val mask =
+            Array(
+                rows
+            ) {
+                BooleanArray(
+                    columns
+                )
+            }
+
+        var filled =
+            0
+
+        for (
+            row in
+                1 until
+                    rows -
+                    1
+        ) {
+            val y =
+                originY +
+                    row *
+                        step
+
+            for (
+                column in
+                    1 until
+                        columns -
+                        1
+            ) {
+                val x =
+                    originX +
+                        column *
+                            step
+
+                if (
+                    pointInsidePolygons(
+                        FPoint(
+                            x,
+                            y
+                        ),
+                        polygons
+                    )
+                ) {
+                    mask[row][column] =
+                        true
+
+                    filled++
+                }
+            }
+        }
+
+        return if (
+            filled >=
+                3
+        ) {
+            FlowGrid(
+                originX =
+                    originX,
+                originY =
+                    originY,
+                step =
+                    step,
+                mask =
+                    mask
+            )
+        } else {
+            null
+        }
+    }
+
+    private fun thinFlowMask(
+        source: Array<BooleanArray>
+    ): Array<BooleanArray> {
+        val mask =
+            Array(
+                source.size
+            ) {
+                    row ->
+                source[row]
+                    .copyOf()
+            }
+
+        if (
+            mask.size <
+                3 ||
+            mask[0].size <
+                3
+        ) {
+            return mask
+        }
+
+        val rows =
+            mask.size
+
+        val columns =
+            mask[0].size
+
+        fun neighbors(
+            row: Int,
+            column: Int
+        ): BooleanArray =
+            booleanArrayOf(
+                mask[row - 1][column],
+                mask[row - 1][column + 1],
+                mask[row][column + 1],
+                mask[row + 1][column + 1],
+                mask[row + 1][column],
+                mask[row + 1][column - 1],
+                mask[row][column - 1],
+                mask[row - 1][column - 1]
+            )
+
+        var iteration =
+            0
+
+        var changed =
+            true
+
+        while (
+            changed &&
+            iteration <
+                MAX_FLOW_THIN_ITERATIONS
+        ) {
+            changed =
+                false
+
+            for (
+                phase in
+                    0..1
+            ) {
+                val remove =
+                    mutableListOf<
+                        GridPoint
+                    >()
+
+                for (
+                    row in
+                        1 until
+                            rows -
+                            1
+                ) {
+                    for (
+                        column in
+                            1 until
+                                columns -
+                                1
+                    ) {
+                        if (
+                            !mask[row][column]
+                        ) {
+                            continue
+                        }
+
+                        val n =
+                            neighbors(
+                                row,
+                                column
+                            )
+
+                        val count =
+                            n.count {
+                                it
+                            }
+
+                        if (
+                            count !in
+                                2..6
+                        ) {
+                            continue
+                        }
+
+                        var transitions =
+                            0
+
+                        for (
+                            index in
+                                n.indices
+                        ) {
+                            if (
+                                !n[index] &&
+                                n[
+                                    (
+                                        index +
+                                            1
+                                        ) %
+                                        n.size
+                                ]
+                            ) {
+                                transitions++
+                            }
+                        }
+
+                        if (
+                            transitions !=
+                                1
+                        ) {
+                            continue
+                        }
+
+                        val p2 =
+                            n[0]
+
+                        val p4 =
+                            n[2]
+
+                        val p6 =
+                            n[4]
+
+                        val p8 =
+                            n[6]
+
+                        val firstRule =
+                            if (
+                                phase ==
+                                    0
+                            ) {
+                                !(p2 &&
+                                    p4 &&
+                                    p6) &&
+                                    !(p4 &&
+                                        p6 &&
+                                        p8)
+                            } else {
+                                !(p2 &&
+                                    p4 &&
+                                    p8) &&
+                                    !(p2 &&
+                                        p6 &&
+                                        p8)
+                            }
+
+                        if (
+                            firstRule
+                        ) {
+                            remove +=
+                                GridPoint(
+                                    row,
+                                    column
+                                )
+                        }
+                    }
+                }
+
+                if (
+                    remove.isNotEmpty()
+                ) {
+                    changed =
+                        true
+
+                    remove.forEach {
+                            pixel ->
+                        mask[pixel.row][pixel.column] =
+                            false
+                    }
+                }
+            }
+
+            iteration++
+        }
+
+        return mask
+    }
+
+    private fun extractFlowPaths(
+        skeleton: Array<BooleanArray>,
+        columns: Int
+    ): List<List<GridPoint>> {
+        if (
+            skeleton.isEmpty() ||
+            columns <=
+                0
+        ) {
+            return emptyList()
+        }
+
+        val rows =
+            skeleton.size
+
+        fun id(
+            point: GridPoint
+        ): Int =
+            point.row *
+                columns +
+                point.column
+
+        fun fromId(
+            value: Int
+        ): GridPoint =
+            GridPoint(
+                row =
+                    value /
+                        columns,
+                column =
+                    value %
+                        columns
+            )
+
+        fun neighbors(
+            point: GridPoint
+        ): List<GridPoint> {
+            val result =
+                mutableListOf<
+                    GridPoint
+                >()
+
+            for (
+                dr in
+                    -1..1
+            ) {
+                for (
+                    dc in
+                        -1..1
+                ) {
+                    if (
+                        dr ==
+                            0 &&
+                        dc ==
+                            0
+                    ) {
+                        continue
+                    }
+
+                    val row =
+                        point.row +
+                            dr
+
+                    val column =
+                        point.column +
+                            dc
+
+                    if (
+                        row in
+                            0 until
+                                rows &&
+                        column in
+                            0 until
+                                columns &&
+                        skeleton[row][column]
+                    ) {
+                        result +=
+                            GridPoint(
+                                row,
+                                column
+                            )
+                    }
+                }
+            }
+
+            return result
+        }
+
+        fun edgeKey(
+            first: Int,
+            second: Int
+        ): Long {
+            val a =
+                minOf(
+                    first,
+                    second
+                )
+
+            val b =
+                maxOf(
+                    first,
+                    second
+                )
+
+            return (
+                a.toLong()
+                    .shl(
+                        32
+                    )
+                ) xor
+                (
+                    b.toLong() and
+                        0xffffffffL
+                    )
+        }
+
+        val nodes =
+            mutableListOf<
+                GridPoint
+            >()
+
+        for (
+            row in
+                0 until
+                    rows
+        ) {
+            for (
+                column in
+                    0 until
+                        columns
+            ) {
+                if (
+                    skeleton[row][column]
+                ) {
+                    nodes +=
+                        GridPoint(
+                            row,
+                            column
+                        )
+                }
+            }
+        }
+
+        if (
+            nodes.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val neighborMap =
+            nodes.associate {
+                    point ->
+                id(
+                    point
+                ) to
+                    neighbors(
+                        point
+                    )
+                        .map {
+                            id(
+                                it
+                            )
+                        }
+            }
+
+        val visited =
+            mutableSetOf<
+                Long
+            >()
+
+        val paths =
+            mutableListOf<
+                List<GridPoint>
+            >()
+
+        fun follow(
+            start: Int,
+            next: Int
+        ): List<GridPoint> {
+            val result =
+                mutableListOf(
+                    fromId(
+                        start
+                    )
+                )
+
+            var previous =
+                start
+
+            var current =
+                next
+
+            var guard =
+                0
+
+            while (
+                guard <
+                    nodes.size *
+                        2
+            ) {
+                visited +=
+                    edgeKey(
+                        previous,
+                        current
+                    )
+
+                result +=
+                    fromId(
+                        current
+                    )
+
+                val available =
+                    neighborMap[current]
+                        .orEmpty()
+                        .filter {
+                            it !=
+                                previous
+                        }
+
+                if (
+                    neighborMap[current]
+                        .orEmpty()
+                        .size !=
+                        2 ||
+                    available.isEmpty()
+                ) {
+                    break
+                }
+
+                val candidate =
+                    available.first()
+
+                if (
+                    edgeKey(
+                        current,
+                        candidate
+                    ) in
+                    visited
+                ) {
+                    break
+                }
+
+                previous =
+                    current
+
+                current =
+                    candidate
+
+                guard++
+            }
+
+            return result
+        }
+
+        val terminalIds =
+            neighborMap
+                .filterValues {
+                    it.size !=
+                        2
+                }
+                .keys
+                .sorted()
+
+        terminalIds.forEach {
+                start ->
+            val adjacent =
+                neighborMap[start]
+                    .orEmpty()
+
+            if (
+                adjacent.isEmpty()
+            ) {
+                paths +=
+                    listOf(
+                        fromId(
+                            start
+                        )
+                    )
+            } else {
+                adjacent.forEach {
+                        next ->
+                    val key =
+                        edgeKey(
+                            start,
+                            next
+                        )
+
+                    if (
+                        key !in
+                            visited
+                    ) {
+                        paths +=
+                            follow(
+                                start,
+                                next
+                            )
+                    }
+                }
+            }
+        }
+
+        neighborMap.forEach {
+                (
+                    start,
+                    adjacent
+                ) ->
+            adjacent.forEach {
+                    next ->
+                val key =
+                    edgeKey(
+                        start,
+                        next
+                    )
+
+                if (
+                    key !in
+                        visited
+                ) {
+                    paths +=
+                        follow(
+                            start,
+                            next
+                        )
+                }
+            }
+        }
+
+        return paths.filter {
+            it.isNotEmpty()
+        }
+    }
+
+    private fun resampleFlowPath(
+        source: List<FPoint>,
+        pitchUnits: Float
+    ): List<FPoint> {
+        if (
+            source.size <=
+                1
+        ) {
+            return source
+        }
+
+        val pitch =
+            pitchUnits.coerceAtLeast(
+                1f
+            )
+
+        val result =
+            mutableListOf(
+                source.first()
+            )
+
+        var remaining =
+            pitch
+
+        var segmentStart =
+            source.first()
+
+        for (
+            index in
+                1 until
+                    source.size
+        ) {
+            val segmentEnd =
+                source[index]
+
+            var dx =
+                segmentEnd.x -
+                    segmentStart.x
+
+            var dy =
+                segmentEnd.y -
+                    segmentStart.y
+
+            var length =
+                hypot(
+                    dx,
+                    dy
+                )
+
+            if (
+                length <
+                    0.0001f
+            ) {
+                segmentStart =
+                    segmentEnd
+
+                continue
+            }
+
+            var localStart =
+                segmentStart
+
+            while (
+                length >=
+                    remaining
+            ) {
+                val ratio =
+                    remaining /
+                        length
+
+                val point =
+                    FPoint(
+                        x =
+                            localStart.x +
+                                (
+                                    segmentEnd.x -
+                                        localStart.x
+                                    ) *
+                                    ratio,
+                        y =
+                            localStart.y +
+                                (
+                                    segmentEnd.y -
+                                        localStart.y
+                                    ) *
+                                    ratio
+                    )
+
+                result +=
+                    point
+
+                localStart =
+                    point
+
+                dx =
+                    segmentEnd.x -
+                        localStart.x
+
+                dy =
+                    segmentEnd.y -
+                        localStart.y
+
+                length =
+                    hypot(
+                        dx,
+                        dy
+                    )
+
+                remaining =
+                    pitch
+            }
+
+            remaining -=
+                length
+
+            segmentStart =
+                segmentEnd
+        }
+
+        val last =
+            source.last()
+
+        if (
+            distance(
+                result.last(),
+                last
+            ) >=
+                pitch *
+                    0.35f
+        ) {
+            result +=
+                last
+        }
+
+        return result
+    }
+
+    private fun localFlowTangent(
+        points: List<FPoint>,
+        index: Int
+    ): FPoint? {
+        if (
+            points.isEmpty()
+        ) {
+            return null
+        }
+
+        val before =
+            points[
+                max(
+                    0,
+                    index -
+                        2
+                )
+            ]
+
+        val after =
+            points[
+                minOf(
+                    points.lastIndex,
+                    index +
+                        2
+                )
+            ]
+
+        val dx =
+            after.x -
+                before.x
+
+        val dy =
+            after.y -
+                before.y
+
+        val length =
+            hypot(
+                dx,
+                dy
+            )
+
+        if (
+            length <
+                0.001f
+        ) {
+            return null
+        }
+
+        return FPoint(
+            dx /
+                length,
+            dy /
+                length
+        )
+    }
+
+    private fun satinRowFromFlow(
+        center: FPoint,
+        tangent: FPoint,
+        polygons: List<Polygon>,
+        pullUnits: Float,
+        maxWidthUnits: Float
+    ): SatinRow? {
+        if (
+            !pointInsidePolygons(
+                center,
+                polygons
+            )
+        ) {
+            return null
+        }
+
+        val normal =
+            FPoint(
+                x =
+                    -tangent.y,
+                y =
+                    tangent.x
+            )
+
+        val rayLimit =
+            max(
+                maxWidthUnits *
+                    2.5f,
+                120f
+            )
+
+        val negative =
+            rayBoundaryDistance(
+                center =
+                    center,
+                direction =
+                    FPoint(
+                        -normal.x,
+                        -normal.y
+                    ),
+                polygons =
+                    polygons,
+                maxDistance =
+                    rayLimit
+            )
+                ?: return null
+
+        val positive =
+            rayBoundaryDistance(
+                center =
+                    center,
+                direction =
+                    normal,
+                polygons =
+                    polygons,
+                maxDistance =
+                    rayLimit
+            )
+                ?: return null
+
+        val width =
+            negative +
+                positive
+
+        if (
+            width <
+                1f
+        ) {
+            return null
+        }
+
+        return SatinRow(
+            a =
+                FPoint(
+                    x =
+                        center.x -
+                            normal.x *
+                                (
+                                    negative +
+                                        pullUnits
+                                    ),
+                    y =
+                        center.y -
+                            normal.y *
+                                (
+                                    negative +
+                                        pullUnits
+                                    )
+                ),
+            b =
+                FPoint(
+                    x =
+                        center.x +
+                            normal.x *
+                                (
+                                    positive +
+                                        pullUnits
+                                    ),
+                    y =
+                        center.y +
+                            normal.y *
+                                (
+                                    positive +
+                                        pullUnits
+                                    )
+                )
+        )
+    }
+
+    private fun rayBoundaryDistance(
+        center: FPoint,
+        direction: FPoint,
+        polygons: List<Polygon>,
+        maxDistance: Float
+    ): Float? {
+        var insideDistance =
+            0f
+
+        var outsideDistance =
+            0f
+
+        val step =
+            0.75f
+
+        var distanceValue =
+            step
+
+        while (
+            distanceValue <=
+                maxDistance
+        ) {
+            val point =
+                FPoint(
+                    x =
+                        center.x +
+                            direction.x *
+                                distanceValue,
+                    y =
+                        center.y +
+                            direction.y *
+                                distanceValue
+                )
+
+            if (
+                pointInsidePolygons(
+                    point,
+                    polygons
+                )
+            ) {
+                insideDistance =
+                    distanceValue
+            } else {
+                outsideDistance =
+                    distanceValue
+
+                break
+            }
+
+            distanceValue +=
+                step
+        }
+
+        if (
+            outsideDistance <=
+                0f
+        ) {
+            return null
+        }
+
+        repeat(
+            8
+        ) {
+            val middle =
+                (
+                    insideDistance +
+                        outsideDistance
+                    ) /
+                    2f
+
+            val point =
+                FPoint(
+                    x =
+                        center.x +
+                            direction.x *
+                                middle,
+                    y =
+                        center.y +
+                            direction.y *
+                                middle
+                )
+
+            if (
+                pointInsidePolygons(
+                    point,
+                    polygons
+                )
+            ) {
+                insideDistance =
+                    middle
+            } else {
+                outsideDistance =
+                    middle
+            }
+        }
+
+        return (
+            insideDistance +
+                outsideDistance
+            ) /
+            2f
+    }
+
+    private fun pointInsidePolygons(
+        point: FPoint,
+        polygons: List<Polygon>
+    ): Boolean {
+        var inside =
+            false
+
+        polygons.forEach {
+                polygon ->
+            val points =
+                polygon.points
+
+            if (
+                points.size <
+                    3
+            ) {
+                return@forEach
+            }
+
+            var polygonInside =
+                false
+
+            var previous =
+                points.last()
+
+            points.forEach {
+                    current ->
+                val crosses =
+                    (
+                        current.y >
+                            point.y
+                        ) !=
+                        (
+                            previous.y >
+                                point.y
+                            )
+
+                if (
+                    crosses
+                ) {
+                    val denominator =
+                        previous.y -
+                            current.y
+
+                    if (
+                        abs(
+                            denominator
+                        ) >
+                            0.00001f
+                    ) {
+                        val crossingX =
+                            (
+                                previous.x -
+                                    current.x
+                                ) *
+                                (
+                                    point.y -
+                                        current.y
+                                    ) /
+                                denominator +
+                                current.x
+
+                        if (
+                            point.x <
+                                crossingX
+                        ) {
+                            polygonInside =
+                                !polygonInside
+                        }
+                    }
+                }
+
+                previous =
+                    current
+            }
+
+            if (
+                polygonInside
+            ) {
+                inside =
+                    !inside
+            }
+        }
+
+        return inside
+    }
+
     private fun sampleAxisColumns(
         polygons: List<Polygon>,
         densityMm: Float,
