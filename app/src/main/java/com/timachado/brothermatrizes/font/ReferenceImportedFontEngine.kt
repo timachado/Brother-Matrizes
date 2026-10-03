@@ -2112,20 +2112,29 @@ internal object ReferenceImportedFontEngine {
                         4
 
                 val anchor =
-                    current
-                        ?: startHint
-                        ?: if (
-                            includeUnderlay
-                        ) {
-                            center(
+                    if (
+                        firstColumn &&
+                        startsDesignAtVisualHint
+                    ) {
+                        visualLowerEnd(
+                            selected
+                        )
+                    } else {
+                        current
+                            ?: startHint
+                            ?: if (
+                                includeUnderlay
+                            ) {
+                                center(
+                                    selected.rows
+                                        .first()
+                                )
+                            } else {
                                 selected.rows
                                     .first()
-                            )
-                        } else {
-                            selected.rows
-                                .first()
-                                .a
-                        }
+                                    .a
+                            }
+                    }
 
                 val column =
                     orientColumnFromNearestEnd(
@@ -2320,6 +2329,35 @@ internal object ReferenceImportedFontEngine {
                     )
                 }
             }
+
+        private fun visualLowerEnd(
+            column: SatinColumn
+        ): FPoint {
+            val first =
+                center(
+                    column.rows
+                        .first()
+                )
+
+            val last =
+                center(
+                    column.rows
+                        .last()
+                )
+
+            /*
+             * Designs created by this engine use sourceYAxisDown=false.
+             * Simulator therefore renders smaller yUnits lower on screen.
+             */
+            return if (
+                first.y <=
+                    last.y
+            ) {
+                first
+            } else {
+                last
+            }
+        }
 
         private fun orientColumnFromNearestEnd(
             column: SatinColumn,
@@ -2610,27 +2648,9 @@ internal object ReferenceImportedFontEngine {
 
             val index =
                 if (
-                    insetFirstColumn &&
-                    visualAnchor !=
-                        null
-                ) {
-                    centers.indices
-                        .minByOrNull {
-                                candidate ->
-                            distance(
-                                centers[
-                                    candidate
-                                ],
-                                visualAnchor
-                            )
-                        }
-                        ?: 0
-                } else if (
                     insetFirstColumn
                 ) {
-                    firstColumnUnderlayStartIndex(
-                        centers
-                    )
+                    0
                 } else {
                     0
                 }
@@ -2663,31 +2683,7 @@ internal object ReferenceImportedFontEngine {
             }
 
             val startIndex =
-                if (
-                    insetFirstColumn &&
-                    visualAnchor !=
-                        null
-                ) {
-                    centers.indices
-                        .minByOrNull {
-                                candidate ->
-                            distance(
-                                centers[
-                                    candidate
-                                ],
-                                visualAnchor
-                            )
-                        }
-                        ?: 0
-                } else if (
-                    insetFirstColumn
-                ) {
-                    firstColumnUnderlayStartIndex(
-                        centers
-                    )
-                } else {
-                    0
-                }
+                0
 
             // Uma única passada central do ponto de entrada até o extremo.
             centers
