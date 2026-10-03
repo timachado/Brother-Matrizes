@@ -189,16 +189,80 @@ class GreatVibesStartDiagnosticTest {
             }
         )
 
-        /*
-         * Diagnóstico intencional: o texto da falha é persistido no relatório
-         * JUnit do connectedAndroidTest e permanece disponível mesmo depois
-         * que o runner desinstala o APK de teste.
-         */
-        throw AssertionError(
-            "GREATVIBES_DIAGNOSTIC_BEGIN\n" +
-                report +
-                "GREATVIBES_DIAGNOSTIC_END"
+        val createdStart =
+            normalizedFirstStitch(
+                created
+            )
+
+        val canonicalStart =
+            normalizedFirstStitch(
+                canonical
+            )
+
+        assertTrue(
+            "Great Vibes / Maria deve iniciar no ponto marcado: x entre 18% e 21%.\n" +
+                report,
+            createdStart.first in
+                0.18f..0.21f
         )
+
+        assertTrue(
+            "Great Vibes / Maria deve iniciar cerca de 29% acima da base antes do round-trip.\n" +
+                report,
+            createdStart.second in
+                0.24f..0.34f
+        )
+
+        assertTrue(
+            "O round-trip DST deve preservar o mesmo X inicial.\n" +
+                report,
+            canonicalStart.first in
+                0.18f..0.21f
+        )
+
+        assertTrue(
+            "Após o DST, o Y é espelhado mas deve continuar representando o mesmo ponto físico.\n" +
+                report,
+            canonicalStart.second in
+                0.66f..0.76f
+        )
+    }
+
+    private fun normalizedFirstStitch(
+        design: EmbroideryDesign
+    ): Pair<Float, Float> {
+        val stitch =
+            design.points.first {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        val width =
+            (
+                design.bounds.maxXUnits -
+                    design.bounds.minXUnits
+                ).coerceAtLeast(
+                1
+            )
+
+        val height =
+            (
+                design.bounds.maxYUnits -
+                    design.bounds.minYUnits
+                ).coerceAtLeast(
+                1
+            )
+
+        return (
+            stitch.xUnits -
+                design.bounds.minXUnits
+            ).toFloat() /
+            width.toFloat() to
+            (
+                stitch.yUnits -
+                    design.bounds.minYUnits
+                ).toFloat() /
+            height.toFloat()
     }
 
     private fun StringBuilder.appendDesign(
