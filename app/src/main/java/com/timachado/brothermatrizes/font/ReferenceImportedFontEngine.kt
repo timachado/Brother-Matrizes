@@ -881,20 +881,56 @@ internal object ReferenceImportedFontEngine {
         }
 
         /*
-         * Path/contour order from TTF/OTF is an implementation detail and
-         * does not describe the visual beginning of a letter. For machine
-         * embroidery we anchor the first Satin region at the left edge of
-         * the glyph; for equal X, prefer the lower point in the Cartesian
-         * coordinate system so script/cursive entry strokes start at the
-         * natural lower-left side.
+         * Em fontes cursivas, a extremidade mais à esquerda pode pertencer
+         * ao laço ornamental e não ao ponto onde o traço realmente nasce.
+         * O início observado na referência fica no pé inferior esquerdo do
+         * primeiro traço. Como este motor usa Y cartesiano, a base do glifo
+         * está próxima do menor Y.
+         *
+         * Primeiro isolamos uma faixa inferior estreita da letra e, dentro
+         * dela, escolhemos o ponto mais à esquerda. Isso preserva a entrada
+         * natural do traço sem transformar a ordem do contorno TTF/OTF em
+         * semântica de bordado.
          */
-        return points.minWithOrNull(
-            compareBy<FPoint> {
-                it.x
-            }.thenBy {
+        val minY =
+            points.minOf {
                 it.y
             }
-        )
+
+        val maxY =
+            points.maxOf {
+                it.y
+            }
+
+        val lowerBand =
+            max(
+                2f,
+                (
+                    maxY -
+                        minY
+                    ) *
+                    0.12f
+            )
+
+        val lowerEntryCandidates =
+            points.filter {
+                it.y <=
+                    minY +
+                        lowerBand
+            }
+
+        return (
+            lowerEntryCandidates
+                .ifEmpty {
+                    points
+                }
+            ).minWithOrNull(
+                compareBy<FPoint> {
+                    it.x
+                }.thenBy {
+                    it.y
+                }
+            )
     }
 
     private fun columnLeftEdgeX(
@@ -1551,6 +1587,26 @@ internal object ReferenceImportedFontEngine {
                 return
             }
 
+            /*
+             * No primeiro glifo do desenho, a posição inicial da agulha
+             * precisa coincidir com o começo visual do traço. O underlay
+             * continua sendo interno à coluna, mas não pode esconder esse
+             * ponto inicial levando a agulha diretamente para o centro.
+             */
+            val startsDesignAtVisualHint =
+                current ==
+                    null &&
+                startHint !=
+                    null
+
+            if (
+                startsDesignAtVisualHint
+            ) {
+                travelTo(
+                    startHint!!
+                )
+            }
+
             var firstColumn =
                 true
 
@@ -1639,10 +1695,43 @@ internal object ReferenceImportedFontEngine {
                             .a
                     }
 
-                travelTo(
-                    target =
+                val currentPoint =
+                    current
+
+                if (
+                    firstColumn &&
+                    startsDesignAtVisualHint &&
+                    currentPoint !=
+                        null &&
+                    distance(
+                        currentPoint,
                         entry
-                )
+                    ) >=
+                        0.5f &&
+                    segmentInsideGlyph(
+                        from =
+                            currentPoint,
+                        to =
+                            entry,
+                        polygons =
+                            polygons
+                    )
+                ) {
+                    /*
+                     * A referência começa no pé do traço e segue costurando
+                     * para dentro da letra. Quando a ligação até o centro do
+                     * underlay permanece inteiramente na área do glifo, ela
+                     * é STITCH, não um JUMP artificial.
+                     */
+                    emitStitchTo(
+                        entry
+                    )
+                } else {
+                    travelTo(
+                        target =
+                            entry
+                    )
+                }
 
                 emitReferenceColumn(
                     column =
@@ -2687,6 +2776,28 @@ internal object ReferenceImportedFontEngine {
 
         return output
     }
+
+    internal fun debugGlyphVisualStartPoint(
+        points:
+            List<Pair<Float, Float>>
+    ): Pair<Float, Float>? =
+        glyphVisualStartPoint(
+            listOf(
+                Polygon(
+                    points.map {
+                            point ->
+                        FPoint(
+                            point.first,
+                            point.second
+                        )
+                    }
+                )
+            )
+        )?.let {
+                point ->
+            point.x to
+                point.y
+        }
 
     internal fun debugReferencePath(
         connected: Boolean,
