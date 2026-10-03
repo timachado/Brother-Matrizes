@@ -3975,7 +3975,7 @@ internal object ReferenceImportedFontEngine {
             startHint =
                 FPoint(
                     10f,
-                    0f
+                    37f
                 ),
             underlayMode =
                 SatinUnderlayMode.CENTER,
