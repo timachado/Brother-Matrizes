@@ -1857,6 +1857,18 @@ internal object ReferenceImportedFontEngine {
 
                 val selected =
                     if (
+                        firstColumn &&
+                        startsDesignAtVisualHint &&
+                        startHint !=
+                            null
+                    ) {
+                        nextColumnFromAnchorGeometry(
+                            columns =
+                                remaining,
+                            anchor =
+                                startHint
+                        )
+                    } else if (
                         selectionAnchor !=
                             null
                     ) {
@@ -1976,6 +1988,38 @@ internal object ReferenceImportedFontEngine {
                     false
             }
         }
+
+        private fun nextColumnFromAnchorGeometry(
+            columns: List<SatinColumn>,
+            anchor: FPoint
+        ): SatinColumn? =
+            columns.minByOrNull {
+                    column ->
+                column.rows
+                    .minOfOrNull {
+                            row ->
+                        pointToSegmentDistance(
+                            point =
+                                anchor,
+                            a =
+                                row.a,
+                            b =
+                                row.b
+                        )
+                    }
+                    ?: Float.MAX_VALUE
+            }
+
+        fun debugColumnFromAnchor(
+            columns: List<SatinColumn>,
+            anchor: FPoint
+        ): SatinColumn? =
+            nextColumnFromAnchorGeometry(
+                columns =
+                    columns,
+                anchor =
+                    anchor
+            )
 
         private fun nextColumnFromNearestEntry(
             columns: List<SatinColumn>,
@@ -3024,6 +3068,137 @@ internal object ReferenceImportedFontEngine {
             point.x to
                 point.y
         }
+
+    internal fun debugFirstColumnChosenByAnchor():
+        Float? {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val emitter =
+            SatinEmitter(
+                output
+            )
+
+        val loopColumn =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            0f
+                        ),
+                        FPoint(
+                            10f,
+                            0f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            10f
+                        ),
+                        FPoint(
+                            10f,
+                            10f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            20f
+                        ),
+                        FPoint(
+                            10f,
+                            20f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            30f
+                        ),
+                        FPoint(
+                            10f,
+                            30f
+                        )
+                    )
+                )
+            )
+
+        val mainStroke =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            24f,
+                            0f
+                        ),
+                        FPoint(
+                            38f,
+                            0f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            24f,
+                            10f
+                        ),
+                        FPoint(
+                            38f,
+                            10f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            24f,
+                            20f
+                        ),
+                        FPoint(
+                            38f,
+                            20f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            24f,
+                            30f
+                        ),
+                        FPoint(
+                            38f,
+                            30f
+                        )
+                    )
+                )
+            )
+
+        val anchor =
+            FPoint(
+                25f,
+                4f
+            )
+
+        return emitter
+            .debugColumnFromAnchor(
+                columns =
+                    listOf(
+                        loopColumn,
+                        mainStroke
+                    ),
+                anchor =
+                    anchor
+            )
+            ?.rows
+            ?.flatMap {
+                    row ->
+                listOf(
+                    row.a.x,
+                    row.b.x
+                )
+            }
+            ?.minOrNull()
+    }
 
     internal fun debugReferencePath(
         connected: Boolean,
