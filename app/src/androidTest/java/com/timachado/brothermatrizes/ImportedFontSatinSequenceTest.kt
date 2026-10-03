@@ -645,4 +645,119 @@ class ImportedFontSatinSequenceTest {
     }
 
 
+
+    @Test
+    fun importedSatinCenterUnderlayEntersAtColumnCenterAndCoverageReturnsFromFarEnd() {
+        val design =
+            ImportedFontMatrixGenerator
+                .generateText(
+                    font = systemFont(),
+                    text = "I",
+                    options =
+                        TextMatrixOptions(
+                            text = "I",
+                            heightMm = 25f,
+                            style = TextStitchStyle.SATIN,
+                            satinDensityMm = 0.4f,
+                            satinPullCompensationMm = 0.2f,
+                            satinUnderlayMode =
+                                SatinUnderlayMode.CENTER,
+                            enforceHoop = false
+                        )
+                )
+                .getOrThrow()
+
+        val firstJump =
+            design.points.first {
+                it.command ==
+                    StitchCommand.JUMP
+            }
+
+        val centerX =
+            (
+                design.bounds.minXUnits +
+                    design.bounds.maxXUnits
+                ) /
+                2f
+
+        val distanceToCenter =
+            kotlin.math.abs(
+                firstJump.xUnits -
+                    centerX
+            )
+
+        val distanceToNearestEdge =
+            minOf(
+                kotlin.math.abs(
+                    firstJump.xUnits -
+                        design.bounds.minXUnits
+                ),
+                kotlin.math.abs(
+                    firstJump.xUnits -
+                        design.bounds.maxXUnits
+                )
+            )
+
+        assertTrue(
+            "Com underlay CENTER, a agulha deve entrar pelo centro da coluna Satin, não pela borda.",
+            distanceToCenter <
+                distanceToNearestEdge
+        )
+
+        val stitches =
+            design.points.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        assertTrue(
+            "A sequência Satin precisa conter underlay e cobertura.",
+            stitches.size >
+                12
+        )
+
+        val startY =
+            firstJump.yUnits
+
+        val farIndex =
+            stitches.indices.maxByOrNull {
+                kotlin.math.abs(
+                    stitches[it].yUnits -
+                        startY
+                )
+            } ?: error(
+                "Não foi possível localizar o extremo da coluna Satin."
+            )
+
+        assertTrue(
+            "O underlay deve alcançar o extremo antes de a cobertura retornar.",
+            farIndex in
+                1 until
+                    stitches.lastIndex
+        )
+
+        val farDistance =
+            kotlin.math.abs(
+                stitches[farIndex].yUnits -
+                    startY
+            )
+
+        assertTrue(
+            "Depois do extremo, a cobertura Satin deve voltar em direção à entrada da coluna.",
+            stitches
+                .drop(
+                    farIndex +
+                        1
+                )
+                .any {
+                    kotlin.math.abs(
+                        it.yUnits -
+                            startY
+                    ) <
+                        farDistance *
+                            0.75f
+                }
+        )
+    }
+
 }
