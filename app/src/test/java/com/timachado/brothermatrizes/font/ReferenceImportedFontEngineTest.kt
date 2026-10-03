@@ -348,4 +348,72 @@ class ReferenceImportedFontEngineTest {
                 2
         )
     }
+
+    @Test
+    fun cursiveVisualStartPrefersLowerEntryStrokeInsteadOfLeftmostLoopExtremity() {
+        val start =
+            ReferenceImportedFontEngine
+                .debugGlyphVisualStartPoint(
+                    listOf(
+                        0f to 22f,
+                        8f to 12f,
+                        24f to 1f,
+                        70f to 0f,
+                        96f to 18f
+                    )
+                )
+
+        assertEquals(
+            "O início visual deve ficar no pé inferior esquerdo do primeiro traço, não na extremidade esquerda do laço.",
+            24f,
+            start?.first
+        )
+
+        assertEquals(
+            1f,
+            start?.second
+        )
+    }
+
+    @Test
+    fun firstNeedleJumpUsesVisualStartBeforeEnteringCenterUnderlay() {
+        val points =
+            ReferenceImportedFontEngine
+                .debugReferencePath(
+                    connected = true,
+                    includeUnderlay = true
+                )
+
+        val first =
+            points.first()
+
+        assertEquals(
+            StitchCommand.JUMP,
+            first.command
+        )
+
+        assertEquals(
+            "A agulha deve nascer no início visual do traço.",
+            5,
+            first.xUnits
+        )
+
+        assertEquals(
+            5,
+            first.yUnits
+        )
+
+        val firstStitch =
+            points.first {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        assertTrue(
+            "Depois de nascer no início visual, a entrada no underlay deve ser costurada para dentro da coluna.",
+            firstStitch.xUnits >
+                first.xUnits
+        )
+    }
+
 }
