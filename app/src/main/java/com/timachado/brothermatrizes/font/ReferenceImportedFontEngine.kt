@@ -44,6 +44,15 @@ internal object ReferenceImportedFontEngine {
     private const val LETTER_SPACING_FACTOR =
         0.04f
 
+    /*
+     * A referência real (Great Vibes / "Maria") inicia a primeira coluna
+     * Satin já dentro do center-run, e não no extremo inferior da coluna.
+     * 25% da passada central corresponde ao ponto visual marcado pelo usuário
+     * e evita começar no floreio de entrada sem remover sua cobertura Satin.
+     */
+    private const val FIRST_COLUMN_UNDERLAY_ENTRY_FRACTION =
+        0.25f
+
     private const val MAX_STITCH_UNITS =
         70f
 
@@ -2035,14 +2044,6 @@ internal object ReferenceImportedFontEngine {
                 startHint !=
                     null
 
-            if (
-                startsDesignAtVisualHint
-            ) {
-                travelTo(
-                    startHint!!
-                )
-            }
-
             var firstColumn =
                 true
 
@@ -2130,14 +2131,27 @@ internal object ReferenceImportedFontEngine {
                             includeUnderlay
                     )
 
+                val insetFirstUnderlay =
+                    firstColumn &&
+                    startsDesignAtVisualHint &&
+                    includeUnderlay
+
                 val entry =
                     if (
                         includeUnderlay
                     ) {
-                        center(
-                            column.rows
-                                .first()
+                        underlayEntryPoint(
+                            column =
+                                column,
+                            densityMm =
+                                densityMm,
+                            insetFirstColumn =
+                                insetFirstUnderlay
                         )
+                            ?: center(
+                                column.rows
+                                    .first()
+                            )
                     } else {
                         column.rows
                             .first()
@@ -2188,7 +2202,9 @@ internal object ReferenceImportedFontEngine {
                     includeUnderlay =
                         includeUnderlay,
                     densityMm =
-                        densityMm
+                        densityMm,
+                    insetFirstUnderlay =
+                        insetFirstUnderlay
                 )
 
                 remaining.remove(
@@ -2399,7 +2415,9 @@ internal object ReferenceImportedFontEngine {
         private fun emitReferenceColumn(
             column: SatinColumn,
             includeUnderlay: Boolean,
-            densityMm: Float
+            densityMm: Float,
+            insetFirstUnderlay: Boolean =
+                false
         ) {
             val rows =
                 column.rows
@@ -2426,7 +2444,9 @@ internal object ReferenceImportedFontEngine {
                         column =
                             column,
                         densityMm =
-                            densityMm
+                            densityMm,
+                        insetFirstColumn =
+                            insetFirstUnderlay
                     )
 
                     rows.asReversed()
@@ -2454,17 +2474,17 @@ internal object ReferenceImportedFontEngine {
             )
         }
 
-        private fun emitCenterRunUnderlay(
+        private fun centerRunUnderlayPoints(
             column: SatinColumn,
             densityMm: Float
-        ) {
+        ): List<FPoint> {
             val rows =
                 column.rows
 
             if (
                 rows.isEmpty()
             ) {
-                return
+                return emptyList()
             }
 
             val pitchUnits =
@@ -2517,13 +2537,107 @@ internal object ReferenceImportedFontEngine {
                     lastCenter
             }
 
-            // Uma única passada central até o extremo.
-            centers.forEach {
-                    point ->
-                emitStitchTo(
-                    point
-                )
+            return centers
+        }
+
+        private fun firstColumnUnderlayStartIndex(
+            centers: List<FPoint>
+        ): Int {
+            if (
+                centers.size <
+                    5
+            ) {
+                return 0
             }
+
+            return (
+                centers.lastIndex *
+                    FIRST_COLUMN_UNDERLAY_ENTRY_FRACTION
+                ).roundToInt()
+                .coerceIn(
+                    1,
+                    centers.lastIndex -
+                        1
+                )
+        }
+
+        private fun underlayEntryPoint(
+            column: SatinColumn,
+            densityMm: Float,
+            insetFirstColumn: Boolean
+        ): FPoint? {
+            val centers =
+                centerRunUnderlayPoints(
+                    column =
+                        column,
+                    densityMm =
+                        densityMm
+                )
+
+            if (
+                centers.isEmpty()
+            ) {
+                return null
+            }
+
+            val index =
+                if (
+                    insetFirstColumn
+                ) {
+                    firstColumnUnderlayStartIndex(
+                        centers
+                    )
+                } else {
+                    0
+                }
+
+            return centers[
+                index
+            ]
+        }
+
+        private fun emitCenterRunUnderlay(
+            column: SatinColumn,
+            densityMm: Float,
+            insetFirstColumn: Boolean =
+                false
+        ) {
+            val centers =
+                centerRunUnderlayPoints(
+                    column =
+                        column,
+                    densityMm =
+                        densityMm
+                )
+
+            if (
+                centers.isEmpty()
+            ) {
+                return
+            }
+
+            val startIndex =
+                if (
+                    insetFirstColumn
+                ) {
+                    firstColumnUnderlayStartIndex(
+                        centers
+                    )
+                } else {
+                    0
+                }
+
+            // Uma única passada central do ponto de entrada até o extremo.
+            centers
+                .drop(
+                    startIndex
+                )
+                .forEach {
+                        point ->
+                    emitStitchTo(
+                        point
+                    )
+                }
         }
 
         private fun emitLock(
@@ -3475,6 +3589,79 @@ internal object ReferenceImportedFontEngine {
                 )
             }
             ?.minOrNull()
+    }
+
+    internal fun debugFirstColumnInsetPath():
+        List<EmbroideryPoint> {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val emitter =
+            SatinEmitter(
+                output
+            )
+
+        val rows =
+            (0..40 step 4)
+                .map {
+                        y ->
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            y.toFloat()
+                        ),
+                        FPoint(
+                            20f,
+                            y.toFloat()
+                        )
+                    )
+                }
+                .toMutableList()
+
+        emitter.emitGlyph(
+            columns =
+                listOf(
+                    SatinColumn(
+                        rows
+                    )
+                ),
+            polygons =
+                listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                0f,
+                                0f
+                            ),
+                            FPoint(
+                                20f,
+                                0f
+                            ),
+                            FPoint(
+                                20f,
+                                40f
+                            ),
+                            FPoint(
+                                0f,
+                                40f
+                            )
+                        )
+                    )
+                ),
+            startHint =
+                FPoint(
+                    10f,
+                    0f
+                ),
+            underlayMode =
+                SatinUnderlayMode.CENTER,
+            densityMm =
+                0.4f
+        )
+
+        return output
     }
 
     internal fun debugReferencePath(
