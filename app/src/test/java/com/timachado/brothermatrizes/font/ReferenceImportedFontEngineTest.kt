@@ -517,13 +517,13 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
-            "A primeira coluna deve entrar aproximadamente a 25% do center-run.",
+            "A primeira coluna deve entrar na row Satin mais próxima do ponto tipográfico marcado.",
             10,
             firstJump.xUnits
         )
 
         assertEquals(
-            "Com 8 pontos centrais, 25% deve escolher o índice 2.",
+            "Com âncora Y=37, o center-run deve escolher a row amostrada em Y=40.",
             40,
             firstJump.yUnits
         )
