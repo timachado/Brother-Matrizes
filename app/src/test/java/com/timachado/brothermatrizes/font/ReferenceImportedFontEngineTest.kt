@@ -468,4 +468,15 @@ class ReferenceImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun firstSatinColumnIsTheOneContainingTheVisualStartAnchor() {
+        assertEquals(
+            "O startHint dentro do primeiro traço principal deve selecionar essa coluna, não o laço vizinho.",
+            24f,
+            ReferenceImportedFontEngine
+                .debugFirstColumnChosenByAnchor()
+        )
+    }
+
 }
