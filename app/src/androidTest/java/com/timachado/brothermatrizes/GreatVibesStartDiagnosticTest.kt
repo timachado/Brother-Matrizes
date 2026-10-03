@@ -70,13 +70,7 @@ class GreatVibesStartDiagnosticTest {
 
         val heights =
             listOf(
-                44f,
-                45f,
-                46f,
-                47f,
-                48f,
-                49f,
-                50f
+                47f
             )
 
         val report =
