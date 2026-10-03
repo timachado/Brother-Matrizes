@@ -1827,6 +1827,11 @@ internal object ReferenceImportedFontEngine {
         var filled =
             0
 
+        /*
+         * Raster por scanline: calcula as interseções do contorno uma vez
+         * por linha e preenche os pares internos. Evita testar cada célula
+         * contra todos os segmentos do glifo.
+         */
         for (
             row in
                 1 until
@@ -1838,31 +1843,149 @@ internal object ReferenceImportedFontEngine {
                     row *
                         step
 
-            for (
-                column in
-                    1 until
-                        columns -
-                        1
-            ) {
-                val x =
-                    originX +
-                        column *
-                            step
+            val intersections =
+                mutableListOf<
+                    Float
+                >()
+
+            polygons.forEach {
+                    polygon ->
+                val contour =
+                    polygon.points
 
                 if (
-                    pointInsidePolygons(
-                        FPoint(
-                            x,
-                            y
-                        ),
-                        polygons
-                    )
+                    contour.size <
+                        3
                 ) {
-                    mask[row][column] =
-                        true
-
-                    filled++
+                    return@forEach
                 }
+
+                for (
+                    index in
+                        contour.indices
+                ) {
+                    val a =
+                        contour[index]
+
+                    val b =
+                        contour[
+                            (
+                                index +
+                                    1
+                                ) %
+                                contour.size
+                        ]
+
+                    val crosses =
+                        (
+                            a.y <=
+                                y &&
+                            b.y >
+                                y
+                            ) ||
+                            (
+                                b.y <=
+                                    y &&
+                                a.y >
+                                    y
+                                )
+
+                    if (
+                        !crosses
+                    ) {
+                        continue
+                    }
+
+                    val ratio =
+                        (
+                            y -
+                                a.y
+                            ) /
+                            (
+                                b.y -
+                                    a.y
+                                )
+
+                    intersections +=
+                        a.x +
+                            (
+                                b.x -
+                                    a.x
+                                ) *
+                                ratio
+                }
+            }
+
+            intersections.sort()
+
+            var index =
+                0
+
+            while (
+                index +
+                    1 <
+                    intersections.size
+            ) {
+                val startX =
+                    intersections[index]
+
+                val endX =
+                    intersections[
+                        index +
+                            1
+                    ]
+
+                val startColumn =
+                    ceil(
+                        (
+                            startX -
+                                originX
+                            ) /
+                            step
+                    )
+                        .toInt()
+                        .coerceIn(
+                            1,
+                            columns -
+                                2
+                        )
+
+                val endColumn =
+                    kotlin.math.floor(
+                        (
+                            endX -
+                                originX
+                            ) /
+                            step
+                    )
+                        .toInt()
+                        .coerceIn(
+                            1,
+                            columns -
+                                2
+                        )
+
+                if (
+                    endColumn >=
+                        startColumn
+                ) {
+                    for (
+                        column in
+                            startColumn..endColumn
+                    ) {
+                        if (
+                            !mask[row][column]
+                        ) {
+                            mask[row][column] =
+                                true
+
+                            filled++
+                        }
+                    }
+                }
+
+                index +=
+                    2
             }
         }
 
