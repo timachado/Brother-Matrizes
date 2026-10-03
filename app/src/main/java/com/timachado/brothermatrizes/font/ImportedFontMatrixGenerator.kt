@@ -72,33 +72,15 @@ object ImportedFontMatrixGenerator {
         options: TextMatrixOptions,
         filePrefix: String
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            ReferenceImportedFontEngine
-                .generate(
-                    font = font,
-                    sourceText =
-                        sourceText,
-                    options =
-                        options,
-                    filePrefix =
-                        filePrefix
-                )
-        } else {
-            generateTextInternal(
-                font = font,
-                sourceText =
-                    sourceText,
-                options =
-                    options,
-                filePrefix =
-                    filePrefix
-            )
-        }
+        generateTextInternal(
+            font = font,
+            sourceText =
+                sourceText,
+            options =
+                options,
+            filePrefix =
+                filePrefix
+        )
 
     private fun generateTextInternal(
         font: ImportedFont,
@@ -268,7 +250,7 @@ object ImportedFontMatrixGenerator {
                     reference.guideContours
 
                 points =
-                    buildReferenceSatinText(
+                    buildStrokeFlowSatinText(
                         glyphPolygons =
                             reference.glyphPolygons,
                         options =
@@ -2997,6 +2979,153 @@ object ImportedFontMatrixGenerator {
         val rows:
             MutableList<SatinSampleRow>
     )
+
+    private data class StrokeFlowSatinRow(
+        val centerXUnits: Int,
+        val centerYUnits: Int,
+        val aXUnits: Int,
+        val aYUnits: Int,
+        val bXUnits: Int,
+        val bYUnits: Int
+    )
+
+    private fun buildStrokeFlowSatinText(
+        glyphPolygons:
+            List<
+                List<
+                    List<
+                        Pair<Float, Float>
+                    >
+                >
+            >,
+        options: TextMatrixOptions
+    ): MutableList<EmbroideryPoint> {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        glyphPolygons.forEach {
+                polygons ->
+            val contours =
+                polygons
+                    .map {
+                            polygon ->
+                        SampledContour(
+                            points =
+                                polygon
+                                    .map {
+                                            point ->
+                                        Pair(
+                                            point.first
+                                                .roundToInt(),
+                                            point.second
+                                                .roundToInt()
+                                        )
+                                    }
+                                    .fold(
+                                        mutableListOf<
+                                            Pair<Int, Int>
+                                        >()
+                                    ) {
+                                        acc,
+                                        point ->
+                                        if (
+                                            acc.lastOrNull() !=
+                                                point
+                                        ) {
+                                            acc +=
+                                                point
+                                        }
+
+                                        acc
+                                    },
+                            closed =
+                                true
+                        )
+                    }
+                    .filter {
+                        it.points.size >=
+                            3
+                    }
+
+            if (
+                contours.isEmpty()
+            ) {
+                return@forEach
+            }
+
+            val glyphPoints =
+                buildSatinByAxis(
+                    contours =
+                        contours,
+                    options =
+                        options
+                )
+
+            if (
+                glyphPoints.isEmpty()
+            ) {
+                return@forEach
+            }
+
+            if (
+                output.isNotEmpty()
+            ) {
+                val previous =
+                    output.last()
+
+                val first =
+                    glyphPoints.first()
+
+                val distance =
+                    hypot(
+                        (
+                            first.xUnits -
+                                previous.xUnits
+                            ).toDouble(),
+                        (
+                            first.yUnits -
+                                previous.yUnits
+                            ).toDouble()
+                    )
+
+                if (
+                    distance >
+                        50.0 &&
+                    previous.command !=
+                        StitchCommand.TRIM
+                ) {
+                    output +=
+                        EmbroideryPoint(
+                            previous.xUnits,
+                            previous.yUnits,
+                            StitchCommand.TRIM,
+                            previous.colorIndex
+                        )
+                }
+            }
+
+            output +=
+                glyphPoints
+        }
+
+        if (
+            output.none {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+        ) {
+            return buildReferenceSatinText(
+                glyphPolygons =
+                    glyphPolygons,
+                options =
+                    options
+            )
+        }
+
+        return output
+    }
 
     private fun buildSatinByAxis(
         contours: List<SampledContour>,
