@@ -1,13 +1,6 @@
 name: Great Vibes Satin Diagnostic
 
 on:
-  push:
-    branches: ["refactor/brother-matrizes-clean-0469"]
-    paths:
-      - ".github/workflows/greatvibes-diagnostic.yml"
-      - "app/src/androidTest/java/com/timachado/brothermatrizes/GreatVibesStartDiagnosticTest.kt"
-      - "app/src/main/java/com/timachado/brothermatrizes/font/**"
-      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/GeneratedMatrixPipeline.kt"
   workflow_dispatch:
 
 permissions:
