@@ -479,4 +479,19 @@ class ReferenceImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun structuralSatinStartSkipsCurvedLeadingFlourish() {
+        val x =
+            ReferenceImportedFontEngine
+                .debugStructuralSatinStartX()
+
+        assertEquals(
+            "O início Satin deve cair no primeiro traço estrutural após o floreio curvo.",
+            24f,
+            x,
+            1.5f
+        )
+    }
+
 }
