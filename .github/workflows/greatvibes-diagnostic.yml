@@ -53,8 +53,6 @@ jobs:
           disable-animations: true
           script: |
             gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace
-            adb shell run-as com.timachado.brothermatrizes cat files/greatvibes-start-diagnostic.txt > greatvibes-start-diagnostic.txt
-            cat greatvibes-start-diagnostic.txt
 
       - name: Upload diagnostic
         if: always()
@@ -62,6 +60,5 @@ jobs:
         with:
           name: greatvibes-start-diagnostic
           path: |
-            greatvibes-start-diagnostic.txt
             app/build/reports/androidTests/connected/**
           if-no-files-found: error
