@@ -382,15 +382,17 @@ class ReferenceImportedFontEngineTest {
                 .debugGlyphVisualStartPoint(
                     listOf(
                         0f to 0f,
-                        5f to 1f,
-                        8f to 0.5f,
-                        24f to 0.5f,
-                        30f to 1f,
-                        34f to 0f,
-                        60f to 0.5f,
-                        66f to 1f,
-                        70f to 0f,
-                        72f to 24f
+                        4f to 12f,
+                        10f to 24f,
+                        18f to 13f,
+                        24f to 6f,
+                        30f to 20f,
+                        42f to 30f,
+                        54f to 18f,
+                        64f to 9f,
+                        72f to 22f,
+                        84f to 28f,
+                        96f to 16f
                     )
                 )
 
@@ -398,6 +400,30 @@ class ReferenceImportedFontEngineTest {
             "Com três agrupamentos inferiores, o primeiro isolado é floreio; a entrada deve começar no primeiro traço principal.",
             24f,
             start?.first
+        )
+    }
+
+    @Test
+    fun simpleGlyphWithoutLeadingFlourishKeepsItsNaturalLowerLeftStart() {
+        val start =
+            ReferenceImportedFontEngine
+                .debugGlyphVisualStartPoint(
+                    listOf(
+                        0f to 0f,
+                        0f to 40f,
+                        20f to 40f,
+                        20f to 0f
+                    )
+                )
+
+        assertEquals(
+            0f,
+            start?.first
+        )
+
+        assertEquals(
+            0f,
+            start?.second
         )
     }
 
