@@ -2528,9 +2528,9 @@ object ImportedFontMatrixGenerator {
 
         val unitsPerPixel =
             maxOf(
-                0.75f,
+                1.25f,
                 spanUnits /
-                    1500f
+                    1200f
             )
 
         val padding =
