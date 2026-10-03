@@ -499,7 +499,7 @@ class ReferenceImportedFontEngineTest {
 
 
     @Test
-    fun firstSatinColumnStartsInsideCenterRunInsteadOfAtColumnExtremity() {
+    fun firstSatinColumnStartsAtVisualLowerFootAndRunsUpward() {
         val points =
             ReferenceImportedFontEngine
                 .debugFirstColumnInsetPath()
@@ -519,14 +519,14 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
-            "A primeira coluna deve entrar na row Satin mais próxima do ponto tipográfico marcado.",
+            "A primeira coluna deve manter o eixo central do traço selecionado.",
             10,
             firstJump.xUnits
         )
 
         assertEquals(
-            "Com âncora Y=37, o center-run deve escolher a row amostrada em Y=40.",
-            40,
+            "A primeira coluna deve começar pelo pé visual inferior (menor yUnits para sourceYAxisDown=false).",
+            0,
             firstJump.yUnits
         )
 
@@ -538,6 +538,37 @@ class ReferenceImportedFontEngineTest {
         assertEquals(
             firstJump.yUnits,
             firstStitch.yUnits
+        )
+
+        val stitches =
+            points.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        val farIndex =
+            stitches.indexOfFirst {
+                it.yUnits >=
+                    70
+            }
+
+        assertTrue(
+            "O center-run deve subir do pé até o extremo superior antes de iniciar a cobertura Satin.",
+            farIndex >
+                0
+        )
+
+        assertTrue(
+            "Depois de alcançar o extremo superior, a cobertura Satin deve retornar em direção ao pé.",
+            stitches
+                .drop(
+                    farIndex +
+                        1
+                )
+                .any {
+                    it.yUnits <=
+                        10
+                }
         )
 
         assertTrue(
