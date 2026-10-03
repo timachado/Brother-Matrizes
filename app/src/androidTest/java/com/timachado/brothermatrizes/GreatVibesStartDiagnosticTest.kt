@@ -163,10 +163,7 @@ class GreatVibesStartDiagnosticTest {
 
         val output =
             File(
-                targetContext
-                    .getExternalFilesDir(
-                        null
-                    ),
+                targetContext.filesDir,
                 "greatvibes-start-diagnostic.txt"
             )
 
