@@ -2628,41 +2628,22 @@ internal object ReferenceImportedFontEngine {
                     tangent.x
             )
 
-        val rayLimit =
-            max(
-                maxWidthUnits *
-                    2.5f,
-                120f
-            )
-
-        val negative =
-            rayBoundaryDistance(
-                center =
-                    center,
-                direction =
-                    FPoint(
-                        -normal.x,
-                        -normal.y
-                    ),
-                polygons =
-                    polygons,
-                maxDistance =
-                    rayLimit
-            )
-                ?: return null
-
-        val positive =
-            rayBoundaryDistance(
+        val boundaryDistances =
+            lineBoundaryDistances(
                 center =
                     center,
                 direction =
                     normal,
                 polygons =
-                    polygons,
-                maxDistance =
-                    rayLimit
+                    polygons
             )
                 ?: return null
+
+        val negative =
+            boundaryDistances.first
+
+        val positive =
+            boundaryDistances.second
 
         val width =
             negative +
@@ -2711,6 +2692,169 @@ internal object ReferenceImportedFontEngine {
                                     )
                 )
         )
+    }
+
+    private fun lineBoundaryDistances(
+        center: FPoint,
+        direction: FPoint,
+        polygons: List<Polygon>
+    ): Pair<Float, Float>? {
+        var nearestNegative =
+            Float.NEGATIVE_INFINITY
+
+        var nearestPositive =
+            Float.POSITIVE_INFINITY
+
+        var negativeFound =
+            false
+
+        var positiveFound =
+            false
+
+        fun cross(
+            ax: Float,
+            ay: Float,
+            bx: Float,
+            by: Float
+        ): Float =
+            ax *
+                by -
+                ay *
+                    bx
+
+        polygons.forEach {
+                polygon ->
+            val points =
+                polygon.points
+
+            if (
+                points.size <
+                    2
+            ) {
+                return@forEach
+            }
+
+            for (
+                index in
+                    points.indices
+            ) {
+                val a =
+                    points[index]
+
+                val b =
+                    points[
+                        (
+                            index +
+                                1
+                            ) %
+                            points.size
+                    ]
+
+                val sx =
+                    b.x -
+                        a.x
+
+                val sy =
+                    b.y -
+                        a.y
+
+                val denominator =
+                    cross(
+                        direction.x,
+                        direction.y,
+                        sx,
+                        sy
+                    )
+
+                if (
+                    abs(
+                        denominator
+                    ) <
+                        0.00001f
+                ) {
+                    continue
+                }
+
+                val qx =
+                    a.x -
+                        center.x
+
+                val qy =
+                    a.y -
+                        center.y
+
+                val t =
+                    cross(
+                        qx,
+                        qy,
+                        sx,
+                        sy
+                    ) /
+                        denominator
+
+                val u =
+                    cross(
+                        qx,
+                        qy,
+                        direction.x,
+                        direction.y
+                    ) /
+                        denominator
+
+                if (
+                    u <
+                        -0.0001f ||
+                    u >
+                        1.0001f
+                ) {
+                    continue
+                }
+
+                if (
+                    t <
+                        -0.0001f
+                ) {
+                    if (
+                        !negativeFound ||
+                        t >
+                            nearestNegative
+                    ) {
+                        nearestNegative =
+                            t
+
+                        negativeFound =
+                            true
+                    }
+                } else if (
+                    t >
+                        0.0001f
+                ) {
+                    if (
+                        !positiveFound ||
+                        t <
+                            nearestPositive
+                    ) {
+                        nearestPositive =
+                            t
+
+                        positiveFound =
+                            true
+                    }
+                }
+            }
+        }
+
+        if (
+            !negativeFound ||
+            !positiveFound
+        ) {
+            return null
+        }
+
+        return (
+            -nearestNegative
+            ) to
+            nearestPositive
     }
 
     private fun rayBoundaryDistance(
