@@ -373,9 +373,12 @@ internal object ReferenceImportedFontEngine {
                         polygons =
                             polygons,
                         startHint =
-                            glyphVisualStartPoint(
-                                polygons
-                            ),
+                            satinStructuralStartPoint(
+                                columns
+                            )
+                                ?: glyphVisualStartPoint(
+                                    polygons
+                                ),
                         underlayMode =
                             options
                                 .satinUnderlayMode,
@@ -1188,6 +1191,213 @@ internal object ReferenceImportedFontEngine {
             .minOrNull()
             ?: Float.MAX_VALUE
 
+
+    private data class SatinColumnProfile(
+        val column: SatinColumn,
+        val minX: Float,
+        val directSpan: Float,
+        val pathLength: Float,
+        val tortuosity: Float,
+        val bottomCenter: FPoint
+    )
+
+    private fun satinStructuralStartPoint(
+        columns: List<SatinColumn>
+    ): FPoint? {
+        val usable =
+            columns.filter {
+                it.rows.size >=
+                    2
+            }
+
+        if (
+            usable.isEmpty()
+        ) {
+            return null
+        }
+
+        val allXs =
+            usable.flatMap {
+                    column ->
+                column.rows.flatMap {
+                        row ->
+                    listOf(
+                        row.a.x,
+                        row.b.x
+                    )
+                }
+            }
+
+        val glyphMinX =
+            allXs.minOrNull()
+                ?: return null
+
+        val glyphMaxX =
+            allXs.maxOrNull()
+                ?: return null
+
+        val glyphWidth =
+            (
+                glyphMaxX -
+                    glyphMinX
+                ).coerceAtLeast(
+                1f
+            )
+
+        val profiles =
+            usable.map {
+                    column ->
+                val centers =
+                    column.rows.map {
+                        center(
+                            it
+                        )
+                    }
+
+                val pathLength =
+                    centers
+                        .zipWithNext()
+                        .sumOf {
+                                pair ->
+                            distance(
+                                pair.first,
+                                pair.second
+                            )
+                                .toDouble()
+                        }
+                        .toFloat()
+
+                val directSpan =
+                    if (
+                        centers.size >=
+                            2
+                    ) {
+                        distance(
+                            centers.first(),
+                            centers.last()
+                        )
+                    } else {
+                        0f
+                    }
+
+                val tortuosity =
+                    if (
+                        directSpan <
+                            0.5f
+                    ) {
+                        Float.MAX_VALUE
+                    } else {
+                        pathLength /
+                            directSpan
+                    }
+
+                SatinColumnProfile(
+                    column =
+                        column,
+                    minX =
+                        columnLeftEdgeX(
+                            column
+                        ),
+                    directSpan =
+                        directSpan,
+                    pathLength =
+                        pathLength,
+                    tortuosity =
+                        tortuosity,
+                    bottomCenter =
+                        centers.minBy {
+                            it.y
+                        }
+                )
+            }
+
+        val maxDirectSpan =
+            profiles.maxOf {
+                it.directSpan
+            }
+
+        val substantial =
+            profiles
+                .filter {
+                    it.directSpan >=
+                        max(
+                            6f,
+                            maxDirectSpan *
+                                0.42f
+                        ) &&
+                        it.column.rows.size >=
+                            3
+                }
+                .ifEmpty {
+                    profiles
+                }
+                .sortedBy {
+                    it.minX
+                }
+
+        val first =
+            substantial.first()
+
+        val second =
+            substantial.getOrNull(
+                1
+            )
+
+        val selected =
+            if (
+                second !=
+                    null
+            ) {
+                val firstPosition =
+                    (
+                        first.minX -
+                            glyphMinX
+                        ) /
+                        glyphWidth
+
+                val secondPosition =
+                    (
+                        second.minX -
+                            glyphMinX
+                        ) /
+                        glyphWidth
+
+                val gap =
+                    (
+                        second.minX -
+                            first.minX
+                        ) /
+                        glyphWidth
+
+                val leadingFlourish =
+                    firstPosition <=
+                        0.14f &&
+                    secondPosition in
+                        0.14f..0.48f &&
+                    gap >=
+                        0.08f &&
+                    first.tortuosity >=
+                        1.18f &&
+                    first.tortuosity >=
+                        second.tortuosity *
+                            1.12f &&
+                    second.directSpan >=
+                        first.directSpan *
+                            0.55f
+
+                if (
+                    leadingFlourish
+                ) {
+                    second
+                } else {
+                    first
+                }
+            } else {
+                first
+            }
+
+        return selected.bottomCenter
+    }
 
     private fun nextColumnInReadingOrder(
         columns: List<SatinColumn>
@@ -3069,6 +3279,72 @@ internal object ReferenceImportedFontEngine {
             point.x to
                 point.y
         }
+
+    internal fun debugStructuralSatinStartX():
+        Float? {
+        fun column(
+            centers:
+                List<Pair<Float, Float>>
+        ): SatinColumn =
+            SatinColumn(
+                centers.map {
+                        point ->
+                    SatinRow(
+                        FPoint(
+                            point.first -
+                                4f,
+                            point.second
+                        ),
+                        FPoint(
+                            point.first +
+                                4f,
+                            point.second
+                        )
+                    )
+                }
+                    .toMutableList()
+            )
+
+        val flourish =
+            column(
+                listOf(
+                    4f to 0f,
+                    16f to 7f,
+                    5f to 14f,
+                    16f to 21f,
+                    4f to 30f
+                )
+            )
+
+        val mainStroke =
+            column(
+                listOf(
+                    24f to 1f,
+                    24f to 9f,
+                    25f to 17f,
+                    26f to 25f,
+                    27f to 33f
+                )
+            )
+
+        val nextStroke =
+            column(
+                listOf(
+                    55f to 1f,
+                    56f to 10f,
+                    57f to 19f,
+                    58f to 28f
+                )
+            )
+
+        return satinStructuralStartPoint(
+            listOf(
+                flourish,
+                mainStroke,
+                nextStroke
+            )
+        )?.x
+    }
 
     internal fun debugFirstColumnChosenByAnchor():
         Float? {
