@@ -918,19 +918,118 @@ internal object ReferenceImportedFontEngine {
                     minY +
                         lowerBand
             }
-
-        return (
-            lowerEntryCandidates
                 .ifEmpty {
                     points
                 }
-            ).minWithOrNull(
-                compareBy<FPoint> {
+                .sortedBy {
                     it.x
-                }.thenBy {
-                    it.y
                 }
+
+        val minX =
+            points.minOf {
+                it.x
+            }
+
+        val maxX =
+            points.maxOf {
+                it.x
+            }
+
+        val glyphWidth =
+            (
+                maxX -
+                    minX
+                ).coerceAtLeast(
+                1f
             )
+
+        /*
+         * Letras cursivas com floreio inicial podem apresentar, na base,
+         * três ou mais agrupamentos separados: laço ornamental, primeiro
+         * traço principal e os traços seguintes. O print/vídeo de "Maria"
+         * mostra exatamente esse caso. Se escolhermos simplesmente o menor
+         * X, a agulha começa no laço. Quando existe esse padrão, pulamos o
+         * agrupamento ornamental isolado e usamos a borda esquerda do
+         * primeiro traço principal.
+         */
+        val splitGap =
+            max(
+                12f,
+                glyphWidth *
+                    0.08f
+            )
+
+        val clusters =
+            mutableListOf<
+                MutableList<FPoint>
+            >()
+
+        lowerEntryCandidates.forEach {
+                point ->
+            val current =
+                clusters.lastOrNull()
+
+            if (
+                current ==
+                    null ||
+                point.x -
+                    current.last().x >
+                    splitGap
+            ) {
+                clusters +=
+                    mutableListOf(
+                        point
+                    )
+            } else {
+                current +=
+                    point
+            }
+        }
+
+        val selectedCluster =
+            if (
+                clusters.size >=
+                    3
+            ) {
+                val first =
+                    clusters[0]
+
+                val second =
+                    clusters[1]
+
+                val firstWidth =
+                    first.last().x -
+                        first.first().x
+
+                val gapAfterFirst =
+                    second.first().x -
+                        first.last().x
+
+                val leadingFlourish =
+                    gapAfterFirst >=
+                        splitGap &&
+                    firstWidth <=
+                        glyphWidth *
+                            0.25f
+
+                if (
+                    leadingFlourish
+                ) {
+                    second
+                } else {
+                    first
+                }
+            } else {
+                clusters.first()
+            }
+
+        return selectedCluster.minWithOrNull(
+            compareBy<FPoint> {
+                it.x
+            }.thenBy {
+                it.y
+            }
+        )
     }
 
     private fun columnLeftEdgeX(
