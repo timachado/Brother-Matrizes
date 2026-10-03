@@ -3497,13 +3497,11 @@ internal object ReferenceImportedFontEngine {
                         column.rows
                             .minOfOrNull {
                                     row ->
-                                pointToSegmentDistance(
-                                    point =
-                                        anchor,
-                                    a =
-                                        row.a,
-                                    b =
-                                        row.b
+                                distance(
+                                    anchor,
+                                    center(
+                                        row
+                                    )
                                 )
                             }
                             ?: Float.MAX_VALUE
