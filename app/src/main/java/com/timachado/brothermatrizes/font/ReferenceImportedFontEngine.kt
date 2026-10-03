@@ -3870,7 +3870,7 @@ internal object ReferenceImportedFontEngine {
             )
 
         val rows =
-            (0..40 step 4)
+            (0..140 step 4)
                 .map {
                         y ->
                     SatinRow(
@@ -3907,11 +3907,11 @@ internal object ReferenceImportedFontEngine {
                             ),
                             FPoint(
                                 20f,
-                                40f
+                                140f
                             ),
                             FPoint(
                                 0f,
-                                40f
+                                140f
                             )
                         )
                     )
