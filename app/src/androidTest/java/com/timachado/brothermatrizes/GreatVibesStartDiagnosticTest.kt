@@ -147,6 +147,20 @@ class GreatVibesStartDiagnosticTest {
                 appendLine(
                     "OPTIONS=height18 spacing0 satin density0.4 pull0.2 underlayCENTER DST"
                 )
+                appendLine(
+                    "[START_GEOMETRY]"
+                )
+                appendLine(
+                    com.timachado.brothermatrizes.font.ReferenceImportedFontEngine
+                        .debugRealStartGeometry(
+                            font =
+                                font,
+                            sourceText =
+                                "Maria",
+                            options =
+                                options
+                        )
+                )
                 appendDesign(
                     label =
                         "CREATED",
