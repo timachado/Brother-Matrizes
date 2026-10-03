@@ -1,0 +1,34 @@
+name: Fetch Great Vibes Fixture
+
+on:
+  push:
+    branches: ["refactor/brother-matrizes-clean-0469"]
+    paths:
+      - ".github/workflows/fetch-greatvibes-font.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download official Great Vibes
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf \
+            --output GreatVibes-Regular.ttf
+          test -s GreatVibes-Regular.ttf
+          sha256sum GreatVibes-Regular.ttf > GreatVibes-Regular-SHA256.txt
+
+      - name: Upload font fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: GreatVibes-Regular-fixture
+          path: |
+            GreatVibes-Regular.ttf
+            GreatVibes-Regular-SHA256.txt
+          if-no-files-found: error
