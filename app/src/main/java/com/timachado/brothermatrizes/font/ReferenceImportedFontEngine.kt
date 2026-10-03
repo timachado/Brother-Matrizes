@@ -382,11 +382,11 @@ internal object ReferenceImportedFontEngine {
                         polygons =
                             polygons,
                         startHint =
-                            satinStructuralStartPoint(
-                                columns
+                            glyphVisualStartPoint(
+                                polygons
                             )
-                                ?: glyphVisualStartPoint(
-                                    polygons
+                                ?: satinStructuralStartPoint(
+                                    columns
                                 ),
                         underlayMode =
                             options
@@ -2146,7 +2146,15 @@ internal object ReferenceImportedFontEngine {
                             densityMm =
                                 densityMm,
                             insetFirstColumn =
-                                insetFirstUnderlay
+                                insetFirstUnderlay,
+                            visualAnchor =
+                                if (
+                                    insetFirstUnderlay
+                                ) {
+                                    startHint
+                                } else {
+                                    null
+                                }
                         )
                             ?: center(
                                 column.rows
@@ -2204,7 +2212,15 @@ internal object ReferenceImportedFontEngine {
                     densityMm =
                         densityMm,
                     insetFirstUnderlay =
-                        insetFirstUnderlay
+                        insetFirstUnderlay,
+                    visualAnchor =
+                        if (
+                            insetFirstUnderlay
+                        ) {
+                            startHint
+                        } else {
+                            null
+                        }
                 )
 
                 remaining.remove(
@@ -2417,7 +2433,9 @@ internal object ReferenceImportedFontEngine {
             includeUnderlay: Boolean,
             densityMm: Float,
             insetFirstUnderlay: Boolean =
-                false
+                false,
+            visualAnchor: FPoint? =
+                null
         ) {
             val rows =
                 column.rows
@@ -2446,7 +2464,9 @@ internal object ReferenceImportedFontEngine {
                         densityMm =
                             densityMm,
                         insetFirstColumn =
-                            insetFirstUnderlay
+                            insetFirstUnderlay,
+                        visualAnchor =
+                            visualAnchor
                     )
 
                     rows.asReversed()
@@ -2564,7 +2584,9 @@ internal object ReferenceImportedFontEngine {
         private fun underlayEntryPoint(
             column: SatinColumn,
             densityMm: Float,
-            insetFirstColumn: Boolean
+            insetFirstColumn: Boolean,
+            visualAnchor: FPoint? =
+                null
         ): FPoint? {
             val centers =
                 centerRunUnderlayPoints(
@@ -2582,6 +2604,22 @@ internal object ReferenceImportedFontEngine {
 
             val index =
                 if (
+                    insetFirstColumn &&
+                    visualAnchor !=
+                        null
+                ) {
+                    centers.indices
+                        .minByOrNull {
+                                candidate ->
+                            distance(
+                                centers[
+                                    candidate
+                                ],
+                                visualAnchor
+                            )
+                        }
+                        ?: 0
+                } else if (
                     insetFirstColumn
                 ) {
                     firstColumnUnderlayStartIndex(
@@ -2600,7 +2638,9 @@ internal object ReferenceImportedFontEngine {
             column: SatinColumn,
             densityMm: Float,
             insetFirstColumn: Boolean =
-                false
+                false,
+            visualAnchor: FPoint? =
+                null
         ) {
             val centers =
                 centerRunUnderlayPoints(
@@ -2618,6 +2658,22 @@ internal object ReferenceImportedFontEngine {
 
             val startIndex =
                 if (
+                    insetFirstColumn &&
+                    visualAnchor !=
+                        null
+                ) {
+                    centers.indices
+                        .minByOrNull {
+                                candidate ->
+                            distance(
+                                centers[
+                                    candidate
+                                ],
+                                visualAnchor
+                            )
+                        }
+                        ?: 0
+                } else if (
                     insetFirstColumn
                 ) {
                     firstColumnUnderlayStartIndex(
