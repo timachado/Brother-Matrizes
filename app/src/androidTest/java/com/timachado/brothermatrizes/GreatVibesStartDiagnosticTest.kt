@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
@@ -221,8 +222,87 @@ class GreatVibesStartDiagnosticTest {
                 }
             }
 
-        throw AssertionError(
+        Log.i(
+            "GreatVibesDiagnostic",
             report
+        )
+
+        val created =
+            ImportedFontMatrixGenerator
+                .generateText(
+                    font =
+                        font,
+                    text =
+                        "Priscila",
+                    options =
+                        TextMatrixOptions(
+                            text =
+                                "Priscila",
+                            heightMm =
+                                47f,
+                            spacingMm =
+                                0f,
+                            stitchLengthMm =
+                                2.5f,
+                            style =
+                                TextStitchStyle.SATIN,
+                            satinWidthMm =
+                                2.4f,
+                            satinDensityMm =
+                                0.4f,
+                            satinPullCompensationMm =
+                                0.2f,
+                            satinShortStitches =
+                                true,
+                            satinUnderlayMode =
+                                SatinUnderlayMode.CENTER,
+                            specialStitchMode =
+                                null,
+                            color =
+                                0xE63946,
+                            outputFormat =
+                                "DST",
+                            hoopProfile =
+                                HoopProfile.H200X300,
+                            fabricProfile =
+                                FabricProfile.COTTON,
+                            enforceHoop =
+                                false
+                        )
+                )
+                .getOrThrow()
+
+        assertTrue(
+            "A largura deve permanecer próxima da referência de 155 mm.",
+            created.bounds.widthMm in
+                135f..175f
+        )
+
+        assertTrue(
+            "A altura deve permanecer próxima da referência de 47 mm.",
+            created.bounds.heightMm in
+                42f..52f
+        )
+
+        assertTrue(
+            "A densidade total de pontos deve permanecer na mesma ordem da referência de 3546 pontos.",
+            created.points.size in
+                2400..4800
+        )
+
+        assertTrue(
+            "O motor adaptativo não deve explodir em JUMPs.",
+            created.jumpCount <=
+                30
+        )
+
+        assertTrue(
+            "O motor adaptativo não deve explodir em TRIMs.",
+            created.points.count {
+                it.command ==
+                    StitchCommand.TRIM
+            } <=
+                12
         )
     }
 
