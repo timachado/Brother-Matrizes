@@ -16,7 +16,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -46,13 +46,15 @@ jobs:
       - name: Run real Android Great Vibes diagnostic
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          target: google_apis
+          api-level: 30
+          target: default
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_2
           disable-animations: true
           script: |
             gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace
+            adb logcat -d -s GreatVibesDiagnostic:I '*:S' > greatvibes-reference-report.txt
+            cat greatvibes-reference-report.txt
 
       - name: Upload diagnostic
         if: always()
@@ -60,5 +62,6 @@ jobs:
         with:
           name: greatvibes-start-diagnostic
           path: |
+            greatvibes-reference-report.txt
             app/build/reports/androidTests/connected/**
           if-no-files-found: error
