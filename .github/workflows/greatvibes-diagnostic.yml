@@ -1,0 +1,68 @@
+name: Great Vibes Satin Diagnostic
+
+on:
+  push:
+    branches: ["refactor/brother-matrizes-clean-0469"]
+    paths:
+      - ".github/workflows/greatvibes-diagnostic.yml"
+      - "app/src/androidTest/java/com/timachado/brothermatrizes/GreatVibesStartDiagnosticTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/**"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/GeneratedMatrixPipeline.kt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Prepare official Great Vibes fixture
+        shell: bash
+        run: |
+          mkdir -p app/src/androidTest/assets
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf \
+            --output app/src/androidTest/assets/GreatVibes-Regular.ttf
+          test -s app/src/androidTest/assets/GreatVibes-Regular.ttf
+          sha256sum app/src/androidTest/assets/GreatVibes-Regular.ttf
+
+      - name: Run real Android Great Vibes diagnostic
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            gradle :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest \
+              --stacktrace
+            adb shell cat /sdcard/Android/data/com.timachado.brothermatrizes/files/greatvibes-start-diagnostic.txt > greatvibes-start-diagnostic.txt
+            cat greatvibes-start-diagnostic.txt
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: greatvibes-start-diagnostic
+          path: |
+            greatvibes-start-diagnostic.txt
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: error
