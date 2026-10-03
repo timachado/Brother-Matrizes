@@ -22,7 +22,7 @@ import org.junit.runner.RunWith
 class GreatVibesStartDiagnosticTest {
 
     @Test
-    fun dumpMariaGreatVibesRealStartSequence() {
+    fun comparePriscilaAgainstReferenceVideo() {
         val instrumentation =
             InstrumentationRegistry
                 .getInstrumentation()
@@ -70,23 +70,22 @@ class GreatVibesStartDiagnosticTest {
 
         val heights =
             listOf(
-                24f,
-                26f,
-                28f,
-                30f,
-                32f,
-                34f,
-                36f,
-                38f
+                44f,
+                45f,
+                46f,
+                47f,
+                48f,
+                49f,
+                50f
             )
 
         val report =
             buildString {
                 appendLine(
-                    "GREATVIBES_SWEEP"
+                    "GREATVIBES_REFERENCE_PRISCILA"
                 )
                 appendLine(
-                    "TARGET_DEVICE=88x32mm 1677pts"
+                    "VIDEO_TARGET=155x47mm 3546pts"
                 )
 
                 heights.forEach {
@@ -94,7 +93,7 @@ class GreatVibesStartDiagnosticTest {
                     val options =
                         TextMatrixOptions(
                             text =
-                                "Maria",
+                                "Priscila",
                             heightMm =
                                 height,
                             spacingMm =
@@ -120,7 +119,7 @@ class GreatVibesStartDiagnosticTest {
                             outputFormat =
                                 "DST",
                             hoopProfile =
-                                HoopProfile.H100X100,
+                                HoopProfile.H200X300,
                             fabricProfile =
                                 FabricProfile.COTTON,
                             enforceHoop =
@@ -133,7 +132,7 @@ class GreatVibesStartDiagnosticTest {
                                 font =
                                     font,
                                 text =
-                                    "Maria",
+                                    "Priscila",
                                 options =
                                     options
                             )
@@ -147,7 +146,7 @@ class GreatVibesStartDiagnosticTest {
                                         design =
                                             created,
                                         outputSuffix =
-                                            "greatvibes-sweep-" +
+                                            "greatvibes-priscila-" +
                                                 height.toInt()
                                     )
                         ) {
@@ -160,16 +159,6 @@ class GreatVibesStartDiagnosticTest {
                                 )
                         }
 
-                    val createdStart =
-                        normalizedFirstStitch(
-                            created
-                        )
-
-                    val canonicalStart =
-                        normalizedFirstStitch(
-                            canonical
-                        )
-
                     appendLine(
                         "height=" +
                             height +
@@ -179,31 +168,62 @@ class GreatVibesStartDiagnosticTest {
                             created.bounds.heightMm +
                             " pts=" +
                             created.points.size +
-                            " first=" +
-                            created.points.first {
+                            " stitch=" +
+                            created.stitchCount +
+                            " jump=" +
+                            created.jumpCount +
+                            " trim=" +
+                            created.points.count {
                                 it.command ==
-                                    StitchCommand.STITCH
-                            }.xUnits +
-                            "," +
-                            created.points.first {
-                                it.command ==
-                                    StitchCommand.STITCH
-                            }.yUnits +
-                            " norm=" +
-                            createdStart.first +
-                            "," +
-                            createdStart.second +
+                                    StitchCommand.TRIM
+                            } +
+                            " firstNorm=" +
+                            normalizedFirstStitch(
+                                created
+                            ) +
                             " CANONICAL=" +
                             canonical.bounds.widthMm +
                             "x" +
                             canonical.bounds.heightMm +
                             " pts=" +
                             canonical.points.size +
-                            " norm=" +
-                            canonicalStart.first +
-                            "," +
-                            canonicalStart.second
+                            " stitch=" +
+                            canonical.stitchCount +
+                            " jump=" +
+                            canonical.jumpCount +
+                            " trim=" +
+                            canonical.points.count {
+                                it.command ==
+                                    StitchCommand.TRIM
+                            }
                     )
+
+                    if (
+                        height ==
+                            47f
+                    ) {
+                        appendLine(
+                            "H47_FIRST_40"
+                        )
+
+                        canonical.points
+                            .take(
+                                40
+                            )
+                            .forEachIndexed {
+                                    index,
+                                    point ->
+                                appendLine(
+                                    index.toString() +
+                                        " " +
+                                        point.command.name +
+                                        " " +
+                                        point.xUnits +
+                                        "," +
+                                        point.yUnits
+                                )
+                            }
+                    }
                 }
             }
 
