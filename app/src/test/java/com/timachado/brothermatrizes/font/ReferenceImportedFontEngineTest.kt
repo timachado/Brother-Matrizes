@@ -444,27 +444,21 @@ class ReferenceImportedFontEngineTest {
             first.command
         )
 
-        assertEquals(
-            "A agulha deve nascer no início visual do traço.",
-            5,
-            first.xUnits
-        )
-
-        assertEquals(
-            5,
-            first.yUnits
-        )
-
         val firstStitch =
             points.first {
                 it.command ==
                     StitchCommand.STITCH
             }
 
-        assertTrue(
-            "Depois de nascer no início visual, a entrada no underlay deve ser costurada para dentro da coluna.",
-            firstStitch.xUnits >
-                first.xUnits
+        assertEquals(
+            "O JUMP inicial deve posicionar diretamente no ponto em que a primeira pontada começa.",
+            first.xUnits,
+            firstStitch.xUnits
+        )
+
+        assertEquals(
+            first.yUnits,
+            firstStitch.yUnits
         )
     }
 
@@ -498,6 +492,49 @@ class ReferenceImportedFontEngineTest {
             x
                 ?: Float.NaN,
             1.5f
+        )
+    }
+
+
+    @Test
+    fun firstSatinColumnStartsInsideCenterRunInsteadOfAtColumnExtremity() {
+        val points =
+            ReferenceImportedFontEngine
+                .debugFirstColumnInsetPath()
+
+        val firstJump =
+            points.first()
+
+        val firstStitch =
+            points.first {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        assertEquals(
+            StitchCommand.JUMP,
+            firstJump.command
+        )
+
+        assertEquals(
+            "A primeira coluna deve entrar aproximadamente a 25% do center-run.",
+            10,
+            firstJump.xUnits
+        )
+
+        assertEquals(
+            10,
+            firstJump.yUnits
+        )
+
+        assertEquals(
+            firstJump.xUnits,
+            firstStitch.xUnits
+        )
+
+        assertEquals(
+            firstJump.yUnits,
+            firstStitch.yUnits
         )
     }
 
