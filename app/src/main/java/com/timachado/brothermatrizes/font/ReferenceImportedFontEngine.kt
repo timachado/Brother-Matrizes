@@ -1429,7 +1429,54 @@ internal object ReferenceImportedFontEngine {
             }
         )
 
+    /*
+     * Motor Satin adaptativo.
+     *
+     * O contorno TTF/OTF continua sendo a autoridade geométrica. Uma
+     * medial-line rasterizada é usada apenas como guia de fluxo/topologia.
+     * Para cada ponto do fluxo, a linha Satin é recalculada contra o
+     * contorno vetorial original na normal local do traço.
+     *
+     * Se a topologia adaptativa não puder ser construída com segurança,
+     * voltamos ao sampler por eixos anterior.
+     */
     private fun sampleColumns(
+        polygons: List<Polygon>,
+        densityMm: Float,
+        maxSatinWidthMm: Float,
+        pullCompensationMm: Float
+    ): List<SatinColumn> {
+        val adaptive =
+            sampleAdaptiveFlowColumns(
+                polygons =
+                    polygons,
+                densityMm =
+                    densityMm,
+                maxSatinWidthMm =
+                    maxSatinWidthMm,
+                pullCompensationMm =
+                    pullCompensationMm
+            )
+
+        return if (
+            adaptive.isNotEmpty()
+        ) {
+            adaptive
+        } else {
+            sampleAxisColumns(
+                polygons =
+                    polygons,
+                densityMm =
+                    densityMm,
+                maxSatinWidthMm =
+                    maxSatinWidthMm,
+                pullCompensationMm =
+                    pullCompensationMm
+            )
+        }
+    }
+
+    private fun sampleAxisColumns(
         polygons: List<Polygon>,
         densityMm: Float,
         maxSatinWidthMm: Float,
