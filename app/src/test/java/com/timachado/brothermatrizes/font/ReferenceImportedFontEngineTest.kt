@@ -616,4 +616,27 @@ class ReferenceImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun adaptiveSatinRotatesRowsWithStrokeDirection() {
+        val (
+            horizontal,
+            vertical
+        ) =
+            ReferenceImportedFontEngine
+                .debugAdaptiveFlowOrientationCounts()
+
+        assertTrue(
+            "O motor adaptativo deve produzir linhas Satin horizontais em trechos verticais do traço.",
+            horizontal >
+                0
+        )
+
+        assertTrue(
+            "O motor adaptativo deve girar as linhas Satin e produzir linhas verticais em trechos horizontais.",
+            vertical >
+                0
+        )
+    }
+
 }
