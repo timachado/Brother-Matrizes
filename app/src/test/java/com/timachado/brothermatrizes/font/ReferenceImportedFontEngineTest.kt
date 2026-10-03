@@ -376,6 +376,32 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
+    fun cursiveVisualStartSkipsIsolatedLeadingFlourishCluster() {
+        val start =
+            ReferenceImportedFontEngine
+                .debugGlyphVisualStartPoint(
+                    listOf(
+                        0f to 0f,
+                        5f to 1f,
+                        8f to 0.5f,
+                        24f to 0.5f,
+                        30f to 1f,
+                        34f to 0f,
+                        60f to 0.5f,
+                        66f to 1f,
+                        70f to 0f,
+                        72f to 24f
+                    )
+                )
+
+        assertEquals(
+            "Com três agrupamentos inferiores, o primeiro isolado é floreio; a entrada deve começar no primeiro traço principal.",
+            24f,
+            start?.first
+        )
+    }
+
+    @Test
     fun firstNeedleJumpUsesVisualStartBeforeEnteringCenterUnderlay() {
         val points =
             ReferenceImportedFontEngine
