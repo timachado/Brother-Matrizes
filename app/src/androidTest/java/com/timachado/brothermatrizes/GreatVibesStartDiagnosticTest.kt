@@ -68,163 +68,147 @@ class GreatVibesStartDiagnosticTest {
                     fontFile.absolutePath
             )
 
-        val options =
-            TextMatrixOptions(
-                text =
-                    "Maria",
-                heightMm =
-                    18f,
-                spacingMm =
-                    0f,
-                stitchLengthMm =
-                    2.5f,
-                style =
-                    TextStitchStyle.SATIN,
-                satinWidthMm =
-                    2.4f,
-                satinDensityMm =
-                    0.4f,
-                satinPullCompensationMm =
-                    0.2f,
-                satinShortStitches =
-                    true,
-                satinUnderlayMode =
-                    SatinUnderlayMode.CENTER,
-                specialStitchMode =
-                    null,
-                color =
-                    0xE63946,
-                outputFormat =
-                    "DST",
-                hoopProfile =
-                    HoopProfile.H100X100,
-                fabricProfile =
-                    FabricProfile.COTTON,
-                enforceHoop =
-                    false
+        val heights =
+            listOf(
+                24f,
+                26f,
+                28f,
+                30f,
+                32f,
+                34f,
+                36f,
+                38f
             )
-
-        val created =
-            ImportedFontMatrixGenerator
-                .generateText(
-                    font =
-                        font,
-                    text =
-                        "Maria",
-                    options =
-                        options
-                )
-                .getOrThrow()
-
-        val canonical =
-            when (
-                val opened =
-                    GeneratedMatrixPipeline
-                        .canonicalize(
-                            design =
-                                created,
-                            outputSuffix =
-                                "greatvibes-diagnostic"
-                        )
-            ) {
-                is EmbroideryLoadResult.Success ->
-                    opened.design
-
-                is EmbroideryLoadResult.Error ->
-                    error(
-                        opened.userMessage
-                    )
-            }
 
         val report =
             buildString {
                 appendLine(
-                    "FONT=GreatVibes-Regular.ttf"
+                    "GREATVIBES_SWEEP"
                 )
                 appendLine(
-                    "TEXT=Maria"
+                    "TARGET_DEVICE=88x32mm 1677pts"
                 )
-                appendLine(
-                    "OPTIONS=height18 spacing0 satin density0.4 pull0.2 underlayCENTER DST"
-                )
-                appendLine(
-                    "[START_GEOMETRY]"
-                )
-                appendLine(
-                    com.timachado.brothermatrizes.font.ReferenceImportedFontEngine
-                        .debugRealStartGeometry(
-                            font =
-                                font,
-                            sourceText =
+
+                heights.forEach {
+                        height ->
+                    val options =
+                        TextMatrixOptions(
+                            text =
                                 "Maria",
-                            options =
-                                options
+                            heightMm =
+                                height,
+                            spacingMm =
+                                0f,
+                            stitchLengthMm =
+                                2.5f,
+                            style =
+                                TextStitchStyle.SATIN,
+                            satinWidthMm =
+                                2.4f,
+                            satinDensityMm =
+                                0.4f,
+                            satinPullCompensationMm =
+                                0.2f,
+                            satinShortStitches =
+                                true,
+                            satinUnderlayMode =
+                                SatinUnderlayMode.CENTER,
+                            specialStitchMode =
+                                null,
+                            color =
+                                0xE63946,
+                            outputFormat =
+                                "DST",
+                            hoopProfile =
+                                HoopProfile.H100X100,
+                            fabricProfile =
+                                FabricProfile.COTTON,
+                            enforceHoop =
+                                false
                         )
-                )
-                appendDesign(
-                    label =
-                        "CREATED",
-                    design =
-                        created
-                )
-                appendDesign(
-                    label =
-                        "CANONICAL",
-                    design =
-                        canonical
-                )
+
+                    val created =
+                        ImportedFontMatrixGenerator
+                            .generateText(
+                                font =
+                                    font,
+                                text =
+                                    "Maria",
+                                options =
+                                    options
+                            )
+                            .getOrThrow()
+
+                    val canonical =
+                        when (
+                            val opened =
+                                GeneratedMatrixPipeline
+                                    .canonicalize(
+                                        design =
+                                            created,
+                                        outputSuffix =
+                                            "greatvibes-sweep-" +
+                                                height.toInt()
+                                    )
+                        ) {
+                            is EmbroideryLoadResult.Success ->
+                                opened.design
+
+                            is EmbroideryLoadResult.Error ->
+                                error(
+                                    opened.userMessage
+                                )
+                        }
+
+                    val createdStart =
+                        normalizedFirstStitch(
+                            created
+                        )
+
+                    val canonicalStart =
+                        normalizedFirstStitch(
+                            canonical
+                        )
+
+                    appendLine(
+                        "height=" +
+                            height +
+                            " CREATED=" +
+                            created.bounds.widthMm +
+                            "x" +
+                            created.bounds.heightMm +
+                            " pts=" +
+                            created.points.size +
+                            " first=" +
+                            created.points.first {
+                                it.command ==
+                                    StitchCommand.STITCH
+                            }.xUnits +
+                            "," +
+                            created.points.first {
+                                it.command ==
+                                    StitchCommand.STITCH
+                            }.yUnits +
+                            " norm=" +
+                            createdStart.first +
+                            "," +
+                            createdStart.second +
+                            " CANONICAL=" +
+                            canonical.bounds.widthMm +
+                            "x" +
+                            canonical.bounds.heightMm +
+                            " pts=" +
+                            canonical.points.size +
+                            " norm=" +
+                            canonicalStart.first +
+                            "," +
+                            canonicalStart.second
+                    )
+                }
             }
 
-        assertTrue(
-            created.points.any {
-                it.command ==
-                    StitchCommand.STITCH
-            }
-        )
-
-        assertTrue(
-            canonical.points.any {
-                it.command ==
-                    StitchCommand.STITCH
-            }
-        )
-
-        val createdStart =
-            normalizedFirstStitch(
-                created
-            )
-
-        val canonicalStart =
-            normalizedFirstStitch(
-                canonical
-            )
-
-        assertTrue(
-            "Great Vibes / Maria deve iniciar no ponto marcado: x entre 18% e 21%.\n" +
-                report,
-            createdStart.first in
-                0.18f..0.21f
-        )
-
-        assertTrue(
-            "Great Vibes / Maria deve iniciar cerca de 29% acima da base antes do round-trip.\n" +
-                report,
-            createdStart.second in
-                0.24f..0.34f
-        )
-
-        assertTrue(
-            "O round-trip DST deve preservar o mesmo X inicial.\n" +
-                report,
-            canonicalStart.first in
-                0.18f..0.21f
-        )
-
-        assertTrue(
-            "Após o DST, o Y é espelhado mas deve continuar representando o mesmo ponto físico.\n" +
-                report,
-            canonicalStart.second in
-                0.66f..0.76f
+        throw AssertionError(
+            report
         )
     }
 
