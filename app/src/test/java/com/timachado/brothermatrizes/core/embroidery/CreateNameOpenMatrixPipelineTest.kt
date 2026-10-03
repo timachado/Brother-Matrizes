@@ -185,4 +185,119 @@ class CreateNameOpenMatrixPipelineTest {
     }
 
 
+
+    @Test
+    fun generatedPipelineCollapsesOnlyLeadingPositioningJumps() {
+        val points =
+            listOf(
+                EmbroideryPoint(
+                    20,
+                    10,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    40,
+                    20,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    60,
+                    30,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    62,
+                    32,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    70,
+                    35,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    72,
+                    36,
+                    StitchCommand.STITCH,
+                    0
+                )
+            )
+
+        val normalized =
+            GeneratedMatrixPipeline
+                .collapseLeadingPositioningJumps(
+                    points
+                )
+
+        assertEquals(
+            4,
+            normalized.size
+        )
+
+        assertEquals(
+            StitchCommand.JUMP,
+            normalized.first()
+                .command
+        )
+
+        assertEquals(
+            60,
+            normalized.first()
+                .xUnits
+        )
+
+        assertEquals(
+            30,
+            normalized.first()
+                .yUnits
+        )
+
+        assertEquals(
+            "JUMPs reais após o início da costura devem permanecer.",
+            2,
+            normalized.count {
+                it.command ==
+                    StitchCommand.JUMP
+            }
+        )
+    }
+
+    @Test
+    fun generatedPipelineDoesNotCollapseMixedLeadingCommands() {
+        val points =
+            listOf(
+                EmbroideryPoint(
+                    20,
+                    10,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    20,
+                    10,
+                    StitchCommand.TRIM,
+                    0
+                ),
+                EmbroideryPoint(
+                    22,
+                    12,
+                    StitchCommand.STITCH,
+                    0
+                )
+            )
+
+        assertEquals(
+            points,
+            GeneratedMatrixPipeline
+                .collapseLeadingPositioningJumps(
+                    points
+                )
+        )
+    }
+
 }
