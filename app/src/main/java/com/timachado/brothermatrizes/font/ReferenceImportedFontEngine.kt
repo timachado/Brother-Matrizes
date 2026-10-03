@@ -880,51 +880,6 @@ internal object ReferenceImportedFontEngine {
             return null
         }
 
-        /*
-         * Em fontes cursivas, a extremidade mais à esquerda pode pertencer
-         * ao laço ornamental e não ao ponto onde o traço realmente nasce.
-         * O início observado na referência fica no pé inferior esquerdo do
-         * primeiro traço. Como este motor usa Y cartesiano, a base do glifo
-         * está próxima do menor Y.
-         *
-         * Primeiro isolamos uma faixa inferior estreita da letra e, dentro
-         * dela, escolhemos o ponto mais à esquerda. Isso preserva a entrada
-         * natural do traço sem transformar a ordem do contorno TTF/OTF em
-         * semântica de bordado.
-         */
-        val minY =
-            points.minOf {
-                it.y
-            }
-
-        val maxY =
-            points.maxOf {
-                it.y
-            }
-
-        val lowerBand =
-            max(
-                2f,
-                (
-                    maxY -
-                        minY
-                    ) *
-                    0.12f
-            )
-
-        val lowerEntryCandidates =
-            points.filter {
-                it.y <=
-                    minY +
-                        lowerBand
-            }
-                .ifEmpty {
-                    points
-                }
-                .sortedBy {
-                    it.x
-                }
-
         val minX =
             points.minOf {
                 it.x
@@ -935,6 +890,16 @@ internal object ReferenceImportedFontEngine {
                 it.x
             }
 
+        val minY =
+            points.minOf {
+                it.y
+            }
+
+        val maxY =
+            points.maxOf {
+                it.y
+            }
+
         val glyphWidth =
             (
                 maxX -
@@ -943,93 +908,255 @@ internal object ReferenceImportedFontEngine {
                 1f
             )
 
-        /*
-         * Letras cursivas com floreio inicial podem apresentar, na base,
-         * três ou mais agrupamentos separados: laço ornamental, primeiro
-         * traço principal e os traços seguintes. O print/vídeo de "Maria"
-         * mostra exatamente esse caso. Se escolhermos simplesmente o menor
-         * X, a agulha começa no laço. Quando existe esse padrão, pulamos o
-         * agrupamento ornamental isolado e usamos a borda esquerda do
-         * primeiro traço principal.
-         */
-        val splitGap =
-            max(
-                12f,
-                glyphWidth *
-                    0.08f
+        val glyphHeight =
+            (
+                maxY -
+                    minY
+                ).coerceAtLeast(
+                1f
             )
 
-        val clusters =
+        /*
+         * O ponto inicial de uma capital cursiva não é necessariamente o
+         * ponto mais baixo nem a extremidade mais à esquerda do contorno.
+         * No "M" da referência existe um laço ornamental à esquerda cujo
+         * fundo fica abaixo do pé do primeiro traço principal.
+         *
+         * Procuramos mínimos LOCAIS do contorno na metade inferior do glifo.
+         * Se o primeiro mínimo fica colado à borda esquerda e existe outro
+         * mínimo bem definido logo depois, tratamos o primeiro como floreio
+         * de entrada e começamos no segundo vale — o pé do traço principal.
+         */
+        val valleyLimitY =
+            minY +
+                glyphHeight *
+                    0.42f
+
+        val prominence =
+            max(
+                2f,
+                glyphHeight *
+                    0.025f
+            )
+
+        val valleys =
+            mutableListOf<
+                FPoint
+            >()
+
+        polygons.forEach {
+                polygon ->
+            val contour =
+                polygon.points
+
+            if (
+                contour.size <
+                    7
+            ) {
+                return@forEach
+            }
+
+            val window =
+                minOf(
+                    6,
+                    max(
+                        2,
+                        contour.size /
+                            24
+                    )
+                )
+
+            contour.indices.forEach {
+                    index ->
+                val point =
+                    contour[index]
+
+                if (
+                    point.y >
+                        valleyLimitY
+                ) {
+                    return@forEach
+                }
+
+                var leftPeak =
+                    Float.NEGATIVE_INFINITY
+
+                var rightPeak =
+                    Float.NEGATIVE_INFINITY
+
+                for (
+                    offset in
+                        1..window
+                ) {
+                    val left =
+                        contour[
+                            (
+                                index -
+                                    offset +
+                                    contour.size
+                                ) %
+                                contour.size
+                        ]
+
+                    val right =
+                        contour[
+                            (
+                                index +
+                                    offset
+                                ) %
+                                contour.size
+                        ]
+
+                    leftPeak =
+                        max(
+                            leftPeak,
+                            left.y
+                        )
+
+                    rightPeak =
+                        max(
+                            rightPeak,
+                            right.y
+                        )
+                }
+
+                if (
+                    leftPeak -
+                        point.y >=
+                        prominence &&
+                    rightPeak -
+                        point.y >=
+                        prominence
+                ) {
+                    valleys +=
+                        point
+                }
+            }
+        }
+
+        val valleyMergeDistance =
+            max(
+                4f,
+                glyphWidth *
+                    0.045f
+            )
+
+        val valleyGroups =
             mutableListOf<
                 MutableList<FPoint>
             >()
 
-        lowerEntryCandidates.forEach {
-                point ->
-            val current =
-                clusters.lastOrNull()
-
-            if (
-                current ==
-                    null ||
-                point.x -
-                    current.last().x >
-                    splitGap
-            ) {
-                clusters +=
-                    mutableListOf(
-                        point
-                    )
-            } else {
-                current +=
-                    point
+        valleys
+            .sortedBy {
+                it.x
             }
-        }
-
-        val selectedCluster =
-            if (
-                clusters.size >=
-                    3
-            ) {
-                val first =
-                    clusters[0]
-
-                val second =
-                    clusters[1]
-
-                val firstWidth =
-                    first.last().x -
-                        first.first().x
-
-                val gapAfterFirst =
-                    second.first().x -
-                        first.last().x
-
-                val leadingFlourish =
-                    gapAfterFirst >=
-                        splitGap &&
-                    firstWidth <=
-                        glyphWidth *
-                            0.25f
+            .forEach {
+                    point ->
+                val group =
+                    valleyGroups.lastOrNull()
 
                 if (
-                    leadingFlourish
+                    group ==
+                        null ||
+                    point.x -
+                        group.last().x >
+                        valleyMergeDistance
                 ) {
-                    second
+                    valleyGroups +=
+                        mutableListOf(
+                            point
+                        )
                 } else {
-                    first
+                    group +=
+                        point
                 }
-            } else {
-                clusters.first()
             }
 
-        return selectedCluster.minWithOrNull(
-            compareBy<FPoint> {
-                it.x
-            }.thenBy {
-                it.y
+        val valleyRepresentatives =
+            valleyGroups.map {
+                    group ->
+                group.minWithOrNull(
+                    compareBy<FPoint> {
+                        it.y
+                    }.thenBy {
+                        it.x
+                    }
+                )!!
             }
-        )
+
+        if (
+            valleyRepresentatives.size >=
+                2
+        ) {
+            val first =
+                valleyRepresentatives[0]
+
+            val second =
+                valleyRepresentatives[1]
+
+            val firstPosition =
+                (
+                    first.x -
+                        minX
+                    ) /
+                    glyphWidth
+
+            val secondPosition =
+                (
+                    second.x -
+                        minX
+                    ) /
+                    glyphWidth
+
+            val gap =
+                (
+                    second.x -
+                        first.x
+                    ) /
+                    glyphWidth
+
+            if (
+                firstPosition <=
+                    0.12f &&
+                secondPosition in
+                    0.14f..0.45f &&
+                gap >=
+                    0.10f
+            ) {
+                return second
+            }
+
+            return first
+        }
+
+        /*
+         * Fallback para glifos sem dois vales bem definidos: usa a faixa
+         * inferior, mas sem tentar inventar uma estrutura de traço que a
+         * geometria não demonstrou.
+         */
+        val lowerBand =
+            max(
+                2f,
+                glyphHeight *
+                    0.14f
+            )
+
+        return points
+            .filter {
+                it.y <=
+                    minY +
+                        lowerBand
+            }
+            .ifEmpty {
+                points
+            }
+            .minWithOrNull(
+                compareBy<FPoint> {
+                    it.x
+                }.thenBy {
+                    it.y
+                }
+            )
     }
 
     private fun columnLeftEdgeX(
