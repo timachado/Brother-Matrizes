@@ -11,7 +11,9 @@ package com.timachado.brothermatrizes.core.embroidery
 object GeneratedMatrixPipeline {
     fun canonicalize(
         design: EmbroideryDesign,
-        outputSuffix: String
+        outputSuffix: String,
+        preserveGuidePoints: Boolean =
+            false
     ): EmbroideryLoadResult {
         val converted =
             MatrixConverter
@@ -68,6 +70,17 @@ object GeneratedMatrixPipeline {
                                     design.fabricProfile,
                                 machineFinishing =
                                     design.machineFinishing,
+                                guidePoints =
+                                    if (
+                                        preserveGuidePoints &&
+                                        design.guidePoints
+                                            .isNotEmpty()
+                                    ) {
+                                        design.guidePoints
+                                    } else {
+                                        opened.design
+                                            .guidePoints
+                                    },
                                 label =
                                     design.label
                                         ?: opened.design
