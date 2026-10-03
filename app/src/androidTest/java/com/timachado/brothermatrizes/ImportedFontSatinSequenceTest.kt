@@ -699,9 +699,9 @@ class ImportedFontSatinSequenceTest {
             )
 
         assertTrue(
-            "Com underlay CENTER, a agulha deve entrar pelo centro da coluna Satin, não pela borda.",
-            distanceToCenter <
-                distanceToNearestEdge
+            "O primeiro JUMP deve nascer no ponto visual de entrada da letra, antes de entrar no centro do underlay.",
+            distanceToNearestEdge <=
+                distanceToCenter
         )
 
         val stitches =
