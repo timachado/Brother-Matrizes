@@ -52,9 +52,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            gradle :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest \
-              --stacktrace
+            gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace
             adb shell cat /sdcard/Android/data/com.timachado.brothermatrizes/files/greatvibes-start-diagnostic.txt > greatvibes-start-diagnostic.txt
             cat greatvibes-start-diagnostic.txt
 
