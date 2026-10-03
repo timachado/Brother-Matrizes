@@ -523,7 +523,8 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
-            10,
+            "Com 8 pontos centrais, 25% deve escolher o índice 2.",
+            40,
             firstJump.yUnits
         )
 
@@ -535,6 +536,16 @@ class ReferenceImportedFontEngineTest {
         assertEquals(
             firstJump.yUnits,
             firstStitch.yUnits
+        )
+
+        assertTrue(
+            "A cobertura Satin deve voltar até a extremidade original; o floreio não pode ser removido.",
+            points.any {
+                it.command ==
+                    StitchCommand.STITCH &&
+                    it.yUnits ==
+                    0
+            }
         )
     }
 
