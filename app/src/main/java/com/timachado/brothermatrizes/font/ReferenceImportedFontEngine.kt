@@ -939,8 +939,14 @@ internal object ReferenceImportedFontEngine {
          * mínimo bem definido logo depois, tratamos o primeiro como floreio
          * de entrada e começamos no segundo vale — o pé do traço principal.
          */
+        /*
+         * IMPORTANTE: polygonize() converte Android/TTF para a tela interna
+         * usando y = centerY - sourceY. Portanto a BASE visual da letra fica
+         * em maxY, não em minY. As versões anteriores procuravam mínimos de Y
+         * e, na prática, analisavam a parte superior do glifo.
+         */
         val valleyLimitY =
-            minY +
+            maxY -
                 glyphHeight *
                     0.42f
 
@@ -984,17 +990,17 @@ internal object ReferenceImportedFontEngine {
                     contour[index]
 
                 if (
-                    point.y >
+                    point.y <
                         valleyLimitY
                 ) {
                     return@forEach
                 }
 
-                var leftPeak =
-                    Float.NEGATIVE_INFINITY
+                var leftFloor =
+                    Float.POSITIVE_INFINITY
 
-                var rightPeak =
-                    Float.NEGATIVE_INFINITY
+                var rightFloor =
+                    Float.POSITIVE_INFINITY
 
                 for (
                     offset in
@@ -1019,25 +1025,25 @@ internal object ReferenceImportedFontEngine {
                                 contour.size
                         ]
 
-                    leftPeak =
-                        max(
-                            leftPeak,
+                    leftFloor =
+                        minOf(
+                            leftFloor,
                             left.y
                         )
 
-                    rightPeak =
-                        max(
-                            rightPeak,
+                    rightFloor =
+                        minOf(
+                            rightFloor,
                             right.y
                         )
                 }
 
                 if (
-                    leftPeak -
-                        point.y >=
+                    point.y -
+                        leftFloor >=
                         prominence &&
-                    rightPeak -
-                        point.y >=
+                    point.y -
+                        rightFloor >=
                         prominence
                 ) {
                     valleys +=
@@ -1087,10 +1093,10 @@ internal object ReferenceImportedFontEngine {
         val valleyRepresentatives =
             valleyGroups.map {
                     group ->
-                group.minWithOrNull(
+                group.maxWithOrNull(
                     compareBy<FPoint> {
                         it.y
-                    }.thenBy {
+                    }.thenByDescending {
                         it.x
                     }
                 )!!
@@ -1155,8 +1161,8 @@ internal object ReferenceImportedFontEngine {
 
         return points
             .filter {
-                it.y <=
-                    minY +
+                it.y >=
+                    maxY -
                         lowerBand
             }
             .ifEmpty {
@@ -1165,7 +1171,7 @@ internal object ReferenceImportedFontEngine {
             .minWithOrNull(
                 compareBy<FPoint> {
                     it.x
-                }.thenBy {
+                }.thenByDescending {
                     it.y
                 }
             )
