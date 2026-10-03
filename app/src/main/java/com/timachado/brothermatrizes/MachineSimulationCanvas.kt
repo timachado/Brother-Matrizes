@@ -752,8 +752,12 @@ private fun DrawScope.drawReferenceGuide(
     }
 
     val guideColor =
-        Color(
-            0xFFD96B79
+        threadColor(
+            design,
+            design.guidePoints
+                .firstOrNull()
+                ?.colorIndex
+                ?: 0
         )
 
     drawPath(
