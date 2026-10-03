@@ -161,26 +161,6 @@ class GreatVibesStartDiagnosticTest {
                 )
             }
 
-        val output =
-            File(
-                targetContext.filesDir,
-                "greatvibes-start-diagnostic.txt"
-            )
-
-        output.writeText(
-            report
-        )
-
-        println(
-            "GREATVIBES_DIAGNOSTIC_BEGIN"
-        )
-        println(
-            report
-        )
-        println(
-            "GREATVIBES_DIAGNOSTIC_END"
-        )
-
         assertTrue(
             created.points.any {
                 it.command ==
@@ -193,6 +173,17 @@ class GreatVibesStartDiagnosticTest {
                 it.command ==
                     StitchCommand.STITCH
             }
+        )
+
+        /*
+         * Diagnóstico intencional: o texto da falha é persistido no relatório
+         * JUnit do connectedAndroidTest e permanece disponível mesmo depois
+         * que o runner desinstala o APK de teste.
+         */
+        throw AssertionError(
+            "GREATVIBES_DIAGNOSTIC_BEGIN\n" +
+                report +
+                "GREATVIBES_DIAGNOSTIC_END"
         )
     }
 
