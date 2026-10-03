@@ -1569,10 +1569,28 @@ internal object ReferenceImportedFontEngine {
                  * coluna remanescente e ainda trocava A/B, alterando o
                  * percurso mesmo quando o desenho final parecia correto.
                  */
+                val selectionAnchor =
+                    current
+                        ?: startHint
+
                 val selected =
-                    nextColumnInReadingOrder(
-                        remaining
-                    )
+                    if (
+                        selectionAnchor !=
+                            null
+                    ) {
+                        nextColumnFromNearestEntry(
+                            columns =
+                                remaining,
+                            anchor =
+                                selectionAnchor,
+                            underlayMode =
+                                underlayMode
+                        )
+                    } else {
+                        nextColumnInReadingOrder(
+                            remaining
+                        )
+                    }
                         ?: break
 
                 val includeUnderlay =
@@ -1643,6 +1661,57 @@ internal object ReferenceImportedFontEngine {
                     false
             }
         }
+
+        private fun nextColumnFromNearestEntry(
+            columns: List<SatinColumn>,
+            anchor: FPoint,
+            underlayMode: SatinUnderlayMode
+        ): SatinColumn? =
+            columns.minByOrNull {
+                    column ->
+                val rows =
+                    column.rows
+
+                if (
+                    rows.isEmpty()
+                ) {
+                    Float.MAX_VALUE
+                } else {
+                    val includeUnderlay =
+                        underlayMode !=
+                            SatinUnderlayMode.NONE &&
+                        rows.size >=
+                            4
+
+                    fun entry(
+                        row: SatinRow
+                    ): FPoint =
+                        if (
+                            includeUnderlay
+                        ) {
+                            center(
+                                row
+                            )
+                        } else {
+                            row.a
+                        }
+
+                    minOf(
+                        distance(
+                            anchor,
+                            entry(
+                                rows.first()
+                            )
+                        ),
+                        distance(
+                            anchor,
+                            entry(
+                                rows.last()
+                            )
+                        )
+                    )
+                }
+            }
 
         private fun orientColumnFromNearestEnd(
             column: SatinColumn,
