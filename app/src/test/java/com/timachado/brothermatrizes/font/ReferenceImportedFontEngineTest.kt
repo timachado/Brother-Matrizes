@@ -58,7 +58,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun firstSatinRegionKeepsStableSpatialOrderEvenWithMisleadingHint() {
+    fun firstSatinRegionStartsNearestToTheGlyphStartHint() {
         val points =
             ReferenceImportedFontEngine
                 .debugVisualStartPath()
@@ -76,9 +76,9 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertTrue(
-            "A primeira coluna precisa permanecer na região espacial esquerda; o startHint só orienta a entrada.",
-            first.xUnits <=
-                20
+            "A primeira coluna precisa começar na região mais próxima do startHint do glifo.",
+            first.xUnits >=
+                70
         )
     }
 
