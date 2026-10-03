@@ -355,11 +355,15 @@ class ReferenceImportedFontEngineTest {
             ReferenceImportedFontEngine
                 .debugGlyphVisualStartPoint(
                     listOf(
-                        0f to 22f,
-                        8f to 12f,
-                        24f to 1f,
-                        70f to 0f,
-                        96f to 18f
+                        0f to 18f,
+                        8f to 9f,
+                        16f to 14f,
+                        24f to 40f,
+                        34f to 15f,
+                        50f to 8f,
+                        70f to 35f,
+                        84f to 12f,
+                        96f to 20f
                     )
                 )
 
@@ -370,7 +374,7 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
-            1f,
+            40f,
             start?.second
         )
     }
@@ -381,18 +385,16 @@ class ReferenceImportedFontEngineTest {
             ReferenceImportedFontEngine
                 .debugGlyphVisualStartPoint(
                     listOf(
-                        0f to 0f,
-                        4f to 12f,
-                        10f to 24f,
-                        18f to 13f,
-                        24f to 6f,
-                        30f to 20f,
-                        42f to 30f,
-                        54f to 18f,
-                        64f to 9f,
-                        72f to 22f,
-                        84f to 28f,
-                        96f to 16f
+                        0f to 12f,
+                        5f to 40f,
+                        10f to 13f,
+                        16f to 8f,
+                        24f to 38f,
+                        32f to 10f,
+                        45f to 8f,
+                        64f to 35f,
+                        74f to 10f,
+                        90f to 18f
                     )
                 )
 
@@ -422,7 +424,7 @@ class ReferenceImportedFontEngineTest {
         )
 
         assertEquals(
-            0f,
+            40f,
             start?.second
         )
     }
@@ -546,6 +548,40 @@ class ReferenceImportedFontEngineTest {
                     it.yUnits ==
                     0
             }
+        )
+    }
+
+
+    @Test
+    fun greatVibesLikeInvertedCoordinatesChooseFirstStructuralFoot() {
+        val start =
+            ReferenceImportedFontEngine
+                .debugGlyphVisualStartPoint(
+                    listOf(
+                        18f to -328f,
+                        73f to -313f,
+                        142f to -139f,
+                        226f to -139f,
+                        398f to 43f,
+                        427f to 66f,
+                        481f to 36f,
+                        627f to -290f,
+                        789f to 10f,
+                        821f to 34f,
+                        883f to -20f,
+                        1206f to -49f,
+                        1365f to 115f,
+                        1403f to 105f,
+                        1461f to -614f
+                    )
+                )
+
+        assertTrue(
+            "Com Y interno invertido, o primeiro pé estrutural do M deve ficar perto de x=398..430, não no laço esquerdo.",
+            start !=
+                null &&
+                start.first in
+                    390f..435f
         )
     }
 
