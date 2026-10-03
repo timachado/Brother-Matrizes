@@ -9,6 +9,56 @@ package com.timachado.brothermatrizes.core.embroidery
  * que o Viewer/Simulator recebem ao abrir um arquivo externo.
  */
 object GeneratedMatrixPipeline {
+    internal fun collapseLeadingPositioningJumps(
+        points: List<EmbroideryPoint>
+    ): List<EmbroideryPoint> {
+        val firstStitchIndex =
+            points.indexOfFirst {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        if (
+            firstStitchIndex <=
+                1
+        ) {
+            return points
+        }
+
+        val leading =
+            points.take(
+                firstStitchIndex
+            )
+
+        if (
+            leading.any {
+                it.command !=
+                    StitchCommand.JUMP
+            }
+        ) {
+            return points
+        }
+
+        val finalPositioningJump =
+            leading.last()
+
+        return buildList(
+            1 +
+                points.size -
+                firstStitchIndex
+        ) {
+            add(
+                finalPositioningJump
+            )
+
+            addAll(
+                points.drop(
+                    firstStitchIndex
+                )
+            )
+        }
+    }
+
     fun canonicalize(
         design: EmbroideryDesign,
         outputSuffix: String,
@@ -48,10 +98,22 @@ object GeneratedMatrixPipeline {
         ) {
             is EmbroideryLoadResult
                 .Success -> {
+                val normalizedPoints =
+                    collapseLeadingPositioningJumps(
+                        opened.design.points
+                    )
+
                 EmbroideryLoadResult
                     .Success(
                         opened.design
                             .copy(
+                                points =
+                                    normalizedPoints,
+                                jumpCount =
+                                    normalizedPoints.count {
+                                        it.command ==
+                                            StitchCommand.JUMP
+                                    },
                                 // Alguns formatos não preservam a cor escolhida
                                 // pelo usuário (DST, por exemplo).
                                 threadColors =
