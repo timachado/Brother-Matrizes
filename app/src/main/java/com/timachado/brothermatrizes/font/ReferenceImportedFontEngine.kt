@@ -3372,6 +3372,274 @@ internal object ReferenceImportedFontEngine {
         return output
     }
 
+    internal fun debugRealStartGeometry(
+        font: ImportedFont,
+        sourceText: String,
+        options: TextMatrixOptions
+    ): String =
+        runCatching {
+            val typeface =
+                ImportedFontStore
+                    .loadTypeface(
+                        font
+                    )
+                    .getOrThrow()
+
+            val targetHeightUnits =
+                options.heightMm *
+                    10f
+
+            val paint =
+                Paint(
+                    Paint.ANTI_ALIAS_FLAG
+                ).apply {
+                    this.typeface =
+                        typeface
+                    style =
+                        Paint.Style.FILL
+                    textSize =
+                        resolveFontSizeForCapHeight(
+                            this,
+                            targetHeightUnits
+                        )
+                }
+
+            val renderableText =
+                resolveText(
+                    paint =
+                        paint,
+                    font =
+                        font,
+                    text =
+                        sourceText
+                )
+
+            val spacingUnits =
+                targetHeightUnits *
+                    LETTER_SPACING_FACTOR +
+                    options.spacingMm *
+                        10f
+
+            val glyphPaths =
+                extractGlyphPaths(
+                    paint =
+                        paint,
+                    text =
+                        renderableText,
+                    spacingUnits =
+                        spacingUnits
+                )
+
+            val union =
+                unionBounds(
+                    glyphPaths
+                )
+
+            val centerX =
+                union.centerX()
+
+            val centerY =
+                union.centerY()
+
+            val firstPolygons =
+                polygonize(
+                    path =
+                        glyphPaths.first()
+                            .path,
+                    centerX =
+                        centerX,
+                    centerY =
+                        centerY
+                )
+
+            val densityMm =
+                if (
+                    options.satinDensityMm in
+                        0.06f..2f
+                ) {
+                    options.satinDensityMm
+                } else {
+                    DEFAULT_SATIN_DENSITY_MM
+                }
+
+            val pullMm =
+                if (
+                    options.satinPullCompensationMm in
+                        0f..1f
+                ) {
+                    options.satinPullCompensationMm
+                } else {
+                    DEFAULT_PULL_MM
+                }
+
+            val columns =
+                sampleColumns(
+                    polygons =
+                        firstPolygons,
+                    densityMm =
+                        densityMm,
+                    maxSatinWidthMm =
+                        DEFAULT_MAX_SATIN_WIDTH_MM,
+                    pullCompensationMm =
+                        pullMm
+                )
+
+            val start =
+                satinStructuralStartPoint(
+                    columns
+                )
+
+            val selected =
+                start?.let {
+                        anchor ->
+                    columns.minByOrNull {
+                            column ->
+                        column.rows
+                            .minOfOrNull {
+                                    row ->
+                                pointToSegmentDistance(
+                                    point =
+                                        anchor,
+                                    a =
+                                        row.a,
+                                    b =
+                                        row.b
+                                )
+                            }
+                            ?: Float.MAX_VALUE
+                    }
+                }
+
+            buildString {
+                appendLine(
+                    "union=" +
+                        union.left +
+                        "," +
+                        union.top +
+                        ".." +
+                        union.right +
+                        "," +
+                        union.bottom
+                )
+                appendLine(
+                    "center=" +
+                        centerX +
+                        "," +
+                        centerY
+                )
+                appendLine(
+                    "baselineCenteredY=" +
+                        centerY
+                )
+                appendLine(
+                    "structuralStart=" +
+                        start
+                )
+                appendLine(
+                    "columns=" +
+                        columns.size
+                )
+
+                columns
+                    .take(
+                        12
+                    )
+                    .forEachIndexed {
+                            index,
+                            column ->
+                        val centers =
+                            column.rows.map {
+                                center(
+                                    it
+                                )
+                            }
+
+                        val pathLength =
+                            centers
+                                .zipWithNext()
+                                .sumOf {
+                                        pair ->
+                                    distance(
+                                        pair.first,
+                                        pair.second
+                                    )
+                                        .toDouble()
+                                }
+
+                        val direct =
+                            if (
+                                centers.size >=
+                                    2
+                            ) {
+                                distance(
+                                    centers.first(),
+                                    centers.last()
+                                )
+                            } else {
+                                0f
+                            }
+
+                        appendLine(
+                            "column[" +
+                                index +
+                                "] rows=" +
+                                column.rows.size +
+                                " minX=" +
+                                columnLeftEdgeX(
+                                    column
+                                ) +
+                                " start=" +
+                                centers.firstOrNull() +
+                                " end=" +
+                                centers.lastOrNull() +
+                                " direct=" +
+                                direct +
+                                " path=" +
+                                pathLength
+                        )
+                    }
+
+                if (
+                    selected !=
+                        null
+                ) {
+                    appendLine(
+                        "selectedRows:"
+                    )
+
+                    selected.rows
+                        .take(
+                            32
+                        )
+                        .forEachIndexed {
+                                index,
+                                row ->
+                            val mid =
+                                center(
+                                    row
+                                )
+
+                            appendLine(
+                                index.toString() +
+                                    " center=" +
+                                    mid.x +
+                                    "," +
+                                    mid.y +
+                                    " width=" +
+                                    distance(
+                                        row.a,
+                                        row.b
+                                    )
+                            )
+                        }
+                }
+            }
+        }.getOrElse {
+                error ->
+            "debugRealStartGeometry error=" +
+                error.message
+        }
+
     internal fun debugGlyphVisualStartPoint(
         points:
             List<Pair<Float, Float>>
