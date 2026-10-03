@@ -3162,17 +3162,29 @@ object ImportedFontMatrixGenerator {
                 it.second
             }
 
+        val spanUnits =
+            maxOf(
+                maxX -
+                    minX,
+                maxY -
+                    minY
+            ).coerceAtLeast(
+                1
+            )
+
         /*
-         * O contorno vetorial continua sendo a fonte da forma.
-         * A máscara/esqueleto serve somente para estimar a direção local
-         * do traço. As bordas Satin são recalculadas contra a máscara em
-         * cada amostra, portanto não usamos o esqueleto como desenho.
+         * A máscara serve apenas para obter topologia/direção local.
+         * O contorno vetorial continua definindo as bordas Satin.
          */
         val unitsPerPixel =
-            0.75f
+            maxOf(
+                0.75f,
+                spanUnits /
+                    1500f
+            )
 
         val padding =
-            6
+            8
 
         val width =
             (
@@ -3210,14 +3222,7 @@ object ImportedFontMatrixGenerator {
             height >
                 1800
         ) {
-            return buildRunningOutline(
-                contours =
-                    contours,
-                stitchLengthUnits =
-                    options
-                        .stitchLengthMm *
-                        10f
-            )
+            return mutableListOf()
         }
 
         val bitmap =
@@ -3236,10 +3241,8 @@ object ImportedFontMatrixGenerator {
             Paint().apply {
                 isAntiAlias =
                     true
-
                 style =
                     Paint.Style.FILL
-
                 color =
                     android.graphics
                         .Color.WHITE
@@ -3274,7 +3277,9 @@ object ImportedFontMatrixGenerator {
             )
 
             contour.points
-                .drop(1)
+                .drop(
+                    1
+                )
                 .forEach {
                         point ->
                     rasterPath.lineTo(
@@ -3282,14 +3287,14 @@ object ImportedFontMatrixGenerator {
                             point.first -
                                 minX
                             ) /
-                                unitsPerPixel +
-                                padding,
+                            unitsPerPixel +
+                            padding,
                         (
                             maxY -
                                 point.second
                             ) /
-                                unitsPerPixel +
-                                padding
+                            unitsPerPixel +
+                            padding
                     )
                 }
 
@@ -3361,43 +3366,46 @@ object ImportedFontMatrixGenerator {
                         skeletonLineLength(
                             it
                         ) >=
-                            7f
+                        8f
                 }
 
+        if (
+            rawLines.isEmpty()
+        ) {
+            return mutableListOf()
+        }
+
         val lines =
-            orderSkeletonLinesByProximity(
+            orderStrokeFlowSkeletonLines(
                 rawLines
             )
 
-        if (
-            lines.isEmpty()
-        ) {
-            return buildRunningOutline(
-                contours =
-                    contours,
-                stitchLengthUnits =
-                    options
-                        .stitchLengthMm *
-                        10f
+        val densityUnits =
+            (
+                options.satinDensityMm *
+                    10f
+                ).coerceIn(
+                2.5f,
+                12f
             )
-        }
 
         val stepPixels =
             (
-                options
-                    .satinDensityMm *
-                    10f /
+                densityUnits /
                     unitsPerPixel
                 ).coerceIn(
-                2.4f,
-                7.5f
+                2.0f,
+                8.0f
             )
 
         val pullPixels =
-            options
-                .satinPullCompensationMm *
-                10f /
-                unitsPerPixel
+            (
+                options.satinPullCompensationMm *
+                    10f /
+                    unitsPerPixel
+                ).coerceAtLeast(
+                0f
+            )
 
         val output =
             mutableListOf<
@@ -3411,189 +3419,24 @@ object ImportedFontMatrixGenerator {
                     source =
                         rawLine,
                     radius =
-                        4,
-                    passes =
                         3,
+                    passes =
+                        2,
                     stepPixels =
                         stepPixels
                 )
 
             if (
                 samples.size <
-                    2
+                    3
             ) {
                 return@forEach
             }
 
-            if (
-                output.isNotEmpty()
-            ) {
-                val last =
-                    output.last()
-
-                if (
-                    last.command !=
-                        StitchCommand.TRIM
-                ) {
-                    output +=
-                        EmbroideryPoint(
-                            last.xUnits,
-                            last.yUnits,
-                            StitchCommand.TRIM,
-                            0
-                        )
-                }
-            }
-
-            if (
-                options
-                    .satinUnderlayMode ==
-                    com.timachado
-                        .brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .CENTER ||
-                options
-                    .satinUnderlayMode ==
-                    com.timachado
-                        .brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .BOTH
-            ) {
-                val first =
-                    samples.first()
-
-                output +=
-                    EmbroideryPoint(
-                        skeletonXToUnits(
-                            first.x,
-                            minX,
-                            padding,
-                            unitsPerPixel
-                        ),
-                        skeletonYToUnits(
-                            first.y,
-                            maxY,
-                            padding,
-                            unitsPerPixel
-                        ),
-                        StitchCommand.JUMP,
-                        0
-                    )
-
-                var previous =
-                    first
-
-                samples.drop(1)
-                    .forEach {
-                            sample ->
-                        val distance =
-                            hypot(
-                                (
-                                    sample.x -
-                                        previous.x
-                                    ).toDouble(),
-                                (
-                                    sample.y -
-                                        previous.y
-                                    ).toDouble()
-                            ) *
-                                unitsPerPixel
-
-                        if (
-                            distance >=
-                                14f
-                        ) {
-                            output +=
-                                EmbroideryPoint(
-                                    skeletonXToUnits(
-                                        sample.x,
-                                        minX,
-                                        padding,
-                                        unitsPerPixel
-                                    ),
-                                    skeletonYToUnits(
-                                        sample.y,
-                                        maxY,
-                                        padding,
-                                        unitsPerPixel
-                                    ),
-                                    StitchCommand.STITCH,
-                                    0
-                                )
-
-                            previous =
-                                sample
-                        }
-                    }
-
-                val last =
-                    output.last()
-
-                output +=
-                    EmbroideryPoint(
-                        last.xUnits,
-                        last.yUnits,
-                        StitchCommand.TRIM,
-                        0
-                    )
-            }
-
-            /*
-             * CAMADA 2 — underlay de suporte.
-             *
-             * ZIGZAG/BOTH usam um zigue-zague estreito centralizado,
-             * cuja normal gira junto com o eixo local da letra. Assim
-             * a base acompanha curvas em vez de permanecer horizontal
-             * ou vertical.
-             */
-            if (
-                options
-                    .satinUnderlayMode ==
-                    com.timachado
-                        .brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .ZIGZAG ||
-                options
-                    .satinUnderlayMode ==
-                    com.timachado
-                        .brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .BOTH
-            ) {
-                appendDynamicZigzagUnderlay(
-                    output = output,
-                    samples = samples,
-                    minX = minX,
-                    maxY = maxY,
-                    padding = padding,
-                    unitsPerPixel = unitsPerPixel,
-                    satinWidthUnits =
-                        options.satinWidthMm *
-                            10f
-                )
-            }
-
-            /*
-             * CAMADA 3 — Satin visível.
-             *
-             * O ângulo continua sendo calculado pela tangente do
-             * esqueleto e pela normal local em cada amostra.
-             */
-            var currentX:
-                Int? =
-                null
-
-            var currentY:
-                Int? =
-                null
+            val rows =
+                mutableListOf<
+                    StrokeFlowSatinRow
+                >()
 
             var positiveWidth:
                 Double? =
@@ -3705,14 +3548,23 @@ object ImportedFontMatrixGenerator {
                             -1.0
                     )
 
+                if (
+                    rawPositive <
+                        0.8 ||
+                    rawNegative <
+                        0.8
+                ) {
+                    return@forEachIndexed
+                }
+
                 val positive =
                     positiveWidth
                         ?.let {
                             previous ->
                             previous *
-                                0.58 +
+                                0.60 +
                                 rawPositive *
-                                    0.42
+                                    0.40
                         }
                         ?: rawPositive
 
@@ -3721,9 +3573,9 @@ object ImportedFontMatrixGenerator {
                         ?.let {
                             previous ->
                             previous *
-                                0.58 +
+                                0.60 +
                                 rawNegative *
-                                    0.42
+                                    0.40
                         }
                         ?: rawNegative
 
@@ -3733,202 +3585,442 @@ object ImportedFontMatrixGenerator {
                 negativeWidth =
                     negative
 
-                if (
-                    positive <
-                        0.8 ||
-                    negative <
-                        0.8
-                ) {
-                    return@forEachIndexed
-                }
-
-                val side =
-                    if (
-                        index %
-                            2 ==
-                            0
-                    ) {
-                        1.0
-                    } else {
-                        -1.0
-                    }
-
-                val boundary =
-                    if (
-                        side >
-                            0.0
-                    ) {
-                        positive +
-                            pullPixels
-                    } else {
-                        negative +
-                            pullPixels
-                    }
-
-                val edgeX =
-                    sample.x +
-                        normalX *
-                            boundary *
-                            side
-
-                val edgeY =
-                    sample.y +
-                        normalY *
-                            boundary *
-                            side
-
-                val targetX =
+                val centerXUnits =
                     skeletonXToUnits(
-                        edgeX
-                            .toFloat(),
+                        sample.x,
                         minX,
                         padding,
                         unitsPerPixel
                     )
 
-                val targetY =
+                val centerYUnits =
                     skeletonYToUnits(
-                        edgeY
-                            .toFloat(),
+                        sample.y,
                         maxY,
                         padding,
                         unitsPerPixel
                     )
 
-                val fromX =
-                    currentX
+                val aXUnits =
+                    skeletonXToUnits(
+                        (
+                            sample.x +
+                                normalX *
+                                    (
+                                        positive +
+                                            pullPixels
+                                        )
+                            ).toFloat(),
+                        minX,
+                        padding,
+                        unitsPerPixel
+                    )
 
-                val fromY =
-                    currentY
+                val aYUnits =
+                    skeletonYToUnits(
+                        (
+                            sample.y +
+                                normalY *
+                                    (
+                                        positive +
+                                            pullPixels
+                                        )
+                            ).toFloat(),
+                        maxY,
+                        padding,
+                        unitsPerPixel
+                    )
+
+                val bXUnits =
+                    skeletonXToUnits(
+                        (
+                            sample.x -
+                                normalX *
+                                    (
+                                        negative +
+                                            pullPixels
+                                        )
+                            ).toFloat(),
+                        minX,
+                        padding,
+                        unitsPerPixel
+                    )
+
+                val bYUnits =
+                    skeletonYToUnits(
+                        (
+                            sample.y -
+                                normalY *
+                                    (
+                                        negative +
+                                            pullPixels
+                                        )
+                            ).toFloat(),
+                        maxY,
+                        padding,
+                        unitsPerPixel
+                    )
+
+                rows +=
+                    StrokeFlowSatinRow(
+                        centerXUnits =
+                            centerXUnits,
+                        centerYUnits =
+                            centerYUnits,
+                        aXUnits =
+                            aXUnits,
+                        aYUnits =
+                            aYUnits,
+                        bXUnits =
+                            bXUnits,
+                        bYUnits =
+                            bYUnits
+                    )
+            }
+
+            if (
+                rows.size <
+                    3
+            ) {
+                return@forEach
+            }
+
+            val start =
+                rows.first()
+
+            if (
+                output.isEmpty()
+            ) {
+                output +=
+                    EmbroideryPoint(
+                        start.centerXUnits,
+                        start.centerYUnits,
+                        StitchCommand.JUMP,
+                        0
+                    )
+            } else {
+                val previous =
+                    output.last()
+
+                val travelDistance =
+                    hypot(
+                        (
+                            start.centerXUnits -
+                                previous.xUnits
+                            ).toDouble(),
+                        (
+                            start.centerYUnits -
+                                previous.yUnits
+                            ).toDouble()
+                    )
 
                 if (
-                    fromX ==
-                        null ||
-                    fromY ==
-                        null
-                ) {
-                    output +=
-                        EmbroideryPoint(
-                            targetX,
-                            targetY,
-                            StitchCommand.JUMP,
-                            0
-                        )
-                } else if (
-                    fromX !=
-                        targetX ||
-                    fromY !=
-                        targetY
+                    travelDistance <=
+                        14.0
                 ) {
                     appendSplitStitch(
                         output =
                             output,
                         fromX =
-                            fromX,
+                            previous.xUnits,
                         fromY =
-                            fromY,
+                            previous.yUnits,
                         toX =
-                            targetX,
+                            start.centerXUnits,
                         toY =
-                            targetY,
+                            start.centerYUnits,
                         maxLengthUnits =
-                            82f
+                            70f
+                    )
+                } else {
+                    if (
+                        travelDistance >
+                            50.0 &&
+                        previous.command !=
+                            StitchCommand.TRIM
+                    ) {
+                        output +=
+                            EmbroideryPoint(
+                                previous.xUnits,
+                                previous.yUnits,
+                                StitchCommand.TRIM,
+                                0
+                            )
+                    }
+
+                    output +=
+                        EmbroideryPoint(
+                            start.centerXUnits,
+                            start.centerYUnits,
+                            StitchCommand.JUMP,
+                            0
+                        )
+                }
+            }
+
+            val includeUnderlay =
+                options.satinUnderlayMode !=
+                    com.timachado
+                        .brothermatrizes
+                        .core
+                        .embroidery
+                        .SatinUnderlayMode
+                        .NONE
+
+            if (
+                includeUnderlay
+            ) {
+                /*
+                 * Uma única passada central até o extremo, como no vídeo
+                 * de referência. Não há TRIM entre underlay e cobertura.
+                 */
+                val underlayStep =
+                    maxOf(
+                        1,
+                        (
+                            14f /
+                                densityUnits
+                            ).roundToInt()
+                    )
+
+                var rowIndex =
+                    0
+
+                output +=
+                    EmbroideryPoint(
+                        start.centerXUnits,
+                        start.centerYUnits,
+                        StitchCommand.STITCH,
+                        0
+                    )
+
+                while (
+                    rowIndex <
+                        rows.lastIndex
+                ) {
+                    rowIndex =
+                        minOf(
+                            rows.lastIndex,
+                            rowIndex +
+                                underlayStep
+                        )
+
+                    val center =
+                        rows[
+                            rowIndex
+                        ]
+
+                    val previous =
+                        output.last()
+
+                    appendSplitStitch(
+                        output =
+                            output,
+                        fromX =
+                            previous.xUnits,
+                        fromY =
+                            previous.yUnits,
+                        toX =
+                            center.centerXUnits,
+                        toY =
+                            center.centerYUnits,
+                        maxLengthUnits =
+                            70f
                     )
                 }
-
-                currentX =
-                    targetX
-
-                currentY =
-                    targetY
             }
-        }
 
-        /*
-         * CAMADA 4 — fechamento/contorno.
-         *
-         * O contorno vetorial original só entra depois que todas as
-         * regiões Satin do glifo foram preenchidas. Isso evita que o
-         * preenchimento puxe o tecido depois de um outline já pronto.
-         */
-        if (
-            output.isNotEmpty() &&
-            output.last().command !=
-                StitchCommand.TRIM
-        ) {
-            val last =
-                output.last()
+            val coverage =
+                if (
+                    includeUnderlay
+                ) {
+                    rows.asReversed()
+                } else {
+                    rows
+                }
 
-            output +=
-                EmbroideryPoint(
-                    last.xUnits,
-                    last.yUnits,
-                    StitchCommand.TRIM,
-                    0
-                )
-        }
+            coverage.forEach {
+                    row ->
+                var previous =
+                    output.last()
 
-        output +=
-            buildRunningOutline(
-                contours = contours,
-                stitchLengthUnits =
-                    (
-                        options.stitchLengthMm *
-                            10f
-                        ).coerceIn(
-                        12f,
-                        20f
-                    )
-            )
-
-        val quality =
-            AdaptiveFontPolicy
-                .qualityFromCoordinates(
-                    output.map {
-                            point ->
-                        Triple(
-                            point.xUnits,
-                            point.yUnits,
-                            point.command ==
-                                StitchCommand.STITCH
-                        )
-                    }
-                )
-
-        val repaired =
-            if (
-                AdaptiveFontPolicy
-                    .isAcceptable(
-                        quality
-                    )
-            ) {
-                output
-            } else {
-                repairSatinSequence(
+                appendSplitStitch(
                     output =
                         output,
+                    fromX =
+                        previous.xUnits,
+                    fromY =
+                        previous.yUnits,
+                    toX =
+                        row.aXUnits,
+                    toY =
+                        row.aYUnits,
                     maxLengthUnits =
-                        82f
+                        70f
+                )
+
+                previous =
+                    output.last()
+
+                appendSplitStitch(
+                    output =
+                        output,
+                    fromX =
+                        previous.xUnits,
+                    fromY =
+                        previous.yUnits,
+                    toX =
+                        row.bXUnits,
+                    toY =
+                        row.bYUnits,
+                    maxLengthUnits =
+                        70f
                 )
             }
+        }
 
         return if (
-            repaired.any {
+            output.any {
                 it.command ==
                     StitchCommand.STITCH
             }
         ) {
-            repaired
+            output
         } else {
-            buildRunningOutline(
-                contours =
-                    contours,
-                stitchLengthUnits =
-                    options
-                        .stitchLengthMm *
-                        10f
-            )
+            mutableListOf()
         }
+    }
+
+    private fun orderStrokeFlowSkeletonLines(
+        source:
+            List<List<SkeletonPoint>>
+    ): List<List<SkeletonPoint>> {
+        if (
+            source.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val remaining =
+            source
+                .map {
+                    it.toList()
+                }
+                .toMutableList()
+
+        val longest =
+            remaining.maxByOrNull {
+                skeletonLineLength(
+                    it
+                )
+            } ?: return emptyList()
+
+        remaining.remove(
+            longest
+        )
+
+        /*
+         * O primeiro fluxo começa pelo pé visual inferior do traço.
+         * Como a máscara usa Y para baixo, o endpoint com maior Y é o
+         * ponto visual inferior.
+         */
+        var current =
+            if (
+                longest.first().y >=
+                    longest.last().y
+            ) {
+                longest
+            } else {
+                longest.asReversed()
+            }
+
+        val ordered =
+            mutableListOf<
+                List<SkeletonPoint>
+            >()
+
+        ordered +=
+            current
+
+        var currentEntry =
+            current.first()
+
+        while (
+            remaining.isNotEmpty()
+        ) {
+            var bestIndex =
+                0
+
+            var bestReverse =
+                false
+
+            var bestDistance =
+                Double.MAX_VALUE
+
+            remaining.forEachIndexed {
+                    index,
+                    line ->
+                val firstDistance =
+                    pointDistance(
+                        currentEntry,
+                        line.first()
+                    )
+
+                val lastDistance =
+                    pointDistance(
+                        currentEntry,
+                        line.last()
+                    )
+
+                val reverse =
+                    lastDistance <
+                        firstDistance
+
+                val distance =
+                    minOf(
+                        firstDistance,
+                        lastDistance
+                    )
+
+                if (
+                    distance <
+                        bestDistance
+                ) {
+                    bestDistance =
+                        distance
+                    bestIndex =
+                        index
+                    bestReverse =
+                        reverse
+                }
+            }
+
+            val selected =
+                remaining.removeAt(
+                    bestIndex
+                )
+
+            current =
+                if (
+                    bestReverse
+                ) {
+                    selected.asReversed()
+                } else {
+                    selected
+                }
+
+            ordered +=
+                current
+
+            /*
+             * Center-run vai até o extremo e o Satin retorna para a entrada,
+             * então o próximo segmento parte novamente desse mesmo nó.
+             */
+            currentEntry =
+                current.first()
+        }
+
+        return ordered
     }
 
     private fun appendFixationLayer(
