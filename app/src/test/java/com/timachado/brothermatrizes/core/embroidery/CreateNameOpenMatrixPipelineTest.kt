@@ -132,4 +132,57 @@ class CreateNameOpenMatrixPipelineTest {
             canonicalDesign.threadColors
         )
     }
+    @Test
+    fun simulationCanPreserveVectorGuideWithoutChangingCanonicalStitches() {
+        val source =
+            TextMatrixGenerator
+                .generate(
+                    TextMatrixOptions(
+                        text = "MARIA",
+                        heightMm = 18f,
+                        style = TextStitchStyle.SATIN,
+                        outputFormat = "PES",
+                        color = 0xE63946
+                    )
+                )
+                .getOrThrow()
+
+        val guided =
+            source.copy(
+                guidePoints =
+                    listOf(
+                        EmbroideryPoint(0, 0, StitchCommand.JUMP, 0),
+                        EmbroideryPoint(20, 0, StitchCommand.STITCH, 0),
+                        EmbroideryPoint(20, 20, StitchCommand.STITCH, 0),
+                        EmbroideryPoint(0, 20, StitchCommand.STITCH, 0)
+                    )
+            )
+
+        val canonical =
+            GeneratedMatrixPipeline
+                .canonicalize(
+                    design = guided,
+                    outputSuffix = "sim-guide",
+                    preserveGuidePoints = true
+                )
+
+        assertTrue(
+            canonical is EmbroideryLoadResult.Success
+        )
+
+        val result =
+            (canonical as EmbroideryLoadResult.Success)
+                .design
+
+        assertEquals(
+            guided.guidePoints,
+            result.guidePoints
+        )
+
+        assertTrue(
+            result.stitchCount > 0
+        )
+    }
+
+
 }
