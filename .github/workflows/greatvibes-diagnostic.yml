@@ -53,10 +53,11 @@ jobs:
           disable-animations: true
           script: |
             gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace
-            adb shell cat /sdcard/Android/data/com.timachado.brothermatrizes/files/greatvibes-start-diagnostic.txt > greatvibes-start-diagnostic.txt
+            adb shell run-as com.timachado.brothermatrizes cat files/greatvibes-start-diagnostic.txt > greatvibes-start-diagnostic.txt
             cat greatvibes-start-diagnostic.txt
 
       - name: Upload diagnostic
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: greatvibes-start-diagnostic
