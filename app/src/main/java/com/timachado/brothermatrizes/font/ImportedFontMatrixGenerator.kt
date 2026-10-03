@@ -31,14 +31,7 @@ object ImportedFontMatrixGenerator {
         char: Char,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        /*
-         * Para criação de nomes, cada glifo deve seguir o próprio traço
-         * até o fim antes de avançar. O pipeline interno usa o esqueleto
-         * do glifo para orientar o Satin e evita a varredura por regiões
-         * do ReferenceImportedFontEngine, que podia saltar visualmente
-         * entre partes da letra.
-         */
-        generateTextInternal(
+        generateWithReferenceSatin(
             font = font,
             sourceText =
                 char.toString(),
@@ -53,12 +46,7 @@ object ImportedFontMatrixGenerator {
         text: String,
         options: TextMatrixOptions
     ): Result<EmbroideryDesign> =
-        /*
-         * Mantém as métricas/avanços reais da TTF/OTF para a palavra,
-         * mas digitaliza cada glifo separadamente e na ordem do texto.
-         * Assim uma letra precisa terminar antes de a próxima começar.
-         */
-        generateTextInternal(
+        generateWithReferenceSatin(
             font = font,
             sourceText =
                 text,
@@ -67,6 +55,50 @@ object ImportedFontMatrixGenerator {
             filePrefix =
                 "nome"
         )
+
+    /**
+     * O caminho Satin TTF/OTF deve ter uma única fonte de verdade.
+     *
+     * ReferenceImportedFontEngine contém o emissor validado contra o vídeo
+     * de referência: entrada pelo centro quando há underlay, passada central
+     * única até o extremo, cobertura Satin no retorno, locks e viagens reais.
+     *
+     * Manter uma segunda implementação aqui fazia "Criar Nome" divergir da
+     * sequência já validada mesmo usando o mesmo SimulatorScreen depois.
+     */
+    private fun generateWithReferenceSatin(
+        font: ImportedFont,
+        sourceText: String,
+        options: TextMatrixOptions,
+        filePrefix: String
+    ): Result<EmbroideryDesign> =
+        if (
+            options.style ==
+                TextStitchStyle.SATIN &&
+            options.specialStitchMode ==
+                null
+        ) {
+            ReferenceImportedFontEngine
+                .generate(
+                    font = font,
+                    sourceText =
+                        sourceText,
+                    options =
+                        options,
+                    filePrefix =
+                        filePrefix
+                )
+        } else {
+            generateTextInternal(
+                font = font,
+                sourceText =
+                    sourceText,
+                options =
+                    options,
+                filePrefix =
+                    filePrefix
+            )
+        }
 
     private fun generateTextInternal(
         font: ImportedFont,
