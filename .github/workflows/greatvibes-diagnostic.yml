@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   diagnose:
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     timeout-minutes: 45
 
     steps:
@@ -46,10 +46,10 @@ jobs:
       - name: Run real Android Great Vibes diagnostic
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: 35
           target: google_apis
-          arch: x86
-          profile: pixel_2
+          arch: x86_64
+          profile: pixel_6
           disable-animations: true
           script: |
             bash -lc 'set -u; adb wait-for-device; ok=0; for i in $(seq 1 180); do boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r"); pkg=$(adb shell service check package 2>/dev/null || true); if [ "$boot" = "1" ] && echo "$pkg" | grep -qi "found"; then ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "Android boot/package service not ready"; adb shell getprop sys.boot_completed || true; adb shell service check package || true; exit 97; fi; adb logcat -c || true; set +e; gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace; status=$?; set -e; adb logcat -d -s GreatVibesDiagnostic:I "*:S" > greatvibes-reference-report.txt || true; cat greatvibes-reference-report.txt || true; exit "$status"'
