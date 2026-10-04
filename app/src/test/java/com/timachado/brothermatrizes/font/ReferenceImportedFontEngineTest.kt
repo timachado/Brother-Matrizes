@@ -282,29 +282,39 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun adjacentSatinColumnsContinueFromNearestEndInsteadOfJumpingBackToTop() {
-        val jumps =
+    fun adjacentSatinColumnsContinueFromNearestEndWithoutJumpingBackToTop() {
+        val points =
             ReferenceImportedFontEngine
-                .debugSerpentineTransitionJumpTargets()
+                .debugReferencePath(
+                    connected =
+                        true,
+                    includeUnderlay =
+                        false
+                )
 
         assertEquals(
-            "Deve existir o JUMP inicial e o JUMP de transição para a segunda coluna.",
-            2,
-            jumps.size
+            "Trechos adjacentes e conectados devem manter somente o JUMP inicial.",
+            1,
+            points.count {
+                it.command ==
+                    StitchCommand.JUMP
+            }
         )
 
+        val entry =
+            ReferenceImportedFontEngine
+                .debugSerpentineSecondColumnEntry()
+
         assertEquals(
-            "Ao inverter o sentido, a entrada continua no lado A da linha Satin.",
+            "Ao continuar na segunda coluna, a entrada deve permanecer no lado A da linha Satin.",
             30,
-            jumps.last()
-                .first
+            entry?.first
         )
 
         assertEquals(
             "Terminando a primeira coluna embaixo, a próxima deve entrar pelo extremo inferior.",
             20,
-            jumps.last()
-                .second
+            entry?.second
         )
     }
 
