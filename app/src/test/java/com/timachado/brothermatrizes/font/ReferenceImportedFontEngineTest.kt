@@ -639,4 +639,27 @@ class ReferenceImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun adaptiveSatinReachesStrokeEndCaps() {
+        val (
+            minY,
+            maxY
+        ) =
+            ReferenceImportedFontEngine
+                .debugAdaptiveFlowEnvelope()
+
+        assertTrue(
+            "O fluxo adaptativo deve alcançar o cap inferior do traço.",
+            minY <=
+                2f
+        )
+
+        assertTrue(
+            "O fluxo adaptativo deve alcançar o cap superior do traço.",
+            maxY >=
+                98f
+        )
+    }
+
 }
