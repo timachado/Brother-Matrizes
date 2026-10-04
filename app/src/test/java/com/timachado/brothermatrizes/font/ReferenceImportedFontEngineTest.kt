@@ -83,7 +83,7 @@ class ReferenceImportedFontEngineTest {
     }
 
     @Test
-    fun nearbyColumnsUseRealJumpWithoutForcedTrim() {
+    fun nearbyConnectedColumnsContinueWithStitchesWithoutJumpOrTrim() {
         val points =
             ReferenceImportedFontEngine
                 .debugReferencePath(
@@ -99,17 +99,17 @@ class ReferenceImportedFontEngineTest {
                 .command
         )
 
-        assertTrue(
-            "Além do salto inicial, a transição entre colunas precisa continuar sendo JUMP real.",
+        assertEquals(
+            "Trechos adjacentes dentro do mesmo glifo devem manter apenas o JUMP inicial de posicionamento.",
+            1,
             points.count {
                 it.command ==
                     StitchCommand.JUMP
-            } >=
-                2
+            }
         )
 
         assertTrue(
-            "Transição curta entre colunas não deve cortar a linha.",
+            "Transição curta e interna entre colunas não deve cortar a linha.",
             points.none {
                 it.command ==
                     StitchCommand.TRIM
