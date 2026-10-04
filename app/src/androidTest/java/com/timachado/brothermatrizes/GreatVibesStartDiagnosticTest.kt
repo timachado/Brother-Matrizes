@@ -304,6 +304,16 @@ class GreatVibesStartDiagnosticTest {
             } <=
                 12
         )
+
+        /*
+         * Diagnóstico intencional: preserva o relatório completo nos
+         * resultados JUnit mesmo quando o runner remove o APK/logcat.
+         */
+        throw AssertionError(
+            "GREATVIBES_REFERENCE_REPORT_BEGIN\n" +
+                report +
+                "GREATVIBES_REFERENCE_REPORT_END"
+        )
     }
 
     private fun normalizedFirstStitch(
