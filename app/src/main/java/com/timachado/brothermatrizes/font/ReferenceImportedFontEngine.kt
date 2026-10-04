@@ -1593,9 +1593,17 @@ internal object ReferenceImportedFontEngine {
                     )
                 }
 
+            val extendedGuide =
+                extendFlowGuideToCaps(
+                    guide =
+                        guide,
+                    polygons =
+                        polygons
+                )
+
             val sampled =
                 resampleFlowPath(
-                    guide,
+                    extendedGuide,
                     pitchUnits
                 )
 
@@ -2531,6 +2539,163 @@ internal object ReferenceImportedFontEngine {
         return paths.filter {
             it.isNotEmpty()
         }
+    }
+
+    private fun extendFlowGuideToCaps(
+        guide: List<FPoint>,
+        polygons: List<Polygon>
+    ): List<FPoint> {
+        if (
+            guide.size <
+                2
+        ) {
+            return guide
+        }
+
+        fun normalized(
+            from: FPoint,
+            to: FPoint
+        ): FPoint? {
+            val dx =
+                to.x -
+                    from.x
+
+            val dy =
+                to.y -
+                    from.y
+
+            val length =
+                hypot(
+                    dx,
+                    dy
+                )
+
+            if (
+                length <
+                    0.001f
+            ) {
+                return null
+            }
+
+            return FPoint(
+                dx /
+                    length,
+                dy /
+                    length
+            )
+        }
+
+        val result =
+            guide.toMutableList()
+
+        val firstDirection =
+            normalized(
+                guide[0],
+                guide[1]
+            )
+
+        if (
+            firstDirection !=
+                null
+        ) {
+            val distances =
+                lineBoundaryDistances(
+                    center =
+                        guide.first(),
+                    direction =
+                        firstDirection,
+                    polygons =
+                        polygons
+                )
+
+            val outward =
+                distances?.first
+
+            if (
+                outward !=
+                    null &&
+                outward >
+                    0.75f
+            ) {
+                val travel =
+                    (
+                        outward -
+                            0.5f
+                        ).coerceAtLeast(
+                        0f
+                    )
+
+                result[0] =
+                    FPoint(
+                        x =
+                            guide.first().x -
+                                firstDirection.x *
+                                    travel,
+                        y =
+                            guide.first().y -
+                                firstDirection.y *
+                                    travel
+                    )
+            }
+        }
+
+        val lastDirection =
+            normalized(
+                guide[
+                    guide.lastIndex -
+                        1
+                ],
+                guide.last()
+            )
+
+        if (
+            lastDirection !=
+                null
+        ) {
+            val distances =
+                lineBoundaryDistances(
+                    center =
+                        guide.last(),
+                    direction =
+                        lastDirection,
+                    polygons =
+                        polygons
+                )
+
+            val outward =
+                distances?.second
+
+            if (
+                outward !=
+                    null &&
+                outward >
+                    0.75f
+            ) {
+                val travel =
+                    (
+                        outward -
+                            0.5f
+                        ).coerceAtLeast(
+                        0f
+                    )
+
+                result[
+                    result.lastIndex
+                ] =
+                    FPoint(
+                        x =
+                            guide.last().x +
+                                lastDirection.x *
+                                    travel,
+                        y =
+                            guide.last().y +
+                                lastDirection.y *
+                                    travel
+                    )
+            }
+        }
+
+        return result
     }
 
     private fun resampleFlowPath(
@@ -4962,6 +5127,68 @@ internal object ReferenceImportedFontEngine {
             current =
                 point
         }
+    }
+
+    internal fun debugAdaptiveFlowEnvelope():
+        Pair<Float, Float> {
+        val polygon =
+            Polygon(
+                listOf(
+                    FPoint(
+                        0f,
+                        0f
+                    ),
+                    FPoint(
+                        20f,
+                        0f
+                    ),
+                    FPoint(
+                        20f,
+                        100f
+                    ),
+                    FPoint(
+                        0f,
+                        100f
+                    )
+                )
+            )
+
+        val columns =
+            sampleAdaptiveFlowColumns(
+                polygons =
+                    listOf(
+                        polygon
+                    ),
+                densityMm =
+                    0.4f,
+                maxSatinWidthMm =
+                    7f,
+                pullCompensationMm =
+                    0f
+            )
+
+        val points =
+            columns.flatMap {
+                    column ->
+                column.rows.flatMap {
+                        row ->
+                    listOf(
+                        row.a,
+                        row.b
+                    )
+                }
+            }
+
+        return (
+            points.minOfOrNull {
+                it.y
+            } ?: Float.NaN
+            ) to
+            (
+                points.maxOfOrNull {
+                    it.y
+                } ?: Float.NaN
+                )
     }
 
     internal fun debugAdaptiveFlowOrientationCounts():
