@@ -4090,15 +4090,58 @@ internal object ReferenceImportedFontEngine {
                 val currentPoint =
                     current
 
+                val connectionDistance =
+                    currentPoint?.let {
+                            point ->
+                        distance(
+                            point,
+                            entry
+                        )
+                    }
+
+                val continuousInsideJoin =
+                    currentPoint !=
+                        null &&
+                    connectionDistance !=
+                        null &&
+                    connectionDistance in
+                        0.5f..NEAR_COLUMN_JOIN_UNITS &&
+                    segmentInsideGlyph(
+                        from =
+                            currentPoint,
+                        to =
+                            entry,
+                        polygons =
+                            polygons
+                    )
+
                 if (
+                    continuousInsideJoin
+                ) {
+                    /*
+                     * Trechos adjacentes do mesmo traço não devem virar
+                     * JUMP só porque a medial-line foi dividida em um
+                     * entroncamento. A referência continua costurando pela
+                     * própria área preenchida da letra.
+                     */
+                    emitSegmented(
+                        from =
+                            currentPoint!!,
+                        to =
+                            entry,
+                        command =
+                            StitchCommand.STITCH,
+                        maxSegmentUnits =
+                            CONTINUOUS_CONNECTOR_STITCH_UNITS
+                    )
+                } else if (
                     firstColumn &&
                     startsDesignAtVisualHint &&
                     currentPoint !=
                         null &&
-                    distance(
-                        currentPoint,
-                        entry
-                    ) >=
+                    connectionDistance !=
+                        null &&
+                    connectionDistance >=
                         0.5f &&
                     segmentInsideGlyph(
                         from =
@@ -4109,12 +4152,6 @@ internal object ReferenceImportedFontEngine {
                             polygons
                     )
                 ) {
-                    /*
-                     * A referência começa no pé do traço e segue costurando
-                     * para dentro da letra. Quando a ligação até o centro do
-                     * underlay permanece inteiramente na área do glifo, ela
-                     * é STITCH, não um JUMP artificial.
-                     */
                     emitStitchTo(
                         entry
                     )
