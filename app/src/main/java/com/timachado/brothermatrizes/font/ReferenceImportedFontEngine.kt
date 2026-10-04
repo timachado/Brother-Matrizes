@@ -6752,6 +6752,143 @@ internal object ReferenceImportedFontEngine {
             }
     }
 
+    internal fun debugSerpentineSecondColumnEntry():
+        Pair<Int, Int>? {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val emitter =
+            SatinEmitter(
+                output
+            )
+
+        val first =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            0f
+                        ),
+                        FPoint(
+                            10f,
+                            0f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            10f
+                        ),
+                        FPoint(
+                            10f,
+                            10f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            0f,
+                            20f
+                        ),
+                        FPoint(
+                            10f,
+                            20f
+                        )
+                    )
+                )
+            )
+
+        val second =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            30f,
+                            0f
+                        ),
+                        FPoint(
+                            40f,
+                            0f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            30f,
+                            10f
+                        ),
+                        FPoint(
+                            40f,
+                            10f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            30f,
+                            20f
+                        ),
+                        FPoint(
+                            40f,
+                            20f
+                        )
+                    )
+                )
+            )
+
+        emitter.emitGlyph(
+            columns =
+                listOf(
+                    first,
+                    second
+                ),
+            polygons =
+                listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                -2f,
+                                -2f
+                            ),
+                            FPoint(
+                                42f,
+                                -2f
+                            ),
+                            FPoint(
+                                42f,
+                                22f
+                            ),
+                            FPoint(
+                                -2f,
+                                22f
+                            )
+                        )
+                    )
+                ),
+            startHint =
+                FPoint(
+                    0f,
+                    0f
+                ),
+            underlayMode =
+                SatinUnderlayMode.NONE,
+            densityMm =
+                0.4f
+        )
+
+        return output
+            .firstOrNull {
+                it.command ==
+                    StitchCommand.STITCH &&
+                    it.xUnits >=
+                        30
+            }
+            ?.let {
+                it.xUnits to
+                    it.yUnits
+            }
+    }
+
     internal fun debugReadingOrderColumnLeftEdges():
         List<Float> {
         val left =
