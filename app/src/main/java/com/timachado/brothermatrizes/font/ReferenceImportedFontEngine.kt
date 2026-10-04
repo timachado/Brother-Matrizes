@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.font
 
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
@@ -253,13 +254,18 @@ internal object ReferenceImportedFontEngine {
                         10f
 
             val glyphPaths =
-                extractGlyphPaths(
-                    paint =
-                        paint,
-                    text =
-                        renderableText,
-                    spacingUnits =
-                        spacingUnits
+                normalizeGlyphPathsToHeight(
+                    glyphs =
+                        extractGlyphPaths(
+                            paint =
+                                paint,
+                            text =
+                                renderableText,
+                            spacingUnits =
+                                spacingUnits
+                        ),
+                    targetHeightUnits =
+                        targetHeightUnits
                 )
 
             require(
@@ -720,6 +726,73 @@ internal object ReferenceImportedFontEngine {
         }
 
         return paths
+    }
+
+    private fun normalizeGlyphPathsToHeight(
+        glyphs: List<GlyphPath>,
+        targetHeightUnits: Float
+    ): List<GlyphPath> {
+        if (
+            glyphs.isEmpty()
+        ) {
+            return glyphs
+        }
+
+        val originalBounds =
+            unionBounds(
+                glyphs
+            )
+
+        val originalHeight =
+            originalBounds
+                .height()
+
+        if (
+            originalHeight <=
+                0.001f ||
+            targetHeightUnits <=
+                0f
+        ) {
+            return glyphs
+        }
+
+        val scale =
+            targetHeightUnits /
+                originalHeight
+
+        if (
+            abs(
+                scale -
+                    1f
+            ) <
+                0.0001f
+        ) {
+            return glyphs
+        }
+
+        val matrix =
+            Matrix().apply {
+                setScale(
+                    scale,
+                    scale
+                )
+            }
+
+        return glyphs.map {
+                glyph ->
+            val transformed =
+                Path(
+                    glyph.path
+                )
+
+            transformed.transform(
+                matrix
+            )
+
+            GlyphPath(
+                transformed
+            )
+        }
     }
 
     private fun unionBounds(
@@ -5610,13 +5683,18 @@ internal object ReferenceImportedFontEngine {
                         10f
 
             val glyphPaths =
-                extractGlyphPaths(
-                    paint =
-                        paint,
-                    text =
-                        renderableText,
-                    spacingUnits =
-                        spacingUnits
+                normalizeGlyphPathsToHeight(
+                    glyphs =
+                        extractGlyphPaths(
+                            paint =
+                                paint,
+                            text =
+                                renderableText,
+                            spacingUnits =
+                                spacingUnits
+                        ),
+                    targetHeightUnits =
+                        targetHeightUnits
                 )
 
             val union =
