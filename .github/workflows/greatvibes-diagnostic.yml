@@ -41,7 +41,7 @@ jobs:
             https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf \
             --output app/src/androidTest/assets/GreatVibes-Regular.ttf
           test -s app/src/androidTest/assets/GreatVibes-Regular.ttf
-          sha256sum app/src/androidTest/assets/GreatVibes-Regular.ttf
+          shasum -a 256 app/src/androidTest/assets/GreatVibes-Regular.ttf
 
       - name: Run real Android Great Vibes diagnostic
         uses: reactivecircus/android-emulator-runner@v2
