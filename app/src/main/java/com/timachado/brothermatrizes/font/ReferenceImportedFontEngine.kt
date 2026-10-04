@@ -18,8 +18,10 @@ import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -370,8 +372,14 @@ internal object ReferenceImportedFontEngine {
             polygonsByGlyph
                 .forEach {
                         polygons ->
-                    val columns =
-                        sampleColumns(
+                    /*
+                     * Motor Satin adaptativo:
+                     * a linha central serve somente para fluxo/topologia.
+                     * As duas bordas de cada ponto Satin continuam vindo do
+                     * contorno vetorial original da TTF/OTF.
+                     */
+                    val adaptiveColumns =
+                        sampleAdaptiveFlowColumns(
                             polygons =
                                 polygons,
                             densityMm =
@@ -381,6 +389,27 @@ internal object ReferenceImportedFontEngine {
                             pullCompensationMm =
                                 pullMm
                         )
+
+                    val columns =
+                        adaptiveColumns
+                            .takeIf {
+                                it.isNotEmpty() &&
+                                    it.sumOf {
+                                            column ->
+                                        column.rows.size
+                                    } >=
+                                    6
+                            }
+                            ?: sampleColumns(
+                                polygons =
+                                    polygons,
+                                densityMm =
+                                    densityMm,
+                                maxSatinWidthMm =
+                                    maxSatinWidthMm,
+                                pullCompensationMm =
+                                    pullMm
+                            )
 
                     emitter.emitGlyph(
                         columns =
@@ -1513,6 +1542,1456 @@ internal object ReferenceImportedFontEngine {
      * Se a topologia adaptativa não puder ser construída com segurança,
      * voltamos ao sampler por eixos anterior.
      */
+    private data class FlowRaster(
+        val width: Int,
+        val height: Int,
+        val originX: Float,
+        val originY: Float,
+        val cellUnits: Float,
+        val mask: BooleanArray
+    )
+
+    private data class FlowGridPoint(
+        val x: Int,
+        val y: Int
+    )
+
+    /**
+     * Digitalização Satin adaptativa.
+     *
+     * A skeleton/centerline NÃO é emitida como bordado. Ela só define a
+     * ordem e a tangente local do traço. Para cada amostra, a normal local
+     * é intersectada com os polígonos originais e as duas bordas reais do
+     * glifo formam a SatinRow.
+     */
+    private fun sampleAdaptiveFlowColumns(
+        polygons: List<Polygon>,
+        densityMm: Float,
+        maxSatinWidthMm: Float,
+        pullCompensationMm: Float
+    ): List<SatinColumn> {
+        if (
+            polygons.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val raster =
+            buildFlowRaster(
+                polygons =
+                    polygons,
+                densityMm =
+                    densityMm
+            )
+                ?: return emptyList()
+
+        val skeleton =
+            thinFlowMask(
+                source =
+                    raster.mask,
+                width =
+                    raster.width,
+                height =
+                    raster.height
+            )
+
+        pruneFlowSkeleton(
+            skeleton =
+                skeleton,
+            width =
+                raster.width,
+            height =
+                raster.height,
+            passes =
+                2
+        )
+
+        val paths =
+            traceFlowPaths(
+                skeleton =
+                    skeleton,
+                width =
+                    raster.width,
+                height =
+                    raster.height
+            )
+
+        if (
+            paths.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val pitchUnits =
+            (
+                densityMm *
+                    10f
+                ).coerceAtLeast(
+                1.5f
+            )
+
+        val pullUnits =
+            pullCompensationMm *
+                10f
+
+        val maxWidthUnits =
+            maxSatinWidthMm *
+                10f
+
+        return paths
+            .mapNotNull {
+                    gridPath ->
+                val worldPath =
+                    gridPath.map {
+                            point ->
+                        FPoint(
+                            x =
+                                raster.originX +
+                                    (
+                                        point.x +
+                                            0.5f
+                                        ) *
+                                        raster.cellUnits,
+                            y =
+                                raster.originY +
+                                    (
+                                        point.y +
+                                            0.5f
+                                        ) *
+                                        raster.cellUnits
+                        )
+                    }
+
+                val samples =
+                    resampleFlowPath(
+                        points =
+                            worldPath,
+                        pitchUnits =
+                            pitchUnits
+                    )
+
+                if (
+                    samples.size <
+                        3
+                ) {
+                    return@mapNotNull null
+                }
+
+                val rows =
+                    mutableListOf<
+                        SatinRow
+                    >()
+
+                samples.indices.forEach {
+                        index ->
+                    val before =
+                        samples[
+                            max(
+                                0,
+                                index -
+                                    2
+                            )
+                        ]
+
+                    val after =
+                        samples[
+                            min(
+                                samples.lastIndex,
+                                index +
+                                    2
+                            )
+                        ]
+
+                    val tangent =
+                        normalize(
+                            FPoint(
+                                x =
+                                    after.x -
+                                        before.x,
+                                y =
+                                    after.y -
+                                        before.y
+                            )
+                        )
+
+                    if (
+                        abs(
+                            tangent.x
+                        ) <
+                            0.0001f &&
+                        abs(
+                            tangent.y
+                        ) <
+                            0.0001f
+                    ) {
+                        return@forEach
+                    }
+
+                    adaptiveCrossSection(
+                        center =
+                            samples[index],
+                        tangent =
+                            tangent,
+                        polygons =
+                            polygons,
+                        pullUnits =
+                            pullUnits,
+                        maxWidthUnits =
+                            maxWidthUnits
+                    )?.let {
+                            row ->
+                        rows +=
+                            row
+                    }
+                }
+
+                if (
+                    rows.size <
+                        3
+                ) {
+                    null
+                } else {
+                    SatinColumn(
+                        rows =
+                            stabilizeAdaptiveRows(
+                                rows
+                            ).toMutableList()
+                    )
+                }
+            }
+            .filter {
+                it.rows.size >=
+                    3
+            }
+    }
+
+    private fun buildFlowRaster(
+        polygons: List<Polygon>,
+        densityMm: Float
+    ): FlowRaster? {
+        val points =
+            polygons.flatMap {
+                it.points
+            }
+
+        if (
+            points.isEmpty()
+        ) {
+            return null
+        }
+
+        val minX =
+            points.minOf {
+                it.x
+            }
+
+        val maxX =
+            points.maxOf {
+                it.x
+            }
+
+        val minY =
+            points.minOf {
+                it.y
+            }
+
+        val maxY =
+            points.maxOf {
+                it.y
+            }
+
+        val cellUnits =
+            (
+                densityMm *
+                    5f
+                ).coerceIn(
+                1.5f,
+                3f
+            )
+
+        val padding =
+            cellUnits *
+                2f
+
+        val originX =
+            minX -
+                padding
+
+        val originY =
+            minY -
+                padding
+
+        val width =
+            ceil(
+                (
+                    maxX -
+                        minX +
+                        padding *
+                            2f
+                    ) /
+                    cellUnits
+            )
+                .toInt()
+                .coerceAtLeast(
+                    3
+                )
+
+        val height =
+            ceil(
+                (
+                    maxY -
+                        minY +
+                        padding *
+                            2f
+                    ) /
+                    cellUnits
+            )
+                .toInt()
+                .coerceAtLeast(
+                    3
+                )
+
+        val cells =
+            width.toLong() *
+                height.toLong()
+
+        if (
+            cells >
+                900_000L
+        ) {
+            return null
+        }
+
+        val mask =
+            BooleanArray(
+                width *
+                    height
+            )
+
+        for (
+            y in
+                0 until
+                    height
+        ) {
+            val worldY =
+                originY +
+                    (
+                        y +
+                            0.5f
+                        ) *
+                    cellUnits
+
+            for (
+                x in
+                    0 until
+                        width
+            ) {
+                val worldX =
+                    originX +
+                        (
+                            x +
+                                0.5f
+                            ) *
+                        cellUnits
+
+                mask[
+                    y *
+                        width +
+                        x
+                ] =
+                    pointInsideShape(
+                        point =
+                            FPoint(
+                                worldX,
+                                worldY
+                            ),
+                        polygons =
+                            polygons
+                    )
+            }
+        }
+
+        return FlowRaster(
+            width =
+                width,
+            height =
+                height,
+            originX =
+                originX,
+            originY =
+                originY,
+            cellUnits =
+                cellUnits,
+            mask =
+                mask
+        )
+    }
+
+    private fun pointInsideShape(
+        point: FPoint,
+        polygons: List<Polygon>
+    ): Boolean {
+        var inside =
+            false
+
+        polygons.forEach {
+                polygon ->
+            val contour =
+                polygon.points
+
+            if (
+                contour.size <
+                    3
+            ) {
+                return@forEach
+            }
+
+            var previous =
+                contour.last()
+
+            contour.forEach {
+                    current ->
+                val crosses =
+                    (
+                        current.y >
+                            point.y
+                        ) !=
+                        (
+                            previous.y >
+                                point.y
+                            )
+
+                if (
+                    crosses
+                ) {
+                    val denominator =
+                        previous.y -
+                            current.y
+
+                    if (
+                        abs(
+                            denominator
+                        ) >
+                            0.00001f
+                    ) {
+                        val crossingX =
+                            (
+                                previous.x -
+                                    current.x
+                                ) *
+                                (
+                                    point.y -
+                                        current.y
+                                    ) /
+                                denominator +
+                                current.x
+
+                        if (
+                            point.x <
+                                crossingX
+                        ) {
+                            inside =
+                                !inside
+                        }
+                    }
+                }
+
+                previous =
+                    current
+            }
+        }
+
+        return inside
+    }
+
+    private fun thinFlowMask(
+        source: BooleanArray,
+        width: Int,
+        height: Int
+    ): BooleanArray {
+        val result =
+            source.copyOf()
+
+        fun neighbors(
+            index: Int
+        ): BooleanArray {
+            val x =
+                index %
+                    width
+
+            val y =
+                index /
+                    width
+
+            return booleanArrayOf(
+                result[
+                    (
+                        y -
+                            1
+                        ) *
+                        width +
+                        x
+                ],
+                result[
+                    (
+                        y -
+                            1
+                        ) *
+                        width +
+                        (
+                            x +
+                                1
+                            )
+                ],
+                result[
+                    y *
+                        width +
+                        (
+                            x +
+                                1
+                            )
+                ],
+                result[
+                    (
+                        y +
+                            1
+                        ) *
+                        width +
+                        (
+                            x +
+                                1
+                            )
+                ],
+                result[
+                    (
+                        y +
+                            1
+                        ) *
+                        width +
+                        x
+                ],
+                result[
+                    (
+                        y +
+                            1
+                        ) *
+                        width +
+                        (
+                            x -
+                                1
+                            )
+                ],
+                result[
+                    y *
+                        width +
+                        (
+                            x -
+                                1
+                            )
+                ],
+                result[
+                    (
+                        y -
+                            1
+                        ) *
+                        width +
+                        (
+                            x -
+                                1
+                            )
+                ]
+            )
+        }
+
+        var changed =
+            true
+
+        var iterations =
+            0
+
+        while (
+            changed &&
+            iterations <
+                400
+        ) {
+            changed =
+                false
+
+            for (
+                phase in
+                    0..1
+            ) {
+                val remove =
+                    mutableListOf<
+                        Int
+                    >()
+
+                for (
+                    y in
+                        1 until
+                            height -
+                                1
+                ) {
+                    for (
+                        x in
+                            1 until
+                                width -
+                                    1
+                    ) {
+                        val index =
+                            y *
+                                width +
+                                x
+
+                        if (
+                            !result[
+                                index
+                            ]
+                        ) {
+                            continue
+                        }
+
+                        val n =
+                            neighbors(
+                                index
+                            )
+
+                        val count =
+                            n.count {
+                                it
+                            }
+
+                        if (
+                            count !in
+                                2..6
+                        ) {
+                            continue
+                        }
+
+                        var transitions =
+                            0
+
+                        for (
+                            i in
+                                n.indices
+                        ) {
+                            if (
+                                !n[i] &&
+                                n[
+                                    (
+                                        i +
+                                            1
+                                        ) %
+                                        n.size
+                                ]
+                            ) {
+                                transitions++
+                            }
+                        }
+
+                        if (
+                            transitions !=
+                                1
+                        ) {
+                            continue
+                        }
+
+                        val p2 =
+                            n[0]
+
+                        val p4 =
+                            n[2]
+
+                        val p6 =
+                            n[4]
+
+                        val p8 =
+                            n[6]
+
+                        val firstCondition =
+                            if (
+                                phase ==
+                                    0
+                            ) {
+                                !(
+                                    p2 &&
+                                        p4 &&
+                                        p6
+                                    ) &&
+                                    !(
+                                        p4 &&
+                                            p6 &&
+                                            p8
+                                        )
+                            } else {
+                                !(
+                                    p2 &&
+                                        p4 &&
+                                        p8
+                                    ) &&
+                                    !(
+                                        p2 &&
+                                            p6 &&
+                                            p8
+                                        )
+                            }
+
+                        if (
+                            firstCondition
+                        ) {
+                            remove +=
+                                index
+                        }
+                    }
+                }
+
+                if (
+                    remove.isNotEmpty()
+                ) {
+                    changed =
+                        true
+
+                    remove.forEach {
+                            index ->
+                        result[
+                            index
+                        ] =
+                            false
+                    }
+                }
+            }
+
+            iterations++
+        }
+
+        return result
+    }
+
+    private fun pruneFlowSkeleton(
+        skeleton: BooleanArray,
+        width: Int,
+        height: Int,
+        passes: Int
+    ) {
+        repeat(
+            passes
+        ) {
+            val endpoints =
+                mutableListOf<
+                    Int
+                >()
+
+            for (
+                y in
+                    1 until
+                        height -
+                            1
+            ) {
+                for (
+                    x in
+                        1 until
+                            width -
+                                1
+                ) {
+                    val index =
+                        y *
+                            width +
+                            x
+
+                    if (
+                        !skeleton[
+                            index
+                        ]
+                    ) {
+                        continue
+                    }
+
+                    if (
+                        flowNeighborIndices(
+                            index =
+                                index,
+                            skeleton =
+                                skeleton,
+                            width =
+                                width,
+                            height =
+                                height
+                        ).size ==
+                        1
+                    ) {
+                        endpoints +=
+                            index
+                    }
+                }
+            }
+
+            endpoints.forEach {
+                    index ->
+                skeleton[
+                    index
+                ] =
+                    false
+            }
+        }
+    }
+
+    private fun flowNeighborIndices(
+        index: Int,
+        skeleton: BooleanArray,
+        width: Int,
+        height: Int
+    ): List<Int> {
+        val x =
+            index %
+                width
+
+        val y =
+            index /
+                width
+
+        val result =
+            mutableListOf<
+                Int
+            >()
+
+        for (
+            dy in
+                -1..1
+        ) {
+            for (
+                dx in
+                    -1..1
+            ) {
+                if (
+                    dx ==
+                        0 &&
+                    dy ==
+                        0
+                ) {
+                    continue
+                }
+
+                val nx =
+                    x +
+                        dx
+
+                val ny =
+                    y +
+                        dy
+
+                if (
+                    nx !in
+                        0 until
+                            width ||
+                    ny !in
+                        0 until
+                            height
+                ) {
+                    continue
+                }
+
+                val candidate =
+                    ny *
+                        width +
+                        nx
+
+                if (
+                    skeleton[
+                        candidate
+                    ]
+                ) {
+                    result +=
+                        candidate
+                }
+            }
+        }
+
+        return result
+    }
+
+    private fun traceFlowPaths(
+        skeleton: BooleanArray,
+        width: Int,
+        height: Int
+    ): List<List<FlowGridPoint>> {
+        val active =
+            skeleton.indices.filter {
+                skeleton[
+                    it
+                ]
+            }
+
+        if (
+            active.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val nodes =
+            active.filter {
+                    index ->
+                flowNeighborIndices(
+                    index =
+                        index,
+                    skeleton =
+                        skeleton,
+                    width =
+                        width,
+                    height =
+                        height
+                ).size !=
+                    2
+            }
+                .toSet()
+
+        val visitedEdges =
+            mutableSetOf<
+                Long
+            >()
+
+        fun edgeKey(
+            first: Int,
+            second: Int
+        ): Long {
+            val low =
+                min(
+                    first,
+                    second
+                )
+
+            val high =
+                max(
+                    first,
+                    second
+                )
+
+            return (
+                low.toLong()
+                    .shl(
+                        32
+                    )
+                ) or
+                (
+                    high.toLong() and
+                        0xffffffffL
+                    )
+        }
+
+        fun trace(
+            start: Int,
+            next: Int
+        ): List<Int> {
+            val path =
+                mutableListOf(
+                    start
+                )
+
+            var previous =
+                start
+
+            var current =
+                next
+
+            visitedEdges +=
+                edgeKey(
+                    start,
+                    next
+                )
+
+            while (
+                true
+            ) {
+                path +=
+                    current
+
+                if (
+                    current in
+                        nodes &&
+                    current !=
+                        start
+                ) {
+                    break
+                }
+
+                val candidates =
+                    flowNeighborIndices(
+                        index =
+                            current,
+                        skeleton =
+                            skeleton,
+                        width =
+                            width,
+                        height =
+                            height
+                    )
+                        .filter {
+                            it !=
+                                previous
+                        }
+                        .filter {
+                            edgeKey(
+                                current,
+                                it
+                            ) !in
+                                visitedEdges
+                        }
+
+                val candidate =
+                    candidates.firstOrNull()
+                        ?: break
+
+                visitedEdges +=
+                    edgeKey(
+                        current,
+                        candidate
+                    )
+
+                previous =
+                    current
+
+                current =
+                    candidate
+            }
+
+            return path
+        }
+
+        val rawPaths =
+            mutableListOf<
+                List<Int>
+            >()
+
+        nodes.forEach {
+                node ->
+            flowNeighborIndices(
+                index =
+                    node,
+                skeleton =
+                    skeleton,
+                width =
+                    width,
+                height =
+                    height
+            ).forEach {
+                    neighbor ->
+                if (
+                    edgeKey(
+                        node,
+                        neighbor
+                    ) !in
+                    visitedEdges
+                ) {
+                    rawPaths +=
+                        trace(
+                            node,
+                            neighbor
+                        )
+                }
+            }
+        }
+
+        active.forEach {
+                index ->
+            flowNeighborIndices(
+                index =
+                    index,
+                skeleton =
+                    skeleton,
+                width =
+                    width,
+                height =
+                    height
+            ).forEach {
+                    neighbor ->
+                if (
+                    edgeKey(
+                        index,
+                        neighbor
+                    ) !in
+                    visitedEdges
+                ) {
+                    rawPaths +=
+                        trace(
+                            index,
+                            neighbor
+                        )
+                }
+            }
+        }
+
+        return rawPaths
+            .filter {
+                it.size >=
+                    4
+            }
+            .map {
+                    path ->
+                path.map {
+                        index ->
+                    FlowGridPoint(
+                        x =
+                            index %
+                                width,
+                        y =
+                            index /
+                                width
+                    )
+                }
+            }
+    }
+
+    private fun resampleFlowPath(
+        points: List<FPoint>,
+        pitchUnits: Float
+    ): List<FPoint> {
+        if (
+            points.size <
+                2
+        ) {
+            return points
+        }
+
+        val result =
+            mutableListOf(
+                points.first()
+            )
+
+        var remaining =
+            pitchUnits.coerceAtLeast(
+                1f
+            )
+
+        var cursor =
+            points.first()
+
+        for (
+            index in
+                1 until
+                    points.size
+        ) {
+            val target =
+                points[index]
+
+            var segmentStart =
+                cursor
+
+            var segmentLength =
+                distance(
+                    segmentStart,
+                    target
+                )
+
+            while (
+                segmentLength >=
+                    remaining &&
+                segmentLength >
+                    0.0001f
+            ) {
+                val ratio =
+                    remaining /
+                        segmentLength
+
+                val sample =
+                    lerp(
+                        segmentStart,
+                        target,
+                        ratio
+                    )
+
+                result +=
+                    sample
+
+                segmentStart =
+                    sample
+
+                segmentLength =
+                    distance(
+                        segmentStart,
+                        target
+                    )
+
+                remaining =
+                    pitchUnits
+            }
+
+            remaining -=
+                segmentLength
+
+            if (
+                remaining <=
+                    0.0001f
+            ) {
+                remaining =
+                    pitchUnits
+            }
+
+            cursor =
+                target
+        }
+
+        if (
+            distance(
+                result.last(),
+                points.last()
+            ) >=
+                pitchUnits *
+                    0.45f
+        ) {
+            result +=
+                points.last()
+        }
+
+        return result
+    }
+
+    private fun adaptiveCrossSection(
+        center: FPoint,
+        tangent: FPoint,
+        polygons: List<Polygon>,
+        pullUnits: Float,
+        maxWidthUnits: Float
+    ): SatinRow? {
+        val normal =
+            normalize(
+                FPoint(
+                    x =
+                        -tangent.y,
+                    y =
+                        tangent.x
+                )
+            )
+
+        if (
+            abs(
+                normal.x
+            ) <
+                0.0001f &&
+            abs(
+                normal.y
+            ) <
+                0.0001f
+        ) {
+            return null
+        }
+
+        val intersections =
+            mutableListOf<
+                Float
+            >()
+
+        polygons.forEach {
+                polygon ->
+            val contour =
+                polygon.points
+
+            for (
+                index in
+                    contour.indices
+            ) {
+                val a =
+                    contour[
+                        index
+                    ]
+
+                val b =
+                    contour[
+                        (
+                            index +
+                                1
+                            ) %
+                            contour.size
+                    ]
+
+                val sx =
+                    b.x -
+                        a.x
+
+                val sy =
+                    b.y -
+                        a.y
+
+                val denominator =
+                    normal.x *
+                        sy -
+                        normal.y *
+                            sx
+
+                if (
+                    abs(
+                        denominator
+                    ) <
+                        0.00001f
+                ) {
+                    continue
+                }
+
+                val qx =
+                    a.x -
+                        center.x
+
+                val qy =
+                    a.y -
+                        center.y
+
+                val ray =
+                    (
+                        qx *
+                            sy -
+                            qy *
+                                sx
+                        ) /
+                        denominator
+
+                val segment =
+                    (
+                        qx *
+                            normal.y -
+                            qy *
+                                normal.x
+                        ) /
+                        denominator
+
+                if (
+                    segment in
+                        -0.0001f..1.0001f
+                ) {
+                    intersections +=
+                        ray
+                }
+            }
+        }
+
+        val negative =
+            intersections
+                .filter {
+                    it <
+                        -0.05f
+                }
+                .maxOrNull()
+                ?: return null
+
+        val positive =
+            intersections
+                .filter {
+                    it >
+                        0.05f
+                }
+                .minOrNull()
+                ?: return null
+
+        val width =
+            positive -
+                negative
+
+        if (
+            width <
+                1f ||
+            width >
+                maxWidthUnits *
+                    1.35f
+        ) {
+            return null
+        }
+
+        return SatinRow(
+            a =
+                FPoint(
+                    x =
+                        center.x +
+                            normal.x *
+                                (
+                                    negative -
+                                        pullUnits
+                                    ),
+                    y =
+                        center.y +
+                            normal.y *
+                                (
+                                    negative -
+                                        pullUnits
+                                    )
+                ),
+            b =
+                FPoint(
+                    x =
+                        center.x +
+                            normal.x *
+                                (
+                                    positive +
+                                        pullUnits
+                                    ),
+                    y =
+                        center.y +
+                            normal.y *
+                                (
+                                    positive +
+                                        pullUnits
+                                    )
+                )
+        )
+    }
+
+    private fun stabilizeAdaptiveRows(
+        rows: List<SatinRow>
+    ): List<SatinRow> {
+        if (
+            rows.size <
+                2
+        ) {
+            return rows
+        }
+
+        val result =
+            mutableListOf(
+                rows.first()
+            )
+
+        rows.drop(
+            1
+        ).forEach {
+                row ->
+            val previous =
+                result.last()
+
+            val direct =
+                distance(
+                    previous.a,
+                    row.a
+                ) +
+                    distance(
+                        previous.b,
+                        row.b
+                    )
+
+            val swapped =
+                distance(
+                    previous.a,
+                    row.b
+                ) +
+                    distance(
+                        previous.b,
+                        row.a
+                    )
+
+            result +=
+                if (
+                    swapped <
+                        direct
+                ) {
+                    SatinRow(
+                        a =
+                            row.b,
+                        b =
+                            row.a
+                    )
+                } else {
+                    row
+                }
+        }
+
+        return result
+    }
+
     private fun sampleColumns(
         polygons: List<Polygon>,
         densityMm: Float,
