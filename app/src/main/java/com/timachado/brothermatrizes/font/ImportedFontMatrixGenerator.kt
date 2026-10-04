@@ -2989,6 +2989,25 @@ object ImportedFontMatrixGenerator {
         val bYUnits: Int
     )
 
+    private data class StrokeFlowSegment(
+        val id: Int,
+        val points: List<SkeletonPoint>,
+        val startNode: Long,
+        val endNode: Long
+    )
+
+    private enum class StrokeFlowPhase {
+        CENTER_RUN,
+        SATIN_RETURN
+    }
+
+    private data class StrokeFlowTraversalStep(
+        val segmentId: Int,
+        val fromNode: Long,
+        val toNode: Long,
+        val phase: StrokeFlowPhase
+    )
+
     private fun buildStrokeFlowSatinText(
         glyphPolygons:
             List<
@@ -3375,10 +3394,11 @@ object ImportedFontMatrixGenerator {
             return mutableListOf()
         }
 
-        val lines =
+        val rootGuide =
             orderStrokeFlowSkeletonLines(
                 rawLines
             )
+                .firstOrNull()
 
         val densityUnits =
             (
@@ -3407,475 +3427,150 @@ object ImportedFontMatrixGenerator {
                 0f
             )
 
+        val splitSegments =
+            splitStrokeFlowSegments(
+                rawLines
+            )
+
+        if (
+            splitSegments.isEmpty()
+        ) {
+            return mutableListOf()
+        }
+
+        val rowsBySegment =
+            splitSegments.associate {
+                    segment ->
+                segment.id to
+                    buildStrokeFlowRows(
+                        rawLine =
+                            segment.points,
+                        mask =
+                            mask,
+                        width =
+                            width,
+                        height =
+                            height,
+                        stepPixels =
+                            stepPixels,
+                        pullPixels =
+                            pullPixels,
+                        minX =
+                            minX,
+                        maxY =
+                            maxY,
+                        padding =
+                            padding,
+                        unitsPerPixel =
+                            unitsPerPixel
+                    )
+            }
+
+        val usableSegments =
+            splitSegments.filter {
+                    segment ->
+                (
+                    rowsBySegment[
+                        segment.id
+                    ]?.size
+                        ?: 0
+                    ) >=
+                    2
+            }
+
+        if (
+            usableSegments.isEmpty()
+        ) {
+            return mutableListOf()
+        }
+
+        val traversal =
+            planStrokeFlowTraversal(
+                segments =
+                    usableSegments,
+                rootHint =
+                    rootGuide
+                        ?.firstOrNull()
+            )
+
+        if (
+            traversal.isEmpty()
+        ) {
+            return mutableListOf()
+        }
+
+        val segmentById =
+            usableSegments.associateBy {
+                it.id
+            }
+
         val output =
             mutableListOf<
                 EmbroideryPoint
             >()
 
-        lines.forEach {
-                rawLine ->
-            val samples =
-                smoothAndResampleSkeleton(
-                    source =
-                        rawLine,
-                    radius =
-                        3,
-                    passes =
-                        2,
-                    stepPixels =
-                        stepPixels
-                )
+        val includeUnderlay =
+            options.satinUnderlayMode !=
+                com.timachado
+                    .brothermatrizes
+                    .core
+                    .embroidery
+                    .SatinUnderlayMode
+                    .NONE
 
-            if (
-                samples.size <
-                    3
-            ) {
-                return@forEach
-            }
+        traversal.forEach {
+                step ->
+            val segment =
+                segmentById[
+                    step.segmentId
+                ]
+                    ?: return@forEach
+
+            val baseRows =
+                rowsBySegment[
+                    step.segmentId
+                ]
+                    ?: return@forEach
 
             val rows =
-                mutableListOf<
-                    StrokeFlowSatinRow
-                >()
-
-            var positiveWidth:
-                Double? =
-                null
-
-            var negativeWidth:
-                Double? =
-                null
-
-            samples.forEachIndexed {
-                    index,
-                    sample ->
-                val before =
-                    samples[
-                        (
-                            index -
-                                3
-                            ).coerceAtLeast(
-                            0
-                        )
-                    ]
-
-                val after =
-                    samples[
-                        (
-                            index +
-                                3
-                            ).coerceAtMost(
-                            samples.lastIndex
-                        )
-                    ]
-
-                val tangentX =
-                    (
-                        after.x -
-                            before.x
-                        ).toDouble()
-
-                val tangentY =
-                    (
-                        after.y -
-                            before.y
-                        ).toDouble()
-
-                val tangentLength =
-                    sqrt(
-                        tangentX *
-                            tangentX +
-                            tangentY *
-                                tangentY
-                    )
-
-                if (
-                    tangentLength <
-                        0.001
-                ) {
-                    return@forEachIndexed
-                }
-
-                val normalX =
-                    -tangentY /
-                        tangentLength
-
-                val normalY =
-                    tangentX /
-                        tangentLength
-
-                val rawPositive =
-                    boundaryDistance(
-                        mask =
-                            mask,
-                        width =
-                            width,
-                        height =
-                            height,
-                        centerX =
-                            sample.x
-                                .toDouble(),
-                        centerY =
-                            sample.y
-                                .toDouble(),
-                        normalX =
-                            normalX,
-                        normalY =
-                            normalY,
-                        direction =
-                            1.0
-                    )
-
-                val rawNegative =
-                    boundaryDistance(
-                        mask =
-                            mask,
-                        width =
-                            width,
-                        height =
-                            height,
-                        centerX =
-                            sample.x
-                                .toDouble(),
-                        centerY =
-                            sample.y
-                                .toDouble(),
-                        normalX =
-                            normalX,
-                        normalY =
-                            normalY,
-                        direction =
-                            -1.0
-                    )
-
-                if (
-                    rawPositive <
-                        0.8 ||
-                    rawNegative <
-                        0.8
-                ) {
-                    return@forEachIndexed
-                }
-
-                val positive =
-                    positiveWidth
-                        ?.let {
-                            previous ->
-                            previous *
-                                0.60 +
-                                rawPositive *
-                                    0.40
-                        }
-                        ?: rawPositive
-
-                val negative =
-                    negativeWidth
-                        ?.let {
-                            previous ->
-                            previous *
-                                0.60 +
-                                rawNegative *
-                                    0.40
-                        }
-                        ?: rawNegative
-
-                positiveWidth =
-                    positive
-
-                negativeWidth =
-                    negative
-
-                val centerXUnits =
-                    skeletonXToUnits(
-                        sample.x,
-                        minX,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                val centerYUnits =
-                    skeletonYToUnits(
-                        sample.y,
-                        maxY,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                val aXUnits =
-                    skeletonXToUnits(
-                        (
-                            sample.x +
-                                normalX *
-                                    (
-                                        positive +
-                                            pullPixels
-                                        )
-                            ).toFloat(),
-                        minX,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                val aYUnits =
-                    skeletonYToUnits(
-                        (
-                            sample.y +
-                                normalY *
-                                    (
-                                        positive +
-                                            pullPixels
-                                        )
-                            ).toFloat(),
-                        maxY,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                val bXUnits =
-                    skeletonXToUnits(
-                        (
-                            sample.x -
-                                normalX *
-                                    (
-                                        negative +
-                                            pullPixels
-                                        )
-                            ).toFloat(),
-                        minX,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                val bYUnits =
-                    skeletonYToUnits(
-                        (
-                            sample.y -
-                                normalY *
-                                    (
-                                        negative +
-                                            pullPixels
-                                        )
-                            ).toFloat(),
-                        maxY,
-                        padding,
-                        unitsPerPixel
-                    )
-
-                rows +=
-                    StrokeFlowSatinRow(
-                        centerXUnits =
-                            centerXUnits,
-                        centerYUnits =
-                            centerYUnits,
-                        aXUnits =
-                            aXUnits,
-                        aYUnits =
-                            aYUnits,
-                        bXUnits =
-                            bXUnits,
-                        bYUnits =
-                            bYUnits
-                    )
-            }
+                orientStrokeFlowRows(
+                    segment =
+                        segment,
+                    rows =
+                        baseRows,
+                    fromNode =
+                        step.fromNode
+                )
 
             if (
                 rows.size <
-                    3
+                    2
             ) {
                 return@forEach
             }
 
-            val start =
-                rows.first()
-
-            if (
-                output.isEmpty()
+            when (
+                step.phase
             ) {
-                output +=
-                    EmbroideryPoint(
-                        start.centerXUnits,
-                        start.centerYUnits,
-                        StitchCommand.JUMP,
-                        0
-                    )
-            } else {
-                val previous =
-                    output.last()
-
-                val travelDistance =
-                    hypot(
-                        (
-                            start.centerXUnits -
-                                previous.xUnits
-                            ).toDouble(),
-                        (
-                            start.centerYUnits -
-                                previous.yUnits
-                            ).toDouble()
-                    )
-
-                if (
-                    travelDistance <=
-                        14.0
-                ) {
-                    appendSplitStitch(
+                StrokeFlowPhase.CENTER_RUN ->
+                    emitStrokeFlowCenterRun(
                         output =
                             output,
-                        fromX =
-                            previous.xUnits,
-                        fromY =
-                            previous.yUnits,
-                        toX =
-                            start.centerXUnits,
-                        toY =
-                            start.centerYUnits,
-                        maxLengthUnits =
-                            70f
-                    )
-                } else {
-                    if (
-                        travelDistance >
-                            50.0 &&
-                        previous.command !=
-                            StitchCommand.TRIM
-                    ) {
-                        output +=
-                            EmbroideryPoint(
-                                previous.xUnits,
-                                previous.yUnits,
-                                StitchCommand.TRIM,
-                                0
-                            )
-                    }
-
-                    output +=
-                        EmbroideryPoint(
-                            start.centerXUnits,
-                            start.centerYUnits,
-                            StitchCommand.JUMP,
-                            0
-                        )
-                }
-            }
-
-            val includeUnderlay =
-                options.satinUnderlayMode !=
-                    com.timachado
-                        .brothermatrizes
-                        .core
-                        .embroidery
-                        .SatinUnderlayMode
-                        .NONE
-
-            if (
-                includeUnderlay
-            ) {
-                /*
-                 * Uma única passada central até o extremo, como no vídeo
-                 * de referência. Não há TRIM entre underlay e cobertura.
-                 */
-                val underlayStep =
-                    maxOf(
-                        1,
-                        (
-                            14f /
-                                densityUnits
-                            ).roundToInt()
+                        rows =
+                            rows,
+                        includeUnderlay =
+                            includeUnderlay,
+                        densityUnits =
+                            densityUnits
                     )
 
-                var rowIndex =
-                    0
-
-                output +=
-                    EmbroideryPoint(
-                        start.centerXUnits,
-                        start.centerYUnits,
-                        StitchCommand.STITCH,
-                        0
-                    )
-
-                while (
-                    rowIndex <
-                        rows.lastIndex
-                ) {
-                    rowIndex =
-                        minOf(
-                            rows.lastIndex,
-                            rowIndex +
-                                underlayStep
-                        )
-
-                    val center =
-                        rows[
-                            rowIndex
-                        ]
-
-                    val previous =
-                        output.last()
-
-                    appendSplitStitch(
+                StrokeFlowPhase.SATIN_RETURN ->
+                    emitStrokeFlowCoverage(
                         output =
                             output,
-                        fromX =
-                            previous.xUnits,
-                        fromY =
-                            previous.yUnits,
-                        toX =
-                            center.centerXUnits,
-                        toY =
-                            center.centerYUnits,
-                        maxLengthUnits =
-                            70f
+                        rows =
+                            rows
                     )
-                }
-            }
-
-            val coverage =
-                if (
-                    includeUnderlay
-                ) {
-                    rows.asReversed()
-                } else {
-                    rows
-                }
-
-            coverage.forEach {
-                    row ->
-                var previous =
-                    output.last()
-
-                appendSplitStitch(
-                    output =
-                        output,
-                    fromX =
-                        previous.xUnits,
-                    fromY =
-                        previous.yUnits,
-                    toX =
-                        row.aXUnits,
-                    toY =
-                        row.aYUnits,
-                    maxLengthUnits =
-                        70f
-                )
-
-                previous =
-                    output.last()
-
-                appendSplitStitch(
-                    output =
-                        output,
-                    fromX =
-                        previous.xUnits,
-                    fromY =
-                        previous.yUnits,
-                    toX =
-                        row.bXUnits,
-                    toY =
-                        row.bYUnits,
-                    maxLengthUnits =
-                        70f
-                )
             }
         }
 
@@ -3888,6 +3583,1292 @@ object ImportedFontMatrixGenerator {
             output
         } else {
             mutableListOf()
+        }
+    }
+
+    private fun strokeFlowNodeKey(
+        point: SkeletonPoint
+    ): Long =
+        (
+            point.x.toLong()
+                shl
+                32
+            ) or
+            (
+                point.y.toLong() and
+                    0xffffffffL
+                )
+
+    private fun strokeFlowNodePoint(
+        key: Long
+    ): SkeletonPoint =
+        SkeletonPoint(
+            x =
+                (
+                    key shr
+                        32
+                    ).toInt(),
+            y =
+                key.toInt()
+        )
+
+    /**
+     * traceSkeleton() preserva a continuidade direcional ao atravessar uma
+     * bifurcação. Para reproduzir a referência, precisamos separar essa linha
+     * exatamente nos nós compartilhados: o center-run pode atravessar o nó,
+     * mas o Satin do ramo-pai só é executado depois dos ramos-filhos.
+     */
+    private fun splitStrokeFlowSegments(
+        source:
+            List<List<SkeletonPoint>>
+    ): List<StrokeFlowSegment> {
+        if (
+            source.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val endpointNodes =
+            source.flatMap {
+                    line ->
+                if (
+                    line.isEmpty()
+                ) {
+                    emptyList()
+                } else {
+                    listOf(
+                        strokeFlowNodeKey(
+                            line.first()
+                        ),
+                        strokeFlowNodeKey(
+                            line.last()
+                        )
+                    )
+                }
+            }
+                .toSet()
+
+        val pieces =
+            mutableListOf<
+                List<SkeletonPoint>
+            >()
+
+        source.forEach {
+                line ->
+            if (
+                line.size <
+                    2
+            ) {
+                return@forEach
+            }
+
+            var startIndex =
+                0
+
+            for (
+                index in
+                    1 until
+                        line.lastIndex
+            ) {
+                if (
+                    strokeFlowNodeKey(
+                        line[index]
+                    ) in
+                    endpointNodes
+                ) {
+                    val piece =
+                        line.subList(
+                            startIndex,
+                            index +
+                                1
+                        )
+                            .toList()
+
+                    if (
+                        piece.size >=
+                            2
+                    ) {
+                        pieces +=
+                            piece
+                    }
+
+                    startIndex =
+                        index
+                }
+            }
+
+            val tail =
+                line.subList(
+                    startIndex,
+                    line.size
+                )
+                    .toList()
+
+            if (
+                tail.size >=
+                    2
+            ) {
+                pieces +=
+                    tail
+            }
+        }
+
+        return pieces
+            .filter {
+                skeletonLineLength(
+                    it
+                ) >=
+                    1.25f
+            }
+            .mapIndexed {
+                    index,
+                    line ->
+                StrokeFlowSegment(
+                    id =
+                        index,
+                    points =
+                        line,
+                    startNode =
+                        strokeFlowNodeKey(
+                            line.first()
+                        ),
+                    endNode =
+                        strokeFlowNodeKey(
+                            line.last()
+                        )
+                )
+            }
+    }
+
+    private fun orientedStrokeFlowPoints(
+        segment: StrokeFlowSegment,
+        fromNode: Long
+    ): List<SkeletonPoint> =
+        if (
+            segment.startNode ==
+                fromNode ||
+            segment.startNode ==
+                segment.endNode
+        ) {
+            segment.points
+        } else {
+            segment.points
+                .asReversed()
+        }
+
+    private fun strokeFlowOutgoingDirection(
+        segment: StrokeFlowSegment,
+        fromNode: Long
+    ): Pair<Double, Double>? {
+        val points =
+            orientedStrokeFlowPoints(
+                segment,
+                fromNode
+            )
+
+        if (
+            points.size <
+                2
+        ) {
+            return null
+        }
+
+        val sampleIndex =
+            minOf(
+                4,
+                points.lastIndex
+            )
+
+        val first =
+            points.first()
+
+        val next =
+            points[
+                sampleIndex
+            ]
+
+        val dx =
+            (
+                next.x -
+                    first.x
+                ).toDouble()
+
+        val dy =
+            (
+                next.y -
+                    first.y
+                ).toDouble()
+
+        val length =
+            hypot(
+                dx,
+                dy
+            )
+
+        return if (
+            length <
+                0.001
+        ) {
+            null
+        } else {
+            dx /
+                length to
+                dy /
+                    length
+        }
+    }
+
+    private fun strokeFlowArrivalDirection(
+        segment: StrokeFlowSegment,
+        fromNode: Long
+    ): Pair<Double, Double>? {
+        val points =
+            orientedStrokeFlowPoints(
+                segment,
+                fromNode
+            )
+
+        if (
+            points.size <
+                2
+        ) {
+            return null
+        }
+
+        val beforeIndex =
+            (
+                points.lastIndex -
+                    4
+                ).coerceAtLeast(
+                0
+            )
+
+        val before =
+            points[
+                beforeIndex
+            ]
+
+        val last =
+            points.last()
+
+        val dx =
+            (
+                last.x -
+                    before.x
+                ).toDouble()
+
+        val dy =
+            (
+                last.y -
+                    before.y
+                ).toDouble()
+
+        val length =
+            hypot(
+                dx,
+                dy
+            )
+
+        return if (
+            length <
+                0.001
+        ) {
+            null
+        } else {
+            dx /
+                length to
+                dy /
+                    length
+        }
+    }
+
+    private fun strokeFlowContinuationScore(
+        incoming:
+            Pair<Double, Double>?,
+        outgoing:
+            Pair<Double, Double>?
+    ): Double {
+        if (
+            incoming ==
+                null ||
+            outgoing ==
+                null
+        ) {
+            return 0.0
+        }
+
+        return incoming.first *
+            outgoing.first +
+            incoming.second *
+                outgoing.second
+    }
+
+    /**
+     * DFS pós-ordem do grafo de traços.
+     *
+     * CENTER_RUN é emitido ao descer na aresta.
+     * SATIN_RETURN é emitido somente no backtracking. Assim, numa bifurcação,
+     * os ramos-filhos são concluídos antes que o Satin feche o ramo-pai —
+     * exatamente o padrão observado em 1000338102.mp4.
+     */
+    private fun planStrokeFlowTraversal(
+        segments:
+            List<StrokeFlowSegment>,
+        rootHint:
+            SkeletonPoint?
+    ): List<StrokeFlowTraversalStep> {
+        if (
+            segments.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        val byId =
+            segments.associateBy {
+                it.id
+            }
+
+        val adjacency =
+            linkedMapOf<
+                Long,
+                MutableList<Int>
+            >()
+
+        segments.forEach {
+                segment ->
+            adjacency
+                .getOrPut(
+                    segment.startNode
+                ) {
+                    mutableListOf()
+                }
+                .add(
+                    segment.id
+                )
+
+            if (
+                segment.endNode !=
+                    segment.startNode
+            ) {
+                adjacency
+                    .getOrPut(
+                        segment.endNode
+                    ) {
+                        mutableListOf()
+                    }
+                    .add(
+                        segment.id
+                    )
+            }
+        }
+
+        val visited =
+            mutableSetOf<Int>()
+
+        val result =
+            mutableListOf<
+                StrokeFlowTraversalStep
+            >()
+
+        fun otherNode(
+            segment: StrokeFlowSegment,
+            node: Long
+        ): Long =
+            if (
+                segment.startNode ==
+                    node
+            ) {
+                segment.endNode
+            } else {
+                segment.startNode
+            }
+
+        fun visit(
+            node: Long,
+            incoming:
+                Pair<Double, Double>?
+        ) {
+            val candidates =
+                adjacency[
+                    node
+                ]
+                    .orEmpty()
+                    .filter {
+                        it !in
+                            visited
+                    }
+                    .sortedWith(
+                        compareByDescending<Int> {
+                                edgeId ->
+                            val edge =
+                                byId[
+                                    edgeId
+                                ]
+                                    ?: return@compareByDescending 0.0
+
+                            strokeFlowContinuationScore(
+                                incoming =
+                                    incoming,
+                                outgoing =
+                                    strokeFlowOutgoingDirection(
+                                        segment =
+                                            edge,
+                                        fromNode =
+                                            node
+                                    )
+                            )
+                        }.thenByDescending {
+                                edgeId ->
+                            byId[
+                                edgeId
+                            ]?.let {
+                                skeletonLineLength(
+                                    it.points
+                                )
+                            } ?: 0f
+                        }
+                    )
+
+            candidates.forEach {
+                    edgeId ->
+                if (
+                    edgeId in
+                        visited
+                ) {
+                    return@forEach
+                }
+
+                val edge =
+                    byId[
+                        edgeId
+                    ]
+                        ?: return@forEach
+
+                val nextNode =
+                    otherNode(
+                        edge,
+                        node
+                    )
+
+                visited +=
+                    edgeId
+
+                result +=
+                    StrokeFlowTraversalStep(
+                        segmentId =
+                            edgeId,
+                        fromNode =
+                            node,
+                        toNode =
+                            nextNode,
+                        phase =
+                            StrokeFlowPhase
+                                .CENTER_RUN
+                    )
+
+                visit(
+                    node =
+                        nextNode,
+                    incoming =
+                        strokeFlowArrivalDirection(
+                            segment =
+                                edge,
+                            fromNode =
+                                node
+                        )
+                )
+
+                result +=
+                    StrokeFlowTraversalStep(
+                        segmentId =
+                            edgeId,
+                        fromNode =
+                            nextNode,
+                        toNode =
+                            node,
+                        phase =
+                            StrokeFlowPhase
+                                .SATIN_RETURN
+                    )
+            }
+        }
+
+        fun distanceToHint(
+            node: Long,
+            hint: SkeletonPoint?
+        ): Double {
+            if (
+                hint ==
+                    null
+            ) {
+                return 0.0
+            }
+
+            val point =
+                strokeFlowNodePoint(
+                    node
+                )
+
+            return pointDistance(
+                point,
+                hint
+            )
+        }
+
+        var nextRoot =
+            adjacency.keys
+                .minByOrNull {
+                    distanceToHint(
+                        it,
+                        rootHint
+                    )
+                }
+                ?: return emptyList()
+
+        var lastRoot =
+            nextRoot
+
+        while (
+            visited.size <
+                segments.size
+        ) {
+            visit(
+                node =
+                    nextRoot,
+                incoming =
+                    null
+            )
+
+            lastRoot =
+                nextRoot
+
+            val remainingNodes =
+                adjacency.keys.filter {
+                        node ->
+                    adjacency[
+                        node
+                    ]
+                        .orEmpty()
+                        .any {
+                            it !in
+                                visited
+                        }
+                }
+
+            if (
+                remainingNodes.isEmpty()
+            ) {
+                break
+            }
+
+            val lastPoint =
+                strokeFlowNodePoint(
+                    lastRoot
+                )
+
+            nextRoot =
+                remainingNodes.minByOrNull {
+                        node ->
+                    pointDistance(
+                        strokeFlowNodePoint(
+                            node
+                        ),
+                        lastPoint
+                    )
+                }
+                    ?: break
+        }
+
+        return result
+    }
+
+    private fun buildStrokeFlowRows(
+        rawLine: List<SkeletonPoint>,
+        mask: BooleanArray,
+        width: Int,
+        height: Int,
+        stepPixels: Float,
+        pullPixels: Float,
+        minX: Int,
+        maxY: Int,
+        padding: Int,
+        unitsPerPixel: Float
+    ): List<StrokeFlowSatinRow> {
+        val samples =
+            smoothAndResampleSkeleton(
+                source =
+                    rawLine,
+                radius =
+                    3,
+                passes =
+                    2,
+                stepPixels =
+                    stepPixels
+            )
+
+        if (
+            samples.size <
+                2
+        ) {
+            return emptyList()
+        }
+
+        val rows =
+            mutableListOf<
+                StrokeFlowSatinRow
+            >()
+
+        var positiveWidth:
+            Double? =
+            null
+
+        var negativeWidth:
+            Double? =
+            null
+
+        samples.forEachIndexed {
+                index,
+                sample ->
+            val before =
+                samples[
+                    (
+                        index -
+                            3
+                        ).coerceAtLeast(
+                        0
+                    )
+                ]
+
+            val after =
+                samples[
+                    (
+                        index +
+                            3
+                        ).coerceAtMost(
+                        samples.lastIndex
+                    )
+                ]
+
+            val tangentX =
+                (
+                    after.x -
+                        before.x
+                    ).toDouble()
+
+            val tangentY =
+                (
+                    after.y -
+                        before.y
+                    ).toDouble()
+
+            val tangentLength =
+                sqrt(
+                    tangentX *
+                        tangentX +
+                    tangentY *
+                        tangentY
+                )
+
+            if (
+                tangentLength <
+                    0.001
+            ) {
+                return@forEachIndexed
+            }
+
+            val normalX =
+                -tangentY /
+                    tangentLength
+
+            val normalY =
+                tangentX /
+                    tangentLength
+
+            val rawPositive =
+                boundaryDistance(
+                    mask =
+                        mask,
+                    width =
+                        width,
+                    height =
+                        height,
+                    centerX =
+                        sample.x
+                            .toDouble(),
+                    centerY =
+                        sample.y
+                            .toDouble(),
+                    normalX =
+                        normalX,
+                    normalY =
+                        normalY,
+                    direction =
+                        1.0
+                )
+
+            val rawNegative =
+                boundaryDistance(
+                    mask =
+                        mask,
+                    width =
+                        width,
+                    height =
+                        height,
+                    centerX =
+                        sample.x
+                            .toDouble(),
+                    centerY =
+                        sample.y
+                            .toDouble(),
+                    normalX =
+                        normalX,
+                    normalY =
+                        normalY,
+                    direction =
+                        -1.0
+                )
+
+            if (
+                rawPositive <
+                    0.8 ||
+                rawNegative <
+                    0.8
+            ) {
+                return@forEachIndexed
+            }
+
+            val positive =
+                positiveWidth
+                    ?.let {
+                        previous ->
+                        previous *
+                            0.60 +
+                        rawPositive *
+                            0.40
+                    }
+                    ?: rawPositive
+
+            val negative =
+                negativeWidth
+                    ?.let {
+                        previous ->
+                        previous *
+                            0.60 +
+                        rawNegative *
+                            0.40
+                    }
+                    ?: rawNegative
+
+            positiveWidth =
+                positive
+
+            negativeWidth =
+                negative
+
+            val centerXUnits =
+                skeletonXToUnits(
+                    sample.x,
+                    minX,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val centerYUnits =
+                skeletonYToUnits(
+                    sample.y,
+                    maxY,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val aXUnits =
+                skeletonXToUnits(
+                    (
+                        sample.x +
+                            normalX *
+                                (
+                                    positive +
+                                        pullPixels
+                                    )
+                        ).toFloat(),
+                    minX,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val aYUnits =
+                skeletonYToUnits(
+                    (
+                        sample.y +
+                            normalY *
+                                (
+                                    positive +
+                                        pullPixels
+                                    )
+                        ).toFloat(),
+                    maxY,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val bXUnits =
+                skeletonXToUnits(
+                    (
+                        sample.x -
+                            normalX *
+                                (
+                                    negative +
+                                        pullPixels
+                                    )
+                        ).toFloat(),
+                    minX,
+                    padding,
+                    unitsPerPixel
+                )
+
+            val bYUnits =
+                skeletonYToUnits(
+                    (
+                        sample.y -
+                            normalY *
+                                (
+                                    negative +
+                                        pullPixels
+                                    )
+                        ).toFloat(),
+                    maxY,
+                    padding,
+                    unitsPerPixel
+                )
+
+            rows +=
+                StrokeFlowSatinRow(
+                    centerXUnits =
+                        centerXUnits,
+                    centerYUnits =
+                        centerYUnits,
+                    aXUnits =
+                        aXUnits,
+                    aYUnits =
+                        aYUnits,
+                    bXUnits =
+                        bXUnits,
+                    bYUnits =
+                        bYUnits
+                )
+        }
+
+        return rows
+    }
+
+    private fun orientStrokeFlowRows(
+        segment: StrokeFlowSegment,
+        rows: List<StrokeFlowSatinRow>,
+        fromNode: Long
+    ): List<StrokeFlowSatinRow> {
+        if (
+            segment.startNode ==
+                fromNode ||
+            segment.startNode ==
+                segment.endNode
+        ) {
+            return rows
+        }
+
+        return rows
+            .asReversed()
+            .map {
+                    row ->
+                row.copy(
+                    aXUnits =
+                        row.bXUnits,
+                    aYUnits =
+                        row.bYUnits,
+                    bXUnits =
+                        row.aXUnits,
+                    bYUnits =
+                        row.aYUnits
+                )
+            }
+    }
+
+    private fun moveStrokeFlowTo(
+        output:
+            MutableList<EmbroideryPoint>,
+        targetX: Int,
+        targetY: Int,
+        allowStitch: Boolean
+    ) {
+        if (
+            output.isEmpty()
+        ) {
+            output +=
+                EmbroideryPoint(
+                    targetX,
+                    targetY,
+                    StitchCommand.JUMP,
+                    0
+                )
+
+            return
+        }
+
+        val previous =
+            output.last()
+
+        val distance =
+            hypot(
+                (
+                    targetX -
+                        previous.xUnits
+                    ).toDouble(),
+                (
+                    targetY -
+                        previous.yUnits
+                    ).toDouble()
+            )
+
+        if (
+            distance <
+                0.5
+        ) {
+            return
+        }
+
+        if (
+            allowStitch &&
+            distance <=
+                18.0
+        ) {
+            appendSplitStitch(
+                output =
+                    output,
+                fromX =
+                    previous.xUnits,
+                fromY =
+                    previous.yUnits,
+                toX =
+                    targetX,
+                toY =
+                    targetY,
+                maxLengthUnits =
+                    70f
+            )
+        } else {
+            if (
+                distance >
+                    50.0 &&
+                previous.command !=
+                    StitchCommand.TRIM
+            ) {
+                output +=
+                    EmbroideryPoint(
+                        previous.xUnits,
+                        previous.yUnits,
+                        StitchCommand.TRIM,
+                        0
+                    )
+            }
+
+            output +=
+                EmbroideryPoint(
+                    targetX,
+                    targetY,
+                    StitchCommand.JUMP,
+                    0
+                )
+        }
+    }
+
+    private fun emitStrokeFlowCenterRun(
+        output:
+            MutableList<EmbroideryPoint>,
+        rows:
+            List<StrokeFlowSatinRow>,
+        includeUnderlay: Boolean,
+        densityUnits: Float
+    ) {
+        if (
+            rows.isEmpty()
+        ) {
+            return
+        }
+
+        if (
+            !includeUnderlay
+        ) {
+            val end =
+                rows.last()
+
+            moveStrokeFlowTo(
+                output =
+                    output,
+                targetX =
+                    end.centerXUnits,
+                targetY =
+                    end.centerYUnits,
+                allowStitch =
+                    false
+            )
+
+            return
+        }
+
+        val start =
+            rows.first()
+
+        moveStrokeFlowTo(
+            output =
+                output,
+            targetX =
+                start.centerXUnits,
+            targetY =
+                start.centerYUnits,
+            allowStitch =
+                true
+        )
+
+        output +=
+            EmbroideryPoint(
+                start.centerXUnits,
+                start.centerYUnits,
+                StitchCommand.STITCH,
+                0
+            )
+
+        val underlayStep =
+            maxOf(
+                1,
+                (
+                    14f /
+                        densityUnits
+                    ).roundToInt()
+            )
+
+        var rowIndex =
+            0
+
+        while (
+            rowIndex <
+                rows.lastIndex
+        ) {
+            rowIndex =
+                minOf(
+                    rows.lastIndex,
+                    rowIndex +
+                        underlayStep
+                )
+
+            val center =
+                rows[
+                    rowIndex
+                ]
+
+            val previous =
+                output.last()
+
+            appendSplitStitch(
+                output =
+                    output,
+                fromX =
+                    previous.xUnits,
+                fromY =
+                    previous.yUnits,
+                toX =
+                    center.centerXUnits,
+                toY =
+                    center.centerYUnits,
+                maxLengthUnits =
+                    70f
+            )
+        }
+    }
+
+    private fun emitStrokeFlowCoverage(
+        output:
+            MutableList<EmbroideryPoint>,
+        rows:
+            List<StrokeFlowSatinRow>
+    ) {
+        if (
+            rows.isEmpty()
+        ) {
+            return
+        }
+
+        val first =
+            rows.first()
+
+        moveStrokeFlowTo(
+            output =
+                output,
+            targetX =
+                first.centerXUnits,
+            targetY =
+                first.centerYUnits,
+            allowStitch =
+                true
+        )
+
+        rows.forEach {
+                row ->
+            var previous =
+                output.last()
+
+            appendSplitStitch(
+                output =
+                    output,
+                fromX =
+                    previous.xUnits,
+                fromY =
+                    previous.yUnits,
+                toX =
+                    row.aXUnits,
+                toY =
+                    row.aYUnits,
+                maxLengthUnits =
+                    70f
+            )
+
+            previous =
+                output.last()
+
+            appendSplitStitch(
+                output =
+                    output,
+                fromX =
+                    previous.xUnits,
+                fromY =
+                    previous.yUnits,
+                toX =
+                    row.bXUnits,
+                toY =
+                    row.bYUnits,
+                maxLengthUnits =
+                    70f
+            )
+        }
+
+        val end =
+            rows.last()
+
+        val previous =
+            output.last()
+
+        appendSplitStitch(
+            output =
+                output,
+            fromX =
+                previous.xUnits,
+            fromY =
+                previous.yUnits,
+            toX =
+                end.centerXUnits,
+            toY =
+                end.centerYUnits,
+            maxLengthUnits =
+                70f
+        )
+    }
+
+    internal fun debugStrokeFlowPostOrder():
+        List<String> {
+        val parent =
+            listOf(
+                SkeletonPoint(
+                    0,
+                    0
+                ),
+                SkeletonPoint(
+                    0,
+                    10
+                ),
+                SkeletonPoint(
+                    0,
+                    20
+                )
+            )
+
+        val right =
+            listOf(
+                SkeletonPoint(
+                    0,
+                    20
+                ),
+                SkeletonPoint(
+                    10,
+                    30
+                ),
+                SkeletonPoint(
+                    20,
+                    40
+                )
+            )
+
+        val left =
+            listOf(
+                SkeletonPoint(
+                    0,
+                    20
+                ),
+                SkeletonPoint(
+                    -10,
+                    30
+                ),
+                SkeletonPoint(
+                    -20,
+                    40
+                )
+            )
+
+        val segments =
+            splitStrokeFlowSegments(
+                listOf(
+                    parent,
+                    right,
+                    left
+                )
+            )
+
+        val byId =
+            segments.associateBy {
+                it.id
+            }
+
+        return planStrokeFlowTraversal(
+            segments =
+                segments,
+            rootHint =
+                SkeletonPoint(
+                    0,
+                    0
+                )
+        ).map {
+                step ->
+            val segment =
+                byId[
+                    step.segmentId
+                ]!!
+
+            val from =
+                strokeFlowNodePoint(
+                    step.fromNode
+                )
+
+            val to =
+                strokeFlowNodePoint(
+                    step.toNode
+                )
+
+            step.phase.name +
+                ":" +
+                from.x +
+                "," +
+                from.y +
+                "->" +
+                to.x +
+                "," +
+                to.y
         }
     }
 
