@@ -273,31 +273,31 @@ class GreatVibesStartDiagnosticTest {
                 .getOrThrow()
 
         assertTrue(
-            "A largura deve permanecer próxima da referência de 155 mm.",
+            "A largura deve permanecer próxima da referência de 155 mm.\n" + report,
             created.bounds.widthMm in
                 135f..175f
         )
 
         assertTrue(
-            "A altura deve permanecer próxima da referência de 47 mm.",
+            "A altura deve permanecer próxima da referência de 47 mm.\n" + report,
             created.bounds.heightMm in
                 42f..52f
         )
 
         assertTrue(
-            "A densidade total de pontos deve permanecer na mesma ordem da referência de 3546 pontos.",
+            "A densidade total de pontos deve permanecer na mesma ordem da referência de 3546 pontos.\n" + report,
             created.points.size in
                 2400..4800
         )
 
         assertTrue(
-            "O motor adaptativo não deve explodir em JUMPs.",
+            "O motor adaptativo não deve explodir em JUMPs.\n" + report,
             created.jumpCount <=
                 30
         )
 
         assertTrue(
-            "O motor adaptativo não deve explodir em TRIMs.",
+            "O motor adaptativo não deve explodir em TRIMs.\n" + report,
             created.points.count {
                 it.command ==
                     StitchCommand.TRIM
