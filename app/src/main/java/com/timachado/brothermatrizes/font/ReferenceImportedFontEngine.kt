@@ -4644,13 +4644,56 @@ internal object ReferenceImportedFontEngine {
         private fun emitLock(
             row: SatinRow
         ) {
+            val before =
+                current
+
+            val distanceToA =
+                before?.let {
+                        point ->
+                    distance(
+                        point,
+                        row.a
+                    )
+                }
+                    ?: 0f
+
+            val distanceToB =
+                before?.let {
+                        point ->
+                    distance(
+                        point,
+                        row.b
+                    )
+                }
+                    ?: Float.MAX_VALUE
+
+            val anchor =
+                if (
+                    distanceToB <
+                        distanceToA
+                ) {
+                    row.b
+                } else {
+                    row.a
+                }
+
+            val other =
+                if (
+                    anchor ==
+                        row.a
+                ) {
+                    row.b
+                } else {
+                    row.a
+                }
+
             val dx =
-                row.b.x -
-                    row.a.x
+                other.x -
+                    anchor.x
 
             val dy =
-                row.b.y -
-                    row.a.y
+                other.y -
+                    anchor.y
 
             val length =
                 hypot(
@@ -4682,24 +4725,24 @@ internal object ReferenceImportedFontEngine {
                 }
 
             emitStitchTo(
-                row.a
+                anchor
             )
 
             emitStitchTo(
                 FPoint(
                     x =
-                        row.a.x +
+                        anchor.x +
                             ux *
                                 6f,
                     y =
-                        row.a.y +
+                        anchor.y +
                             uy *
                                 6f
                 )
             )
 
             emitStitchTo(
-                row.a
+                anchor
             )
         }
 
