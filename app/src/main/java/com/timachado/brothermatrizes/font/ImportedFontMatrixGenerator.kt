@@ -72,15 +72,33 @@ object ImportedFontMatrixGenerator {
         options: TextMatrixOptions,
         filePrefix: String
     ): Result<EmbroideryDesign> =
-        generateTextInternal(
-            font = font,
-            sourceText =
-                sourceText,
-            options =
-                options,
-            filePrefix =
-                filePrefix
-        )
+        if (
+            options.style ==
+                TextStitchStyle.SATIN &&
+            options.specialStitchMode ==
+                null
+        ) {
+            ReferenceImportedFontEngine
+                .generate(
+                    font = font,
+                    sourceText =
+                        sourceText,
+                    options =
+                        options,
+                    filePrefix =
+                        filePrefix
+                )
+        } else {
+            generateTextInternal(
+                font = font,
+                sourceText =
+                    sourceText,
+                options =
+                    options,
+                filePrefix =
+                    filePrefix
+            )
+        }
 
     private fun generateTextInternal(
         font: ImportedFont,
@@ -831,26 +849,10 @@ object ImportedFontMatrixGenerator {
                 centerTransform
             )
 
-            /*
-             * Android entrega o Path com Y positivo para baixo. O restante do
-             * motor de bordado trabalha com Y positivo para cima. Normalize o
-             * glifo aqui, uma única vez, para que pontadas e guia usem a mesma
-             * orientação e a prévia não fique espelhada verticalmente.
-             */
             val polygons =
                 polygonizeReferencePath(
                     centeredPath
                 )
-                    .map {
-                            polygon ->
-                        polygon.map {
-                                point ->
-                            Pair(
-                                point.first,
-                                -point.second
-                            )
-                        }
-                    }
 
             if (
                 polygons.isEmpty()
@@ -870,8 +872,9 @@ object ImportedFontMatrixGenerator {
                             Pair(
                                 point.first
                                     .roundToInt(),
-                                point.second
-                                    .roundToInt()
+                                (
+                                    -point.second
+                                    ).roundToInt()
                             )
                         }
                         .fold(
