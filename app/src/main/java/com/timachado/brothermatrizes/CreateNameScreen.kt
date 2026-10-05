@@ -371,11 +371,19 @@ fun CreateNameScreen(
             true
 
         /*
+         * Não mantenha uma prévia antiga enquanto outra fonte está sendo
+         * digitalizada. Isso evita mostrar a fonte anterior com os botões
+         * bloqueados e dá feedback correto de atualização.
+         */
+        previewResult =
+            null
+
+        /*
          * Debounce curto: trocar fonte/slider rapidamente não deve iniciar
          * várias digitalizações Satin caras em sequência.
          */
         delay(
-            140L
+            120L
         )
 
         val requestedHeight =
@@ -390,37 +398,9 @@ fun CreateNameScreen(
             withContext(
                 Dispatchers.Default
             ) {
-                val resolvedHeight =
-                    if (
-                        autoFitToHoop
-                    ) {
-                        TextHoopAutoFit
-                            .fit(
-                                hoop =
-                                    hoopProfile
-                            ) {
-                                    candidateHeight ->
-                                TextLayoutGenerator
-                                    .generate(
-                                        baseOptions.copy(
-                                            textOptions =
-                                                baseOptions
-                                                    .textOptions
-                                                    .copy(
-                                                        heightMm =
-                                                            candidateHeight
-                                                    )
-                                        )
-                                    )
-                            }
-                            .getOrNull()
-                            ?.heightMm
-                            ?: requestedHeight
-                    } else {
-                        requestedHeight
-                    }
-
-                resolvedHeight to
+                fun generateAt(
+                    targetHeight: Float
+                ): Result<EmbroideryDesign> =
                     TextLayoutGenerator
                         .generate(
                             baseOptions.copy(
@@ -429,10 +409,139 @@ fun CreateNameScreen(
                                         .textOptions
                                         .copy(
                                             heightMm =
-                                                resolvedHeight
+                                                targetHeight
                                         )
                             )
                         )
+
+                if (
+                    autoFitToHoop &&
+                    importedFont !=
+                        null
+                ) {
+                    /*
+                     * TTF/OTF Satin é proporcional à altura. O binary-search
+                     * genérico fazia 12+ digitalizações completas da fonte e
+                     * podia manter a UI em "Atualizando" por muito tempo.
+                     *
+                     * Para fonte importada fazemos uma medição real e, quando
+                     * necessário, uma segunda geração já na altura calculada.
+                     */
+                    val first =
+                        generateAt(
+                            requestedHeight
+                        )
+
+                    val firstDesign =
+                        first.getOrNull()
+
+                    if (
+                        firstDesign ==
+                            null
+                    ) {
+                        requestedHeight to
+                            first
+                    } else {
+                        val widthRatio =
+                            (
+                                hoopProfile
+                                    .usableWidthMm *
+                                    0.96f
+                                ) /
+                                firstDesign
+                                    .bounds
+                                    .widthMm
+                                    .coerceAtLeast(
+                                        0.1f
+                                    )
+
+                        val heightRatio =
+                            (
+                                hoopProfile
+                                    .usableHeightMm *
+                                    0.96f
+                                ) /
+                                firstDesign
+                                    .bounds
+                                    .heightMm
+                                    .coerceAtLeast(
+                                        0.1f
+                                    )
+
+                        val scaleRatio =
+                            minOf(
+                                widthRatio,
+                                heightRatio
+                            )
+
+                        val fittedHeight =
+                            (
+                                requestedHeight *
+                                    scaleRatio
+                                )
+                                .coerceIn(
+                                    TextHoopAutoFit
+                                        .MIN_HEIGHT_MM,
+                                    TextHoopAutoFit
+                                        .MAX_HEIGHT_MM
+                                )
+
+                        if (
+                            kotlin.math.abs(
+                                fittedHeight -
+                                    requestedHeight
+                            ) <
+                            0.05f
+                        ) {
+                            requestedHeight to
+                                first
+                        } else {
+                            fittedHeight to
+                                generateAt(
+                                    fittedHeight
+                                )
+                        }
+                    }
+                } else if (
+                    autoFitToHoop
+                ) {
+                    val fit =
+                        TextHoopAutoFit
+                            .fit(
+                                hoop =
+                                    hoopProfile
+                            ) {
+                                    candidateHeight ->
+                                generateAt(
+                                    candidateHeight
+                                )
+                            }
+                            .getOrNull()
+
+                    if (
+                        fit !=
+                            null
+                    ) {
+                        /*
+                         * Reaproveita o design já calculado pelo auto-fit em
+                         * vez de gerar a mesma matriz novamente.
+                         */
+                        fit.heightMm to
+                            Result.success(
+                                fit.design
+                            )
+                    } else {
+                        requestedHeight to
+                            generateAt(
+                                requestedHeight
+                            )
+                    }
+                } else {
+                    requestedHeight to
+                        generateAt(
+                            requestedHeight
+                        )
+                }
             }
 
         val resolvedHeight =
