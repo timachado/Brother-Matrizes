@@ -653,10 +653,9 @@ internal object ReferenceImportedFontEngine {
                         font.absolutePath
                     )
             ) {
-                return@synchronized
-                    capHeightRatioCache[
-                        font.absolutePath
-                    ]
+                return@synchronized capHeightRatioCache[
+                    font.absolutePath
+                ]
             }
 
             val parsed =
