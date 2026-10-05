@@ -50,6 +50,15 @@ fun MachineSimulationCanvas(
         false,
     modifier: Modifier = Modifier
 ) {
+    val referenceTextSimulation =
+        design.isModified &&
+        design.guidePoints
+            .isNotEmpty() &&
+        design.fileName
+            .startsWith(
+                "nome-"
+            )
+
     Box(
         modifier =
             modifier
@@ -118,13 +127,26 @@ fun MachineSimulationCanvas(
                                         item.colorIndex
                                     ).copy(
                                         alpha =
-                                            0.18f
+                                            if (
+                                                referenceTextSimulation
+                                            ) {
+                                                38f /
+                                                    255f
+                                            } else {
+                                                0.18f
+                                            }
                                     ),
                                 style =
                                     Stroke(
                                         width =
-                                            1.05.dp
-                                                .toPx(),
+                                            if (
+                                                referenceTextSimulation
+                                            ) {
+                                                1.5f
+                                            } else {
+                                                1.05.dp
+                                                    .toPx()
+                                            },
                                         cap =
                                             StrokeCap.Round
                                     )
@@ -147,20 +169,35 @@ fun MachineSimulationCanvas(
                         hoop
                 )
 
-            drawStitches(
-                design =
-                    design,
-                transform =
-                    transform,
-                pointLimit =
-                    pointLimit,
-                ghost =
-                    false,
-                displayMode =
-                    displayMode,
-                showConnections =
-                    showConnections
-            )
+            if (
+                referenceTextSimulation
+            ) {
+                drawReferenceCompletedStitches(
+                    design =
+                        design,
+                    transform =
+                        transform,
+                    pointLimit =
+                        pointLimit,
+                    showConnections =
+                        showConnections
+                )
+            } else {
+                drawStitches(
+                    design =
+                        design,
+                    transform =
+                        transform,
+                    pointLimit =
+                        pointLimit,
+                    ghost =
+                        false,
+                    displayMode =
+                        displayMode,
+                    showConnections =
+                        showConnections
+                )
+            }
 
             val current =
                 design.points
@@ -178,18 +215,35 @@ fun MachineSimulationCanvas(
                 current !=
                     null
             ) {
-                drawNeedle(
-                    point =
-                        current,
-                    transform =
-                        transform,
-                    color =
-                        threadColor(
-                            design,
-                            current
-                                .colorIndex
-                        )
-                )
+                if (
+                    referenceTextSimulation
+                ) {
+                    drawReferenceNeedle(
+                        point =
+                            current,
+                        transform =
+                            transform,
+                        color =
+                            threadColor(
+                                design,
+                                current
+                                    .colorIndex
+                            )
+                    )
+                } else {
+                    drawNeedle(
+                        point =
+                            current,
+                        transform =
+                            transform,
+                        color =
+                            threadColor(
+                                design,
+                                current
+                                    .colorIndex
+                            )
+                    )
+                }
             }
         }
     }
@@ -1271,6 +1325,262 @@ private fun DrawScope.drawStitches(
             }
         }
     }
+}
+
+private fun DrawScope.drawReferenceCompletedStitches(
+    design: EmbroideryDesign,
+    transform: SimulationTransform,
+    pointLimit: Int,
+    showConnections: Boolean
+) {
+    val paths =
+        linkedMapOf<
+            Int,
+            Path
+        >()
+
+    var previous:
+        EmbroideryPoint? =
+        null
+
+    val limit =
+        pointLimit
+            .coerceIn(
+                0,
+                design.points.size
+            )
+
+    for (
+        index in
+            0 until
+                limit
+    ) {
+        val point =
+            design.points[
+                index
+            ]
+
+        when (
+            point.command
+        ) {
+            StitchCommand.COLOR_CHANGE,
+            StitchCommand.TRIM,
+            StitchCommand.STOP,
+            StitchCommand.END -> {
+                previous =
+                    null
+            }
+
+            StitchCommand.JUMP -> {
+                if (
+                    showConnections &&
+                    previous !=
+                        null
+                ) {
+                    drawLine(
+                        color =
+                            Color(
+                                red =
+                                    58f /
+                                        255f,
+                                green =
+                                    60f /
+                                        255f,
+                                blue =
+                                    82f /
+                                        255f,
+                                alpha =
+                                    145f /
+                                        255f
+                            ),
+                        start =
+                            transform.point(
+                                previous
+                            ),
+                        end =
+                            transform.point(
+                                point
+                            ),
+                        strokeWidth =
+                            1f,
+                        pathEffect =
+                            PathEffect
+                                .dashPathEffect(
+                                    floatArrayOf(
+                                        5f,
+                                        4f
+                                    )
+                                )
+                    )
+                }
+
+                previous =
+                    point
+            }
+
+            StitchCommand.SEQUIN -> {
+                previous =
+                    point
+            }
+
+            StitchCommand.STITCH -> {
+                val before =
+                    previous
+
+                if (
+                    before !=
+                        null
+                ) {
+                    val start =
+                        transform.point(
+                            before
+                        )
+
+                    val end =
+                        transform.point(
+                            point
+                        )
+
+                    paths
+                        .getOrPut(
+                            point.colorIndex
+                        ) {
+                            Path()
+                        }
+                        .apply {
+                            moveTo(
+                                start.x,
+                                start.y
+                            )
+
+                            lineTo(
+                                end.x,
+                                end.y
+                            )
+                        }
+                }
+
+                previous =
+                    point
+            }
+        }
+    }
+
+    paths.forEach {
+            entry ->
+        drawPath(
+            path =
+                entry.value,
+            color =
+                threadColor(
+                    design,
+                    entry.key
+                ),
+            style =
+                Stroke(
+                    width =
+                        2f,
+                    cap =
+                        StrokeCap.Round
+                )
+        )
+    }
+}
+
+private fun DrawScope.drawReferenceNeedle(
+    point: EmbroideryPoint,
+    transform: SimulationTransform,
+    color: Color
+) {
+    val center =
+        transform.point(
+            point
+        )
+
+    val crosshair =
+        Color(
+            red =
+                58f /
+                    255f,
+            green =
+                60f /
+                    255f,
+            blue =
+                82f /
+                    255f,
+            alpha =
+                145f /
+                    255f
+        )
+
+    drawLine(
+        color =
+            crosshair,
+        start =
+            Offset(
+                transform
+                    .hoopFrameLeftPx,
+                center.y
+            ),
+        end =
+            Offset(
+                transform
+                    .hoopFrameLeftPx +
+                    transform
+                        .hoopFrameWidthPx,
+                center.y
+            ),
+        strokeWidth =
+            1f
+    )
+
+    drawLine(
+        color =
+            crosshair,
+        start =
+            Offset(
+                center.x,
+                transform
+                    .hoopFrameTopPx
+            ),
+        end =
+            Offset(
+                center.x,
+                transform
+                    .hoopFrameTopPx +
+                    transform
+                        .hoopFrameHeightPx
+            ),
+        strokeWidth =
+            1f
+    )
+
+    drawCircle(
+        color =
+            Color.White,
+        radius =
+            5f,
+        center =
+            center
+    )
+
+    drawCircle(
+        color =
+            color,
+        radius =
+            3.2f,
+        center =
+            center
+    )
+
+    drawCircle(
+        color =
+            Color.White,
+        radius =
+            1.1f,
+        center =
+            center
+    )
 }
 
 private fun DrawScope.drawSolidStitchPaths(
