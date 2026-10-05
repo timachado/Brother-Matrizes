@@ -5497,6 +5497,79 @@ internal object ReferenceImportedFontEngine {
         }
     }
 
+    internal fun debugAxisReferenceEmissionPath(
+        includeUnderlay: Boolean =
+            true
+    ): List<EmbroideryPoint> {
+        val output =
+            mutableListOf<
+                EmbroideryPoint
+            >()
+
+        val emitter =
+            SatinEmitter(
+                output
+            )
+
+        val column =
+            SatinColumn(
+                rows =
+                    mutableListOf(
+                        SatinRow(
+                            FPoint(
+                                0f,
+                                0f
+                            ),
+                            FPoint(
+                                20f,
+                                0f
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                0f,
+                                10f
+                            ),
+                            FPoint(
+                                20f,
+                                10f
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                0f,
+                                20f
+                            ),
+                            FPoint(
+                                20f,
+                                20f
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                0f,
+                                30f
+                            ),
+                            FPoint(
+                                20f,
+                                30f
+                            )
+                        )
+                    )
+            )
+
+        emitter.emitAxisReferenceColumn(
+            column =
+                column,
+            includeUnderlay =
+                includeUnderlay,
+            densityMm =
+                0.4f
+        )
+
+        return output
+    }
+
     internal fun debugAdaptiveFlowEnvelope():
         Pair<Float, Float> {
         val polygon =
