@@ -217,6 +217,10 @@ fun CreateNameScreen(
         mutableFloatStateOf(8f)
     }
 
+    var rotationDegrees by remember {
+        mutableFloatStateOf(0f)
+    }
+
     val importedFont =
         importedFonts
             .firstOrNull {
@@ -300,7 +304,9 @@ fun CreateNameScreen(
                     hoopProfile =
                         hoopProfile,
                     fabricProfile =
-                        fabricProfile
+                        fabricProfile,
+                    rotationDegrees =
+                        rotationDegrees
                 ),
             layoutMode =
                 layoutMode,
@@ -351,7 +357,8 @@ fun CreateNameScreen(
         hoopProfile,
         fabricProfile,
         layoutMode,
-        arcHeightMm
+        arcHeightMm,
+        rotationDegrees
     ) {
         if (
             text.isBlank()
@@ -920,6 +927,61 @@ fun CreateNameScreen(
                                         0f..30f
                                 )
                             }
+
+                            if (
+                                importedFont !=
+                                    null
+                            ) {
+                                Spacer(
+                                    Modifier.height(
+                                        8.dp
+                                    )
+                                )
+
+                                Text(
+                                    "Rotação do bordado",
+                                    color =
+                                        FioText,
+                                    fontWeight =
+                                        FontWeight.SemiBold
+                                )
+
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(
+                                                rememberScrollState()
+                                            )
+                                            .padding(
+                                                vertical =
+                                                    6.dp
+                                            ),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(
+                                            7.dp
+                                        )
+                                ) {
+                                    listOf(
+                                        0f to "0°",
+                                        90f to "90°",
+                                        -90f to "-90°"
+                                    ).forEach {
+                                            rotation ->
+                                        ChoiceButton(
+                                            text =
+                                                rotation.second,
+                                            selected =
+                                                rotationDegrees ==
+                                                    rotation.first,
+                                            onClick = {
+                                                rotationDegrees =
+                                                    rotation.first
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         "Fonte" -> {
@@ -964,6 +1026,8 @@ fun CreateNameScreen(
                                                     option
                                                 importedFontId =
                                                     null
+                                                rotationDegrees =
+                                                    0f
                                             }
                                         )
                                     }
@@ -1023,6 +1087,27 @@ fun CreateNameScreen(
                                                 onClick = {
                                                     importedFontId =
                                                         imported.id
+
+                                                    val referenceFont =
+                                                        imported
+                                                            .displayName
+                                                            .lowercase(
+                                                                Locale.ROOT
+                                                            )
+
+                                                    rotationDegrees =
+                                                        if (
+                                                            referenceFont.contains(
+                                                                "adamya"
+                                                            ) ||
+                                                            referenceFont.contains(
+                                                                "ademya"
+                                                            )
+                                                        ) {
+                                                            90f
+                                                        } else {
+                                                            0f
+                                                        }
                                                 }
                                             )
                                         }
