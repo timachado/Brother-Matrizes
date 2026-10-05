@@ -771,11 +771,25 @@ class ReferenceImportedFontEngineTest {
         )
 
         val firstRowA =
-            coordinates.indexOf(
-                0 to 0,
-                startIndex =
+            coordinates
+                .drop(
                     3
-            )
+                )
+                .indexOf(
+                    0 to 0
+                )
+                .let {
+                        relative ->
+                    if (
+                        relative >=
+                            0
+                    ) {
+                        relative +
+                            3
+                    } else {
+                        -1
+                    }
+                }
 
         assertTrue(
             firstRowA >=
