@@ -933,6 +933,24 @@ private fun DrawScope.drawStitches(
     showConnections:
         Boolean
 ) {
+    if (
+        !ghost &&
+        displayMode ==
+            EmbroideryDisplayMode.SOLID &&
+        !showConnections
+    ) {
+        drawSolidStitchPaths(
+            design =
+                design,
+            transform =
+                transform,
+            pointLimit =
+                pointLimit
+        )
+
+        return
+    }
+
     var previous:
         EmbroideryPoint? =
         null
@@ -1252,6 +1270,122 @@ private fun DrawScope.drawStitches(
                     point
             }
         }
+    }
+}
+
+private fun DrawScope.drawSolidStitchPaths(
+    design: EmbroideryDesign,
+    transform: SimulationTransform,
+    pointLimit: Int
+) {
+    val paths =
+        linkedMapOf<
+            Int,
+            Path
+        >()
+
+    var previous:
+        EmbroideryPoint? =
+        null
+
+    val limit =
+        pointLimit
+            .coerceIn(
+                0,
+                design.points.size
+            )
+
+    for (
+        index in
+            0 until
+                limit
+    ) {
+        val point =
+            design.points[
+                index
+            ]
+
+        when (
+            point.command
+        ) {
+            StitchCommand.COLOR_CHANGE,
+            StitchCommand.TRIM,
+            StitchCommand.STOP,
+            StitchCommand.END -> {
+                previous =
+                    null
+            }
+
+            StitchCommand.JUMP,
+            StitchCommand.SEQUIN -> {
+                previous =
+                    point
+            }
+
+            StitchCommand.STITCH -> {
+                val before =
+                    previous
+
+                if (
+                    before !=
+                        null
+                ) {
+                    val start =
+                        transform.point(
+                            before
+                        )
+
+                    val end =
+                        transform.point(
+                            point
+                        )
+
+                    paths
+                        .getOrPut(
+                            point.colorIndex
+                        ) {
+                            Path()
+                        }
+                        .apply {
+                            moveTo(
+                                start.x,
+                                start.y
+                            )
+
+                            lineTo(
+                                end.x,
+                                end.y
+                            )
+                        }
+                }
+
+                previous =
+                    point
+            }
+        }
+    }
+
+    paths.forEach {
+            entry ->
+        drawPath(
+            path =
+                entry.value,
+            color =
+                threadColor(
+                    design,
+                    entry.key
+                ).copy(
+                    alpha =
+                        0.98f
+                ),
+            style =
+                Stroke(
+                    width =
+                        1.35.dp.toPx(),
+                    cap =
+                        StrokeCap.Round
+                )
+        )
     }
 }
 
