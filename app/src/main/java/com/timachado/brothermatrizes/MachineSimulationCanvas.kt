@@ -88,27 +88,40 @@ fun MachineSimulationCanvas(
             )
 
             /*
-             * A simulação deve mostrar a sequência real da matriz.
-             * guidePoints é geometria auxiliar de edição e, quando usado como
-             * fantasma, pode gerar preenchimentos/auto-interseções que não
-             * existem nas pontadas. O fundo da simulação usa sempre os pontos
-             * reais da matriz em baixa opacidade; a execução progressiva é
-             * desenhada por cima.
+             * Para criações de texto, guidePoints contém o contorno vetorial
+             * limpo da fonte. Antes do Play mostramos somente esse contorno,
+             * sem preenchê-lo. Isso evita renderizar milhares de pontadas
+             * fantasma em 0% e elimina manchas/auto-interseções falsas.
+             *
+             * Matrizes abertas que não possuem guidePoints continuam usando
+             * as próprias pontadas em baixa opacidade como referência.
              */
-            drawStitches(
-                design =
-                    design,
-                transform =
-                    transform,
-                pointLimit =
-                    design.points.size,
-                ghost =
-                    true,
-                displayMode =
-                    displayMode,
-                showConnections =
-                    showConnections
-            )
+            if (
+                design.guidePoints
+                    .isNotEmpty()
+            ) {
+                drawReferenceGuide(
+                    design =
+                        design,
+                    transform =
+                        transform
+                )
+            } else {
+                drawStitches(
+                    design =
+                        design,
+                    transform =
+                        transform,
+                    pointLimit =
+                        design.points.size,
+                    ghost =
+                        true,
+                    displayMode =
+                        displayMode,
+                    showConnections =
+                        showConnections
+                )
+            }
 
             drawStitches(
                 design =
@@ -756,13 +769,23 @@ private fun DrawScope.drawReferenceGuide(
                 ?: 0
         )
 
+    /*
+     * O guia é apenas referência de forma. Nunca deve ser preenchido:
+     * contornos cursivos podem se cruzar e um fill EvenOdd cria manchas que
+     * parecem pontos Satin quebrados antes mesmo da simulação começar.
+     */
     drawPath(
         path =
             path,
         color =
             guideColor.copy(
                 alpha =
-                    0.19f
+                    0.18f
+            ),
+        style =
+            Stroke(
+                width =
+                    1.8.dp.toPx()
             )
     )
 
@@ -772,27 +795,12 @@ private fun DrawScope.drawReferenceGuide(
         color =
             guideColor.copy(
                 alpha =
-                    0.16f
+                    0.42f
             ),
         style =
             Stroke(
                 width =
-                    3.4.dp.toPx()
-            )
-    )
-
-    drawPath(
-        path =
-            path,
-        color =
-            guideColor.copy(
-                alpha =
-                    0.62f
-            ),
-        style =
-            Stroke(
-                width =
-                    1.45.dp.toPx()
+                    0.75.dp.toPx()
             )
     )
 }
