@@ -672,4 +672,138 @@ class ReferenceImportedFontEngineTest {
         )
     }
 
+    @Test
+    fun axisReferenceUnderlayRunsToFarCenterAndBackBeforeSatin() {
+        val points =
+            ReferenceImportedFontEngine
+                .debugAxisReferenceEmissionPath(
+                    includeUnderlay =
+                        true
+                )
+
+        assertEquals(
+            StitchCommand.JUMP,
+            points.first()
+                .command
+        )
+
+        assertEquals(
+            0,
+            points.first()
+                .xUnits
+        )
+
+        assertEquals(
+            0,
+            points.first()
+                .yUnits
+        )
+
+        val stitches =
+            points.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        assertEquals(
+            "A primeira passada central deve sair do rail A para o centro da primeira row.",
+            10 to 0,
+            stitches[0]
+                .let {
+                    it.xUnits to
+                        it.yUnits
+                }
+        )
+
+        assertEquals(
+            "O center-run deve alcançar o centro da última row.",
+            10 to 30,
+            stitches[1]
+                .let {
+                    it.xUnits to
+                        it.yUnits
+                }
+        )
+
+        assertEquals(
+            "O underlay da referência retorna pelo centro antes de iniciar o Satin.",
+            10 to 0,
+            stitches[2]
+                .let {
+                    it.xUnits to
+                        it.yUnits
+                }
+        )
+    }
+
+    @Test
+    fun axisReferenceSatinKeepsForwardRowsAndRailAForLocks() {
+        val points =
+            ReferenceImportedFontEngine
+                .debugAxisReferenceEmissionPath(
+                    includeUnderlay =
+                        false
+                )
+
+        val stitches =
+            points.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        val coordinates =
+            stitches.map {
+                it.xUnits to
+                    it.yUnits
+            }
+
+        assertTrue(
+            "A trava inicial precisa usar A -> A+0,6 mm -> A.",
+            coordinates
+                .take(
+                    3
+                ) ==
+                listOf(
+                    0 to 0,
+                    6 to 0,
+                    0 to 0
+                )
+        )
+
+        val firstRowA =
+            coordinates.indexOf(
+                0 to 0,
+                startIndex =
+                    3
+            )
+
+        assertTrue(
+            firstRowA >=
+                3
+        )
+
+        assertEquals(
+            "A primeira row Satin deve seguir A -> B sem inverter a coluna.",
+            20 to 0,
+            coordinates[
+                firstRowA +
+                    1
+            ]
+        )
+
+        assertTrue(
+            "A última row deve ser alcançada em ordem direta.",
+            coordinates.windowed(
+                2
+            ).any {
+                    pair ->
+                pair ==
+                    listOf(
+                        0 to 30,
+                        20 to 30
+                    )
+            }
+        )
+    }
+
 }
