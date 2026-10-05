@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -62,7 +63,75 @@ fun MachineSimulationCanvas(
                 )
     ) {
         Canvas(
-            Modifier.fillMaxSize()
+            Modifier
+                .fillMaxSize()
+                .drawWithCache {
+                    val cachedTransform =
+                        SimulationTransform(
+                            design =
+                                design,
+                            canvasWidth =
+                                size.width,
+                            canvasHeight =
+                                size.height,
+                            padding =
+                                22.dp.toPx(),
+                            hoop =
+                                hoop
+                        )
+
+                    val ghostPaths =
+                        buildGhostStitchPaths(
+                            design =
+                                design,
+                            transform =
+                                cachedTransform
+                        )
+
+                    onDrawBehind {
+                        drawFabricGrid(
+                            cachedTransform
+                        )
+
+                        drawHoop(
+                            transform =
+                                cachedTransform
+                        )
+
+                        /*
+                         * Referência do vídeo: toda a matriz permanece visível
+                         * em rosa claro e a parte executada substitui esse
+                         * fantasma por vermelho forte.
+                         *
+                         * Os caminhos são montados no cache e só são
+                         * recalculados quando design/tamanho mudam. O avanço
+                         * da agulha não percorre novamente todos os pontos.
+                         */
+                        ghostPaths.forEach {
+                                item ->
+                            drawPath(
+                                path =
+                                    item.path,
+                                color =
+                                    threadColor(
+                                        design,
+                                        item.colorIndex
+                                    ).copy(
+                                        alpha =
+                                            0.18f
+                                    ),
+                                style =
+                                    Stroke(
+                                        width =
+                                            1.05.dp
+                                                .toPx(),
+                                        cap =
+                                            StrokeCap.Round
+                                    )
+                            )
+                        }
+                    }
+                }
         ) {
             val transform =
                 SimulationTransform(
@@ -78,51 +147,6 @@ fun MachineSimulationCanvas(
                         hoop
                 )
 
-            drawFabricGrid(
-                transform
-            )
-
-            drawHoop(
-                transform =
-                    transform
-            )
-
-            /*
-             * Para criações de texto, guidePoints contém o contorno vetorial
-             * limpo da fonte. Antes do Play mostramos somente esse contorno,
-             * sem preenchê-lo. Isso evita renderizar milhares de pontadas
-             * fantasma em 0% e elimina manchas/auto-interseções falsas.
-             *
-             * Matrizes abertas que não possuem guidePoints continuam usando
-             * as próprias pontadas em baixa opacidade como referência.
-             */
-            if (
-                design.guidePoints
-                    .isNotEmpty()
-            ) {
-                drawReferenceGuide(
-                    design =
-                        design,
-                    transform =
-                        transform
-                )
-            } else {
-                drawStitches(
-                    design =
-                        design,
-                    transform =
-                        transform,
-                    pointLimit =
-                        design.points.size,
-                    ghost =
-                        true,
-                    displayMode =
-                        displayMode,
-                    showConnections =
-                        showConnections
-                )
-            }
-
             drawStitches(
                 design =
                     design,
@@ -130,37 +154,33 @@ fun MachineSimulationCanvas(
                     transform,
                 pointLimit =
                     pointLimit,
-                ghost = false,
+                ghost =
+                    false,
                 displayMode =
                     displayMode,
                 showConnections =
                     showConnections
             )
 
-            val visiblePoints =
+            val current =
                 design.points
-                    .filter {
+                    .getOrNull(
+                        pointLimit -
+                            1
+                    )
+                    ?.takeIf {
                         it.command !=
                             StitchCommand.END
                     }
 
-            val current =
-                visiblePoints
-                    .getOrNull(
-                        (
-                            pointLimit -
-                                1
-                            ).coerceAtLeast(
-                                0
-                            )
-                    )
-
             if (
                 pointLimit > 0 &&
-                current != null
+                current !=
+                    null
             ) {
                 drawNeedle(
-                    point = current,
+                    point =
+                        current,
                     transform =
                         transform,
                     color =
@@ -172,6 +192,103 @@ fun MachineSimulationCanvas(
                 )
             }
         }
+    }
+}
+
+private data class GhostStitchPath(
+    val colorIndex: Int,
+    val path: Path
+)
+
+private fun buildGhostStitchPaths(
+    design: EmbroideryDesign,
+    transform: SimulationTransform
+): List<GhostStitchPath> {
+    val paths =
+        linkedMapOf<
+            Int,
+            Path
+        >()
+
+    var previous:
+        EmbroideryPoint? =
+        null
+
+    design.points
+        .forEach {
+                point ->
+            when (
+                point.command
+            ) {
+                StitchCommand.COLOR_CHANGE,
+                StitchCommand.TRIM,
+                StitchCommand.STOP,
+                StitchCommand.END -> {
+                    previous =
+                        null
+                }
+
+                StitchCommand.JUMP -> {
+                    previous =
+                        point
+                }
+
+                StitchCommand.SEQUIN -> {
+                    previous =
+                        point
+                }
+
+                StitchCommand.STITCH -> {
+                    val before =
+                        previous
+
+                    if (
+                        before !=
+                            null
+                    ) {
+                        val start =
+                            transform.point(
+                                before
+                            )
+
+                        val end =
+                            transform.point(
+                                point
+                            )
+
+                        paths
+                            .getOrPut(
+                                point.colorIndex
+                            ) {
+                                Path()
+                            }
+                            .apply {
+                                moveTo(
+                                    start.x,
+                                    start.y
+                                )
+
+                                lineTo(
+                                    end.x,
+                                    end.y
+                                )
+                            }
+                    }
+
+                    previous =
+                        point
+                }
+            }
+        }
+
+    return paths.map {
+            entry ->
+        GhostStitchPath(
+            colorIndex =
+                entry.key,
+            path =
+                entry.value
+        )
     }
 }
 
