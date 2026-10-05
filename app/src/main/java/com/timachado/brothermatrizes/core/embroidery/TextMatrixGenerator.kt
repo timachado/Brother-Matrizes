@@ -108,7 +108,8 @@ data class TextMatrixOptions(
     val outputFormat: String = "DST",
     val hoopProfile: HoopProfile? = null,
     val fabricProfile: FabricProfile? = null,
-    val enforceHoop: Boolean = false
+    val enforceHoop: Boolean = false,
+    val rotationDegrees: Float = 0f
 )
 
 object TextMatrixGenerator {
