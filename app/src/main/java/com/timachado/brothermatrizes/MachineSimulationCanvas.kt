@@ -87,32 +87,28 @@ fun MachineSimulationCanvas(
                     transform
             )
 
-            if (
-                design.guidePoints
-                    .isNotEmpty()
-            ) {
-                drawReferenceGuide(
-                    design =
-                        design,
-                    transform =
-                        transform
-                )
-            } else {
-                drawStitches(
-                    design =
-                        design,
-                    transform =
-                        transform,
-                    pointLimit =
-                        design.points.size,
-                    ghost =
-                        true,
-                    displayMode =
-                        displayMode,
-                    showConnections =
-                        showConnections
-                )
-            }
+            /*
+             * A simulação deve mostrar a sequência real da matriz.
+             * guidePoints é geometria auxiliar de edição e, quando usado como
+             * fantasma, pode gerar preenchimentos/auto-interseções que não
+             * existem nas pontadas. O fundo da simulação usa sempre os pontos
+             * reais da matriz em baixa opacidade; a execução progressiva é
+             * desenhada por cima.
+             */
+            drawStitches(
+                design =
+                    design,
+                transform =
+                    transform,
+                pointLimit =
+                    design.points.size,
+                ghost =
+                    true,
+                displayMode =
+                    displayMode,
+                showConnections =
+                    showConnections
+            )
 
             drawStitches(
                 design =
