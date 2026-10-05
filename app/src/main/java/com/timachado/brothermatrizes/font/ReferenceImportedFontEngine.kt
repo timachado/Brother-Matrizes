@@ -370,8 +370,16 @@ internal object ReferenceImportedFontEngine {
             polygonsByGlyph
                 .forEach {
                         polygons ->
+                    /*
+                     * Motor TTF/OTF compatível com a referência analisada:
+                     * contorno -> scanlines nos dois eixos -> menor largura
+                     * média -> colunas sobrepostas -> split apenas por largura.
+                     *
+                     * Não usamos skeleton, DFS, medial-line nem reordenação
+                     * por proximidade neste caminho.
+                     */
                     val columns =
-                        sampleColumns(
+                        sampleAxisColumns(
                             polygons =
                                 polygons,
                             densityMm =
@@ -382,24 +390,19 @@ internal object ReferenceImportedFontEngine {
                                 pullMm
                         )
 
-                    emitter.emitGlyph(
-                        columns =
-                            columns,
-                        polygons =
-                            polygons,
-                        startHint =
-                            glyphVisualStartPoint(
-                                polygons
-                            )
-                                ?: satinStructuralStartPoint(
-                                    columns
-                                ),
-                        underlayMode =
-                            options
-                                .satinUnderlayMode,
-                        densityMm =
-                            densityMm
-                    )
+                    columns.forEach {
+                            column ->
+                        emitter.emitAxisReferenceColumn(
+                            column =
+                                column,
+                            includeUnderlay =
+                                options
+                                    .satinUnderlayMode !=
+                                SatinUnderlayMode.NONE,
+                            densityMm =
+                                densityMm
+                        )
+                    }
                 }
 
             require(
@@ -3995,6 +3998,218 @@ internal object ReferenceImportedFontEngine {
         private var current:
             FPoint? =
             null
+
+        /**
+         * Emissão por colunas reproduzindo o modelo observado na referência:
+         *
+         * 1. entra sempre em rows[0].a;
+         * 2. se habilitado, percorre o centro até o fim e volta ao início;
+         * 3. trava sempre no rail A;
+         * 4. emite A -> B para cada row, em ordem direta;
+         * 5. trava no rail A da última row.
+         *
+         * A ordem das colunas vem exclusivamente de buildColumns().
+         */
+        fun emitAxisReferenceColumn(
+            column: SatinColumn,
+            includeUnderlay: Boolean,
+            densityMm: Float
+        ) {
+            val rows =
+                column.rows
+
+            if (
+                rows.isEmpty()
+            ) {
+                return
+            }
+
+            val entry =
+                rows.first()
+                    .a
+
+            travelTo(
+                entry
+            )
+
+            if (
+                includeUnderlay &&
+                rows.size >=
+                    4
+            ) {
+                emitAxisCenterRunRoundTrip(
+                    rows =
+                        rows,
+                    densityMm =
+                        densityMm
+                )
+            }
+
+            emitAxisLock(
+                rows.first()
+            )
+
+            rows.forEach {
+                    row ->
+                emitStitchTo(
+                    row.a
+                )
+
+                emitStitchTo(
+                    row.b
+                )
+            }
+
+            emitAxisLock(
+                rows.last()
+            )
+        }
+
+        private fun emitAxisCenterRunRoundTrip(
+            rows: List<SatinRow>,
+            densityMm: Float
+        ) {
+            if (
+                rows.isEmpty()
+            ) {
+                return
+            }
+
+            val pitchUnits =
+                densityMm *
+                    10f
+
+            val step =
+                max(
+                    1,
+                    (
+                        20f /
+                            pitchUnits
+                                .coerceAtLeast(
+                                    0.5f
+                                )
+                        ).roundToInt()
+                )
+
+            val centers =
+                mutableListOf<
+                    FPoint
+                >()
+
+            var index =
+                0
+
+            while (
+                index <
+                    rows.size
+            ) {
+                centers +=
+                    center(
+                        rows[index]
+                    )
+
+                index +=
+                    step
+            }
+
+            val last =
+                center(
+                    rows.last()
+                )
+
+            if (
+                centers.lastOrNull() !=
+                    last
+            ) {
+                centers +=
+                    last
+            }
+
+            centers.forEach {
+                    point ->
+                emitStitchTo(
+                    point
+                )
+            }
+
+            for (
+                reverseIndex in
+                    centers.lastIndex -
+                        1 downTo
+                        0
+            ) {
+                emitStitchTo(
+                    centers[
+                        reverseIndex
+                    ]
+                )
+            }
+        }
+
+        private fun emitAxisLock(
+            row: SatinRow
+        ) {
+            val anchor =
+                row.a
+
+            val dx =
+                row.b.x -
+                    row.a.x
+
+            val dy =
+                row.b.y -
+                    row.a.y
+
+            val length =
+                hypot(
+                    dx.toDouble(),
+                    dy.toDouble()
+                )
+                    .toFloat()
+
+            val ux =
+                if (
+                    length >
+                        0.001f
+                ) {
+                    dx /
+                        length
+                } else {
+                    1f
+                }
+
+            val uy =
+                if (
+                    length >
+                        0.001f
+                ) {
+                    dy /
+                        length
+                } else {
+                    0f
+                }
+
+            emitStitchTo(
+                anchor
+            )
+
+            emitStitchTo(
+                FPoint(
+                    x =
+                        anchor.x +
+                            ux *
+                                6f,
+                    y =
+                        anchor.y +
+                            uy *
+                                6f
+                )
+            )
+
+            emitStitchTo(
+                anchor
+            )
+        }
 
         fun emitGlyph(
             columns: List<SatinColumn>,
