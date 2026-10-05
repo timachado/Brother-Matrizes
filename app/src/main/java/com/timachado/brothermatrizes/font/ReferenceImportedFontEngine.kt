@@ -18,7 +18,9 @@ import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -318,7 +320,9 @@ internal object ReferenceImportedFontEngine {
                         centerX =
                             centerX,
                         centerY =
-                            centerY
+                            centerY,
+                        rotationDegrees =
+                            options.rotationDegrees
                     )
                 }
 
@@ -1094,7 +1098,9 @@ internal object ReferenceImportedFontEngine {
     private fun polygonize(
         path: Path,
         centerX: Float,
-        centerY: Float
+        centerY: Float,
+        rotationDegrees: Float =
+            0f
     ): List<Polygon> {
         val measure =
             PathMeasure(
@@ -1111,6 +1117,24 @@ internal object ReferenceImportedFontEngine {
             FloatArray(
                 2
             )
+
+        val radians =
+            Math.toRadians(
+                rotationDegrees
+                    .toDouble()
+            )
+
+        val rotationCos =
+            cos(
+                radians
+            )
+                .toFloat()
+
+        val rotationSin =
+            sin(
+                radians
+            )
+                .toFloat()
 
         var totalSamples =
             0
@@ -1180,14 +1204,26 @@ internal object ReferenceImportedFontEngine {
                         null
                     )
                 ) {
+                    val centeredX =
+                        position[0] -
+                            centerX
+
+                    val centeredY =
+                        position[1] -
+                            centerY
+
                     points +=
                         FPoint(
                             x =
-                                position[0] -
-                                    centerX,
+                                centeredX *
+                                    rotationCos -
+                                    centeredY *
+                                        rotationSin,
                             y =
-                                position[1] -
-                                    centerY
+                                centeredX *
+                                    rotationSin +
+                                    centeredY *
+                                        rotationCos
                         )
                 }
             }
@@ -6257,7 +6293,9 @@ internal object ReferenceImportedFontEngine {
                     centerX =
                         centerX,
                     centerY =
-                        centerY
+                        centerY,
+                    rotationDegrees =
+                        options.rotationDegrees
                 )
 
             val densityMm =
