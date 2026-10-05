@@ -1088,26 +1088,13 @@ fun CreateNameScreen(
                                                     importedFontId =
                                                         imported.id
 
-                                                    val referenceFont =
-                                                        imported
-                                                            .displayName
-                                                            .lowercase(
-                                                                Locale.ROOT
-                                                            )
-
+                                                    /*
+                                                     * A orientação pertence ao layout, não à
+                                                     * fonte. Selecionar Adamya nunca deve girar
+                                                     * automaticamente o nome.
+                                                     */
                                                     rotationDegrees =
-                                                        if (
-                                                            referenceFont.contains(
-                                                                "adamya"
-                                                            ) ||
-                                                            referenceFont.contains(
-                                                                "ademya"
-                                                            )
-                                                        ) {
-                                                            90f
-                                                        } else {
-                                                            0f
-                                                        }
+                                                        0f
                                                 }
                                             )
                                         }
