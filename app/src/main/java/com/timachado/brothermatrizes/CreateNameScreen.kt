@@ -67,6 +67,7 @@ import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private val namePalette =
@@ -309,8 +310,30 @@ fun CreateNameScreen(
                 glyphProvider
         )
 
+    var previewResult by remember {
+        mutableStateOf<
+            Result<EmbroideryDesign>?
+        >(
+            null
+        )
+    }
+
+    var previewUpdating by remember {
+        mutableStateOf(false)
+    }
+
+    val previewHeightKey =
+        if (
+            autoFitToHoop
+        ) {
+            0f
+        } else {
+            heightMm
+        }
+
     LaunchedEffect(
         autoFitToHoop,
+        previewHeightKey,
         text,
         spacingMm,
         stitchLengthMm,
@@ -321,66 +344,125 @@ fun CreateNameScreen(
         satinShortStitches,
         satinUnderlayMode,
         specialStitchMode,
+        color,
         font,
         importedFontId,
+        outputFormat,
         hoopProfile,
         fabricProfile,
         layoutMode,
         arcHeightMm
     ) {
         if (
-            !autoFitToHoop ||
             text.isBlank()
         ) {
+            previewResult =
+                Result.failure(
+                    IllegalArgumentException(
+                        "Digite um nome."
+                    )
+                )
+            previewUpdating =
+                false
             return@LaunchedEffect
         }
 
-        val fitted =
+        previewUpdating =
+            true
+
+        /*
+         * Debounce curto: trocar fonte/slider rapidamente não deve iniciar
+         * várias digitalizações Satin caras em sequência.
+         */
+        delay(
+            140L
+        )
+
+        val requestedHeight =
+            heightMm
+
+        val baseOptions =
+            layoutOptionsFor(
+                requestedHeight
+            )
+
+        val generated =
             withContext(
                 Dispatchers.Default
             ) {
-                TextHoopAutoFit
-                    .fit(
-                        hoop =
-                            hoopProfile
+                val resolvedHeight =
+                    if (
+                        autoFitToHoop
                     ) {
-                            candidateHeight ->
-                        TextLayoutGenerator
-                            .generate(
-                                layoutOptionsFor(
-                                    candidateHeight
-                                )
-                            )
+                        TextHoopAutoFit
+                            .fit(
+                                hoop =
+                                    hoopProfile
+                            ) {
+                                    candidateHeight ->
+                                TextLayoutGenerator
+                                    .generate(
+                                        baseOptions.copy(
+                                            textOptions =
+                                                baseOptions
+                                                    .textOptions
+                                                    .copy(
+                                                        heightMm =
+                                                            candidateHeight
+                                                    )
+                                        )
+                                    )
+                            }
+                            .getOrNull()
+                            ?.heightMm
+                            ?: requestedHeight
+                    } else {
+                        requestedHeight
                     }
-            }
-                .getOrNull()
 
-        fitted
-            ?.let {
-                    fit ->
-                if (
-                    kotlin.math.abs(
-                        heightMm -
-                            fit.heightMm
-                    ) >=
-                    0.05f
-                ) {
-                    heightMm =
-                        fit.heightMm
-                }
+                resolvedHeight to
+                    TextLayoutGenerator
+                        .generate(
+                            baseOptions.copy(
+                                textOptions =
+                                    baseOptions
+                                        .textOptions
+                                        .copy(
+                                            heightMm =
+                                                resolvedHeight
+                                        )
+                            )
+                        )
             }
+
+        val resolvedHeight =
+            generated.first
+
+        if (
+            autoFitToHoop &&
+            kotlin.math.abs(
+                heightMm -
+                    resolvedHeight
+            ) >=
+            0.05f
+        ) {
+            heightMm =
+                resolvedHeight
+        }
+
+        previewResult =
+            generated.second
+
+        previewUpdating =
+            false
     }
 
     val result =
-        TextLayoutGenerator
-            .generate(
-                layoutOptionsFor(
-                    heightMm
-                )
-            )
+        previewResult
 
     val preview =
-        result.getOrNull()
+        result
+            ?.getOrNull()
 
     val hoopFit =
         preview?.let {
@@ -485,10 +567,16 @@ fun CreateNameScreen(
                 )
             } else {
                 Text(
-                    result
-                        .exceptionOrNull()
-                        ?.message
-                        ?: "Digite um nome para gerar a prévia.",
+                    if (
+                        previewUpdating
+                    ) {
+                        "Atualizando prévia…"
+                    } else {
+                        result
+                            ?.exceptionOrNull()
+                            ?.message
+                            ?: "Digite um nome para gerar a prévia."
+                    },
                     modifier =
                         Modifier.align(
                             Alignment.Center
@@ -1561,7 +1649,8 @@ fun CreateNameScreen(
                         enabled =
                             preview !=
                                 null &&
-                                fitsHoop,
+                                fitsHoop &&
+                                !previewUpdating,
                         modifier =
                             Modifier.weight(
                                 1f
@@ -1584,7 +1673,8 @@ fun CreateNameScreen(
                         enabled =
                             preview !=
                                 null &&
-                                fitsHoop,
+                                fitsHoop &&
+                                !previewUpdating,
                         modifier =
                             Modifier.weight(
                                 1.3f
