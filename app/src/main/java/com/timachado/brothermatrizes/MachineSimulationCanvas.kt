@@ -52,8 +52,6 @@ fun MachineSimulationCanvas(
 ) {
     val referenceTextSimulation =
         design.isModified &&
-        design.guidePoints
-            .isNotEmpty() &&
         design.fileName
             .startsWith(
                 "nome-"
