@@ -80,7 +80,7 @@ class GreatVibesStartDiagnosticTest {
                     "GREATVIBES_REFERENCE_PRISCILA"
                 )
                 appendLine(
-                    "VIDEO_TARGET=155x47mm 3546pts"
+                    "VIDEO_TARGET=47x155mm 3546pts ROTATION=90"
                 )
 
                 heights.forEach {
@@ -118,7 +118,9 @@ class GreatVibesStartDiagnosticTest {
                             fabricProfile =
                                 FabricProfile.COTTON,
                             enforceHoop =
-                                false
+                                false,
+                            rotationDegrees =
+                                90f
                         )
 
                     val created =
@@ -267,21 +269,23 @@ class GreatVibesStartDiagnosticTest {
                             fabricProfile =
                                 FabricProfile.COTTON,
                             enforceHoop =
-                                false
+                                false,
+                            rotationDegrees =
+                                90f
                         )
                 )
                 .getOrThrow()
 
         assertTrue(
-            "A largura deve permanecer próxima da referência de 155 mm.\n" + report,
+            "A largura deve permanecer próxima da referência de 47 mm após rotação de 90°.\n" + report,
             created.bounds.widthMm in
-                135f..175f
+                42f..52f
         )
 
         assertTrue(
-            "A altura deve permanecer próxima da referência de 47 mm.\n" + report,
+            "A altura deve permanecer próxima da referência de 155 mm após rotação de 90°.\n" + report,
             created.bounds.heightMm in
-                42f..52f
+                135f..175f
         )
 
         assertTrue(
