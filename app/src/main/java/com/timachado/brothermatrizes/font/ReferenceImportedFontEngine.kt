@@ -1,6 +1,5 @@
 package com.timachado.brothermatrizes.font
 
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
@@ -14,6 +13,7 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import java.io.File
 import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
@@ -32,6 +32,9 @@ import kotlin.math.roundToInt
  * A implementação é própria e independente do código do app de referência.
  */
 internal object ReferenceImportedFontEngine {
+
+    private val capHeightRatioCache =
+        mutableMapOf<String, Float?>()
 
     private const val DEFAULT_SATIN_DENSITY_MM =
         0.4f
@@ -232,8 +235,12 @@ internal object ReferenceImportedFontEngine {
                         Paint.Style.FILL
                     textSize =
                         resolveFontSizeForCapHeight(
-                            this,
-                            targetHeightUnits
+                            paint =
+                                this,
+                            targetCapHeightUnits =
+                                targetHeightUnits,
+                            font =
+                                font
                         )
                 }
 
@@ -254,18 +261,13 @@ internal object ReferenceImportedFontEngine {
                         10f
 
             val glyphPaths =
-                normalizeGlyphPathsToHeight(
-                    glyphs =
-                        extractGlyphPaths(
-                            paint =
-                                paint,
-                            text =
-                                renderableText,
-                            spacingUnits =
-                                spacingUnits
-                        ),
-                    targetHeightUnits =
-                        targetHeightUnits
+                extractGlyphPaths(
+                    paint =
+                        paint,
+                    text =
+                        renderableText,
+                    spacingUnits =
+                        spacingUnits
                 )
 
             require(
@@ -494,6 +496,8 @@ internal object ReferenceImportedFontEngine {
                         listOf(
                             options.color
                         ),
+                    sourceYAxisDown =
+                        true,
                     isModified =
                         true,
                     hoopProfile =
@@ -536,8 +540,32 @@ internal object ReferenceImportedFontEngine {
 
     private fun resolveFontSizeForCapHeight(
         paint: Paint,
-        targetCapHeightUnits: Float
+        targetCapHeightUnits: Float,
+        font: ImportedFont
     ): Float {
+        val sfntRatio =
+            capHeightRatio(
+                font
+            )
+
+        if (
+            sfntRatio !=
+                null &&
+            sfntRatio >
+                0.001f
+        ) {
+            /*
+             * Equivalente ao SKFont.Metrics.CapHeight usado pelo MãoDesign:
+             * fontSize * (sCapHeight / unitsPerEm) = targetCapHeight.
+             */
+            return targetCapHeightUnits /
+                sfntRatio
+        }
+
+        /*
+         * Fallback para fontes sem OS/2.sCapHeight: mede o glifo H/X,
+         * mantendo compatibilidade com fontes antigas/malformadas.
+         */
         paint.textSize =
             100f
 
@@ -611,6 +639,300 @@ internal object ReferenceImportedFontEngine {
         return 100f *
             targetCapHeightUnits /
             resolvedCapHeight
+    }
+
+    private fun capHeightRatio(
+        font: ImportedFont
+    ): Float? =
+        synchronized(
+            capHeightRatioCache
+        ) {
+            if (
+                capHeightRatioCache
+                    .containsKey(
+                        font.absolutePath
+                    )
+            ) {
+                return@synchronized
+                    capHeightRatioCache[
+                        font.absolutePath
+                    ]
+            }
+
+            val parsed =
+                runCatching {
+                    parseCapHeightRatio(
+                        File(
+                            font.absolutePath
+                        )
+                    )
+                }
+                    .getOrNull()
+
+            capHeightRatioCache[
+                font.absolutePath
+            ] =
+                parsed
+
+            parsed
+        }
+
+    private fun parseCapHeightRatio(
+        file: File
+    ): Float? {
+        if (
+            !file.isFile
+        ) {
+            return null
+        }
+
+        val bytes =
+            file.readBytes()
+
+        if (
+            bytes.size <
+                12
+        ) {
+            return null
+        }
+
+        fun u16(
+            offset: Int
+        ): Int {
+            if (
+                offset < 0 ||
+                offset +
+                    2 >
+                bytes.size
+            ) {
+                return -1
+            }
+
+            return (
+                (
+                    bytes[offset]
+                        .toInt() and
+                        0xFF
+                    ) shl
+                    8
+                ) or
+                (
+                    bytes[
+                        offset +
+                            1
+                    ].toInt() and
+                        0xFF
+                    )
+        }
+
+        fun s16(
+            offset: Int
+        ): Int {
+            val raw =
+                u16(
+                    offset
+                )
+
+            if (
+                raw <
+                    0
+            ) {
+                return raw
+            }
+
+            return if (
+                raw and
+                    0x8000 !=
+                    0
+            ) {
+                raw -
+                    0x10000
+            } else {
+                raw
+            }
+        }
+
+        fun u32(
+            offset: Int
+        ): Long {
+            if (
+                offset < 0 ||
+                offset +
+                    4 >
+                bytes.size
+            ) {
+                return -1L
+            }
+
+            return (
+                (
+                    bytes[offset]
+                        .toLong() and
+                        0xFFL
+                    ) shl
+                    24
+                ) or
+                (
+                    (
+                        bytes[
+                            offset +
+                                1
+                        ].toLong() and
+                            0xFFL
+                        ) shl
+                        16
+                    ) or
+                (
+                    (
+                        bytes[
+                            offset +
+                                2
+                        ].toLong() and
+                            0xFFL
+                        ) shl
+                        8
+                    ) or
+                (
+                    bytes[
+                        offset +
+                            3
+                    ].toLong() and
+                        0xFFL
+                    )
+        }
+
+        val numTables =
+            u16(
+                4
+            )
+
+        if (
+            numTables <=
+                0 ||
+            12 +
+                numTables *
+                    16 >
+                bytes.size
+        ) {
+            return null
+        }
+
+        var headOffset =
+            -1
+
+        var os2Offset =
+            -1
+
+        var os2Length =
+            0
+
+        repeat(
+            numTables
+        ) {
+                tableIndex ->
+            val record =
+                12 +
+                    tableIndex *
+                        16
+
+            val tag =
+                String(
+                    bytes,
+                    record,
+                    4,
+                    Charsets.US_ASCII
+                )
+
+            val offset =
+                u32(
+                    record +
+                        8
+                )
+
+            val length =
+                u32(
+                    record +
+                        12
+                )
+
+            if (
+                offset <
+                    0L ||
+                length <
+                    0L ||
+                offset +
+                    length >
+                bytes.size
+                    .toLong()
+            ) {
+                return@repeat
+            }
+
+            when (
+                tag
+            ) {
+                "head" ->
+                    headOffset =
+                        offset.toInt()
+
+                "OS/2" -> {
+                    os2Offset =
+                        offset.toInt()
+
+                    os2Length =
+                        length.toInt()
+                }
+            }
+        }
+
+        if (
+            headOffset <
+                0 ||
+            os2Offset <
+                0 ||
+            os2Length <
+                90
+        ) {
+            return null
+        }
+
+        val unitsPerEm =
+            u16(
+                headOffset +
+                    18
+            )
+
+        val os2Version =
+            u16(
+                os2Offset
+            )
+
+        if (
+            unitsPerEm <=
+                0 ||
+            os2Version <
+                2
+        ) {
+            return null
+        }
+
+        val capHeight =
+            s16(
+                os2Offset +
+                    88
+            )
+
+        if (
+            capHeight <=
+                0
+        ) {
+            return null
+        }
+
+        return capHeight
+            .toFloat() /
+            unitsPerEm
+                .toFloat()
     }
 
     private fun resolveText(
@@ -729,73 +1051,6 @@ internal object ReferenceImportedFontEngine {
         }
 
         return paths
-    }
-
-    private fun normalizeGlyphPathsToHeight(
-        glyphs: List<GlyphPath>,
-        targetHeightUnits: Float
-    ): List<GlyphPath> {
-        if (
-            glyphs.isEmpty()
-        ) {
-            return glyphs
-        }
-
-        val originalBounds =
-            unionBounds(
-                glyphs
-            )
-
-        val originalHeight =
-            originalBounds
-                .height()
-
-        if (
-            originalHeight <=
-                0.001f ||
-            targetHeightUnits <=
-                0f
-        ) {
-            return glyphs
-        }
-
-        val scale =
-            targetHeightUnits /
-                originalHeight
-
-        if (
-            abs(
-                scale -
-                    1f
-            ) <
-                0.0001f
-        ) {
-            return glyphs
-        }
-
-        val matrix =
-            Matrix().apply {
-                setScale(
-                    scale,
-                    scale
-                )
-            }
-
-        return glyphs.map {
-                glyph ->
-            val transformed =
-                Path(
-                    glyph.path
-                )
-
-            transformed.transform(
-                matrix
-            )
-
-            GlyphPath(
-                transformed
-            )
-        }
     }
 
     private fun unionBounds(
@@ -932,8 +1187,8 @@ internal object ReferenceImportedFontEngine {
                                 position[0] -
                                     centerX,
                             y =
-                                centerY -
-                                    position[1]
+                                position[1] -
+                                    centerY
                         )
                 }
             }
@@ -4117,13 +4372,13 @@ internal object ReferenceImportedFontEngine {
                     rows.last()
                 )
 
-            if (
-                centers.lastOrNull() !=
-                    last
-            ) {
-                centers +=
-                    last
-            }
+            /*
+             * O gerador de referência adiciona sempre o centro da última row,
+             * mesmo quando ela já caiu exatamente no passo amostrado.
+             * Isso preserva inclusive a pontada zero no extremo antes da volta.
+             */
+            centers +=
+                last
 
             centers.forEach {
                     point ->
@@ -5949,8 +6204,12 @@ internal object ReferenceImportedFontEngine {
                         Paint.Style.FILL
                     textSize =
                         resolveFontSizeForCapHeight(
-                            this,
-                            targetHeightUnits
+                            paint =
+                                this,
+                            targetCapHeightUnits =
+                                targetHeightUnits,
+                            font =
+                                font
                         )
                 }
 
@@ -5971,18 +6230,13 @@ internal object ReferenceImportedFontEngine {
                         10f
 
             val glyphPaths =
-                normalizeGlyphPathsToHeight(
-                    glyphs =
-                        extractGlyphPaths(
-                            paint =
-                                paint,
-                            text =
-                                renderableText,
-                            spacingUnits =
-                                spacingUnits
-                        ),
-                    targetHeightUnits =
-                        targetHeightUnits
+                extractGlyphPaths(
+                    paint =
+                        paint,
+                    text =
+                        renderableText,
+                    spacingUnits =
+                        spacingUnits
                 )
 
             val union =
