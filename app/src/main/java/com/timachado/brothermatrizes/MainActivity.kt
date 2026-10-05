@@ -1890,61 +1890,34 @@ private fun BrotherMatrizesApp(
                         onSimulate = {
                                 created,
                                 _ ->
-                            scope.launch {
-                                loading =
-                                    true
+                            /*
+                             * A simulação de "Criar Nome" deve consumir
+                             * diretamente a sequência que o motor acabou de
+                             * gerar. Exportar/reabrir aqui altera metadados,
+                             * orientação e comandos dependendo do formato.
+                             *
+                             * O round-trip continua existindo em "Criar matriz",
+                             * onde validar o arquivo físico é correto.
+                             */
+                            activateDesign(
+                                created
+                            )
 
-                                val opened =
-                                    withContext(
-                                        Dispatchers.IO
-                                    ) {
-                                        GeneratedMatrixPipeline
-                                            .canonicalize(
-                                                design =
-                                                    created,
-                                                outputSuffix =
-                                                    "criado"
-                                            )
-                                    }
-
-                                loading =
-                                    false
-
-                                when (
-                                    opened
-                                ) {
-                                    is EmbroideryLoadResult
-                                        .Success -> {
-                                        activateDesign(
-                                            opened.design
-                                        )
-
-                                        screen =
-                                            Screen.Simulator(
-                                                design =
-                                                    opened.design,
-                                                displayMode =
-                                                    EmbroideryDisplayMode
-                                                        .REALISTIC,
-                                                referenceHoop =
-                                                    opened.design
-                                                        .hoopProfile
-                                                        ?: recommendedHoopFor(
-                                                            opened.design
-                                                        ),
-                                                showConnections =
-                                                    false
-                                            )
-                                    }
-
-                                    is EmbroideryLoadResult
-                                        .Error -> {
-                                        snackbar.showSnackbar(
-                                            opened.userMessage
-                                        )
-                                    }
-                                }
-                            }
+                            screen =
+                                Screen.Simulator(
+                                    design =
+                                        created,
+                                    displayMode =
+                                        EmbroideryDisplayMode
+                                            .SOLID,
+                                    referenceHoop =
+                                        created.hoopProfile
+                                            ?: recommendedHoopFor(
+                                                created
+                                            ),
+                                    showConnections =
+                                        false
+                                )
                         }
                     )
                 }
