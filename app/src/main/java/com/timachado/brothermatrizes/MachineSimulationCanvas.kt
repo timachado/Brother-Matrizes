@@ -1682,20 +1682,19 @@ private fun DrawScope.drawReferenceNeedle(
             crosshair,
         start =
             Offset(
-                transform
-                    .hoopFrameLeftPx,
+                5f *
+                    transform.uiScale,
                 center.y
             ),
         end =
             Offset(
-                transform
-                    .hoopFrameLeftPx +
-                    transform
-                        .hoopFrameWidthPx,
+                size.width -
+                    5f *
+                        transform.uiScale,
                 center.y
             ),
         strokeWidth =
-            1f
+            transform.uiScale
     )
 
     drawLine(
