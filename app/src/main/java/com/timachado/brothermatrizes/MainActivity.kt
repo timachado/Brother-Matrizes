@@ -105,6 +105,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        DebugTelemetry.setup(
+            applicationContext
+        )
+
         captureExternalOpenIntent(
             intent
         )
@@ -1902,6 +1906,11 @@ private fun BrotherMatrizesApp(
                             activateDesign(
                                 created
                             )
+
+                            DebugTelemetry
+                                .captureSimulationOpened(
+                                    created
+                                )
 
                             screen =
                                 Screen.Simulator(
