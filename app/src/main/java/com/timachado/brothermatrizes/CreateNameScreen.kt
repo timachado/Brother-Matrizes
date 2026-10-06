@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,7 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val namePalette =
@@ -96,6 +98,9 @@ fun CreateNameScreen(
 ) {
     val context =
         LocalContext.current
+
+    val scope =
+        rememberCoroutineScope()
 
     val importedFonts =
         remember {
@@ -328,6 +333,10 @@ fun CreateNameScreen(
         mutableStateOf(false)
     }
 
+    var simulationPreparing by remember {
+        mutableStateOf(false)
+    }
+
     val effectiveAutoFitToHoop =
         autoFitToHoop
 
@@ -430,86 +439,14 @@ fun CreateNameScreen(
                         null
                 ) {
                     /*
-                     * Fontes TTF/OTF Satin são caras para digitalizar.
-                     * Fazemos uma medição real e, se necessário, apenas uma
-                     * segunda geração na altura proporcional calculada.
+                     * O MãoDesign preserva a altura solicitada e enquadra o
+                     * desenho em um bastidor compatível. Não encolhemos a
+                     * fonte importada para o H100X100 antes da simulação.
                      */
-                    val first =
+                    requestedHeight to
                         generateAt(
                             requestedHeight
                         )
-
-                    val firstDesign =
-                        first.getOrNull()
-
-                    if (
-                        firstDesign ==
-                            null
-                    ) {
-                        requestedHeight to
-                            first
-                    } else {
-                        val widthRatio =
-                            (
-                                hoopProfile
-                                    .usableWidthMm *
-                                    0.96f
-                                ) /
-                                firstDesign
-                                    .bounds
-                                    .widthMm
-                                    .coerceAtLeast(
-                                        0.1f
-                                    )
-
-                        val heightRatio =
-                            (
-                                hoopProfile
-                                    .usableHeightMm *
-                                    0.96f
-                                ) /
-                                firstDesign
-                                    .bounds
-                                    .heightMm
-                                    .coerceAtLeast(
-                                        0.1f
-                                    )
-
-                        val scaleRatio =
-                            minOf(
-                                widthRatio,
-                                heightRatio,
-                                1f
-                            )
-
-                        val fittedHeight =
-                            (
-                                requestedHeight *
-                                    scaleRatio
-                                )
-                                .coerceIn(
-                                    TextHoopAutoFit
-                                        .MIN_HEIGHT_MM,
-                                    TextHoopAutoFit
-                                        .MAX_HEIGHT_MM
-                                )
-
-                        if (
-                            kotlin.math.abs(
-                                fittedHeight -
-                                    requestedHeight
-                            ) <
-                            0.05f
-                        ) {
-                            requestedHeight to
-                                first
-                        } else {
-                            fittedHeight to
-                                generateAt(
-                                    fittedHeight
-                                )
-                        }
-                    }
                 } else if (
                     effectiveAutoFitToHoop
                 ) {
@@ -551,7 +488,30 @@ fun CreateNameScreen(
         val resolvedHeight =
             generated.first
 
+        val generatedDesign =
+            generated.second
+                .getOrNull()
+
         if (
+            effectiveAutoFitToHoop &&
+            importedFont !=
+                null &&
+            generatedDesign !=
+                null
+        ) {
+            val automaticHoop =
+                smallestHoopForEitherOrientation(
+                    generatedDesign
+                )
+
+            if (
+                hoopProfile !=
+                    automaticHoop
+            ) {
+                hoopProfile =
+                    automaticHoop
+            }
+        } else if (
             effectiveAutoFitToHoop &&
             kotlin.math.abs(
                 heightMm -
@@ -586,8 +546,22 @@ fun CreateNameScreen(
         }
 
     val fitsHoop =
-        hoopFit?.fits ==
-            true
+        if (
+            preview !=
+                null &&
+            importedFont !=
+                null
+        ) {
+            fitsHoopEitherOrientation(
+                design =
+                    preview,
+                hoop =
+                    hoopProfile
+            )
+        } else {
+            hoopFit?.fits ==
+                true
+        }
 
     Column(
         Modifier
@@ -1816,8 +1790,83 @@ fun CreateNameScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            preview?.let {
-                                    created ->
+                            val created =
+                                preview
+
+                            if (
+                                created !=
+                                    null &&
+                                importedFont !=
+                                    null
+                            ) {
+                                scope.launch {
+                                    simulationPreparing =
+                                        true
+
+                                    val simulationResult =
+                                        withContext(
+                                            Dispatchers.Default
+                                        ) {
+                                            /*
+                                             * O vídeo de referência usa o
+                                             * nome completo em +90°. Como no
+                                             * MãoDesign, a rotação entra no
+                                             * request global depois da
+                                             * composição/centralização e
+                                             * antes do SatinColumnSampler.
+                                             *
+                                             * A prévia da criação continua
+                                             * horizontal; somente a matriz de
+                                             * simulação segue o padrão do
+                                             * vídeo.
+                                             */
+                                            TextLayoutGenerator
+                                                .generate(
+                                                    layoutOptionsFor(
+                                                        heightMm
+                                                    ).copy(
+                                                        textOptions =
+                                                            layoutOptionsFor(
+                                                                heightMm
+                                                            )
+                                                                .textOptions
+                                                                .copy(
+                                                                    rotationDegrees =
+                                                                        90f,
+                                                                    hoopProfile =
+                                                                        null,
+                                                                    enforceHoop =
+                                                                        false
+                                                                )
+                                                    )
+                                                )
+                                        }
+
+                                    simulationPreparing =
+                                        false
+
+                                    simulationResult
+                                        .getOrNull()
+                                        ?.let {
+                                                referenceDesign ->
+                                            val automaticHoop =
+                                                smallestHoopForEitherOrientation(
+                                                    referenceDesign
+                                                )
+
+                                            onSimulate(
+                                                referenceDesign.copy(
+                                                    hoopProfile =
+                                                        automaticHoop
+                                                ),
+                                                displayMode
+                                            )
+                                        }
+                                }
+                            } else if (
+                                created !=
+                                    null
+                            ) {
                                 onSimulate(
                                     created,
                                     displayMode
@@ -1828,14 +1877,21 @@ fun CreateNameScreen(
                             preview !=
                                 null &&
                                 fitsHoop &&
-                                !previewUpdating,
+                                !previewUpdating &&
+                                !simulationPreparing,
                         modifier =
                             Modifier.weight(
                                 1f
                             )
                     ) {
                         Text(
-                            "▶ Simular"
+                            if (
+                                simulationPreparing
+                            ) {
+                                "Preparando…"
+                            } else {
+                                "▶ Simular"
+                            }
                         )
                     }
 
@@ -1963,6 +2019,48 @@ private fun ChoiceButton(
         )
     }
 }
+
+
+private fun fitsHoopEitherOrientation(
+    design: EmbroideryDesign,
+    hoop: HoopProfile
+): Boolean {
+    val width =
+        design.bounds.widthMm
+    val height =
+        design.bounds.heightMm
+
+    val normal =
+        width <=
+            hoop.usableWidthMm &&
+        height <=
+            hoop.usableHeightMm
+
+    val rotated =
+        width <=
+            hoop.usableHeightMm &&
+        height <=
+            hoop.usableWidthMm
+
+    return normal ||
+        rotated
+}
+
+private fun smallestHoopForEitherOrientation(
+    design: EmbroideryDesign
+): HoopProfile =
+    HoopProfile.entries
+        .firstOrNull {
+                hoop ->
+            fitsHoopEitherOrientation(
+                design =
+                    design,
+                hoop =
+                    hoop
+            )
+        }
+        ?: HoopProfile.entries
+            .last()
 
 private fun mm(
     value: Float
