@@ -458,13 +458,13 @@ internal object PeDesignImportedFontEngine {
                      * glifo em faixas independentes: terminava uma faixa,
                      * saltava para outra e depois voltava ao trecho anterior.
                      *
-                     * A rota ativa agora é:
-                     * contorno vetorial -> medial flow/topologia -> colunas
-                     * Satin contínuas -> underlay -> cobertura completa do
-                     * objeto -> próximo ramo/objeto.
+                     * A rota ativa agora separa geometria e sequência:
+                     * contorno vetorial -> colunas Satin compactas por eixo ->
+                     * planejador topológico emitGlyph() -> underlay/cobertura
+                     * completa do objeto -> próximo ramo/objeto.
                      *
-                     * sampleColumns() mantém fallback por eixo apenas quando a
-                     * topologia adaptativa não pode ser construída.
+                     * Assim preservamos a contagem de pontos enxuta sem voltar
+                     * à antiga emissão em ordem bruta que causava saltos.
                      */
                     val columns =
                         sampleColumns(
@@ -2062,51 +2062,35 @@ internal object PeDesignImportedFontEngine {
         )
 
     /*
-     * Motor Satin adaptativo.
+     * Geometria Satin ativa para TTF/OTF:
      *
-     * O contorno TTF/OTF continua sendo a autoridade geométrica. Uma
-     * medial-line rasterizada é usada apenas como guia de fluxo/topologia.
-     * Para cada ponto do fluxo, a linha Satin é recalculada contra o
-     * contorno vetorial original na normal local do traço.
+     * O sampler por eixos produz a cobertura compacta já comprovada no app
+     * (contagem próxima da matriz de referência) e mantém a densidade física
+     * solicitada. A ordem NÃO é mais a ordem bruta desse sampler: as colunas
+     * resultantes são entregues ao SatinEmitter.emitGlyph(), que decide
+     * continuidade, entrada/saída e próximo ramo pela topologia do contorno.
      *
-     * Se a topologia adaptativa não puder ser construída com segurança,
-     * voltamos ao sampler por eixos anterior.
+     * O sampler medial adaptativo continua abaixo como ferramenta de
+     * diagnóstico/experimentação, mas não é usado na produção porque o
+     * skeleton pode multiplicar ramos em glifos cursivos complexos e inflar
+     * a matriz para milhares de pontos redundantes.
      */
     private fun sampleColumns(
         polygons: List<Polygon>,
         densityMm: Float,
         maxSatinWidthMm: Float,
         pullCompensationMm: Float
-    ): List<SatinColumn> {
-        val adaptive =
-            sampleAdaptiveFlowColumns(
-                polygons =
-                    polygons,
-                densityMm =
-                    densityMm,
-                maxSatinWidthMm =
-                    maxSatinWidthMm,
-                pullCompensationMm =
-                    pullCompensationMm
-            )
-
-        return if (
-            adaptive.isNotEmpty()
-        ) {
-            adaptive
-        } else {
-            sampleAxisColumns(
-                polygons =
-                    polygons,
-                densityMm =
-                    densityMm,
-                maxSatinWidthMm =
-                    maxSatinWidthMm,
-                pullCompensationMm =
-                    pullCompensationMm
-            )
-        }
-    }
+    ): List<SatinColumn> =
+        sampleAxisColumns(
+            polygons =
+                polygons,
+            densityMm =
+                densityMm,
+            maxSatinWidthMm =
+                maxSatinWidthMm,
+            pullCompensationMm =
+                pullCompensationMm
+        )
 
     private const val MAX_FLOW_GRID_CELLS =
         250_000
@@ -7045,6 +7029,56 @@ internal object PeDesignImportedFontEngine {
 
         return horizontal to
             vertical
+    }
+
+    internal fun debugCompactVsAdaptiveRowCounts():
+        Pair<Int, Int> {
+        val polygon =
+            Polygon(
+                listOf(
+                    FPoint(0f, 0f),
+                    FPoint(22f, 0f),
+                    FPoint(22f, 58f),
+                    FPoint(70f, 58f),
+                    FPoint(70f, 80f),
+                    FPoint(0f, 80f)
+                )
+            )
+
+        val compact =
+            sampleColumns(
+                polygons =
+                    listOf(
+                        polygon
+                    ),
+                densityMm =
+                    0.4f,
+                maxSatinWidthMm =
+                    7f,
+                pullCompensationMm =
+                    0f
+            ).sumOf {
+                it.rows.size
+            }
+
+        val adaptive =
+            sampleAdaptiveFlowColumns(
+                polygons =
+                    listOf(
+                        polygon
+                    ),
+                densityMm =
+                    0.4f,
+                maxSatinWidthMm =
+                    7f,
+                pullCompensationMm =
+                    0f
+            ).sumOf {
+                it.rows.size
+            }
+
+        return compact to
+            adaptive
     }
 
     internal fun debugAdaptiveFlowOrientationCounts():
