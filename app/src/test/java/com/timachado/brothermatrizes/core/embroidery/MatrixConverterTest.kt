@@ -646,6 +646,45 @@ class MatrixConverterTest {
         }
     }
 
+
+    @Test
+    fun brotherOutputPrefersPes() {
+        assertEquals(
+            "PES",
+            MatrixConverter
+                .preferredBrotherFormat
+        )
+
+        assertEquals(
+            "PES",
+            MatrixConverter
+                .supportedFormats
+                .first()
+        )
+    }
+
+    @Test
+    fun brotherPesFilenameUsesSafeAsciiStem() {
+        val converted =
+            MatrixConverter
+                .convert(
+                    shiftedDesign()
+                        .copy(
+                            fileName =
+                                "João Maria.pes"
+                        ),
+                    "PES",
+                    outputSuffix =
+                        "brother"
+                )
+                .getOrThrow()
+
+        assertEquals(
+            "Joao_Maria-brother.pes",
+            converted.fileName
+        )
+    }
+
     private fun assertVisualGeometryPreserved(
         source: EmbroideryDesign,
         format: String
