@@ -3206,8 +3206,15 @@ internal object PeDesignImportedFontEngine {
                 Endpoint? =
                 null
 
+            /*
+             * Letras cursivas frequentemente atravessam um nó em Y com
+             * ângulo de ~120°. Como os vetores saem do nó em direções
+             * opostas ao percurso, isso produz score de continuação ~0.5.
+             * Exigir 0.55 quebrava uma mesma coluna em duas e fazia o motor
+             * sair para outro lado antes de voltar.
+             */
             var bestScore =
-                0.55
+                0.05
 
             endpoints
                 .groupBy {
@@ -8409,6 +8416,77 @@ internal object PeDesignImportedFontEngine {
                 ),
                 GridPoint(
                     10,
+                    20
+                )
+            )
+
+        val branch =
+            listOf(
+                GridPoint(
+                    10,
+                    10
+                ),
+                GridPoint(
+                    5,
+                    10
+                ),
+                GridPoint(
+                    0,
+                    10
+                )
+            )
+
+        return mergeFlowPathsByTangentContinuity(
+            listOf(
+                left,
+                branch,
+                right
+            )
+        ).map {
+                path ->
+            path.map {
+                    point ->
+                point.row to
+                    point.column
+            }
+        }
+    }
+
+    internal fun debugCurvedYJunctionContinuity():
+        List<List<Pair<Int, Int>>> {
+        /*
+         * Três braços em Y. Os dois braços inferiores formam a continuação
+         * mais suave do mesmo traço (aprox. 120 graus no nó); o braço
+         * superior deve permanecer como ramo lateral.
+         */
+        val left =
+            listOf(
+                GridPoint(
+                    20,
+                    0
+                ),
+                GridPoint(
+                    16,
+                    5
+                ),
+                GridPoint(
+                    10,
+                    10
+                )
+            )
+
+        val right =
+            listOf(
+                GridPoint(
+                    10,
+                    10
+                ),
+                GridPoint(
+                    16,
+                    15
+                ),
+                GridPoint(
+                    20,
                     20
                 )
             )
