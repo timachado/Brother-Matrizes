@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.RectF
-import android.os.Build
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
@@ -58,14 +57,15 @@ object ImportedFontMatrixGenerator {
         )
 
     /**
-     * O caminho Satin TTF/OTF deve ter uma única fonte de verdade.
+     * Uma única rota para TTF/OTF.
      *
-     * ReferenceImportedFontEngine contém o emissor validado contra o vídeo
-     * de referência: entrada pelo centro quando há underlay, passada central
-     * única até o extremo, cobertura Satin no retorno, locks e viagens reais.
+     * O Satin importado precisa seguir o fluxo estrutural do traço observado
+     * no vídeo de referência: center-run até o extremo e Satin no retorno,
+     * com travessia pós-ordem nas bifurcações. O pipeline interno abaixo já
+     * contém esse motor de skeleton/stroke-flow.
      *
-     * Manter uma segunda implementação aqui fazia "Criar Nome" divergir da
-     * sequência já validada mesmo usando o mesmo SimulatorScreen depois.
+     * Os motores de scanline/colunas permanecem no repositório apenas como
+     * referência histórica, mas não podem decidir a sequência de Criar Nome.
      */
     private fun generateWithReferenceSatin(
         font: ImportedFont,
@@ -73,65 +73,16 @@ object ImportedFontMatrixGenerator {
         options: TextMatrixOptions,
         filePrefix: String
     ): Result<EmbroideryDesign> =
-        if (
-            options.style ==
-                TextStitchStyle.SATIN &&
-            options.specialStitchMode ==
-                null
-        ) {
-            val supportsNativeSkia =
-                Build.SUPPORTED_ABIS
-                    .any {
-                            abi ->
-                        abi ==
-                            "arm64-v8a" ||
-                            abi ==
-                                "x86_64"
-                    }
-
-            if (
-                supportsNativeSkia
-            ) {
-                MaoCompatibleImportedFontEngine
-                    .generate(
-                        font =
-                            font,
-                        sourceText =
-                            sourceText,
-                        options =
-                            options,
-                        filePrefix =
-                            filePrefix
-                    )
-            } else {
-                /*
-                 * Compatibilidade para Android 32-bit, onde o Skija atual
-                 * não oferece artefato nativo. O dispositivo do usuário e
-                 * aparelhos Android atuais seguem pelo motor Skia acima.
-                 */
-                ReferenceImportedFontEngine
-                    .generate(
-                        font =
-                            font,
-                        sourceText =
-                            sourceText,
-                        options =
-                            options,
-                        filePrefix =
-                            filePrefix
-                    )
-            }
-        } else {
-            generateTextInternal(
-                font = font,
-                sourceText =
-                    sourceText,
-                options =
-                    options,
-                filePrefix =
-                    filePrefix
-            )
-        }
+        generateTextInternal(
+            font =
+                font,
+            sourceText =
+                sourceText,
+            options =
+                options,
+            filePrefix =
+                filePrefix
+        )
 
     private fun generateTextInternal(
         font: ImportedFont,
@@ -528,7 +479,7 @@ object ImportedFontMatrixGenerator {
                                     centerY
                                 ).roundToInt()
                     )
-                }.toMutableList()
+                }
 
             val centeredGuide =
                 buildGuidePoints(
@@ -550,14 +501,87 @@ object ImportedFontMatrixGenerator {
                         )
                     }
 
-            val endPoint =
+            /*
+             * O motor interno trabalha em coordenadas cartesianas (Y para
+             * cima), enquanto a rotação da UI é visual/tela. Portanto o sinal
+             * é invertido aqui para manter +90° com a mesma orientação que o
+             * vídeo e que o antigo backend Android Y-down.
+             */
+            val visualRadians =
+                Math.toRadians(
+                    -options
+                        .rotationDegrees
+                        .toDouble()
+                )
+
+            val rotationCos =
+                kotlin.math.cos(
+                    visualRadians
+                )
+
+            val rotationSin =
+                kotlin.math.sin(
+                    visualRadians
+                )
+
+            fun rotatePoint(
+                point: EmbroideryPoint
+            ): EmbroideryPoint {
+                if (
+                    kotlin.math.abs(
+                        options.rotationDegrees
+                    ) <
+                    0.001f
+                ) {
+                    return point
+                }
+
+                val x =
+                    point.xUnits
+                        .toDouble()
+
+                val y =
+                    point.yUnits
+                        .toDouble()
+
+                return point.copy(
+                    xUnits =
+                        (
+                            x *
+                                rotationCos -
+                            y *
+                                rotationSin
+                            ).roundToInt(),
+                    yUnits =
+                        (
+                            x *
+                                rotationSin +
+                            y *
+                                rotationCos
+                            ).roundToInt()
+                )
+            }
+
+            val transformed =
                 centered
+                    .map(
+                        ::rotatePoint
+                    )
+                    .toMutableList()
+
+            val transformedGuide =
+                centeredGuide.map(
+                    ::rotatePoint
+                )
+
+            val endPoint =
+                transformed
                     .lastOrNull()
                     ?: error(
                         "A fonte não gerou pontadas."
                     )
 
-            centered +=
+            transformed +=
                 EmbroideryPoint(
                     endPoint.xUnits,
                     endPoint.yUnits,
@@ -565,8 +589,8 @@ object ImportedFontMatrixGenerator {
                     0
                 )
 
-            val centeredCoordinates =
-                centered.filter {
+            val transformedCoordinates =
+                transformed.filter {
                     it.command !=
                         StitchCommand.END
                 }
@@ -574,22 +598,22 @@ object ImportedFontMatrixGenerator {
             val bounds =
                 EmbroideryBounds(
                     minXUnits =
-                        centeredCoordinates
+                        transformedCoordinates
                             .minOf {
                                 it.xUnits
                             },
                     maxXUnits =
-                        centeredCoordinates
+                        transformedCoordinates
                             .maxOf {
                                 it.xUnits
                             },
                     minYUnits =
-                        centeredCoordinates
+                        transformedCoordinates
                             .minOf {
                                 it.yUnits
                             },
                     maxYUnits =
-                        centeredCoordinates
+                        transformedCoordinates
                             .maxOf {
                                 it.yUnits
                             }
@@ -613,16 +637,16 @@ object ImportedFontMatrixGenerator {
                     label =
                         text,
                     points =
-                        centered,
+                        transformed,
                     bounds =
                         bounds,
                     stitchCount =
-                        centered.count {
+                        transformed.count {
                             it.command ==
                                 StitchCommand.STITCH
                         },
                     jumpCount =
-                        centered.count {
+                        transformed.count {
                             it.command ==
                                 StitchCommand.JUMP
                         },
@@ -633,7 +657,7 @@ object ImportedFontMatrixGenerator {
                     sourceBytes =
                         ByteArray(0),
                     guidePoints =
-                        centeredGuide,
+                        transformedGuide,
                     threadColors =
                         listOf(
                             options.color
