@@ -108,6 +108,7 @@ internal object MaoCompatibleImportedFontEngine {
     )
 
     private data class Column(
+        val sequence: Int,
         val rows:
             MutableList<Row> =
             mutableListOf()
@@ -746,6 +747,9 @@ internal object MaoCompatibleImportedFontEngine {
                 Active
             >()
 
+        var nextSequence =
+            0
+
         scanLines.forEach {
                 spans ->
             val used =
@@ -758,10 +762,28 @@ internal object MaoCompatibleImportedFontEngine {
                     Active
                 >()
 
-            active.forEach {
+            active
+                .sortedBy {
+                    it.column
+                        .sequence
+                }
+                .forEach {
                     item ->
                 var match =
                     -1
+
+                var bestOverlap =
+                    Float.NEGATIVE_INFINITY
+
+                var bestCenterDistance =
+                    Float.POSITIVE_INFINITY
+
+                val previousCenter =
+                    (
+                        item.lastSpan.start +
+                            item.lastSpan.end
+                        ) /
+                        2f
 
                 for (
                     index in
@@ -780,16 +802,56 @@ internal object MaoCompatibleImportedFontEngine {
                             index
                         ]
 
+                    val overlap =
+                        minOf(
+                            span.end,
+                            item.lastSpan.end
+                        ) -
+                            maxOf(
+                                span.start,
+                                item.lastSpan.start
+                            )
+
                     if (
-                        span.start <=
-                            item.lastSpan.end &&
-                        span.end >=
-                            item.lastSpan.start
+                        overlap <
+                            0f
+                    ) {
+                        continue
+                    }
+
+                    val center =
+                        (
+                            span.start +
+                                span.end
+                            ) /
+                            2f
+
+                    val centerDistance =
+                        kotlin.math.abs(
+                            center -
+                                previousCenter
+                        )
+
+                    if (
+                        overlap >
+                            bestOverlap +
+                                0.001f ||
+                        (
+                            kotlin.math.abs(
+                                overlap -
+                                    bestOverlap
+                            ) <=
+                                0.001f &&
+                            centerDistance <
+                                bestCenterDistance
+                            )
                     ) {
                         match =
                             index
-
-                        break
+                        bestOverlap =
+                            overlap
+                        bestCenterDistance =
+                            centerDistance
                     }
                 }
 
@@ -834,7 +896,10 @@ internal object MaoCompatibleImportedFontEngine {
                     ]
                 ) {
                     val column =
-                        Column()
+                        Column(
+                            sequence =
+                                nextSequence++
+                        )
 
                     column.rows +=
                         span.toRow(
@@ -861,10 +926,20 @@ internal object MaoCompatibleImportedFontEngine {
                 item.column
         }
 
+        /*
+         * Ordem de criação é ordem de costura.
+         *
+         * Uma ramificação que nasceu depois nunca pode ultrapassar uma coluna
+         * que já estava em andamento. A ordenação geométrica X/Y anterior
+         * fazia exatamente isso em letras cursivas com laços/pernas.
+         */
         return finished
             .filter {
                 it.rows
                     .isNotEmpty()
+            }
+            .sortedBy {
+                it.sequence
             }
             .flatMap {
                     column ->
@@ -875,19 +950,6 @@ internal object MaoCompatibleImportedFontEngine {
                         maxWidth
                 )
             }
-            .sortedWith(
-                compareBy<Column> {
-                    it.rows
-                        .first()
-                        .a
-                        .x
-                }.thenBy {
-                    it.rows
-                        .first()
-                        .a
-                        .y
-                }
-            )
     }
 
     private fun splitWideColumn(
@@ -942,6 +1004,8 @@ internal object MaoCompatibleImportedFontEngine {
                         pieces
 
                 Column(
+                    sequence =
+                        column.sequence,
                     rows =
                         column.rows
                             .map {
@@ -993,24 +1057,38 @@ internal object MaoCompatibleImportedFontEngine {
                     .a
             )
 
-            if (
-                includeUnderlay &&
-                rows.size >=
-                    4
-            ) {
-                emitCenterRun(
-                    rows =
-                        rows,
-                    densityMm =
-                        densityMm
-                )
-            }
+            /*
+             * Sequência observada na referência:
+             * 1) entra na coluna;
+             * 2) underlay central percorre uma única vez até o extremo;
+             * 3) o Satin começa nesse extremo;
+             * 4) a cobertura volta pela mesma coluna até a entrada.
+             *
+             * Isso evita abandonar uma perna no meio para depois retomá-la.
+             */
+            val coverageRows =
+                if (
+                    includeUnderlay &&
+                    rows.size >=
+                        4
+                ) {
+                    emitCenterRun(
+                        rows =
+                            rows,
+                        densityMm =
+                            densityMm
+                    )
+
+                    rows.asReversed()
+                } else {
+                    rows
+                }
 
             emitLock(
-                rows.first()
+                coverageRows.first()
             )
 
-            rows.forEach {
+            coverageRows.forEach {
                     row ->
                 stitchTo(
                     row.a
@@ -1022,7 +1100,7 @@ internal object MaoCompatibleImportedFontEngine {
             }
 
             emitLock(
-                rows.last()
+                coverageRows.last()
             )
         }
 
@@ -1069,46 +1147,78 @@ internal object MaoCompatibleImportedFontEngine {
                     step
             }
 
-            /*
-             * A implementação observada sempre adiciona o centro da última
-             * row, inclusive se ele já coincide com a amostragem anterior.
-             */
-            centers +=
+            val lastCenter =
                 center(
                     rows.last()
                 )
 
+            if (
+                centers.lastOrNull() !=
+                    lastCenter
+            ) {
+                centers +=
+                    lastCenter
+            }
+
+            // Uma única passada central até o extremo; sem retorno pelo centro.
             centers.forEach(
                 ::stitchTo
             )
-
-            for (
-                reverse in
-                    centers.lastIndex -
-                        1 downTo
-                        0
-            ) {
-                stitchTo(
-                    centers[
-                        reverse
-                    ]
-                )
-            }
         }
 
         private fun emitLock(
             row: Row
         ) {
+            val before =
+                current
+
+            val distanceToA =
+                before?.let {
+                        point ->
+                    distance(
+                        point,
+                        row.a
+                    )
+                }
+                    ?: 0f
+
+            val distanceToB =
+                before?.let {
+                        point ->
+                    distance(
+                        point,
+                        row.b
+                    )
+                }
+                    ?: Float.MAX_VALUE
+
             val anchor =
-                row.a
+                if (
+                    distanceToB <
+                        distanceToA
+                ) {
+                    row.b
+                } else {
+                    row.a
+                }
+
+            val other =
+                if (
+                    anchor ==
+                        row.a
+                ) {
+                    row.b
+                } else {
+                    row.a
+                }
 
             val dx =
-                row.b.x -
-                    row.a.x
+                other.x -
+                    anchor.x
 
             val dy =
-                row.b.y -
-                    row.a.y
+                other.y -
+                    anchor.y
 
             val length =
                 hypot(
