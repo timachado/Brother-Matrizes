@@ -982,4 +982,18 @@ class PeDesignImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun skeletonCornerDoesNotCreateRedundantDiagonalFlowPath() {
+        val pathCount =
+            PeDesignImportedFontEngine
+                .debugSkeletonCornerPathCount()
+
+        assertEquals(
+            "Uma quina do skeleton deve continuar como um único caminho, sem triângulo diagonal redundante.",
+            1,
+            pathCount
+        )
+    }
+
 }
