@@ -120,7 +120,7 @@ fun SimulatorScreen(
         mutableFloatStateOf(1f)
     }
 
-    var stoppedForColorChange by remember(
+    var stoppedForStop by remember(
         design.fileName
     ) {
         mutableStateOf(false)
@@ -158,9 +158,13 @@ fun SimulatorScreen(
 
             if (
                 command ==
-                    StitchCommand.COLOR_CHANGE
+                    StitchCommand.STOP
             ) {
-                stoppedForColorChange =
+                /*
+                 * A referência pausa apenas em STOP.
+                 * COLOR_CHANGE troca o fio e continua a simulação.
+                 */
+                stoppedForStop =
                     true
                 playing =
                     false
@@ -543,7 +547,7 @@ fun SimulatorScreen(
                     onValueChange = {
                         playing =
                             false
-                        stoppedForColorChange =
+                        stoppedForStop =
                             false
                         val targetStitches =
                             (
@@ -575,7 +579,7 @@ fun SimulatorScreen(
                 )
 
                 if (
-                    stoppedForColorChange
+                    stoppedForStop
                 ) {
                     Text(
                         "Troca de linha: coloque a próxima cor e toque em Continuar.",
@@ -608,7 +612,7 @@ fun SimulatorScreen(
                         onClick = {
                             playing =
                                 false
-                            stoppedForColorChange =
+                            stoppedForStop =
                                 false
                             index =
                                 (
@@ -648,9 +652,9 @@ fun SimulatorScreen(
                             }
 
                             if (
-                                stoppedForColorChange
+                                stoppedForStop
                             ) {
-                                stoppedForColorChange =
+                                stoppedForStop =
                                     false
                                 playing =
                                     true
@@ -677,7 +681,7 @@ fun SimulatorScreen(
                     ) {
                         Text(
                             when {
-                                stoppedForColorChange ->
+                                stoppedForStop ->
                                     "▶ Continuar"
 
                                 playing ->
@@ -697,7 +701,7 @@ fun SimulatorScreen(
                         onClick = {
                             playing =
                                 false
-                            stoppedForColorChange =
+                            stoppedForStop =
                                 false
                             index =
                                 0
