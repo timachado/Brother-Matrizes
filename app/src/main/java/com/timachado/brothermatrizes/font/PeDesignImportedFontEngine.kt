@@ -2917,11 +2917,46 @@ internal object PeDesignImportedFontEngine {
                                 columns &&
                         skeleton[row][column]
                     ) {
-                        result +=
-                            GridPoint(
-                                row,
-                                column
-                            )
+                        /*
+                         * Em um skeleton 8-conectado, uma diagonal não deve
+                         * virar uma segunda aresta quando os mesmos pixels já
+                         * estão ligados por um vizinho ortogonal. Aceitar as
+                         * três ligações cria triângulos artificiais no grafo;
+                         * cada triângulo era extraído como mais um flow path e
+                         * acabava bordado como coluna Satin redundante.
+                         */
+                        val diagonal =
+                            dr !=
+                                0 &&
+                            dc !=
+                                0
+
+                        val hasOrthogonalBridge =
+                            diagonal &&
+                            (
+                                skeleton[
+                                    point.row
+                                ][
+                                    point.column +
+                                        dc
+                                ] ||
+                                skeleton[
+                                    point.row +
+                                        dr
+                                ][
+                                    point.column
+                                ]
+                                )
+
+                        if (
+                            !hasOrthogonalBridge
+                        ) {
+                            result +=
+                                GridPoint(
+                                    row,
+                                    column
+                                )
+                        }
                     }
                 }
             }
@@ -3168,11 +3203,97 @@ internal object PeDesignImportedFontEngine {
             }
         }
 
-        return mergeFlowPathsByTangentContinuity(
-            paths.filter {
-                it.isNotEmpty()
-            }
+        val merged =
+            mergeFlowPathsByTangentContinuity(
+                paths.filter {
+                    it.isNotEmpty()
+                }
+            )
+
+        return pruneShortTerminalFlowSpurs(
+            merged
         )
+    }
+
+    /**
+     * Remove apenas ramos terminais muito curtos que nascem em um
+     * entroncamento do skeleton. Componentes isolados são preservados
+     * (por exemplo o ponto do "i").
+     *
+     * O limite é medido em células do grid e foi mantido conservador:
+     * ruído de 1-3 pixels sai; um traço tipográfico real permanece.
+     */
+    private fun pruneShortTerminalFlowSpurs(
+        source: List<List<GridPoint>>
+    ): List<List<GridPoint>> {
+        if (
+            source.size <
+                2
+        ) {
+            return source
+        }
+
+        val endpointUse =
+            mutableMapOf<
+                GridPoint,
+                Int
+            >()
+
+        source.forEach {
+                path ->
+            path.firstOrNull()
+                ?.let {
+                    endpointUse[it] =
+                        (
+                            endpointUse[it]
+                                ?: 0
+                            ) +
+                            1
+                }
+
+            path.lastOrNull()
+                ?.let {
+                    endpointUse[it] =
+                        (
+                            endpointUse[it]
+                                ?: 0
+                            ) +
+                            1
+                }
+        }
+
+        return source.filter {
+                path ->
+            if (
+                path.size >=
+                    5
+            ) {
+                return@filter true
+            }
+
+            val firstShared =
+                (
+                    endpointUse[
+                        path.firstOrNull()
+                    ] ?: 0
+                    ) >
+                    1
+
+            val lastShared =
+                (
+                    endpointUse[
+                        path.lastOrNull()
+                    ] ?: 0
+                    ) >
+                    1
+
+            /*
+             * Só é spur quando exatamente uma ponta nasce num nó compartilhado.
+             * Caminho curto isolado/fechado não é descartado.
+             */
+            !(firstShared xor
+                lastShared)
+        }
     }
 
     /**
@@ -8855,6 +8976,48 @@ internal object PeDesignImportedFontEngine {
                     point.column
             }
         }
+    }
+
+    internal fun debugSkeletonCornerPathCount():
+        Int {
+        val mask =
+            Array(
+                7
+            ) {
+                BooleanArray(
+                    7
+                )
+            }
+
+        /*
+         * Uma quina espessa/staircase. Sem supressão da diagonal redundante,
+         * o trio (3,2)-(3,3)-(2,3) forma um triângulo de arestas no grafo.
+         */
+        val pixels =
+            listOf(
+                GridPoint(3, 1),
+                GridPoint(3, 2),
+                GridPoint(3, 3),
+                GridPoint(2, 3),
+                GridPoint(1, 3)
+            )
+
+        pixels.forEach {
+                point ->
+            mask[
+                point.row
+            ][
+                point.column
+            ] =
+                true
+        }
+
+        return extractFlowPaths(
+            skeleton =
+                mask,
+            columns =
+                7
+        ).size
     }
 
     private fun safeName(
