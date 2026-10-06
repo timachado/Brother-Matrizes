@@ -582,7 +582,7 @@ fun SimulatorScreen(
                     stoppedForStop
                 ) {
                     Text(
-                        "Troca de linha: coloque a próxima cor e toque em Continuar.",
+                        "Parada da máquina: toque em Continuar para prosseguir.",
                         color =
                             FioGold,
                         fontSize =
