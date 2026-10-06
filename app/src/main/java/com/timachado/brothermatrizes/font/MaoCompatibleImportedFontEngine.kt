@@ -11,6 +11,7 @@ import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import java.text.Normalizer
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.max
@@ -42,6 +43,18 @@ internal object MaoCompatibleImportedFontEngine {
 
     private const val TRIM_DISTANCE_UNITS =
         50f
+
+    private const val CONTINUOUS_CONNECTOR_STITCH_UNITS =
+        15f
+
+    private const val NEAR_COLUMN_JOIN_UNITS =
+        25f
+
+    private const val CONNECTOR_SAMPLE_UNITS =
+        2f
+
+    private const val CONNECTOR_EDGE_MARGIN_UNITS =
+        1.25f
 
     private const val LETTER_SPACING_FACTOR =
         0.04f
@@ -256,19 +269,18 @@ internal object MaoCompatibleImportedFontEngine {
                             pullUnits
                     )
 
-                columns.forEach {
-                        column ->
-                    emitter.emitColumn(
-                        column =
-                            column,
-                        includeUnderlay =
-                            options
-                                .satinUnderlayMode !=
-                                SatinUnderlayMode.NONE,
-                        densityMm =
-                            densityMm
-                    )
-                }
+                emitter.emitGlyph(
+                    columns =
+                        columns,
+                    polygons =
+                        polygons,
+                    includeUnderlay =
+                        options
+                            .satinUnderlayMode !=
+                            SatinUnderlayMode.NONE,
+                    densityMm =
+                        densityMm
+                )
             }
 
             require(
@@ -1030,6 +1042,478 @@ internal object MaoCompatibleImportedFontEngine {
             }
     }
 
+    private fun columnEntry(
+        column: Column,
+        includeUnderlay: Boolean,
+        fromEnd: Boolean =
+            false
+    ): P {
+        val row =
+            if (
+                fromEnd
+            ) {
+                column.rows.last()
+            } else {
+                column.rows.first()
+            }
+
+        return if (
+            includeUnderlay
+        ) {
+            center(
+                row
+            )
+        } else {
+            row.a
+        }
+    }
+
+    private fun orientColumnFromNearestEnd(
+        column: Column,
+        anchor: P,
+        includeUnderlay: Boolean
+    ): Column {
+        if (
+            column.rows.size <
+                2
+        ) {
+            return column
+        }
+
+        val normalDistance =
+            distance(
+                anchor,
+                columnEntry(
+                    column =
+                        column,
+                    includeUnderlay =
+                        includeUnderlay,
+                    fromEnd =
+                        false
+                )
+            )
+
+        val reverseDistance =
+            distance(
+                anchor,
+                columnEntry(
+                    column =
+                        column,
+                    includeUnderlay =
+                        includeUnderlay,
+                    fromEnd =
+                        true
+                )
+            )
+
+        if (
+            reverseDistance >=
+                normalDistance
+        ) {
+            return column
+        }
+
+        return Column(
+            sequence =
+                column.sequence,
+            rows =
+                column.rows
+                    .asReversed()
+                    .toMutableList()
+        )
+    }
+
+    private fun selectNextColumn(
+        columns: List<Column>,
+        anchor: P?,
+        includeUnderlay: Boolean,
+        polygons: List<Polygon>
+    ): Column? {
+        if (
+            columns.isEmpty()
+        ) {
+            return null
+        }
+
+        if (
+            anchor ==
+                null
+        ) {
+            return columns.minByOrNull {
+                it.sequence
+            }
+        }
+
+        val connected =
+            columns.mapNotNull {
+                    column ->
+                if (
+                    column.rows
+                        .isEmpty()
+                ) {
+                    return@mapNotNull null
+                }
+
+                val firstEntry =
+                    columnEntry(
+                        column =
+                            column,
+                        includeUnderlay =
+                            includeUnderlay
+                    )
+
+                val lastEntry =
+                    columnEntry(
+                        column =
+                            column,
+                        includeUnderlay =
+                            includeUnderlay,
+                        fromEnd =
+                            true
+                    )
+
+                val firstDistance =
+                    distance(
+                        anchor,
+                        firstEntry
+                    )
+
+                val lastDistance =
+                    distance(
+                        anchor,
+                        lastEntry
+                    )
+
+                val entry =
+                    if (
+                        lastDistance <
+                            firstDistance
+                    ) {
+                        lastEntry
+                    } else {
+                        firstEntry
+                    }
+
+                val entryDistance =
+                    minOf(
+                        firstDistance,
+                        lastDistance
+                    )
+
+                if (
+                    entryDistance <=
+                        NEAR_COLUMN_JOIN_UNITS &&
+                    segmentInsideGlyph(
+                        from =
+                            anchor,
+                        to =
+                            entry,
+                        polygons =
+                            polygons
+                    )
+                ) {
+                    Triple(
+                        column,
+                        entryDistance,
+                        column.sequence
+                    )
+                } else {
+                    null
+                }
+            }
+
+        return connected
+            .minWithOrNull(
+                compareBy<Triple<Column, Float, Int>> {
+                    it.second
+                }.thenBy {
+                    it.third
+                }
+            )
+            ?.first
+            ?: columns.minByOrNull {
+                it.sequence
+            }
+    }
+
+    private fun segmentInsideGlyph(
+        from: P,
+        to: P,
+        polygons: List<Polygon>
+    ): Boolean {
+        if (
+            polygons.isEmpty()
+        ) {
+            return false
+        }
+
+        val total =
+            distance(
+                from,
+                to
+            )
+
+        val samples =
+            max(
+                2,
+                ceil(
+                    total /
+                        CONNECTOR_SAMPLE_UNITS
+                ).toInt()
+            )
+
+        for (
+            part in
+                1 until
+                    samples
+        ) {
+            val point =
+                lerp(
+                    from,
+                    to,
+                    part.toFloat() /
+                        samples
+                )
+
+            if (
+                !pointInsideOrNearGlyph(
+                    point =
+                        point,
+                    polygons =
+                        polygons
+                )
+            ) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun pointInsideOrNearGlyph(
+        point: P,
+        polygons: List<Polygon>
+    ): Boolean {
+        var inside =
+            false
+
+        polygons.forEach {
+                polygon ->
+            if (
+                pointInsidePolygon(
+                    point =
+                        point,
+                    polygon =
+                        polygon
+                )
+            ) {
+                inside =
+                    !inside
+            }
+        }
+
+        if (
+            inside
+        ) {
+            return true
+        }
+
+        return polygons.any {
+                polygon ->
+            pointNearPolygonEdge(
+                point =
+                    point,
+                polygon =
+                    polygon,
+                margin =
+                    CONNECTOR_EDGE_MARGIN_UNITS
+            )
+        }
+    }
+
+    private fun pointInsidePolygon(
+        point: P,
+        polygon: Polygon
+    ): Boolean {
+        val points =
+            polygon.points
+
+        if (
+            points.size <
+                3
+        ) {
+            return false
+        }
+
+        var inside =
+            false
+        var previous =
+            points.last()
+
+        points.forEach {
+                current ->
+            val crosses =
+                (
+                    current.y >
+                        point.y
+                    ) !=
+                    (
+                        previous.y >
+                            point.y
+                    )
+
+            if (
+                crosses
+            ) {
+                val denominator =
+                    previous.y -
+                        current.y
+
+                if (
+                    abs(
+                        denominator
+                    ) >
+                    0.00001f
+                ) {
+                    val crossingX =
+                        (
+                            previous.x -
+                                current.x
+                            ) *
+                            (
+                                point.y -
+                                    current.y
+                                ) /
+                            denominator +
+                            current.x
+
+                    if (
+                        point.x <
+                            crossingX
+                    ) {
+                        inside =
+                            !inside
+                    }
+                }
+            }
+
+            previous =
+                current
+        }
+
+        return inside
+    }
+
+    private fun pointNearPolygonEdge(
+        point: P,
+        polygon: Polygon,
+        margin: Float
+    ): Boolean {
+        val points =
+            polygon.points
+
+        if (
+            points.size <
+                2
+        ) {
+            return false
+        }
+
+        for (
+            index in
+                points.indices
+        ) {
+            val a =
+                points[index]
+            val b =
+                points[
+                    (
+                        index +
+                            1
+                        ) %
+                        points.size
+                ]
+
+            if (
+                pointToSegmentDistance(
+                    point =
+                        point,
+                    a =
+                        a,
+                    b =
+                        b
+                ) <=
+                margin
+            ) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun pointToSegmentDistance(
+        point: P,
+        a: P,
+        b: P
+    ): Float {
+        val dx =
+            b.x -
+                a.x
+        val dy =
+            b.y -
+                a.y
+        val denominator =
+            dx *
+                dx +
+            dy *
+                dy
+
+        if (
+            denominator <=
+                0.000001f
+        ) {
+            return distance(
+                point,
+                a
+            )
+        }
+
+        val ratio =
+            (
+                (
+                    point.x -
+                        a.x
+                    ) *
+                    dx +
+                (
+                    point.y -
+                        a.y
+                    ) *
+                    dy
+                ) /
+                denominator
+            )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        return distance(
+            point,
+            P(
+                x =
+                    a.x +
+                        dx *
+                            ratio,
+                y =
+                    a.y +
+                        dy *
+                            ratio
+            )
+        )
+    }
+
     private class Emitter(
         private val output:
             MutableList<EmbroideryPoint>
@@ -1038,7 +1522,124 @@ internal object MaoCompatibleImportedFontEngine {
             P? =
             null
 
-        fun emitColumn(
+        fun emitGlyph(
+            columns: List<Column>,
+            polygons: List<Polygon>,
+            includeUnderlay: Boolean,
+            densityMm: Float
+        ) {
+            val remaining =
+                columns
+                    .filter {
+                        it.rows
+                            .isNotEmpty()
+                    }
+                    .toMutableList()
+
+            while (
+                remaining.isNotEmpty()
+            ) {
+                val selected =
+                    selectNextColumn(
+                        columns =
+                            remaining,
+                        anchor =
+                            current,
+                        includeUnderlay =
+                            includeUnderlay,
+                        polygons =
+                            polygons
+                    )
+                        ?: break
+
+                val oriented =
+                    current?.let {
+                            anchor ->
+                        orientColumnFromNearestEnd(
+                            column =
+                                selected,
+                            anchor =
+                                anchor,
+                            includeUnderlay =
+                                includeUnderlay
+                        )
+                    }
+                        ?: selected
+
+                val entry =
+                    columnEntry(
+                        column =
+                            oriented,
+                        includeUnderlay =
+                            includeUnderlay
+                    )
+
+                val before =
+                    current
+
+                if (
+                    before ==
+                        null
+                ) {
+                    travelTo(
+                        entry
+                    )
+                } else {
+                    val connectionDistance =
+                        distance(
+                            before,
+                            entry
+                        )
+
+                    val sameStroke =
+                        connectionDistance in
+                            0.5f..
+                                NEAR_COLUMN_JOIN_UNITS &&
+                        segmentInsideGlyph(
+                            from =
+                                before,
+                            to =
+                                entry,
+                            polygons =
+                                polygons
+                        )
+
+                    if (
+                        sameStroke
+                    ) {
+                        segmented(
+                            from =
+                                before,
+                            to =
+                                entry,
+                            command =
+                                StitchCommand.STITCH,
+                            maxSegmentUnits =
+                                CONTINUOUS_CONNECTOR_STITCH_UNITS
+                        )
+                    } else {
+                        travelTo(
+                            entry
+                        )
+                    }
+                }
+
+                emitColumn(
+                    column =
+                        oriented,
+                    includeUnderlay =
+                        includeUnderlay,
+                    densityMm =
+                        densityMm
+                )
+
+                remaining.remove(
+                    selected
+                )
+            }
+        }
+
+        private fun emitColumn(
             column: Column,
             includeUnderlay: Boolean,
             densityMm: Float
@@ -1052,20 +1653,6 @@ internal object MaoCompatibleImportedFontEngine {
                 return
             }
 
-            travelTo(
-                rows.first()
-                    .a
-            )
-
-            /*
-             * Sequência observada na referência:
-             * 1) entra na coluna;
-             * 2) underlay central percorre uma única vez até o extremo;
-             * 3) o Satin começa nesse extremo;
-             * 4) a cobertura volta pela mesma coluna até a entrada.
-             *
-             * Isso evita abandonar uma perna no meio para depois retomá-la.
-             */
             val coverageRows =
                 if (
                     includeUnderlay &&
@@ -1355,7 +1942,9 @@ internal object MaoCompatibleImportedFontEngine {
         private fun segmented(
             from: P,
             to: P,
-            command: StitchCommand
+            command: StitchCommand,
+            maxSegmentUnits: Float =
+                MAX_COMMAND_SEGMENT_UNITS
         ) {
             val total =
                 distance(
@@ -1368,7 +1957,10 @@ internal object MaoCompatibleImportedFontEngine {
                     1,
                     ceil(
                         total /
-                            MAX_COMMAND_SEGMENT_UNITS
+                            maxSegmentUnits
+                                .coerceAtLeast(
+                                    1f
+                                )
                     ).toInt()
                 )
 
@@ -1559,6 +2151,156 @@ internal object MaoCompatibleImportedFontEngine {
                 ).toDouble()
         )
             .toFloat()
+
+    internal fun debugContinuitySelection():
+        Int? {
+        val near =
+            Column(
+                sequence =
+                    9,
+                rows =
+                    mutableListOf(
+                        Row(
+                            P(
+                                10f,
+                                10f
+                            ),
+                            P(
+                                20f,
+                                10f
+                            )
+                        ),
+                        Row(
+                            P(
+                                10f,
+                                40f
+                            ),
+                            P(
+                                20f,
+                                40f
+                            )
+                        )
+                    )
+            )
+
+        val farEarlier =
+            Column(
+                sequence =
+                    1,
+                rows =
+                    mutableListOf(
+                        Row(
+                            P(
+                                120f,
+                                10f
+                            ),
+                            P(
+                                130f,
+                                10f
+                            )
+                        ),
+                        Row(
+                            P(
+                                120f,
+                                40f
+                            ),
+                            P(
+                                130f,
+                                40f
+                            )
+                        )
+                    )
+            )
+
+        val polygon =
+            Polygon(
+                listOf(
+                    P(
+                        0f,
+                        0f
+                    ),
+                    P(
+                        140f,
+                        0f
+                    ),
+                    P(
+                        140f,
+                        60f
+                    ),
+                    P(
+                        0f,
+                        60f
+                    )
+                )
+            )
+
+        return selectNextColumn(
+            columns =
+                listOf(
+                    farEarlier,
+                    near
+                ),
+            anchor =
+                P(
+                    12f,
+                    12f
+                ),
+            includeUnderlay =
+                true,
+            polygons =
+                listOf(
+                    polygon
+                )
+        )?.sequence
+    }
+
+    internal fun debugNearestEndOrientation():
+        Float {
+        val column =
+            Column(
+                sequence =
+                    0,
+                rows =
+                    mutableListOf(
+                        Row(
+                            P(
+                                0f,
+                                0f
+                            ),
+                            P(
+                                10f,
+                                0f
+                            )
+                        ),
+                        Row(
+                            P(
+                                0f,
+                                100f
+                            ),
+                            P(
+                                10f,
+                                100f
+                            )
+                        )
+                    )
+            )
+
+        return center(
+            orientColumnFromNearestEnd(
+                column =
+                    column,
+                anchor =
+                    P(
+                        5f,
+                        95f
+                    ),
+                includeUnderlay =
+                    true
+            )
+                .rows
+                .first()
+        ).y
+    }
 
     private fun safeName(
         value: String
