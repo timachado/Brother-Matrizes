@@ -5942,6 +5942,149 @@ internal object PeDesignImportedFontEngine {
 
             current =
                 point
+        fun debugConnectedObjectWinsOverCloserUnrelatedLeg():
+            Float {
+            fun columnAt(
+                x: Float,
+                y: Float
+            ): SatinColumn =
+                SatinColumn(
+                    mutableListOf(
+                        SatinRow(
+                            FPoint(
+                                x,
+                                y
+                            ),
+                            FPoint(
+                                x +
+                                    2f,
+                                y
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                x,
+                                y +
+                                    2f
+                            ),
+                            FPoint(
+                                x +
+                                    2f,
+                                y +
+                                    2f
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                x,
+                                y +
+                                    4f
+                            ),
+                            FPoint(
+                                x +
+                                    2f,
+                                y +
+                                    4f
+                            )
+                        ),
+                        SatinRow(
+                            FPoint(
+                                x,
+                                y +
+                                    6f
+                            ),
+                            FPoint(
+                                x +
+                                    2f,
+                                y +
+                                    6f
+                            )
+                        )
+                    )
+                )
+
+            val sameObject =
+                columnAt(
+                    15f,
+                    0f
+                )
+
+            val closerButSeparated =
+                columnAt(
+                    0f,
+                    8f
+                )
+
+            val polygons =
+                listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                -3f,
+                                -3f
+                            ),
+                            FPoint(
+                                25f,
+                                -3f
+                            ),
+                            FPoint(
+                                25f,
+                                7f
+                            ),
+                            FPoint(
+                                -3f,
+                                7f
+                            )
+                        )
+                    ),
+                    Polygon(
+                        listOf(
+                            FPoint(
+                                -3f,
+                                8f
+                            ),
+                            FPoint(
+                                3f,
+                                8f
+                            ),
+                            FPoint(
+                                3f,
+                                18f
+                            ),
+                            FPoint(
+                                -3f,
+                                18f
+                            )
+                        )
+                    )
+                )
+
+            val selected =
+                nextColumnFollowingObject(
+                    columns =
+                        listOf(
+                            closerButSeparated,
+                            sameObject
+                        ),
+                    anchor =
+                        FPoint(
+                            0f,
+                            0f
+                        ),
+                    underlayMode =
+                        SatinUnderlayMode.CENTER,
+                    polygons =
+                        polygons
+                )
+                    ?: error(
+                        "Nenhuma coluna selecionada."
+                    )
+
+            return columnLeftEdgeX(
+                selected
+            )
+        }
+
         }
     }
 
@@ -7868,147 +8011,11 @@ internal object PeDesignImportedFontEngine {
             .size
 
     internal fun debugConnectedObjectWinsOverCloserUnrelatedLeg():
-        Float {
-        fun columnAt(
-            x: Float,
-            y: Float
-        ): SatinColumn =
-            SatinColumn(
-                mutableListOf(
-                    SatinRow(
-                        FPoint(
-                            x,
-                            y
-                        ),
-                        FPoint(
-                            x +
-                                2f,
-                            y
-                        )
-                    ),
-                    SatinRow(
-                        FPoint(
-                            x,
-                            y +
-                                2f
-                        ),
-                        FPoint(
-                            x +
-                                2f,
-                            y +
-                                2f
-                        )
-                    ),
-                    SatinRow(
-                        FPoint(
-                            x,
-                            y +
-                                4f
-                        ),
-                        FPoint(
-                            x +
-                                2f,
-                            y +
-                                4f
-                        )
-                    ),
-                    SatinRow(
-                        FPoint(
-                            x,
-                            y +
-                                6f
-                        ),
-                        FPoint(
-                            x +
-                                2f,
-                            y +
-                                6f
-                        )
-                    )
-                )
-            )
-
-        val sameObject =
-            columnAt(
-                15f,
-                0f
-            )
-
-        val closerButSeparated =
-            columnAt(
-                0f,
-                8f
-            )
-
-        val polygons =
-            listOf(
-                Polygon(
-                    listOf(
-                        FPoint(
-                            -3f,
-                            -3f
-                        ),
-                        FPoint(
-                            25f,
-                            -3f
-                        ),
-                        FPoint(
-                            25f,
-                            7f
-                        ),
-                        FPoint(
-                            -3f,
-                            7f
-                        )
-                    )
-                ),
-                Polygon(
-                    listOf(
-                        FPoint(
-                            -3f,
-                            8f
-                        ),
-                        FPoint(
-                            3f,
-                            8f
-                        ),
-                        FPoint(
-                            3f,
-                            18f
-                        ),
-                        FPoint(
-                            -3f,
-                            18f
-                        )
-                    )
-                )
-            )
-
-        val selected =
-            nextColumnFollowingObject(
-                columns =
-                    listOf(
-                        closerButSeparated,
-                        sameObject
-                    ),
-                anchor =
-                    FPoint(
-                        0f,
-                        0f
-                    ),
-                underlayMode =
-                    SatinUnderlayMode.CENTER,
-                polygons =
-                    polygons
-            )
-                ?: error(
-                    "Nenhuma coluna selecionada."
-                )
-
-        return columnLeftEdgeX(
-            selected
+        Float =
+        SatinEmitter(
+            mutableListOf()
         )
-    }
+            .debugConnectedObjectWinsOverCloserUnrelatedLeg()
 
     private fun safeName(
         value: String
