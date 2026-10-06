@@ -892,4 +892,48 @@ class PeDesignImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun curvedYJunctionKeepsMainSatinFlowTogetherBeforeSideBranch() {
+        val paths =
+            PeDesignImportedFontEngine
+                .debugCurvedYJunctionContinuity()
+
+        assertEquals(
+            "Uma bifurcação curva em Y deve resultar em uma coluna principal contínua e um ramo lateral.",
+            2,
+            paths.size
+        )
+
+        val main =
+            paths.firstOrNull {
+                    path ->
+                val endpoints =
+                    setOf(
+                        path.firstOrNull(),
+                        path.lastOrNull()
+                    )
+
+                endpoints ==
+                    setOf(
+                        20 to 0,
+                        20 to 20
+                    )
+            }
+
+        assertTrue(
+            "Os dois lados curvos do mesmo traço precisam permanecer na mesma coluna Satin.",
+            main !=
+                null
+        )
+
+        assertTrue(
+            "A coluna curva deve atravessar o nó central antes de liberar o ramo lateral.",
+            main?.contains(
+                10 to 10
+            ) ==
+                true
+        )
+    }
+
 }
