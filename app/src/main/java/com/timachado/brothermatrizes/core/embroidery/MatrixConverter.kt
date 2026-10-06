@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.core.embroidery
 
 import java.io.ByteArrayOutputStream
+import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -12,8 +13,15 @@ import org.embroideryio.embroideryio.EmbThread
 import org.embroideryio.embroideryio.EmbroideryIO
 
 object MatrixConverter {
+    /*
+     * Brother-first: PES é o formato preferencial do app.
+     * DST e JEF continuam disponíveis para interoperabilidade.
+     */
     val supportedFormats =
-        listOf("DST", "PES", "JEF")
+        listOf("PES", "DST", "JEF")
+
+    const val preferredBrotherFormat =
+        "PES"
 
     private val fallbackColors =
         listOf(
@@ -78,10 +86,22 @@ object MatrixConverter {
                     Locale.ROOT
                 )
 
-            val baseName =
+            val rawBaseName =
                 normalized.fileName
                     .substringBeforeLast('.')
                     .ifBlank { "matriz" }
+
+            val baseName =
+                if (
+                    format ==
+                        preferredBrotherFormat
+                ) {
+                    brotherSafeFileStem(
+                        rawBaseName
+                    )
+                } else {
+                    rawBaseName
+                }
 
             val suffix =
                 outputSuffix
@@ -168,6 +188,36 @@ object MatrixConverter {
                 bytes = bytes
             )
         }
+
+    internal fun brotherSafeFileStem(
+        value: String
+    ): String =
+        Normalizer
+            .normalize(
+                value,
+                Normalizer.Form.NFD
+            )
+            .replace(
+                Regex(
+                    "\\p{M}+"
+                ),
+                ""
+            )
+            .replace(
+                Regex(
+                    "[^A-Za-z0-9_-]+"
+                ),
+                "_"
+            )
+            .trim(
+                '_'
+            )
+            .take(
+                48
+            )
+            .ifBlank {
+                "matriz"
+            }
 
     private fun buildOutputPattern(
         design: EmbroideryDesign,
