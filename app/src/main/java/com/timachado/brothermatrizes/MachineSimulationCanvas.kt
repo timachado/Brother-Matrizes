@@ -395,7 +395,27 @@ private data class SimulationTransform(
                  * guidePoints é apenas geometria auxiliar e não participa do
                  * bounds visual da simulação.
                  */
+                /*
+                 * Centralização visual usa somente a geometria realmente
+                 * costurada. JUMP/TRIM invisíveis não podem deslocar o nome
+                 * dentro do bastidor.
+                 */
                 design.points
+                    .filter {
+                        it.command ==
+                            StitchCommand.STITCH ||
+                        it.command ==
+                            StitchCommand.STOP ||
+                        it.command ==
+                            StitchCommand.SEQUIN
+                    }
+                    .ifEmpty {
+                        design.points
+                            .filter {
+                                it.command !=
+                                    StitchCommand.END
+                            }
+                    }
             } else {
                 design.points +
                     design.guidePoints
