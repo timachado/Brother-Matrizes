@@ -29,40 +29,29 @@ object SimulationTiming {
         command: StitchCommand,
         speedMultiplier: Float
     ): Long {
+        if (
+            command ==
+                StitchCommand.END
+        ) {
+            return 0L
+        }
+
         val speed =
             speedMultiplier
                 .coerceAtLeast(
                     0.25f
                 )
 
-        val base =
-            when (command) {
-                StitchCommand.STITCH ->
-                    80L
-
-                StitchCommand.JUMP ->
-                    24L
-
-                StitchCommand.TRIM ->
-                    140L
-
-                StitchCommand.COLOR_CHANGE ->
-                    520L
-
-                StitchCommand.STOP ->
-                    650L
-
-                StitchCommand.SEQUIN ->
-                    100L
-
-                StitchCommand.END ->
-                    0L
-            }
-
+        /*
+         * MãoDesign avança um comando por tick fixo de 80 ms em 1×.
+         * JUMP/TRIM/COLOR_CHANGE não recebem relógios diferentes.
+         */
         return (
-            base /
+            80L /
                 speed
             ).toLong()
-            .coerceAtLeast(8L)
+            .coerceAtLeast(
+                8L
+            )
     }
 }
