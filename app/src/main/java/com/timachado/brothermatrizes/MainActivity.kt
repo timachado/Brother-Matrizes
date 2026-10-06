@@ -1920,9 +1920,10 @@ private fun BrotherMatrizesApp(
                                         EmbroideryDisplayMode
                                             .SOLID,
                                     referenceHoop =
-                                        recommendedHoopFor(
-                                            created
-                                        ),
+                                        created.hoopProfile
+                                            ?: recommendedHoopFor(
+                                                created
+                                            ),
                                     showConnections =
                                         false
                                 )
