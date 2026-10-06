@@ -144,7 +144,8 @@ fun MachineSimulationCanvas(
                                             if (
                                                 referenceTextSimulation
                                             ) {
-                                                1.5f
+                                                cachedTransform
+                                                    .referenceGhostStrokeWidthPx
                                             } else {
                                                 1.05.dp
                                                     .toPx()
@@ -287,18 +288,14 @@ private fun buildGhostStitchPaths(
                 point.command
             ) {
                 StitchCommand.COLOR_CHANGE,
+                StitchCommand.JUMP,
                 StitchCommand.TRIM,
-                StitchCommand.STOP,
                 StitchCommand.END -> {
                     previous =
                         null
                 }
 
-                StitchCommand.JUMP -> {
-                    previous =
-                        point
-                }
-
+                StitchCommand.STOP,
                 StitchCommand.SEQUIN -> {
                     previous =
                         point
@@ -567,6 +564,48 @@ private data class SimulationTransform(
                 hoopHeightUnits =
                     hoopHeightUnits
             )
+        }
+
+    val referenceGhostStrokeWidthPx: Float
+        get() {
+            if (
+                !referenceTextMode
+            ) {
+                return 1.05f *
+                    uiScale
+            }
+
+            /*
+             * O MãoDesign pré-renderiza o ghost em 1080×1080 com stroke 1.5
+             * e depois recorta/escala o bitmap para o designRect.
+             */
+            val ghostScale =
+                minOf(
+                    1080f /
+                        widthUnits
+                            .toFloat()
+                            .coerceAtLeast(
+                                1f
+                            ),
+                    1080f /
+                        heightUnits
+                            .toFloat()
+                            .coerceAtLeast(
+                                1f
+                            )
+                )
+
+            return (
+                1.5f *
+                    scale /
+                    ghostScale
+                        .coerceAtLeast(
+                            0.0001f
+                        )
+                ).coerceAtLeast(
+                    0.35f *
+                        uiScale
+                )
         }
 
     val hoopFrameWidthPx: Float =
@@ -1563,7 +1602,6 @@ private fun DrawScope.drawReferenceCompletedStitches(
         ) {
             StitchCommand.COLOR_CHANGE,
             StitchCommand.TRIM,
-            StitchCommand.STOP,
             StitchCommand.END -> {
                 previous =
                     null
@@ -1579,16 +1617,16 @@ private fun DrawScope.drawReferenceCompletedStitches(
                         color =
                             Color(
                                 red =
-                                    58f /
+                                    180f /
                                         255f,
                                 green =
-                                    60f /
+                                    180f /
                                         255f,
                                 blue =
-                                    82f /
+                                    180f /
                                         255f,
                                 alpha =
-                                    145f /
+                                    110f /
                                         255f
                             ),
                         start =
@@ -1605,17 +1643,22 @@ private fun DrawScope.drawReferenceCompletedStitches(
                             PathEffect
                                 .dashPathEffect(
                                     floatArrayOf(
-                                        5f,
+                                        4f,
                                         4f
                                     )
                                 )
                     )
                 }
 
+                /*
+                 * No MãoDesign o JUMP interrompe o traço Satin visível.
+                 * O primeiro STITCH após o salto inicia um novo segmento.
+                 */
                 previous =
-                    point
+                    null
             }
 
+            StitchCommand.STOP,
             StitchCommand.SEQUIN -> {
                 previous =
                     point
