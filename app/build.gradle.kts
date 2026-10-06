@@ -29,6 +29,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            /*
+             * Project token do PostHog é um identificador público de cliente,
+             * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
+             * privada é incluída no app.
+             */
+            buildConfigField(
+                "String",
+                "POSTHOG_PROJECT_TOKEN",
+                "\"phc_CSmVhfjhoqBHjLtFB2nwNSdGgfss7RtTzx8xXgdrAoSu\""
+            )
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -73,6 +86,7 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    debugImplementation("com.posthog:posthog-android:3.71.4")
 
     testImplementation("junit:junit:4.13.2")
 }
