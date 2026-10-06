@@ -212,19 +212,36 @@ fun MachineSimulationCanvas(
                 )
             }
 
+            /*
+             * MãoDesign usa CurrentStitchIndex como posição da agulha,
+             * enquanto as linhas já executadas usam os comandos anteriores.
+             * Assim o marcador aponta para o próximo comando a executar,
+             * não fica um ponto atrasado.
+             */
             val current =
-                design.points
-                    .getOrNull(
-                        pointLimit -
-                            1
-                    )
-                    ?.takeIf {
-                        it.command !=
-                            StitchCommand.END
-                    }
+                if (
+                    pointLimit >
+                        0 &&
+                    design.points
+                        .isNotEmpty()
+                ) {
+                    design.points
+                        .getOrNull(
+                            minOf(
+                                pointLimit,
+                                design.points
+                                    .lastIndex
+                            )
+                        )
+                        ?.takeIf {
+                            it.command !=
+                                StitchCommand.END
+                        }
+                } else {
+                    null
+                }
 
             if (
-                pointLimit > 0 &&
                 current !=
                     null
             ) {
