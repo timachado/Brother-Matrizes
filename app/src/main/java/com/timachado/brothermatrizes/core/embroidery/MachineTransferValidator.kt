@@ -75,16 +75,15 @@ object MachineTransferValidator {
             design.bounds.heightMm
 
         /*
-         * Para envio à máquina usamos a dimensão física nominal do
-         * bastidor. A margem segura continua existindo nas validações
-         * globais de criação/auto-fit, mas não deve reduzir novamente
-         * a capacidade física nesta tela de transferência.
+         * Brother-first: envio, criação e simulação precisam usar a mesma
+         * área segura. A medida nominal do bastidor não é autorização para
+         * colocar pontos até a borda física.
          */
         val hoopWidth =
-            hoop.widthMm
+            hoop.usableWidthMm
 
         val hoopHeight =
-            hoop.heightMm
+            hoop.usableHeightMm
 
         val fitsDirect =
             designWidth <=
@@ -126,6 +125,40 @@ object MachineTransferValidator {
                                     .BLOCKING,
                             message =
                                 "Formato $normalizedFormat não é suportado para envio."
+                        )
+                    )
+                }
+
+                if (
+                    normalizedFormat !=
+                        MatrixConverter
+                            .preferredBrotherFormat &&
+                    normalizedFormat in
+                        MatrixConverter
+                            .supportedFormats
+                ) {
+                    add(
+                        TransferIssue(
+                            level =
+                                TransferIssueLevel
+                                    .WARNING,
+                            message =
+                                "Para bordadeiras Brother, prefira PES. Use $normalizedFormat apenas quando a máquina ou o fluxo exigir."
+                        )
+                    )
+                }
+
+                if (
+                    normalizedFormat ==
+                        "DST"
+                ) {
+                    add(
+                        TransferIssue(
+                            level =
+                                TransferIssueLevel
+                                    .WARNING,
+                            message =
+                                "DST não preserva cores de linha específicas; confira as cores na máquina antes de bordar."
                         )
                     )
                 }
