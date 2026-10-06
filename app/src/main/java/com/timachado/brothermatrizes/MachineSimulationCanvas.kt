@@ -446,7 +446,7 @@ private data class SimulationTransform(
                 1f
             )
 
-    private val referenceFrameMargin =
+    val referenceFrameMargin =
         minOf(
             canvasWidth,
             canvasHeight
@@ -454,24 +454,20 @@ private data class SimulationTransform(
             0.04f
 
     private val referenceInnerLeft =
-        referenceFrameMargin +
-            8f *
-                uiScale
+        8f *
+            uiScale
 
     private val referenceInnerRight =
         canvasWidth -
-            referenceFrameMargin -
             8f *
                 uiScale
 
     private val referenceInnerTop =
-        referenceFrameMargin +
-            42f *
-                uiScale
+        42f *
+            uiScale
 
     private val referenceInnerBottom =
         canvasHeight -
-            referenceFrameMargin -
             8f *
                 uiScale
 
@@ -954,9 +950,27 @@ private fun DrawScope.drawHoop(
 ) {
     drawRoundRect(
         color =
-            Color(
-                0xB346433E
-            ),
+            if (
+                transform.referenceTextMode
+            ) {
+                Color(
+                    red =
+                        58f /
+                            255f,
+                    green =
+                        60f /
+                            255f,
+                    blue =
+                        82f /
+                            255f,
+                    alpha =
+                        1f
+                )
+            } else {
+                Color(
+                    0xB346433E
+                )
+            },
         topLeft =
             Offset(
                 transform
@@ -975,8 +989,22 @@ private fun DrawScope.drawHoop(
             ),
         cornerRadius =
             CornerRadius(
-                18.dp.toPx(),
-                18.dp.toPx()
+                if (
+                    transform.referenceTextMode
+                ) {
+                    24f *
+                        transform.uiScale
+                } else {
+                    18.dp.toPx()
+                },
+                if (
+                    transform.referenceTextMode
+                ) {
+                    24f *
+                        transform.uiScale
+                } else {
+                    18.dp.toPx()
+                }
             ),
         style =
             Stroke(
@@ -1682,15 +1710,15 @@ private fun DrawScope.drawReferenceNeedle(
             crosshair,
         start =
             Offset(
-                5f *
-                    transform.uiScale,
+                transform
+                    .referenceFrameMargin,
                 center.y
             ),
         end =
             Offset(
                 size.width -
-                    5f *
-                        transform.uiScale,
+                    transform
+                        .referenceFrameMargin,
                 center.y
             ),
         strokeWidth =
