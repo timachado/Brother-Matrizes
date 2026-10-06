@@ -329,9 +329,7 @@ fun CreateNameScreen(
     }
 
     val effectiveAutoFitToHoop =
-        autoFitToHoop &&
-            importedFont ==
-                null
+        autoFitToHoop
 
     val previewHeightKey =
         if (
@@ -427,6 +425,92 @@ fun CreateNameScreen(
                         )
 
                 if (
+                    effectiveAutoFitToHoop &&
+                    importedFont !=
+                        null
+                ) {
+                    /*
+                     * Fontes TTF/OTF Satin são caras para digitalizar.
+                     * Fazemos uma medição real e, se necessário, apenas uma
+                     * segunda geração na altura proporcional calculada.
+                     */
+                    val first =
+                        generateAt(
+                            requestedHeight
+                        )
+
+                    val firstDesign =
+                        first.getOrNull()
+
+                    if (
+                        firstDesign ==
+                            null
+                    ) {
+                        requestedHeight to
+                            first
+                    } else {
+                        val widthRatio =
+                            (
+                                hoopProfile
+                                    .usableWidthMm *
+                                    0.96f
+                                ) /
+                                firstDesign
+                                    .bounds
+                                    .widthMm
+                                    .coerceAtLeast(
+                                        0.1f
+                                    )
+
+                        val heightRatio =
+                            (
+                                hoopProfile
+                                    .usableHeightMm *
+                                    0.96f
+                                ) /
+                                firstDesign
+                                    .bounds
+                                    .heightMm
+                                    .coerceAtLeast(
+                                        0.1f
+                                    )
+
+                        val scaleRatio =
+                            minOf(
+                                widthRatio,
+                                heightRatio,
+                                1f
+                            )
+
+                        val fittedHeight =
+                            (
+                                requestedHeight *
+                                    scaleRatio
+                                )
+                                .coerceIn(
+                                    TextHoopAutoFit
+                                        .MIN_HEIGHT_MM,
+                                    TextHoopAutoFit
+                                        .MAX_HEIGHT_MM
+                                )
+
+                        if (
+                            kotlin.math.abs(
+                                fittedHeight -
+                                    requestedHeight
+                            ) <
+                            0.05f
+                        ) {
+                            requestedHeight to
+                                first
+                        } else {
+                            fittedHeight to
+                                generateAt(
+                                    fittedHeight
+                                )
+                        }
+                    }
+                } else if (
                     effectiveAutoFitToHoop
                 ) {
                     val fit =
@@ -457,17 +541,11 @@ fun CreateNameScreen(
                             )
                     }
                 } else {
-                    /*
-                     * O MãoDesign digitaliza a fonte importada na altura
-                     * solicitada; não redimensiona o glifo para caber no
-                     * bastidor antes da simulação.
-                     */
                     requestedHeight to
                         generateAt(
                             requestedHeight
                         )
                 }
-
             }
 
         val resolvedHeight =
@@ -1007,40 +1085,13 @@ fun CreateNameScreen(
                                                     importedFontId =
                                                         imported.id
 
-                                                    val referenceFont =
-                                                        imported
-                                                            .displayName
-                                                            .lowercase(
-                                                                Locale.ROOT
-                                                            )
-
                                                     /*
-                                                     * O vídeo de referência da Adamya está em
-                                                     * 90°. A rotação precisa acontecer ANTES do
-                                                     * SatinColumnSampler, pois ela define a ordem
-                                                     * A.x/A.y das colunas — não é mero giro visual.
+                                                     * Rotação é opção do layout/pedido, nunca
+                                                     * propriedade da fonte. O MãoDesign recebe
+                                                     * RotationDegrees separadamente.
                                                      */
                                                     rotationDegrees =
-                                                        if (
-                                                            referenceFont.contains(
-                                                                "adamya"
-                                                            ) ||
-                                                            referenceFont.contains(
-                                                                "ademya"
-                                                            )
-                                                        ) {
-                                                            90f
-                                                        } else {
-                                                            0f
-                                                        }
-
-                                                    /*
-                                                     * Como no MãoDesign, fonte importada mantém
-                                                     * a altura solicitada. O bastidor só enquadra
-                                                     * a visualização; não redimensiona a matriz.
-                                                     */
-                                                    autoFitToHoop =
-                                                        false
+                                                        0f
                                                 }
                                             )
                                         }
