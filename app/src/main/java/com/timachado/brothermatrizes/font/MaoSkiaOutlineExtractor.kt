@@ -1,9 +1,11 @@
 package com.timachado.brothermatrizes.font
 
-import io.github.humbleui.skija.Font
-import io.github.humbleui.skija.FontHinting
-import io.github.humbleui.skija.FontMgr
-import io.github.humbleui.skija.PathMeasure
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PathMeasure
+import android.graphics.RectF
+import android.graphics.Typeface
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -11,12 +13,15 @@ import kotlin.math.max
 import kotlin.math.sin
 
 /**
- * Extração clean-room do contorno TTF/OTF usando o mesmo backend gráfico
- * (Skia) observado no MãoDesign.
+ * Extração clean-room do contorno TTF/OTF usando o backend Skia nativo
+ * exposto pelo Android (android.graphics).
  *
- * Este módulo NÃO contém código do app de referência. Ele reproduz apenas
- * o contrato comportamental observado: CapHeight -> SKFont -> glyph width ->
- * glyph path -> TightBounds -> transformação global -> PathMeasure.
+ * Não usa Skija/HumbleUI: essas classes são voltadas ao runtime JVM e podem
+ * não existir corretamente dentro do APK Android.
+ *
+ * O contrato entregue ao motor Satin permanece o mesmo:
+ * cap-height -> glyph path/advance -> bounds -> transformação global ->
+ * amostragem de cada contorno.
  */
 internal object MaoSkiaOutlineExtractor {
 
@@ -26,15 +31,13 @@ internal object MaoSkiaOutlineExtractor {
     )
 
     data class Result(
-        val glyphPolygons:
-            List<List<List<Point>>>,
+        val glyphPolygons: List<List<List<Point>>>,
         val sourceWidth: Float,
         val sourceHeight: Float
     )
 
     private data class RawGlyph(
-        val contours:
-            List<List<Point>>,
+        val contours: List<List<Point>>,
         val left: Float,
         val top: Float,
         val right: Float,
@@ -48,328 +51,322 @@ internal object MaoSkiaOutlineExtractor {
         spacingUnits: Float,
         rotationDegrees: Float
     ): Result {
+        val fontFile =
+            File(
+                font.absolutePath
+            )
+
+        require(
+            fontFile.isFile
+        ) {
+            "O arquivo da fonte não está disponível."
+        }
+
         val typeface =
-            FontMgr
-                .getDefault()
-                .makeFromFile(
-                    font.absolutePath
+            runCatching {
+                Typeface.createFromFile(
+                    fontFile
                 )
-                ?: error(
-                    "O motor Skia não conseguiu abrir a fonte " +
+            }.getOrElse {
+                throw IllegalArgumentException(
+                    "O Android não conseguiu abrir a fonte " +
                         font.displayName +
-                        "."
+                        ".",
+                    it
                 )
+            }
 
-        try {
-            val probe =
-                Font(
-                    typeface,
-                    100f,
-                    1f,
-                    0f
-                )
-                    .setSubpixel(
-                        true
+        val paint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                this.typeface =
+                    typeface
+                isSubpixelText =
+                    true
+                hinting =
+                    Paint.HINTING_OFF
+            }
+
+        paint.textSize =
+            100f
+
+        val capHeight =
+            measuredCapHeight(
+                paint
+            ).coerceAtLeast(
+                1f
+            )
+
+        val resolvedSize =
+            100f *
+                targetCapHeightUnits /
+                capHeight
+
+        paint.textSize =
+            resolvedSize
+
+        val rawGlyphs =
+            mutableListOf<RawGlyph>()
+
+        var penX =
+            0f
+
+        val codePoints =
+            text
+                .codePoints()
+                .toArray()
+
+        codePoints
+            .forEachIndexed {
+                    index,
+                    codePoint ->
+                val glyphText =
+                    String(
+                        Character.toChars(
+                            codePoint
+                        )
                     )
-                    .setMetricsLinear(
-                        true
-                    )
-                    .setHinting(
-                        FontHinting.NONE
-                    )
-
-            val capHeight =
-                try {
-                    val metrics =
-                        probe.metrics
-
-                    val reported =
-                        metrics.capHeight
-
-                    if (
-                        reported >
-                            0.001f
-                    ) {
-                        reported
-                    } else {
-                        abs(
-                            metrics.ascent
-                        ) *
-                            0.72f
-                    }
-                } finally {
-                    probe.close()
-                }
-                    .coerceAtLeast(
-                        1f
-                    )
-
-            val resolvedSize =
-                100f *
-                    targetCapHeightUnits /
-                    capHeight
-
-            val skFont =
-                Font(
-                    typeface,
-                    resolvedSize,
-                    1f,
-                    0f
-                )
-                    .setSubpixel(
-                        true
-                    )
-                    .setMetricsLinear(
-                        true
-                    )
-                    .setHinting(
-                        FontHinting.NONE
-                    )
-
-            try {
-                val rawGlyphs =
-                    mutableListOf<
-                        RawGlyph
-                    >()
-
-                var penX =
-                    0f
-
-                val codePoints =
-                    text
-                        .codePoints()
-                        .toArray()
-
-                codePoints
-                    .forEachIndexed {
-                            index,
-                            codePoint ->
-                        val glyph =
-                            skFont
-                                .getUTF32Glyph(
-                                    codePoint
-                                )
-
-                        require(
-                            glyph.toInt() !=
-                                0
-                        ) {
-                            "A fonte " +
-                                font.displayName +
-                                " não possui o caractere U+" +
-                                codePoint
-                                    .toString(
-                                        16
-                                    )
-                                    .uppercase() +
-                                "."
-                        }
-
-                        val width =
-                            skFont
-                                .getWidths(
-                                    shortArrayOf(
-                                        glyph
-                                    )
-                                )
-                                .firstOrNull()
-                                ?: 0f
-
-                        val path =
-                            skFont
-                                .getPath(
-                                    glyph
-                                )
-
-                        if (
-                            path !=
-                                null
-                        ) {
-                            try {
-                                val tight =
-                                    path
-                                        .computeTightBounds()
-
-                                val contours =
-                                    sampleContours(
-                                        path =
-                                            path,
-                                        offsetX =
-                                            penX
-                                    )
-
-                                if (
-                                    contours.isNotEmpty()
-                                ) {
-                                    rawGlyphs +=
-                                        RawGlyph(
-                                            contours =
-                                                contours,
-                                            left =
-                                                tight.left +
-                                                    penX,
-                                            top =
-                                                tight.top,
-                                            right =
-                                                tight.right +
-                                                    penX,
-                                            bottom =
-                                                tight.bottom
-                                        )
-                                }
-                            } finally {
-                                path.close()
-                            }
-                        }
-
-                        penX +=
-                            width
-
-                        if (
-                            index <
-                                codePoints.lastIndex
-                        ) {
-                            penX +=
-                                spacingUnits
-                        }
-                    }
 
                 require(
-                    rawGlyphs.isNotEmpty()
+                    paint.hasGlyph(
+                        glyphText
+                    )
                 ) {
-                    "A fonte não gerou glifos vetoriais bordáveis."
+                    "A fonte " +
+                        font.displayName +
+                        " não possui o caractere U+" +
+                        codePoint
+                            .toString(
+                                16
+                            )
+                            .uppercase() +
+                        "."
                 }
 
-                val minX =
-                    rawGlyphs.minOf {
-                        it.left
-                    }
+                val path =
+                    Path()
 
-                val maxX =
-                    rawGlyphs.maxOf {
-                        it.right
-                    }
-
-                val minY =
-                    rawGlyphs.minOf {
-                        it.top
-                    }
-
-                val maxY =
-                    rawGlyphs.maxOf {
-                        it.bottom
-                    }
-
-                val centerX =
-                    (
-                        minX +
-                            maxX
-                        ) /
-                        2f
-
-                val centerY =
-                    (
-                        minY +
-                            maxY
-                        ) /
-                        2f
-
-                val radians =
-                    Math.toRadians(
-                        rotationDegrees
-                            .toDouble()
-                    )
-
-                val rotationCos =
-                    cos(
-                        radians
-                    )
-                        .toFloat()
-
-                val rotationSin =
-                    sin(
-                        radians
-                    )
-                        .toFloat()
-
-                val transformed =
-                    rawGlyphs.map {
-                            glyph ->
-                        glyph.contours.map {
-                                contour ->
-                            contour.map {
-                                point ->
-                                val centeredX =
-                                    point.x -
-                                        centerX
-
-                                val centeredY =
-                                    point.y -
-                                        centerY
-
-                                Point(
-                                    x =
-                                        centeredX *
-                                            rotationCos -
-                                            centeredY *
-                                                rotationSin,
-                                    y =
-                                        centeredX *
-                                            rotationSin +
-                                            centeredY *
-                                                rotationCos
-                                )
-                            }
-                        }
-                    }
-
-                return Result(
-                    glyphPolygons =
-                        transformed,
-                    sourceWidth =
-                        maxX -
-                            minX,
-                    sourceHeight =
-                        maxY -
-                            minY
+                paint.getTextPath(
+                    glyphText,
+                    0,
+                    glyphText.length,
+                    penX,
+                    0f,
+                    path
                 )
-            } finally {
-                skFont.close()
+
+                if (
+                    !path.isEmpty
+                ) {
+                    val tight =
+                        RectF()
+
+                    path.computeBounds(
+                        tight,
+                        true
+                    )
+
+                    val contours =
+                        sampleContours(
+                            path
+                        )
+
+                    if (
+                        contours.isNotEmpty()
+                    ) {
+                        rawGlyphs +=
+                            RawGlyph(
+                                contours =
+                                    contours,
+                                left =
+                                    tight.left,
+                                top =
+                                    tight.top,
+                                right =
+                                    tight.right,
+                                bottom =
+                                    tight.bottom
+                            )
+                    }
+                }
+
+                penX +=
+                    paint.measureText(
+                        glyphText
+                    )
+
+                if (
+                    index <
+                        codePoints.lastIndex
+                ) {
+                    penX +=
+                        spacingUnits
+                }
             }
-        } finally {
-            typeface.close()
+
+        require(
+            rawGlyphs.isNotEmpty()
+        ) {
+            "A fonte não gerou glifos vetoriais bordáveis."
         }
+
+        val minX =
+            rawGlyphs.minOf {
+                it.left
+            }
+
+        val maxX =
+            rawGlyphs.maxOf {
+                it.right
+            }
+
+        val minY =
+            rawGlyphs.minOf {
+                it.top
+            }
+
+        val maxY =
+            rawGlyphs.maxOf {
+                it.bottom
+            }
+
+        val centerX =
+            (
+                minX +
+                    maxX
+                ) /
+                2f
+
+        val centerY =
+            (
+                minY +
+                    maxY
+                ) /
+                2f
+
+        val radians =
+            Math.toRadians(
+                rotationDegrees
+                    .toDouble()
+            )
+
+        val rotationCos =
+            cos(
+                radians
+            )
+                .toFloat()
+
+        val rotationSin =
+            sin(
+                radians
+            )
+                .toFloat()
+
+        val transformed =
+            rawGlyphs.map {
+                    glyph ->
+                glyph.contours.map {
+                    contour ->
+                    contour.map {
+                        point ->
+                        val centeredX =
+                            point.x -
+                                centerX
+
+                        val centeredY =
+                            point.y -
+                                centerY
+
+                        Point(
+                            x =
+                                centeredX *
+                                    rotationCos -
+                                    centeredY *
+                                        rotationSin,
+                            y =
+                                centeredX *
+                                    rotationSin +
+                                    centeredY *
+                                        rotationCos
+                        )
+                    }
+                }
+            }
+
+        return Result(
+            glyphPolygons =
+                transformed,
+            sourceWidth =
+                maxX -
+                    minX,
+            sourceHeight =
+                maxY -
+                    minY
+        )
+    }
+
+    private fun measuredCapHeight(
+        paint: Paint
+    ): Float {
+        val capPath =
+            Path()
+
+        paint.getTextPath(
+            "H",
+            0,
+            1,
+            0f,
+            0f,
+            capPath
+        )
+
+        if (
+            !capPath.isEmpty
+        ) {
+            val bounds =
+                RectF()
+
+            capPath.computeBounds(
+                bounds,
+                true
+            )
+
+            if (
+                bounds.height() >
+                    0.001f
+            ) {
+                return bounds.height()
+            }
+        }
+
+        return abs(
+            paint.fontMetrics.ascent
+        ) *
+            0.72f
     }
 
     private fun sampleContours(
-        path: io.github.humbleui.skija.Path,
-        offsetX: Float
+        path: Path
     ): List<List<Point>> {
         val measure =
             PathMeasure(
                 path,
-                true,
-                1f
+                true
             )
 
-        try {
-            val contours =
-                mutableListOf<
-                    List<Point>
-                >()
+        val contours =
+            mutableListOf<List<Point>>()
 
-            do {
-                val length =
-                    measure.length
+        do {
+            val length =
+                measure.length
 
-                if (
-                    length <=
-                        0f ||
-                    !length.isFinite()
-                ) {
-                    continue
-                }
-
+            if (
+                length >
+                    0f &&
+                length.isFinite()
+            ) {
                 val sampleCount =
                     max(
                         8,
@@ -384,6 +381,11 @@ internal object MaoSkiaOutlineExtractor {
                         sampleCount
                     )
 
+                val position =
+                    FloatArray(
+                        2
+                    )
+
                 for (
                     index in
                         0 until
@@ -394,20 +396,21 @@ internal object MaoSkiaOutlineExtractor {
                             index /
                             sampleCount
 
-                    val point =
-                        measure.getPosition(
-                            distance
+                    if (
+                        measure.getPosTan(
+                            distance,
+                            position,
+                            null
                         )
-                            ?: continue
-
-                    points +=
-                        Point(
-                            x =
-                                point.x +
-                                    offsetX,
-                            y =
-                                point.y
-                        )
+                    ) {
+                        points +=
+                            Point(
+                                x =
+                                    position[0],
+                                y =
+                                    position[1]
+                            )
+                    }
                 }
 
                 if (
@@ -417,13 +420,11 @@ internal object MaoSkiaOutlineExtractor {
                     contours +=
                         points
                 }
-            } while (
-                measure.nextContour()
-            )
+            }
+        } while (
+            measure.nextContour()
+        )
 
-            return contours
-        } finally {
-            measure.close()
-        }
+        return contours
     }
 }
