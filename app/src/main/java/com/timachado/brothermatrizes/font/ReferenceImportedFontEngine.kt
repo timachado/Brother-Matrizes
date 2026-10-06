@@ -216,61 +216,9 @@ internal object ReferenceImportedFontEngine {
                 "Formato de saída inválido."
             }
 
-            val typeface =
-                ImportedFontStore
-                    .loadTypeface(
-                        font
-                    )
-                    .getOrThrow()
-
             val targetHeightUnits =
                 options.heightMm *
                     10f
-
-            val paint =
-                Paint(
-                    Paint.ANTI_ALIAS_FLAG or
-                        Paint.LINEAR_TEXT_FLAG or
-                        Paint.SUBPIXEL_TEXT_FLAG
-                ).apply {
-                    this.typeface =
-                        typeface
-                    style =
-                        Paint.Style.FILL
-
-                    /*
-                     * SKFont trabalha sobre o contorno vetorial sem hinting de
-                     * tela. O Android Paint, quando deixado no padrão, pode
-                     * ajustar o glifo à grade de pixels e mudar exatamente as
-                     * interseções usadas pelo SatinColumnSampler.
-                     */
-                    hinting =
-                        Paint.HINTING_OFF
-                    textScaleX =
-                        1f
-                    textSkewX =
-                        0f
-
-                    textSize =
-                        resolveFontSizeForCapHeight(
-                            paint =
-                                this,
-                            targetCapHeightUnits =
-                                targetHeightUnits,
-                            font =
-                                font
-                        )
-                }
-
-            val renderableText =
-                resolveText(
-                    paint =
-                        paint,
-                    font =
-                        font,
-                    text =
-                        text
-                )
 
             val spacingUnits =
                 targetHeightUnits *
@@ -278,75 +226,183 @@ internal object ReferenceImportedFontEngine {
                     options.spacingMm *
                         10f
 
-            val glyphPaths =
-                extractGlyphPaths(
-                    paint =
-                        paint,
-                    text =
-                        renderableText,
-                    spacingUnits =
-                        spacingUnits
-                )
-
-            require(
-                glyphPaths.isNotEmpty()
-            ) {
-                "A fonte não gerou glifos bordáveis."
-            }
-
-            /*
-             * MãoDesign centraliza pelo TightBounds do SKPath. Path.computeBounds
-             * pode incluir diferenças do backend Android; para manter o mesmo
-             * referencial usado depois em Polygonize, calculamos os limites
-             * sobre a própria amostragem vetorial (2 unidades por amostra).
-             */
-            val unionBounds =
-                sampledTightBounds(
-                    glyphPaths
-                )
-
-            require(
-                unionBounds.width() >
-                    0.5f &&
-                unionBounds.height() >
-                    0.5f
-            ) {
-                "A fonte não gerou uma área bordável."
-            }
-
-            require(
-                unionBounds.left.isFinite() &&
-                    unionBounds.top.isFinite() &&
-                    unionBounds.right.isFinite() &&
-                    unionBounds.bottom.isFinite() &&
-                    unionBounds.width() <=
-                        MAX_FONT_GEOMETRY_UNITS &&
-                    unionBounds.height() <=
-                        MAX_FONT_GEOMETRY_UNITS
-            ) {
-                "A geometria da fonte é extrema demais para processar com segurança."
-            }
-
-            val centerX =
-                unionBounds.centerX()
-
-            val centerY =
-                unionBounds.centerY()
+            val useMaoSkiaBackend =
+                font.displayName
+                    .lowercase(
+                        Locale.ROOT
+                    )
+                    .let {
+                            name ->
+                        name.contains(
+                            "adamya"
+                        ) ||
+                            name.contains(
+                                "ademya"
+                            )
+                    }
 
             val polygonsByGlyph =
-                glyphPaths.map {
-                        glyph ->
-                    polygonize(
-                        path =
-                            glyph.path,
-                        centerX =
-                            centerX,
-                        centerY =
-                            centerY,
-                        rotationDegrees =
-                            options.rotationDegrees
-                    )
+                if (
+                    useMaoSkiaBackend
+                ) {
+                    /*
+                     * Adamya/Ademya usa o mesmo backend vetorial do
+                     * MãoDesign: Skia Font -> glyph width -> glyph path ->
+                     * TightBounds -> transformação global -> PathMeasure.
+                     *
+                     * O sampler e o emissor abaixo continuam sendo código
+                     * próprio, mas recebem agora a mesma geometria-base da
+                     * referência.
+                     */
+                    MaoSkiaOutlineExtractor
+                        .extract(
+                            font =
+                                font,
+                            text =
+                                text,
+                            targetCapHeightUnits =
+                                targetHeightUnits,
+                            spacingUnits =
+                                spacingUnits,
+                            rotationDegrees =
+                                options.rotationDegrees
+                        )
+                        .glyphPolygons
+                        .map {
+                                glyph ->
+                            glyph.map {
+                                contour ->
+                                Polygon(
+                                    contour.map {
+                                            point ->
+                                        FPoint(
+                                            x =
+                                                point.x,
+                                            y =
+                                                point.y
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                } else {
+                    val typeface =
+                        ImportedFontStore
+                            .loadTypeface(
+                                font
+                            )
+                            .getOrThrow()
+
+                    val paint =
+                        Paint(
+                            Paint.ANTI_ALIAS_FLAG or
+                                Paint.LINEAR_TEXT_FLAG or
+                                Paint.SUBPIXEL_TEXT_FLAG
+                        ).apply {
+                            this.typeface =
+                                typeface
+                            style =
+                                Paint.Style.FILL
+                            hinting =
+                                Paint.HINTING_OFF
+                            textScaleX =
+                                1f
+                            textSkewX =
+                                0f
+
+                            textSize =
+                                resolveFontSizeForCapHeight(
+                                    paint =
+                                        this,
+                                    targetCapHeightUnits =
+                                        targetHeightUnits,
+                                    font =
+                                        font
+                                )
+                        }
+
+                    val renderableText =
+                        resolveText(
+                            paint =
+                                paint,
+                            font =
+                                font,
+                            text =
+                                text
+                        )
+
+                    val glyphPaths =
+                        extractGlyphPaths(
+                            paint =
+                                paint,
+                            text =
+                                renderableText,
+                            spacingUnits =
+                                spacingUnits
+                        )
+
+                    require(
+                        glyphPaths.isNotEmpty()
+                    ) {
+                        "A fonte não gerou glifos bordáveis."
+                    }
+
+                    val unionBounds =
+                        sampledTightBounds(
+                            glyphPaths
+                        )
+
+                    require(
+                        unionBounds.width() >
+                            0.5f &&
+                            unionBounds.height() >
+                                0.5f
+                    ) {
+                        "A fonte não gerou uma área bordável."
+                    }
+
+                    require(
+                        unionBounds.left.isFinite() &&
+                            unionBounds.top.isFinite() &&
+                            unionBounds.right.isFinite() &&
+                            unionBounds.bottom.isFinite() &&
+                            unionBounds.width() <=
+                                MAX_FONT_GEOMETRY_UNITS &&
+                            unionBounds.height() <=
+                                MAX_FONT_GEOMETRY_UNITS
+                    ) {
+                        "A geometria da fonte é extrema demais para processar com segurança."
+                    }
+
+                    val centerX =
+                        unionBounds.centerX()
+
+                    val centerY =
+                        unionBounds.centerY()
+
+                    glyphPaths.map {
+                            glyph ->
+                        polygonize(
+                            path =
+                                glyph.path,
+                            centerX =
+                                centerX,
+                            centerY =
+                                centerY,
+                            rotationDegrees =
+                                options.rotationDegrees
+                        )
+                    }
                 }
+
+            require(
+                polygonsByGlyph.isNotEmpty() &&
+                    polygonsByGlyph.any {
+                        it.isNotEmpty()
+                    }
+            ) {
+                "A fonte não gerou contornos bordáveis."
+            }
 
             val guidePoints =
                 buildGuidePoints(
