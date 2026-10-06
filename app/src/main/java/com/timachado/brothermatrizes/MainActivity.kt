@@ -1893,40 +1893,81 @@ private fun BrotherMatrizesApp(
                         },
                         onSimulate = {
                                 created,
-                                _ ->
+                                displayMode ->
                             /*
-                             * A simulação de "Criar Nome" deve consumir
-                             * diretamente a sequência que o motor acabou de
-                             * gerar. Exportar/reabrir aqui altera metadados,
-                             * orientação e comandos dependendo do formato.
+                             * Criar Nome -> Simular deve atravessar exatamente
+                             * o mesmo caminho de uma matriz física aberta:
                              *
-                             * O round-trip continua existindo em "Criar matriz",
-                             * onde validar o arquivo físico é correto.
+                             * criação interna -> PES/DST/JEF -> parser ->
+                             * EmbroideryDesign canônico -> Simulador.
+                             *
+                             * Isso elimina a divergência histórica em que a
+                             * prévia bruta era simulada com comandos diferentes
+                             * daqueles efetivamente gravados e reabertos.
                              */
-                            activateDesign(
-                                created
-                            )
+                            scope.launch {
+                                loading =
+                                    true
 
-                            DebugTelemetry
-                                .captureSimulationOpened(
-                                    created
-                                )
+                                val opened =
+                                    withContext(
+                                        Dispatchers.IO
+                                    ) {
+                                        GeneratedMatrixPipeline
+                                            .canonicalize(
+                                                design =
+                                                    created,
+                                                outputSuffix =
+                                                    "simulado",
+                                                preserveGuidePoints =
+                                                    true
+                                            )
+                                    }
 
-                            screen =
-                                Screen.Simulator(
-                                    design =
-                                        created,
-                                    displayMode =
-                                        EmbroideryDisplayMode
-                                            .SOLID,
-                                    referenceHoop =
-                                        created.hoopProfile
-                                            ?: recommendedHoopFor(
-                                                created
-                                            ),
-                                    showConnections =
-                                        false
-                                )
+                                loading =
+                                    false
+
+                                when (
+                                    opened
+                                ) {
+                                    is EmbroideryLoadResult
+                                        .Success -> {
+                                        val canonical =
+                                            opened.design
+
+                                        activateDesign(
+                                            canonical
+                                        )
+
+                                        DebugTelemetry
+                                            .captureSimulationOpened(
+                                                canonical
+                                            )
+
+                                        screen =
+                                            Screen.Simulator(
+                                                design =
+                                                    canonical,
+                                                displayMode =
+                                                    displayMode,
+                                                referenceHoop =
+                                                    canonical.hoopProfile
+                                                        ?: recommendedHoopFor(
+                                                            canonical
+                                                        ),
+                                                showConnections =
+                                                    false
+                                            )
+                                    }
+
+                                    is EmbroideryLoadResult
+                                        .Error -> {
+                                        snackbar.showSnackbar(
+                                            opened.userMessage
+                                        )
+                                    }
+                                }
+                            }
                         }
                     )
                 }
