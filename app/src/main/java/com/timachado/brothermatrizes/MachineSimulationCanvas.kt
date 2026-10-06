@@ -192,6 +192,8 @@ fun MachineSimulationCanvas(
                         transform,
                     pointLimit =
                         pointLimit,
+                    displayMode =
+                        displayMode,
                     showConnections =
                         showConnections
                 )
@@ -1545,14 +1547,9 @@ private fun DrawScope.drawReferenceCompletedStitches(
     design: EmbroideryDesign,
     transform: SimulationTransform,
     pointLimit: Int,
+    displayMode: EmbroideryDisplayMode,
     showConnections: Boolean
 ) {
-    val paths =
-        linkedMapOf<
-            Int,
-            Path
-        >()
-
     var previous:
         EmbroideryPoint? =
         null
@@ -1615,22 +1612,20 @@ private fun DrawScope.drawReferenceCompletedStitches(
                                 point
                             ),
                         strokeWidth =
-                            1f,
+                            transform.uiScale,
                         pathEffect =
                             PathEffect
                                 .dashPathEffect(
                                     floatArrayOf(
-                                        4f,
-                                        4f
+                                        4f *
+                                            transform.uiScale,
+                                        4f *
+                                            transform.uiScale
                                     )
                                 )
                     )
                 }
 
-                /*
-                 * No MãoDesign o JUMP interrompe o traço Satin visível.
-                 * O primeiro STITCH após o salto inicia um novo segmento.
-                 */
                 previous =
                     null
             }
@@ -1649,33 +1644,25 @@ private fun DrawScope.drawReferenceCompletedStitches(
                     before !=
                         null
                 ) {
-                    val start =
-                        transform.point(
-                            before
-                        )
-
-                    val end =
-                        transform.point(
-                            point
-                        )
-
-                    paths
-                        .getOrPut(
-                            point.colorIndex
-                        ) {
-                            Path()
-                        }
-                        .apply {
-                            moveTo(
-                                start.x,
-                                start.y
-                            )
-
-                            lineTo(
-                                end.x,
-                                end.y
-                            )
-                        }
+                    drawReferenceThreadSegment(
+                        start =
+                            transform.point(
+                                before
+                            ),
+                        end =
+                            transform.point(
+                                point
+                            ),
+                        color =
+                            threadColor(
+                                design,
+                                point.colorIndex
+                            ),
+                        displayMode =
+                            displayMode,
+                        uiScale =
+                            transform.uiScale
+                    )
                 }
 
                 previous =
@@ -1683,25 +1670,175 @@ private fun DrawScope.drawReferenceCompletedStitches(
             }
         }
     }
+}
 
-    paths.forEach {
-            entry ->
-        drawPath(
-            path =
-                entry.value,
-            color =
-                threadColor(
-                    design,
-                    entry.key
-                ),
-            style =
-                Stroke(
-                    width =
-                        2f,
-                    cap =
-                        StrokeCap.Butt
+private fun DrawScope.drawReferenceThreadSegment(
+    start: Offset,
+    end: Offset,
+    color: Color,
+    displayMode: EmbroideryDisplayMode,
+    uiScale: Float
+) {
+    when (
+        displayMode
+    ) {
+        EmbroideryDisplayMode.SOLID -> {
+            drawLine(
+                color =
+                    color,
+                start =
+                    start,
+                end =
+                    end,
+                strokeWidth =
+                    1.35f *
+                        uiScale,
+                cap =
+                    StrokeCap.Round
+            )
+        }
+
+        EmbroideryDisplayMode.POINTS -> {
+            drawLine(
+                color =
+                    color.copy(
+                        alpha =
+                            0.32f
+                    ),
+                start =
+                    start,
+                end =
+                    end,
+                strokeWidth =
+                    0.75f *
+                        uiScale,
+                cap =
+                    StrokeCap.Round
+            )
+
+            drawCircle(
+                color =
+                    color,
+                radius =
+                    1.55f *
+                        uiScale,
+                center =
+                    end
+            )
+        }
+
+        EmbroideryDisplayMode.REALISTIC -> {
+            val vector =
+                end -
+                    start
+
+            val length =
+                kotlin.math.sqrt(
+                    vector.x *
+                        vector.x +
+                    vector.y *
+                        vector.y
                 )
-        )
+                    .coerceAtLeast(
+                        0.001f
+                    )
+
+            val normal =
+                Offset(
+                    x =
+                        -vector.y /
+                            length,
+                    y =
+                        vector.x /
+                            length
+                )
+
+            val shadowOffset =
+                normal *
+                    (
+                        0.34f *
+                            uiScale
+                        )
+
+            val highlightOffset =
+                normal *
+                    (
+                        -0.18f *
+                            uiScale
+                        )
+
+            val shadow =
+                Color(
+                    red =
+                        color.red *
+                            0.34f,
+                    green =
+                        color.green *
+                            0.34f,
+                    blue =
+                        color.blue *
+                            0.34f,
+                    alpha =
+                        0.52f
+                )
+
+            /*
+             * Três linhas sólidas, sem gradiente:
+             * sombra curta + corpo do fio + highlight fino.
+             * Mantém cada pontada visível como fio Satin real.
+             */
+            drawLine(
+                color =
+                    shadow,
+                start =
+                    start +
+                        shadowOffset,
+                end =
+                    end +
+                        shadowOffset,
+                strokeWidth =
+                    1.85f *
+                        uiScale,
+                cap =
+                    StrokeCap.Round
+            )
+
+            drawLine(
+                color =
+                    color.copy(
+                        alpha =
+                            0.99f
+                    ),
+                start =
+                    start,
+                end =
+                    end,
+                strokeWidth =
+                    1.05f *
+                        uiScale,
+                cap =
+                    StrokeCap.Round
+            )
+
+            drawLine(
+                color =
+                    Color.White.copy(
+                        alpha =
+                            0.20f
+                    ),
+                start =
+                    start +
+                        highlightOffset,
+                end =
+                    end +
+                        highlightOffset,
+                strokeWidth =
+                    0.24f *
+                        uiScale,
+                cap =
+                    StrokeCap.Round
+            )
+        }
     }
 }
 
