@@ -6598,6 +6598,71 @@ internal object PeDesignImportedFontEngine {
                 )
     }
 
+    internal fun debugActiveSamplerOrientationCounts():
+        Pair<Int, Int> {
+        val polygon =
+            Polygon(
+                listOf(
+                    FPoint(0f, 0f),
+                    FPoint(22f, 0f),
+                    FPoint(22f, 58f),
+                    FPoint(70f, 58f),
+                    FPoint(70f, 80f),
+                    FPoint(0f, 80f)
+                )
+            )
+
+        val columns =
+            sampleColumns(
+                polygons =
+                    listOf(
+                        polygon
+                    ),
+                densityMm =
+                    0.4f,
+                maxSatinWidthMm =
+                    7f,
+                pullCompensationMm =
+                    0f
+            )
+
+        val rows =
+            columns.flatMap {
+                it.rows
+            }
+
+        val horizontal =
+            rows.count {
+                    row ->
+                abs(
+                    row.b.x -
+                        row.a.x
+                ) >
+                    abs(
+                        row.b.y -
+                            row.a.y
+                    ) *
+                        1.5f
+            }
+
+        val vertical =
+            rows.count {
+                    row ->
+                abs(
+                    row.b.y -
+                        row.a.y
+                ) >
+                    abs(
+                        row.b.x -
+                            row.a.x
+                    ) *
+                        1.5f
+            }
+
+        return horizontal to
+            vertical
+    }
+
     internal fun debugAdaptiveFlowOrientationCounts():
         Pair<Int, Int> {
         val polygon =
