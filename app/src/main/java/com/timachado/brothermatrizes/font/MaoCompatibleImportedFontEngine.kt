@@ -1479,7 +1479,7 @@ internal object MaoCompatibleImportedFontEngine {
             )
         }
 
-        val ratio =
+        val rawRatio =
             (
                 (
                     point.x -
@@ -1492,12 +1492,13 @@ internal object MaoCompatibleImportedFontEngine {
                     ) *
                     dy
                 ) /
-                denominator
+            denominator
+
+        val ratio =
+            rawRatio.coerceIn(
+                0f,
+                1f
             )
-                .coerceIn(
-                    0f,
-                    1f
-                )
 
         return distance(
             point,
