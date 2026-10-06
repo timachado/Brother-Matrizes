@@ -453,15 +453,21 @@ internal object PeDesignImportedFontEngine {
                 .forEach {
                         polygons ->
                     /*
-                     * Motor TTF/OTF compatível com a referência analisada:
-                     * contorno -> scanlines nos dois eixos -> menor largura
-                     * média -> colunas sobrepostas -> split apenas por largura.
+                     * Fonte cursiva/importada precisa seguir o fluxo real do
+                     * traço. A antiga rota por scanline/eixo quebrava um mesmo
+                     * glifo em faixas independentes: terminava uma faixa,
+                     * saltava para outra e depois voltava ao trecho anterior.
                      *
-                     * Não usamos skeleton, DFS, medial-line nem reordenação
-                     * por proximidade neste caminho.
+                     * A rota ativa agora é:
+                     * contorno vetorial -> medial flow/topologia -> colunas
+                     * Satin contínuas -> underlay -> cobertura completa do
+                     * objeto -> próximo ramo/objeto.
+                     *
+                     * sampleColumns() mantém fallback por eixo apenas quando a
+                     * topologia adaptativa não pode ser construída.
                      */
                     val columns =
-                        sampleAxisColumns(
+                        sampleColumns(
                             polygons =
                                 polygons,
                             densityMm =
@@ -472,19 +478,19 @@ internal object PeDesignImportedFontEngine {
                                 pullMm
                         )
 
-                    columns.forEach {
-                            column ->
-                        emitter.emitAxisReferenceColumn(
-                            column =
-                                column,
-                            includeUnderlay =
-                                options
-                                    .satinUnderlayMode !=
-                                SatinUnderlayMode.NONE,
-                            densityMm =
-                                densityMm
-                        )
-                    }
+                    emitter.emitGlyph(
+                        columns =
+                            columns,
+                        polygons =
+                            polygons,
+                        startHint =
+                            null,
+                        underlayMode =
+                            options
+                                .satinUnderlayMode,
+                        densityMm =
+                            densityMm
+                    )
                 }
 
             require(
