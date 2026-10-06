@@ -6371,7 +6371,7 @@ internal object ReferenceImportedFontEngine {
                 )
 
             val union =
-                unionBounds(
+                sampledTightBounds(
                     glyphPaths
                 )
 
