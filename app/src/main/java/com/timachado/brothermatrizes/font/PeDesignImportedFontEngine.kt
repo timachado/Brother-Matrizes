@@ -3203,15 +3203,15 @@ internal object PeDesignImportedFontEngine {
             }
         }
 
-        val merged =
-            mergeFlowPathsByTangentContinuity(
+        val cleaned =
+            pruneShortTerminalFlowSpurs(
                 paths.filter {
                     it.isNotEmpty()
                 }
             )
 
-        return pruneShortTerminalFlowSpurs(
-            merged
+        return mergeFlowPathsByTangentContinuity(
+            cleaned
         )
     }
 
@@ -3274,7 +3274,7 @@ internal object PeDesignImportedFontEngine {
             val firstShared =
                 (
                     endpointUse[
-                        path.firstOrNull()
+                        path.first()
                     ] ?: 0
                     ) >
                     1
@@ -3282,7 +3282,7 @@ internal object PeDesignImportedFontEngine {
             val lastShared =
                 (
                     endpointUse[
-                        path.lastOrNull()
+                        path.last()
                     ] ?: 0
                     ) >
                     1
