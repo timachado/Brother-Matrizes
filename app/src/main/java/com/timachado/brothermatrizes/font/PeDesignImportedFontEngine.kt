@@ -502,6 +502,23 @@ internal object PeDesignImportedFontEngine {
                 "O texto não produziu pontos — conteúdo sem área bordável."
             }
 
+            val centeredGeometry =
+                centerGeneratedGeometryOnStitches(
+                    points =
+                        points,
+                    guidePoints =
+                        guidePoints
+                )
+
+            points.clear()
+            points +=
+                centeredGeometry
+                    .first
+
+            val centeredGuidePoints =
+                centeredGeometry
+                    .second
+
             val end =
                 points.last()
 
@@ -577,7 +594,7 @@ internal object PeDesignImportedFontEngine {
                     sourceBytes =
                         ByteArray(0),
                     guidePoints =
-                        guidePoints,
+                        centeredGuidePoints,
                     threadColors =
                         listOf(
                             options.color
@@ -623,6 +640,158 @@ internal object PeDesignImportedFontEngine {
 
             design
         }
+
+    /**
+     * Generated names are physical machine designs, not just preview paths.
+     * Center them on the visible sewn geometry (STITCH), never on travel
+     * commands. JUMP/TRIM may sit outside the sewn bounds and must not move
+     * the name away from the hoop center.
+     */
+    private fun centerGeneratedGeometryOnStitches(
+        points: List<EmbroideryPoint>,
+        guidePoints: List<EmbroideryPoint>
+    ): Pair<List<EmbroideryPoint>, List<EmbroideryPoint>> {
+        val stitches =
+            points.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        if (
+            stitches.isEmpty()
+        ) {
+            return points to
+                guidePoints
+        }
+
+        val minX =
+            stitches.minOf {
+                it.xUnits
+            }
+
+        val maxX =
+            stitches.maxOf {
+                it.xUnits
+            }
+
+        val minY =
+            stitches.minOf {
+                it.yUnits
+            }
+
+        val maxY =
+            stitches.maxOf {
+                it.yUnits
+            }
+
+        val offsetX =
+            -(
+                (
+                    minX +
+                        maxX
+                    ) /
+                    2f
+                ).roundToInt()
+
+        val offsetY =
+            -(
+                (
+                    minY +
+                        maxY
+                    ) /
+                    2f
+                ).roundToInt()
+
+        fun move(
+            point: EmbroideryPoint
+        ): EmbroideryPoint =
+            point.copy(
+                xUnits =
+                    point.xUnits +
+                        offsetX,
+                yUnits =
+                    point.yUnits +
+                        offsetY
+            )
+
+        return points.map(
+            ::move
+        ) to
+            guidePoints.map(
+                ::move
+            )
+    }
+
+    internal fun debugCenteredVisibleGeometry():
+        Pair<Pair<Int, Int>, Pair<Int, Int>> {
+        val source =
+            listOf(
+                EmbroideryPoint(
+                    -100,
+                    0,
+                    StitchCommand.JUMP,
+                    0
+                ),
+                EmbroideryPoint(
+                    20,
+                    10,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    80,
+                    50,
+                    StitchCommand.STITCH,
+                    0
+                )
+            )
+
+        val centered =
+            centerGeneratedGeometryOnStitches(
+                points =
+                    source,
+                guidePoints =
+                    emptyList()
+            ).first
+
+        val stitches =
+            centered.filter {
+                it.command ==
+                    StitchCommand.STITCH
+            }
+
+        val center =
+            (
+                stitches.minOf {
+                    it.xUnits
+                } +
+                    stitches.maxOf {
+                        it.xUnits
+                    }
+                ) /
+                2 to
+            (
+                stitches.minOf {
+                    it.yUnits
+                } +
+                    stitches.maxOf {
+                        it.yUnits
+                    }
+                ) /
+                2
+
+        val jump =
+            centered.first {
+                it.command ==
+                    StitchCommand.JUMP
+            }
+
+        return center to
+            (
+                jump.xUnits to
+                    jump.yUnits
+                )
+    }
 
     private fun resolveFontSizeForCapHeight(
         paint: Paint,
@@ -5057,11 +5226,26 @@ internal object PeDesignImportedFontEngine {
                         }
                     ) ?: break
 
+                val continuesCurrentObject =
+                    current?.let {
+                            anchor ->
+                        columnConnectsToAnchor(
+                            column =
+                                selected,
+                            anchor =
+                                anchor,
+                            polygons =
+                                polygons
+                        )
+                    } ==
+                        true
+
                 val includeUnderlay =
                     underlayMode !=
                         SatinUnderlayMode.NONE &&
                     selected.rows.size >=
-                        4
+                        4 &&
+                    !continuesCurrentObject
 
                 val anchor =
                     if (
@@ -5278,6 +5462,56 @@ internal object PeDesignImportedFontEngine {
          * Distance may choose the entry end of a connected column, but it may
          * never pull an unrelated leg forward merely because it is closer.
          */
+        private fun columnConnectsToAnchor(
+            column: SatinColumn,
+            anchor: FPoint,
+            polygons: List<Polygon>
+        ): Boolean {
+            val rows =
+                column.rows
+
+            if (
+                rows.isEmpty()
+            ) {
+                return false
+            }
+
+            val edgeRows =
+                listOf(
+                    rows.first(),
+                    rows.last()
+                )
+
+            val candidates =
+                edgeRows.flatMap {
+                        row ->
+                    listOf(
+                        row.a,
+                        center(
+                            row
+                        ),
+                        row.b
+                    )
+                }
+
+            return candidates.any {
+                    candidate ->
+                distance(
+                    anchor,
+                    candidate
+                ) <=
+                    NEAR_COLUMN_JOIN_UNITS &&
+                segmentInsideGlyph(
+                    from =
+                        anchor,
+                    to =
+                        candidate,
+                    polygons =
+                        polygons
+                )
+            }
+        }
+
         private fun nextColumnFollowingObject(
             columns: List<SatinColumn>,
             anchor: FPoint,
@@ -6301,14 +6535,43 @@ internal object PeDesignImportedFontEngine {
                 "A fonte gerou pontos demais para processar com segurança no celular."
             }
 
+            val xUnits =
+                point.x
+                    .roundToInt()
+
+            val yUnits =
+                point.y
+                    .roundToInt()
+
+            val previous =
+                output.lastOrNull()
+
+            if (
+                command ==
+                    StitchCommand.STITCH &&
+                previous?.command ==
+                    StitchCommand.STITCH &&
+                previous.xUnits ==
+                    xUnits &&
+                previous.yUnits ==
+                    yUnits
+            ) {
+                /*
+                 * Não martela a mesma perfuração duas vezes por simples
+                 * coincidência de underlay/lock/row. A trava real de 0,6 mm
+                 * continua preservada porque muda de coordenada.
+                 */
+                current =
+                    point
+                return
+            }
+
             output +=
                 EmbroideryPoint(
                     xUnits =
-                        point.x
-                            .roundToInt(),
+                        xUnits,
                     yUnits =
-                        point.y
-                            .roundToInt(),
+                        yUnits,
                     command =
                         command,
                     colorIndex =
