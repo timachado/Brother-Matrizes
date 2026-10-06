@@ -30,7 +30,8 @@ class GreatVibesStartDiagnosticTest {
         val jumps: Int,
         val trims: Int,
         val score: Float,
-        val firstPoints: List<String>
+        val firstPoints: List<String>,
+        val sequenceCsv: String
     )
 
     @Test
@@ -230,7 +231,46 @@ class GreatVibesStartDiagnosticTest {
                                         point.xUnits +
                                         "," +
                                         point.yUnits
-                                }
+                                },
+                        sequenceCsv =
+                            buildString {
+                                appendLine(
+                                    "index,command,xUnits,yUnits,colorIndex"
+                                )
+
+                                design.points
+                                    .forEachIndexed {
+                                            index,
+                                            point ->
+                                        append(
+                                            index
+                                        )
+                                        append(
+                                            ','
+                                        )
+                                        append(
+                                            point.command.name
+                                        )
+                                        append(
+                                            ','
+                                        )
+                                        append(
+                                            point.xUnits
+                                        )
+                                        append(
+                                            ','
+                                        )
+                                        append(
+                                            point.yUnits
+                                        )
+                                        append(
+                                            ','
+                                        )
+                                        appendLine(
+                                            point.colorIndex
+                                        )
+                                    }
+                            }
                     )
 
                 candidates +=
@@ -286,6 +326,14 @@ class GreatVibesStartDiagnosticTest {
                 " score=" +
                 best.score
         )
+
+        File(
+            targetContext.filesDir,
+            "greatvibes-best-sequence.csv"
+        )
+            .writeText(
+                best.sequenceCsv
+            )
 
         best.firstPoints
             .forEachIndexed {
