@@ -466,31 +466,6 @@ private data class SimulationTransform(
                 1f
             )
 
-    val referenceFrameMargin =
-        minOf(
-            canvasWidth,
-            canvasHeight
-        ) *
-            0.04f
-
-    private val referenceInnerLeft =
-        8f *
-            uiScale
-
-    private val referenceInnerRight =
-        canvasWidth -
-            8f *
-                uiScale
-
-    private val referenceInnerTop =
-        42f *
-            uiScale
-
-    private val referenceInnerBottom =
-        canvasHeight -
-            8f *
-                uiScale
-
     private val designLandscape =
         widthUnits >
             heightUnits
@@ -541,47 +516,68 @@ private data class SimulationTransform(
                     10f
             }
 
+    /*
+     * No modo de referência a linha tracejada representa a zona segura real,
+     * não o tamanho visual arbitrário do canvas. A orientação acompanha a
+     * mesma rotação física aplicada ao bastidor.
+     */
+    private val hoopSafeWidthUnits =
+        hoop
+            ?.let {
+                (
+                    if (
+                        rotateHoop
+                    ) {
+                        it.usableHeightMm
+                    } else {
+                        it.usableWidthMm
+                    }
+                    ) *
+                    10f
+            }
+
+    private val hoopSafeHeightUnits =
+        hoop
+            ?.let {
+                (
+                    if (
+                        rotateHoop
+                    ) {
+                        it.usableWidthMm
+                    } else {
+                        it.usableHeightMm
+                    }
+                    ) *
+                    10f
+            }
+
     val scale: Float =
-        if (
-            referenceTextMode
-        ) {
-            minOf(
-                (
-                    referenceInnerRight -
-                        referenceInnerLeft
-                    ).coerceAtLeast(
-                    1f
-                ) /
-                    widthUnits
-                        .toFloat(),
-                (
-                    referenceInnerBottom -
-                        referenceInnerTop
-                    ).coerceAtLeast(
-                    1f
-                ) /
-                    heightUnits
-                        .toFloat()
-            )
-                .coerceAtLeast(
-                    0.01f
-                )
-        } else {
-            simulationScale(
-                availableWidth =
-                    availableWidth,
-                availableHeight =
-                    availableHeight,
-                designWidthUnits =
-                    widthUnits.toFloat(),
-                designHeightUnits =
-                    heightUnits.toFloat(),
-                hoopWidthUnits =
-                    hoopWidthUnits,
-                hoopHeightUnits =
+        simulationScale(
+            availableWidth =
+                availableWidth,
+            availableHeight =
+                availableHeight,
+            designWidthUnits =
+                widthUnits.toFloat(),
+            designHeightUnits =
+                heightUnits.toFloat(),
+            hoopWidthUnits =
+                if (
+                    referenceTextMode
+                ) {
+                    hoopSafeWidthUnits
+                } else {
+                    hoopWidthUnits
+                },
+            hoopHeightUnits =
+                if (
+                    referenceTextMode
+                ) {
+                    hoopSafeHeightUnits
+                } else {
                     hoopHeightUnits
-            )
-        }
+                }
+        )
 
     val referenceGhostStrokeWidthPx: Float
         get() {
@@ -626,60 +622,44 @@ private data class SimulationTransform(
         }
 
     val hoopFrameWidthPx: Float =
-        if (
-            referenceTextMode
-        ) {
-            canvasWidth -
-                referenceFrameMargin *
-                    2f
-        } else {
-            (
+        (
+            if (
+                referenceTextMode
+            ) {
+                hoopSafeWidthUnits
+            } else {
                 hoopWidthUnits
-                    ?: widthUnits.toFloat()
-                ) *
-                scale
-        }
+            }
+                ?: widthUnits.toFloat()
+            ) *
+            scale
 
     val hoopFrameHeightPx: Float =
-        if (
-            referenceTextMode
-        ) {
-            canvasHeight -
-                referenceFrameMargin *
-                    2f
-        } else {
-            (
+        (
+            if (
+                referenceTextMode
+            ) {
+                hoopSafeHeightUnits
+            } else {
                 hoopHeightUnits
-                    ?: heightUnits.toFloat()
-                ) *
-                scale
-        }
+            }
+                ?: heightUnits.toFloat()
+            ) *
+            scale
 
     val hoopFrameLeftPx: Float =
-        if (
-            referenceTextMode
-        ) {
-            referenceFrameMargin
-        } else {
-            (
-                canvasWidth -
-                    hoopFrameWidthPx
-                ) /
-                2f
-        }
+        (
+            canvasWidth -
+                hoopFrameWidthPx
+            ) /
+            2f
 
     val hoopFrameTopPx: Float =
-        if (
-            referenceTextMode
-        ) {
-            referenceFrameMargin
-        } else {
-            (
-                canvasHeight -
-                    hoopFrameHeightPx
-                ) /
-                2f
-        }
+        (
+            canvasHeight -
+                hoopFrameHeightPx
+            ) /
+            2f
 
     private val centerXUnits =
         if (
@@ -724,32 +704,12 @@ private data class SimulationTransform(
         }
 
     private val centerScreenX =
-        if (
-            referenceTextMode
-        ) {
-            (
-                referenceInnerLeft +
-                    referenceInnerRight
-                ) /
-                2f
-        } else {
-            canvasWidth /
-                2f
-        }
+        canvasWidth /
+            2f
 
     private val centerScreenY =
-        if (
-            referenceTextMode
-        ) {
-            (
-                referenceInnerTop +
-                    referenceInnerBottom
-                ) /
-                2f
-        } else {
-            canvasHeight /
-                2f
-        }
+        canvasHeight /
+            2f
 
     private val originX =
         centerScreenX -
