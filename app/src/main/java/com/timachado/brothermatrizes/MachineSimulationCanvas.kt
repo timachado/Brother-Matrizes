@@ -1737,14 +1737,15 @@ private fun DrawScope.drawReferenceNeedle(
         start =
             Offset(
                 transform
-                    .referenceFrameMargin,
+                    .hoopFrameLeftPx,
                 center.y
             ),
         end =
             Offset(
-                size.width -
+                transform
+                    .hoopFrameLeftPx +
                     transform
-                        .referenceFrameMargin,
+                        .hoopFrameWidthPx,
                 center.y
             ),
         strokeWidth =
