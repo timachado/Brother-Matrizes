@@ -1827,12 +1827,8 @@ fun CreateNameScreen(
                         enabled =
                             preview !=
                                 null &&
-                                !previewUpdating &&
-                                (
-                                    fitsHoop ||
-                                        importedFont !=
-                                            null
-                                ),
+                                fitsHoop &&
+                                !previewUpdating,
                         modifier =
                             Modifier.weight(
                                 1f
