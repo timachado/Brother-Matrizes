@@ -158,7 +158,7 @@ class MachineTransferValidatorTest {
     }
 
     @Test
-    fun portraitMatrixFitsNominal130x180Hoop() {
+    fun portraitMatrixOutsideSafe130x180AreaIsBlocked() {
         val result =
             MachineTransferValidator
                 .validate(
@@ -173,8 +173,8 @@ class MachineTransferValidatorTest {
                             .H130X180
                 )
 
-        assertTrue(
-            "69,2 × 178,4 mm deve caber fisicamente no bastidor nominal 130 × 180 mm.",
+        assertFalse(
+            "69,2 × 178,4 mm ultrapassa a área segura de 120 × 170 mm do bastidor 130 × 180.",
             result.ready
         )
     }
@@ -191,9 +191,50 @@ class MachineTransferValidatorTest {
                 )
 
         assertTrue(
-            "O primeiro bastidor físico compatível deve ser 130 × 180 mm.",
+            "Com margem segura, o primeiro bastidor compatível deve ser 140 × 200 mm.",
             result ==
-                HoopProfile.H130X180
+                HoopProfile.H140X200
+        )
+    }
+
+    @Test
+    fun nonPesFormatWarnsForBrotherDestination() {
+        val result =
+            MachineTransferValidator
+                .validate(
+                    design =
+                        design(
+                            800,
+                            800
+                        ),
+                    format =
+                        "DST",
+                    hoop =
+                        HoopProfile.H100X100
+                )
+
+        assertTrue(
+            result.warnings
+                .any {
+                    it.message
+                        .contains(
+                            "Brother"
+                        ) &&
+                    it.message
+                        .contains(
+                            "PES"
+                        )
+                }
+        )
+
+        assertTrue(
+            result.warnings
+                .any {
+                    it.message
+                        .contains(
+                            "cores"
+                        )
+                }
         )
     }
 
