@@ -146,7 +146,17 @@ object GeneratedMatrixPipeline {
                                 label =
                                     design.label
                                         ?: opened.design
-                                            .label
+                                            .label,
+                                /*
+                                 * Continua sendo uma matriz criada/editada no
+                                 * Brother Matrizes, mesmo após exportar/reabrir.
+                                 * O simulador usa isso para enquadrar somente
+                                 * a geometria realmente costurada e não misturar
+                                 * guidePoints centrados com coordenadas PES
+                                 * positivas.
+                                 */
+                                isModified =
+                                    true
                             )
                     )
             }
