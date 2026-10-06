@@ -835,4 +835,61 @@ class PeDesignImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun junctionKeepsStraightSatinColumnTogetherBeforeSideBranch() {
+        val paths =
+            PeDesignImportedFontEngine
+                .debugFlowJunctionContinuity()
+
+        assertEquals(
+            "Um entroncamento em T deve resultar em uma coluna contínua mais um ramo lateral.",
+            2,
+            paths.size
+        )
+
+        val horizontal =
+            paths.firstOrNull {
+                    path ->
+                val endpoints =
+                    setOf(
+                        path.firstOrNull(),
+                        path.lastOrNull()
+                    )
+
+                endpoints ==
+                    setOf(
+                        10 to 0,
+                        10 to 20
+                    )
+            }
+
+        assertTrue(
+            "Os lados esquerdo e direito do mesmo traço devem permanecer na mesma coluna Satin.",
+            horizontal !=
+                null
+        )
+
+        assertTrue(
+            "A coluna contínua precisa atravessar o nó central sem ser interrompida.",
+            horizontal?.contains(
+                10 to 10
+            ) ==
+                true
+        )
+
+        val branch =
+            paths.firstOrNull {
+                    path ->
+                (0 to 10) in
+                    path
+            }
+
+        assertTrue(
+            "O ramo lateral deve permanecer separado para ser trabalhado somente depois.",
+            branch !=
+                null
+        )
+    }
+
 }
