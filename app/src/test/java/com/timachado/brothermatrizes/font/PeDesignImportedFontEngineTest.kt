@@ -918,7 +918,7 @@ class PeDesignImportedFontEngineTest {
     fun activeImportedSatinSamplerUsesCompactGeometryBudget() {
         val (
             compactRows,
-            adaptiveRows
+            _
         ) =
             PeDesignImportedFontEngine
                 .debugCompactVsAdaptiveRowCounts()
@@ -930,9 +930,9 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertTrue(
-            "A geometria ativa não deve exceder a quantidade de rows do skeleton adaptativo.",
+            "O traço sintético em L não pode explodir em dezenas de rows redundantes.",
             compactRows <=
-                adaptiveRows
+                32
         )
     }
 
