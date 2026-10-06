@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.RectF
+import android.os.Build
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
@@ -78,16 +79,48 @@ object ImportedFontMatrixGenerator {
             options.specialStitchMode ==
                 null
         ) {
-            ReferenceImportedFontEngine
-                .generate(
-                    font = font,
-                    sourceText =
-                        sourceText,
-                    options =
-                        options,
-                    filePrefix =
-                        filePrefix
-                )
+            val supportsNativeSkia =
+                Build.SUPPORTED_ABIS
+                    .any {
+                            abi ->
+                        abi ==
+                            "arm64-v8a" ||
+                            abi ==
+                                "x86_64"
+                    }
+
+            if (
+                supportsNativeSkia
+            ) {
+                MaoCompatibleImportedFontEngine
+                    .generate(
+                        font =
+                            font,
+                        sourceText =
+                            sourceText,
+                        options =
+                            options,
+                        filePrefix =
+                            filePrefix
+                    )
+            } else {
+                /*
+                 * Compatibilidade para Android 32-bit, onde o Skija atual
+                 * não oferece artefato nativo. O dispositivo do usuário e
+                 * aparelhos Android atuais seguem pelo motor Skia acima.
+                 */
+                ReferenceImportedFontEngine
+                    .generate(
+                        font =
+                            font,
+                        sourceText =
+                            sourceText,
+                        options =
+                            options,
+                        filePrefix =
+                            filePrefix
+                    )
+            }
         } else {
             generateTextInternal(
                 font = font,
