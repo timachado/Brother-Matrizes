@@ -6007,14 +6007,14 @@ internal object PeDesignImportedFontEngine {
 
             val sameObject =
                 columnAt(
-                    15f,
+                    20f,
                     0f
                 )
 
             val closerButSeparated =
                 columnAt(
                     0f,
-                    8f
+                    12f
                 )
 
             val polygons =
@@ -6026,16 +6026,16 @@ internal object PeDesignImportedFontEngine {
                                 -3f
                             ),
                             FPoint(
-                                25f,
+                                30f,
                                 -3f
                             ),
                             FPoint(
-                                25f,
-                                7f
+                                30f,
+                                6f
                             ),
                             FPoint(
                                 -3f,
-                                7f
+                                6f
                             )
                         )
                     ),
@@ -6043,19 +6043,19 @@ internal object PeDesignImportedFontEngine {
                         listOf(
                             FPoint(
                                 -3f,
-                                8f
+                                12f
                             ),
                             FPoint(
                                 3f,
-                                8f
+                                12f
                             ),
                             FPoint(
                                 3f,
-                                18f
+                                22f
                             ),
                             FPoint(
                                 -3f,
-                                18f
+                                22f
                             )
                         )
                     )
