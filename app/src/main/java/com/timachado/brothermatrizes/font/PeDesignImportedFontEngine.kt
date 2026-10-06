@@ -3009,6 +3009,9 @@ internal object PeDesignImportedFontEngine {
      * entroncamento mantendo a direção do traço, eles pertencem à mesma
      * coluna Satin. A ramificação lateral permanece separada e só será
      * trabalhada depois que a coluna contínua terminar.
+     *
+     * Regressão protegida: não saltar para um ramo lateral no meio da
+     * cobertura da mesma coluna visual.
      */
     private fun mergeFlowPathsByTangentContinuity(
         source: List<List<GridPoint>>
