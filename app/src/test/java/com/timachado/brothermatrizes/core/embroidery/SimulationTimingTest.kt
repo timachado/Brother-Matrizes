@@ -46,7 +46,7 @@ class SimulationTimingTest {
     }
 
     @Test
-    fun colorChangeTakesLongerThanStitch() {
+    fun allReferenceCommandsUseTheSameTimerTick() {
         val stitch =
             SimulationTiming
                 .eventDelayMs(
@@ -54,15 +54,27 @@ class SimulationTimingTest {
                     1f
                 )
 
-        val colorChange =
-            SimulationTiming
-                .eventDelayMs(
-                    StitchCommand.COLOR_CHANGE,
-                    1f
-                )
+        listOf(
+            StitchCommand.JUMP,
+            StitchCommand.TRIM,
+            StitchCommand.COLOR_CHANGE,
+            StitchCommand.STOP,
+            StitchCommand.SEQUIN
+        ).forEach {
+                command ->
+            assertEquals(
+                stitch,
+                SimulationTiming
+                    .eventDelayMs(
+                        command,
+                        1f
+                    )
+            )
+        }
 
-        assertTrue(
-            colorChange > stitch
+        assertEquals(
+            80L,
+            stitch
         )
     }
 
