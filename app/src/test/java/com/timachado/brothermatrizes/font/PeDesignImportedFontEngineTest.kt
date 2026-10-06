@@ -936,4 +936,20 @@ class PeDesignImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun activeImportedSatinSamplerUsesAdaptiveStrokeFlow() {
+        val counts =
+            PeDesignImportedFontEngine
+                .debugActiveSamplerOrientationCounts()
+
+        assertTrue(
+            "A rota ativa precisa gerar linhas Satin em mais de uma orientação para acompanhar um traço em L/curvo.",
+            counts.first >
+                0 &&
+                counts.second >
+                0
+        )
+    }
+
 }
