@@ -4,6 +4,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.RectF
+import android.os.Build
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
@@ -227,18 +228,13 @@ internal object ReferenceImportedFontEngine {
                         10f
 
             val useMaoSkiaBackend =
-                font.displayName
-                    .lowercase(
-                        Locale.ROOT
-                    )
-                    .let {
-                            name ->
-                        name.contains(
-                            "adamya"
-                        ) ||
-                            name.contains(
-                                "ademya"
-                            )
+                Build.SUPPORTED_ABIS
+                    .any {
+                            abi ->
+                        abi ==
+                            "arm64-v8a" ||
+                            abi ==
+                                "x86_64"
                     }
 
             val polygonsByGlyph =
