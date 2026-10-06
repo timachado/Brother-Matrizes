@@ -8482,11 +8482,11 @@ internal object PeDesignImportedFontEngine {
                     10
                 ),
                 GridPoint(
-                    16,
+                    5,
                     15
                 ),
                 GridPoint(
-                    20,
+                    0,
                     20
                 )
             )
