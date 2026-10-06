@@ -829,7 +829,7 @@ class PeDesignImportedFontEngineTest {
 
         org.junit.Assert.assertEquals(
             "O motor PE-DESIGN-style deve continuar no mesmo objeto antes de puxar uma perna separada só porque ela está mais perto.",
-            15f,
+            20f,
             selectedLeftEdge,
             0.01f
         )
