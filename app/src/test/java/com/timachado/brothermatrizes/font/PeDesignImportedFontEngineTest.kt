@@ -770,38 +770,15 @@ class PeDesignImportedFontEngineTest {
                 )
         )
 
-        val firstRowA =
-            coordinates
-                .drop(
-                    3
-                )
-                .indexOf(
-                    0 to 0
-                )
-                .let {
-                        relative ->
-                    if (
-                        relative >=
-                            0
-                    ) {
-                        relative +
-                            3
-                    } else {
-                        -1
-                    }
-                }
-
-        assertTrue(
-            firstRowA >=
-                3
-        )
-
+        /*
+         * O primeiro A coincide com a última perfuração da trava e, por isso,
+         * não deve ser emitido novamente. A cobertura segue diretamente para B.
+         */
         assertEquals(
-            "A primeira row Satin deve seguir A -> B sem inverter a coluna.",
+            "A primeira row Satin deve seguir para B sem martelar A duas vezes.",
             20 to 0,
             coordinates[
-                firstRowA +
-                    1
+                3
             ]
         )
 
@@ -949,6 +926,59 @@ class PeDesignImportedFontEngineTest {
                 0 &&
                 counts.second >
                 0
+        )
+    }
+
+
+    @Test
+    fun generatedGeometryCentersVisibleStitchesInsteadOfJumpTravel() {
+        val (
+            center,
+            jump
+        ) =
+            PeDesignImportedFontEngine
+                .debugCenteredVisibleGeometry()
+
+        assertEquals(
+            "O centro dos pontos realmente costurados deve ficar em 0,0.",
+            0 to 0,
+            center
+        )
+
+        assertTrue(
+            "O JUMP pode continuar fora da área visível sem deslocar o centro do bordado.",
+            jump.first <
+                -100
+        )
+    }
+
+    @Test
+    fun emitterDoesNotRepeatConsecutiveStitchAtSameCoordinate() {
+        val stitches =
+            PeDesignImportedFontEngine
+                .debugAxisReferenceEmissionPath(
+                    includeUnderlay =
+                        false
+                )
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+
+        val repeated =
+            stitches.windowed(
+                2
+            ).any {
+                    pair ->
+                pair[0].xUnits ==
+                    pair[1].xUnits &&
+                pair[0].yUnits ==
+                    pair[1].yUnits
+            }
+
+        assertTrue(
+            "O motor não deve perfurar duas vezes seguidas exatamente a mesma coordenada.",
+            !repeated
         )
     }
 
