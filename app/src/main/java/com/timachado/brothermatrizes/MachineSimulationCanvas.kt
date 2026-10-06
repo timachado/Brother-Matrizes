@@ -84,7 +84,11 @@ fun MachineSimulationCanvas(
                             padding =
                                 22.dp.toPx(),
                             hoop =
-                                hoop
+                                hoop,
+                            referenceTextMode =
+                                referenceTextSimulation,
+                            uiScale =
+                                1.dp.toPx()
                         )
 
                     val ghostPaths =
@@ -164,7 +168,11 @@ fun MachineSimulationCanvas(
                     padding =
                         22.dp.toPx(),
                     hoop =
-                        hoop
+                        hoop,
+                    referenceTextMode =
+                        referenceTextSimulation,
+                    uiScale =
+                        1.dp.toPx()
                 )
 
             if (
@@ -349,7 +357,11 @@ private data class SimulationTransform(
     val canvasWidth: Float,
     val canvasHeight: Float,
     val padding: Float,
-    val hoop: HoopProfile?
+    val hoop: HoopProfile?,
+    val referenceTextMode: Boolean =
+        false,
+    val uiScale: Float =
+        1f
 ) {
     private val referencePoints =
         (
@@ -423,6 +435,35 @@ private data class SimulationTransform(
                 1f
             )
 
+    private val referenceFrameMargin =
+        minOf(
+            canvasWidth,
+            canvasHeight
+        ) *
+            0.04f
+
+    private val referenceInnerLeft =
+        referenceFrameMargin +
+            8f *
+                uiScale
+
+    private val referenceInnerRight =
+        canvasWidth -
+            referenceFrameMargin -
+            8f *
+                uiScale
+
+    private val referenceInnerTop =
+        referenceFrameMargin +
+            42f *
+                uiScale
+
+    private val referenceInnerBottom =
+        canvasHeight -
+            referenceFrameMargin -
+            8f *
+                uiScale
+
     private val designLandscape =
         widthUnits >
             heightUnits
@@ -474,51 +515,113 @@ private data class SimulationTransform(
             }
 
     val scale: Float =
-        simulationScale(
-            availableWidth =
-                availableWidth,
-            availableHeight =
-                availableHeight,
-            designWidthUnits =
-                widthUnits.toFloat(),
-            designHeightUnits =
-                heightUnits.toFloat(),
-            hoopWidthUnits =
-                hoopWidthUnits,
-            hoopHeightUnits =
-                hoopHeightUnits
-        )
+        if (
+            referenceTextMode
+        ) {
+            minOf(
+                (
+                    referenceInnerRight -
+                        referenceInnerLeft
+                    ).coerceAtLeast(
+                    1f
+                ) /
+                    widthUnits
+                        .toFloat(),
+                (
+                    referenceInnerBottom -
+                        referenceInnerTop
+                    ).coerceAtLeast(
+                    1f
+                ) /
+                    heightUnits
+                        .toFloat()
+            )
+                .coerceAtLeast(
+                    0.01f
+                )
+        } else {
+            simulationScale(
+                availableWidth =
+                    availableWidth,
+                availableHeight =
+                    availableHeight,
+                designWidthUnits =
+                    widthUnits.toFloat(),
+                designHeightUnits =
+                    heightUnits.toFloat(),
+                hoopWidthUnits =
+                    hoopWidthUnits,
+                hoopHeightUnits =
+                    hoopHeightUnits
+            )
+        }
 
     val hoopFrameWidthPx: Float =
-        (
-            hoopWidthUnits
-                ?: widthUnits.toFloat()
-            ) *
-            scale
+        if (
+            referenceTextMode
+        ) {
+            canvasWidth -
+                referenceFrameMargin *
+                    2f
+        } else {
+            (
+                hoopWidthUnits
+                    ?: widthUnits.toFloat()
+                ) *
+                scale
+        }
 
     val hoopFrameHeightPx: Float =
-        (
-            hoopHeightUnits
-                ?: heightUnits.toFloat()
-            ) *
-            scale
+        if (
+            referenceTextMode
+        ) {
+            canvasHeight -
+                referenceFrameMargin *
+                    2f
+        } else {
+            (
+                hoopHeightUnits
+                    ?: heightUnits.toFloat()
+                ) *
+                scale
+        }
 
     val hoopFrameLeftPx: Float =
-        (
-            canvasWidth -
-                hoopFrameWidthPx
-            ) /
-            2f
+        if (
+            referenceTextMode
+        ) {
+            referenceFrameMargin
+        } else {
+            (
+                canvasWidth -
+                    hoopFrameWidthPx
+                ) /
+                2f
+        }
 
     val hoopFrameTopPx: Float =
-        (
-            canvasHeight -
-                hoopFrameHeightPx
-            ) /
-            2f
+        if (
+            referenceTextMode
+        ) {
+            referenceFrameMargin
+        } else {
+            (
+                canvasHeight -
+                    hoopFrameHeightPx
+                ) /
+                2f
+        }
 
     private val centerXUnits =
         if (
+            referenceTextMode
+        ) {
+            (
+                minXUnits +
+                    maxXUnits
+                ) /
+                2f
+        } else if (
             design.isModified
         ) {
             0f
@@ -532,6 +635,14 @@ private data class SimulationTransform(
 
     private val centerYUnits =
         if (
+            referenceTextMode
+        ) {
+            (
+                minYUnits +
+                    maxYUnits
+                ) /
+                2f
+        } else if (
             design.isModified
         ) {
             0f
@@ -543,9 +654,36 @@ private data class SimulationTransform(
                 2f
         }
 
+    private val centerScreenX =
+        if (
+            referenceTextMode
+        ) {
+            (
+                referenceInnerLeft +
+                    referenceInnerRight
+                ) /
+                2f
+        } else {
+            canvasWidth /
+                2f
+        }
+
+    private val centerScreenY =
+        if (
+            referenceTextMode
+        ) {
+            (
+                referenceInnerTop +
+                    referenceInnerBottom
+                ) /
+                2f
+        } else {
+            canvasHeight /
+                2f
+        }
+
     private val originX =
-        canvasWidth /
-            2f -
+        centerScreenX -
             centerXUnits *
                 scale
 
@@ -562,8 +700,7 @@ private data class SimulationTransform(
             y =
                 renderScreenY(
                     centerScreenY =
-                        canvasHeight /
-                            2f,
+                        centerScreenY,
                     centerYUnits =
                         centerYUnits,
                     pointYUnits =
@@ -833,14 +970,32 @@ private fun DrawScope.drawHoop(
         style =
             Stroke(
                 width =
-                    1.35.dp.toPx(),
+                    if (
+                        transform.referenceTextMode
+                    ) {
+                        1.5f *
+                            transform.uiScale
+                    } else {
+                        1.35.dp.toPx()
+                    },
                 pathEffect =
                     PathEffect
                         .dashPathEffect(
-                            floatArrayOf(
-                                8.dp.toPx(),
-                                6.dp.toPx()
-                            )
+                            if (
+                                transform.referenceTextMode
+                            ) {
+                                floatArrayOf(
+                                    5f *
+                                        transform.uiScale,
+                                    4f *
+                                        transform.uiScale
+                                )
+                            } else {
+                                floatArrayOf(
+                                    8.dp.toPx(),
+                                    6.dp.toPx()
+                                )
+                            }
                         )
             )
     )
@@ -1538,19 +1693,19 @@ private fun DrawScope.drawReferenceNeedle(
         start =
             Offset(
                 center.x,
-                transform
-                    .hoopFrameTopPx
+                center.y -
+                    16f *
+                        transform.uiScale
             ),
         end =
             Offset(
                 center.x,
-                transform
-                    .hoopFrameTopPx +
-                    transform
-                        .hoopFrameHeightPx
+                center.y +
+                    5f *
+                        transform.uiScale
             ),
         strokeWidth =
-            1f
+            transform.uiScale
     )
 
     drawCircle(
