@@ -1812,81 +1812,39 @@ fun CreateNameScreen(
 
                             if (
                                 created !=
-                                    null &&
-                                importedFont !=
-                                    null &&
-                                referenceAdamyaSimulation
-                            ) {
-                                scope.launch {
-                                    simulationPreparing =
-                                        true
-
-                                    val simulationResult =
-                                        withContext(
-                                            Dispatchers.Default
-                                        ) {
-                                            /*
-                                             * O vídeo de referência usa o
-                                             * nome completo em +90°. Como no
-                                             * MãoDesign, a rotação entra no
-                                             * request global depois da
-                                             * composição/centralização e
-                                             * antes do SatinColumnSampler.
-                                             *
-                                             * A prévia da criação continua
-                                             * horizontal; somente a matriz de
-                                             * simulação segue o padrão do
-                                             * vídeo.
-                                             */
-                                            TextLayoutGenerator
-                                                .generate(
-                                                    layoutOptionsFor(
-                                                        heightMm
-                                                    ).copy(
-                                                        textOptions =
-                                                            layoutOptionsFor(
-                                                                heightMm
-                                                            )
-                                                                .textOptions
-                                                                .copy(
-                                                                    rotationDegrees =
-                                                                        90f,
-                                                                    hoopProfile =
-                                                                        null,
-                                                                    enforceHoop =
-                                                                        false
-                                                                )
-                                                    )
-                                                )
-                                        }
-
-                                    simulationPreparing =
-                                        false
-
-                                    simulationResult
-                                        .getOrNull()
-                                        ?.let {
-                                                referenceDesign ->
-                                            val automaticHoop =
-                                                smallestHoopForEitherOrientation(
-                                                    referenceDesign
-                                                )
-
-                                            onSimulate(
-                                                referenceDesign.copy(
-                                                    hoopProfile =
-                                                        automaticHoop
-                                                ),
-                                                displayMode
-                                            )
-                                        }
-                                }
-                            } else if (
-                                created !=
                                     null
                             ) {
+                                /*
+                                 * A simulação deve consumir exatamente a mesma
+                                 * matriz exibida em Criar Nome.
+                                 *
+                                 * Antes, Adamya/Ademya era regenerada aqui com
+                                 * rotationDegrees=90f, apesar de a criação estar
+                                 * em 0°. Depois da troca para stroke-flow, isso
+                                 * passou a aplicar uma segunda transformação e
+                                 * deixou o nome vertical/invertido na simulação.
+                                 *
+                                 * O bastidor automático pode mudar, mas os
+                                 * pontos, a orientação e a ordem da costura não.
+                                 */
+                                val simulationDesign =
+                                    if (
+                                        importedFont !=
+                                            null &&
+                                        referenceAdamyaSimulation
+                                    ) {
+                                        created.copy(
+                                            hoopProfile =
+                                                smallestHoopForEitherOrientation(
+                                                    created
+                                                )
+                                        )
+                                    } else {
+                                        created
+                                    }
+
                                 onSimulate(
-                                    created,
+                                    simulationDesign,
                                     displayMode
                                 )
                             }
