@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.RectF
-import android.os.Build
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
@@ -58,14 +57,10 @@ object ImportedFontMatrixGenerator {
         )
 
     /**
-     * O caminho Satin TTF/OTF deve ter uma única fonte de verdade.
+     * Fonte TTF/OTF Satin usa uma única rota clean-room PE-DESIGN-style.
      *
-     * ReferenceImportedFontEngine contém o emissor validado contra o vídeo
-     * de referência: entrada pelo centro quando há underlay, passada central
-     * única até o extremo, cobertura Satin no retorno, locks e viagens reais.
-     *
-     * Manter uma segunda implementação aqui fazia "Criar Nome" divergir da
-     * sequência já validada mesmo usando o mesmo SimulatorScreen depois.
+     * Não existe fallback para o motor legado: prévia, simulação e exportação
+     * recebem a mesma sequência gerada pelo PeDesignImportedFontEngine.
      */
     private fun generateWithReferenceSatin(
         font: ImportedFont,
@@ -79,51 +74,21 @@ object ImportedFontMatrixGenerator {
             options.specialStitchMode ==
                 null
         ) {
-            val supportsNativeSkia =
-                Build.SUPPORTED_ABIS
-                    .any {
-                            abi ->
-                        abi ==
-                            "arm64-v8a" ||
-                            abi ==
-                                "x86_64"
-                    }
-
-            if (
-                supportsNativeSkia
-            ) {
-                MaoCompatibleImportedFontEngine
-                    .generate(
-                        font =
-                            font,
-                        sourceText =
-                            sourceText,
-                        options =
-                            options,
-                        filePrefix =
-                            filePrefix
-                    )
-            } else {
-                /*
-                 * Compatibilidade para Android 32-bit, onde o Skija atual
-                 * não oferece artefato nativo. O dispositivo do usuário e
-                 * aparelhos Android atuais seguem pelo motor Skia acima.
-                 */
-                ReferenceImportedFontEngine
-                    .generate(
-                        font =
-                            font,
-                        sourceText =
-                            sourceText,
-                        options =
-                            options,
-                        filePrefix =
-                            filePrefix
-                    )
-            }
+            PeDesignImportedFontEngine
+                .generate(
+                    font =
+                        font,
+                    sourceText =
+                        sourceText,
+                    options =
+                        options,
+                    filePrefix =
+                        filePrefix
+                )
         } else {
             generateTextInternal(
-                font = font,
+                font =
+                    font,
                 sourceText =
                     sourceText,
                 options =
