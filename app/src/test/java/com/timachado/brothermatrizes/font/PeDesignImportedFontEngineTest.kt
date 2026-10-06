@@ -917,7 +917,7 @@ class PeDesignImportedFontEngineTest {
                 endpoints ==
                     setOf(
                         20 to 0,
-                        20 to 20
+                        0 to 20
                     )
             }
 
