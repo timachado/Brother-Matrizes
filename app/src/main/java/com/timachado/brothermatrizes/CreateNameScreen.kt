@@ -54,6 +54,7 @@ import com.timachado.brothermatrizes.core.embroidery.SpecialStitchMode
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
 import com.timachado.brothermatrizes.core.embroidery.TextHoopAutoFit
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutGenerator
+import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutMode
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutOptions
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -191,7 +192,10 @@ fun CreateNameScreen(
     }
 
     var outputFormat by remember {
-        mutableStateOf("DST")
+        mutableStateOf(
+            MatrixConverter
+                .preferredBrotherFormat
+        )
     }
 
     var color by remember {
@@ -1639,11 +1643,9 @@ fun CreateNameScreen(
                                         7.dp
                                     )
                             ) {
-                                listOf(
-                                    "DST",
-                                    "PES",
-                                    "JEF"
-                                ).forEach {
+                                MatrixConverter
+                                    .supportedFormats
+                                    .forEach {
                                         format ->
                                     ChoiceButton(
                                         modifier =
