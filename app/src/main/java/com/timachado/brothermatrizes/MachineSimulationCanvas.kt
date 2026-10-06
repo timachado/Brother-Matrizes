@@ -150,7 +150,13 @@ fun MachineSimulationCanvas(
                                                     .toPx()
                                             },
                                         cap =
-                                            StrokeCap.Round
+                                            if (
+                                                referenceTextSimulation
+                                            ) {
+                                                StrokeCap.Butt
+                                            } else {
+                                                StrokeCap.Round
+                                            }
                                     )
                             )
                         }
@@ -1673,7 +1679,7 @@ private fun DrawScope.drawReferenceCompletedStitches(
                     width =
                         2f,
                     cap =
-                        StrokeCap.Round
+                        StrokeCap.Butt
                 )
         )
     }
