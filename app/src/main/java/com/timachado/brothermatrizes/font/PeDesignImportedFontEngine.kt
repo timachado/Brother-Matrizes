@@ -2993,9 +2993,368 @@ internal object PeDesignImportedFontEngine {
             }
         }
 
-        return paths.filter {
-            it.isNotEmpty()
+        return mergeFlowPathsByTangentContinuity(
+            paths.filter {
+                it.isNotEmpty()
+            }
+        )
+    }
+
+    /**
+     * O skeleton divide um traço em cada nó com grau != 2. Isso é útil para
+     * detectar ramos, mas não significa que toda aresta seja uma nova coluna
+     * de bordado.
+     *
+     * No PE-DESIGN-style, quando dois segmentos atravessam o mesmo
+     * entroncamento mantendo a direção do traço, eles pertencem à mesma
+     * coluna Satin. A ramificação lateral permanece separada e só será
+     * trabalhada depois que a coluna contínua terminar.
+     */
+    private fun mergeFlowPathsByTangentContinuity(
+        source: List<List<GridPoint>>
+    ): List<List<GridPoint>> {
+        val paths =
+            source
+                .filter {
+                    it.isNotEmpty()
+                }
+                .map {
+                    it.toList()
+                }
+                .toMutableList()
+
+        if (
+            paths.size <
+                2
+        ) {
+            return paths
         }
+
+        data class Endpoint(
+            val pathIndex: Int,
+            val atStart: Boolean,
+            val point: GridPoint,
+            val directionRow: Double,
+            val directionColumn: Double
+        )
+
+        fun endpoint(
+            path: List<GridPoint>,
+            pathIndex: Int,
+            atStart: Boolean
+        ): Endpoint? {
+            if (
+                path.size <
+                    2
+            ) {
+                return null
+            }
+
+            val anchor =
+                if (
+                    atStart
+                ) {
+                    path.first()
+                } else {
+                    path.last()
+                }
+
+            val sampleIndex =
+                minOf(
+                    4,
+                    path.lastIndex
+                )
+
+            val inner =
+                if (
+                    atStart
+                ) {
+                    path[
+                        sampleIndex
+                    ]
+                } else {
+                    path[
+                        path.lastIndex -
+                            sampleIndex
+                    ]
+                }
+
+            val dr =
+                (
+                    inner.row -
+                        anchor.row
+                    ).toDouble()
+
+            val dc =
+                (
+                    inner.column -
+                        anchor.column
+                    ).toDouble()
+
+            val length =
+                hypot(
+                    dr,
+                    dc
+                )
+
+            if (
+                length <
+                    0.001
+            ) {
+                return null
+            }
+
+            return Endpoint(
+                pathIndex =
+                    pathIndex,
+                atStart =
+                    atStart,
+                point =
+                    anchor,
+                directionRow =
+                    dr /
+                        length,
+                directionColumn =
+                    dc /
+                        length
+            )
+        }
+
+        fun continuationScore(
+            first: Endpoint,
+            second: Endpoint
+        ): Double {
+            /*
+             * Os dois vetores apontam do nó para dentro de cada segmento.
+             * Para uma continuação reta eles apontam em sentidos opostos,
+             * então o produto escalar vale aproximadamente -1. Invertemos
+             * o sinal para que 1 represente a melhor continuação.
+             */
+            return -(
+                first.directionRow *
+                    second.directionRow +
+                first.directionColumn *
+                    second.directionColumn
+                )
+        }
+
+        fun merge(
+            firstPath: List<GridPoint>,
+            firstAtStart: Boolean,
+            secondPath: List<GridPoint>,
+            secondAtStart: Boolean
+        ): List<GridPoint> {
+            val first =
+                if (
+                    firstAtStart
+                ) {
+                    firstPath.asReversed()
+                } else {
+                    firstPath
+                }
+
+            val second =
+                if (
+                    secondAtStart
+                ) {
+                    secondPath
+                } else {
+                    secondPath.asReversed()
+                }
+
+            return first +
+                second.drop(
+                    1
+                )
+        }
+
+        while (
+            true
+        ) {
+            val endpoints =
+                paths.flatMapIndexed {
+                        index,
+                        path ->
+                    listOfNotNull(
+                        endpoint(
+                            path =
+                                path,
+                            pathIndex =
+                                index,
+                            atStart =
+                                true
+                        ),
+                        endpoint(
+                            path =
+                                path,
+                            pathIndex =
+                                index,
+                            atStart =
+                                false
+                        )
+                    )
+                }
+
+            var bestFirst:
+                Endpoint? =
+                null
+
+            var bestSecond:
+                Endpoint? =
+                null
+
+            var bestScore =
+                0.55
+
+            endpoints
+                .groupBy {
+                    it.point
+                }
+                .values
+                .forEach {
+                        group ->
+                    if (
+                        group.size <
+                            2
+                    ) {
+                        return@forEach
+                    }
+
+                    for (
+                        firstIndex in
+                            0 until
+                                group.lastIndex
+                    ) {
+                        for (
+                            secondIndex in
+                                firstIndex +
+                                    1 until
+                                    group.size
+                        ) {
+                            val first =
+                                group[
+                                    firstIndex
+                                ]
+
+                            val second =
+                                group[
+                                    secondIndex
+                                ]
+
+                            if (
+                                first.pathIndex ==
+                                    second.pathIndex
+                            ) {
+                                continue
+                            }
+
+                            val score =
+                                continuationScore(
+                                    first,
+                                    second
+                                )
+
+                            if (
+                                score >
+                                    bestScore +
+                                        0.0001
+                            ) {
+                                bestScore =
+                                    score
+                                bestFirst =
+                                    first
+                                bestSecond =
+                                    second
+                            } else if (
+                                abs(
+                                    score -
+                                        bestScore
+                                ) <=
+                                    0.0001 &&
+                                bestFirst !=
+                                    null &&
+                                bestSecond !=
+                                    null
+                            ) {
+                                val candidateMin =
+                                    minOf(
+                                        first.pathIndex,
+                                        second.pathIndex
+                                    )
+
+                                val currentMin =
+                                    minOf(
+                                        bestFirst!!.pathIndex,
+                                        bestSecond!!.pathIndex
+                                    )
+
+                                if (
+                                    candidateMin <
+                                        currentMin
+                                ) {
+                                    bestFirst =
+                                        first
+                                    bestSecond =
+                                        second
+                                }
+                            }
+                        }
+                    }
+                }
+
+            val first =
+                bestFirst
+                    ?: break
+
+            val second =
+                bestSecond
+                    ?: break
+
+            val firstIndex =
+                first.pathIndex
+
+            val secondIndex =
+                second.pathIndex
+
+            val merged =
+                merge(
+                    firstPath =
+                        paths[
+                            firstIndex
+                        ],
+                    firstAtStart =
+                        first.atStart,
+                    secondPath =
+                        paths[
+                            secondIndex
+                        ],
+                    secondAtStart =
+                        second.atStart
+                )
+
+            val keepIndex =
+                minOf(
+                    firstIndex,
+                    secondIndex
+                )
+
+            val removeIndex =
+                maxOf(
+                    firstIndex,
+                    secondIndex
+                )
+
+            paths[
+                keepIndex
+            ] =
+                merged
+
+            paths.removeAt(
+                removeIndex
+            )
+        }
+
+        return paths
     }
 
     private fun extendFlowGuideToCaps(
@@ -8016,6 +8375,72 @@ internal object PeDesignImportedFontEngine {
             mutableListOf()
         )
             .debugConnectedObjectWinsOverCloserUnrelatedLeg()
+
+    internal fun debugFlowJunctionContinuity():
+        List<List<Pair<Int, Int>>> {
+        val left =
+            listOf(
+                GridPoint(
+                    10,
+                    0
+                ),
+                GridPoint(
+                    10,
+                    5
+                ),
+                GridPoint(
+                    10,
+                    10
+                )
+            )
+
+        val right =
+            listOf(
+                GridPoint(
+                    10,
+                    10
+                ),
+                GridPoint(
+                    10,
+                    15
+                ),
+                GridPoint(
+                    10,
+                    20
+                )
+            )
+
+        val branch =
+            listOf(
+                GridPoint(
+                    10,
+                    10
+                ),
+                GridPoint(
+                    5,
+                    10
+                ),
+                GridPoint(
+                    0,
+                    10
+                )
+            )
+
+        return mergeFlowPathsByTangentContinuity(
+            listOf(
+                left,
+                branch,
+                right
+            )
+        ).map {
+                path ->
+            path.map {
+                    point ->
+                point.row to
+                    point.column
+            }
+        }
+    }
 
     private fun safeName(
         value: String
