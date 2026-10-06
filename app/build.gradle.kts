@@ -12,8 +12,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 112
-        versionName = "0.46.52"
+        versionCode = 113
+        versionName = "0.46.53"
 
         buildConfigField(
             "String",
@@ -76,14 +76,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-
-    /*
-     * Skia nativo para o caminho TTF/OTF compatível com o MãoDesign.
-     * A referência usa Skia para glyph path/metrics; Android Paint produz
-     * contornos diferentes em fontes cursivas e muda o SatinColumnSampler.
-     */
-    implementation("io.github.humbleui:skija-android-arm64:0.143.17")
-    implementation("io.github.humbleui:skija-android-x64:0.143.17")
 
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
 
