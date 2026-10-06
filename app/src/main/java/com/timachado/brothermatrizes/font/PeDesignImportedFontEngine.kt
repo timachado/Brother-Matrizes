@@ -5942,6 +5942,8 @@ internal object PeDesignImportedFontEngine {
 
             current =
                 point
+        }
+
         fun debugConnectedObjectWinsOverCloserUnrelatedLeg():
             Float {
             fun columnAt(
@@ -6083,8 +6085,6 @@ internal object PeDesignImportedFontEngine {
             return columnLeftEdgeX(
                 selected
             )
-        }
-
         }
     }
 
