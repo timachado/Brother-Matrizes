@@ -1007,13 +1007,38 @@ fun CreateNameScreen(
                                                     importedFontId =
                                                         imported.id
 
+                                                    val referenceFont =
+                                                        imported
+                                                            .displayName
+                                                            .lowercase(
+                                                                Locale.ROOT
+                                                            )
+
                                                     /*
-                                                     * A orientação pertence ao layout, não à
-                                                     * fonte. Selecionar Adamya nunca deve girar
-                                                     * automaticamente o nome.
+                                                     * O vídeo de referência da Adamya está em
+                                                     * 90°. A rotação precisa acontecer ANTES do
+                                                     * SatinColumnSampler, pois ela define a ordem
+                                                     * A.x/A.y das colunas — não é mero giro visual.
                                                      */
                                                     rotationDegrees =
-                                                        0f
+                                                        if (
+                                                            referenceFont.contains(
+                                                                "adamya"
+                                                            ) ||
+                                                            referenceFont.contains(
+                                                                "ademya"
+                                                            )
+                                                        ) {
+                                                            90f
+                                                        } else {
+                                                            0f
+                                                        }
+
+                                                    /*
+                                                     * Como no MãoDesign, fonte importada mantém
+                                                     * a altura solicitada. O bastidor só enquadra
+                                                     * a visualização; não redimensiona a matriz.
+                                                     */
                                                     autoFitToHoop =
                                                         false
                                                 }
