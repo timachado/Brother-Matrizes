@@ -915,17 +915,24 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
-    fun activeImportedSatinSamplerUsesAdaptiveStrokeFlow() {
-        val counts =
+    fun activeImportedSatinSamplerUsesCompactGeometryBudget() {
+        val (
+            compactRows,
+            adaptiveRows
+        ) =
             PeDesignImportedFontEngine
-                .debugActiveSamplerOrientationCounts()
+                .debugCompactVsAdaptiveRowCounts()
 
         assertTrue(
-            "A rota ativa precisa gerar linhas Satin em mais de uma orientação para acompanhar um traço em L/curvo.",
-            counts.first >
-                0 &&
-                counts.second >
+            "A rota ativa compacta precisa produzir linhas Satin válidas.",
+            compactRows >
                 0
+        )
+
+        assertTrue(
+            "A geometria ativa não deve exceder a quantidade de rows do skeleton adaptativo.",
+            compactRows <=
+                adaptiveRows
         )
     }
 
