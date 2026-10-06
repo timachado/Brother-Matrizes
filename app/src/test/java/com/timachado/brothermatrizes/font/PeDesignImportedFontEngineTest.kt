@@ -820,4 +820,19 @@ class PeDesignImportedFontEngineTest {
         )
     }
 
+
+    @Test
+    fun connectedObjectFinishesBeforeCloserSeparatedLeg() {
+        val selectedLeftEdge =
+            PeDesignImportedFontEngine
+                .debugConnectedObjectWinsOverCloserUnrelatedLeg()
+
+        org.junit.Assert.assertEquals(
+            "O motor PE-DESIGN-style deve continuar no mesmo objeto antes de puxar uma perna separada só porque ela está mais perto.",
+            15f,
+            selectedLeftEdge,
+            0.01f
+        )
+    }
+
 }
