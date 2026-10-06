@@ -114,7 +114,7 @@ fun CreateNameScreen(
 
     var displayMode by remember {
         mutableStateOf(
-            EmbroideryDisplayMode.SOLID
+            EmbroideryDisplayMode.REALISTIC
         )
     }
 
