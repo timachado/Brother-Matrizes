@@ -580,91 +580,32 @@ internal object ReferenceImportedFontEngine {
             sfntRatio >
                 0.001f
         ) {
-            /*
-             * Equivalente ao SKFont.Metrics.CapHeight usado pelo MãoDesign:
-             * fontSize * (sCapHeight / unitsPerEm) = targetCapHeight.
-             */
             return targetCapHeightUnits /
                 sfntRatio
         }
 
         /*
-         * Fallback para fontes sem OS/2.sCapHeight: mede o glifo H/X,
-         * mantendo compatibilidade com fontes antigas/malformadas.
+         * Fallback idêntico ao motor de referência: mede o ascent do font
+         * a 100 unidades e usa 72% quando CapHeight não existe.
+         * Não mede H/X, pois isso muda a escala em fontes cursivas.
          */
         paint.textSize =
             100f
 
-        val capPath =
-            Path()
-
-        val capChar =
-            when {
-                paint.hasGlyph(
-                    "H"
-                ) ->
-                    "H"
-
-                paint.hasGlyph(
-                    "X"
-                ) ->
-                    "X"
-
-                else ->
-                    null
-            }
-
         val capHeight =
-            if (
-                capChar !=
-                    null
-            ) {
-                paint.getTextPath(
-                    capChar,
-                    0,
-                    capChar.length,
-                    0f,
-                    0f,
-                    capPath
-                )
-
-                val bounds =
-                    RectF()
-
-                capPath.computeBounds(
-                    bounds,
-                    true
-                )
-
-                bounds.height()
-            } else {
-                0f
-            }
-
-        val fallback =
-            abs(
+            kotlin.math.abs(
                 paint
                     .fontMetrics
                     .ascent
             ) *
                 0.72f
 
-        val resolvedCapHeight =
-            if (
-                capHeight >
-                    0.001f
-            ) {
-                capHeight
-            } else {
-                fallback
-            }
+        return 100f *
+            targetCapHeightUnits /
+            capHeight
                 .coerceAtLeast(
                     1f
                 )
-
-        return 100f *
-            targetCapHeightUnits /
-            resolvedCapHeight
     }
 
     private fun capHeightRatio(
@@ -6331,6 +6272,21 @@ internal object ReferenceImportedFontEngine {
                 ).apply {
                     this.typeface =
                         typeface
+
+                    /*
+                     * O MãoDesign obtém o contorno vetorial pelo Skia sem
+                     * hinting de tela. Desabilitar hinting/forçar métricas
+                     * lineares evita que o Android altere discretamente o
+                     * contorno e a largura do glifo antes do sampler Satin.
+                     */
+                    hinting =
+                        Paint.HINTING_OFF
+                    isSubpixelText =
+                        true
+                    @Suppress("DEPRECATION")
+                    isLinearText =
+                        true
+
                     style =
                         Paint.Style.FILL
                     textSize =
