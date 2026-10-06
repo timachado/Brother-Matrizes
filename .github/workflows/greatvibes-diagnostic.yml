@@ -52,7 +52,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            bash -lc 'set -u; adb wait-for-device; ok=0; for i in $(seq 1 180); do boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r"); pkg=$(adb shell service check package 2>/dev/null || true); if [ "$boot" = "1" ] && echo "$pkg" | grep -qi "found"; then ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "Android boot/package service not ready"; adb shell getprop sys.boot_completed || true; adb shell service check package || true; exit 97; fi; adb logcat -c || true; set +e; gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace; status=$?; set -e; adb logcat -d -s GreatVibesDiagnostic:I "*:S" > greatvibes-reference-report.txt || true; cat greatvibes-reference-report.txt || true; exit "$status"'
+            bash -lc 'set -u; adb wait-for-device; ok=0; for i in $(seq 1 180); do boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r"); pkg=$(adb shell service check package 2>/dev/null || true); if [ "$boot" = "1" ] && echo "$pkg" | grep -qi "found"; then ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "Android boot/package service not ready"; adb shell getprop sys.boot_completed || true; adb shell service check package || true; exit 97; fi; adb logcat -c || true; set +e; gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --stacktrace; status=$?; set -e; adb logcat -d -s GreatVibesDiagnostic:I "*:S" > greatvibes-reference-report.txt || true; adb exec-out run-as com.timachado.brothermatrizes cat files/greatvibes-best-sequence.csv > greatvibes-best-sequence.csv 2>/dev/null || true; cat greatvibes-reference-report.txt || true; exit "$status"'
 
       - name: Upload diagnostic
         if: always()
@@ -61,5 +61,6 @@ jobs:
           name: greatvibes-start-diagnostic
           path: |
             greatvibes-reference-report.txt
+            greatvibes-best-sequence.csv
             app/build/reports/androidTests/connected/**
           if-no-files-found: error
