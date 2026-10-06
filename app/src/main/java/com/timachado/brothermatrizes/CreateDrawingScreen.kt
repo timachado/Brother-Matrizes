@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.SimpleSvgParser
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -142,7 +143,10 @@ fun CreateDrawingScreen(
     }
 
     var outputFormat by remember {
-        mutableStateOf("DST")
+        mutableStateOf(
+            MatrixConverter
+                .preferredBrotherFormat
+        )
     }
 
     var hoopProfile by remember {
@@ -955,11 +959,9 @@ fun CreateDrawingScreen(
                             8.dp
                         )
                 ) {
-                    listOf(
-                        "DST",
-                        "PES",
-                        "JEF"
-                    ).forEach {
+                    MatrixConverter
+                        .supportedFormats
+                        .forEach {
                             format ->
                         val selected =
                             outputFormat ==
