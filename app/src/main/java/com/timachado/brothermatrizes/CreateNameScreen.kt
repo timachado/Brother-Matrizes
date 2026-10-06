@@ -328,9 +328,14 @@ fun CreateNameScreen(
         mutableStateOf(false)
     }
 
+    val effectiveAutoFitToHoop =
+        autoFitToHoop &&
+            importedFont ==
+                null
+
     val previewHeightKey =
         if (
-            autoFitToHoop
+            effectiveAutoFitToHoop
         ) {
             0f
         } else {
@@ -422,95 +427,7 @@ fun CreateNameScreen(
                         )
 
                 if (
-                    autoFitToHoop &&
-                    importedFont !=
-                        null
-                ) {
-                    /*
-                     * TTF/OTF Satin é proporcional à altura. O binary-search
-                     * genérico fazia 12+ digitalizações completas da fonte e
-                     * podia manter a UI em "Atualizando" por muito tempo.
-                     *
-                     * Para fonte importada fazemos uma medição real e, quando
-                     * necessário, uma segunda geração já na altura calculada.
-                     */
-                    val first =
-                        generateAt(
-                            requestedHeight
-                        )
-
-                    val firstDesign =
-                        first.getOrNull()
-
-                    if (
-                        firstDesign ==
-                            null
-                    ) {
-                        requestedHeight to
-                            first
-                    } else {
-                        val widthRatio =
-                            (
-                                hoopProfile
-                                    .usableWidthMm *
-                                    0.96f
-                                ) /
-                                firstDesign
-                                    .bounds
-                                    .widthMm
-                                    .coerceAtLeast(
-                                        0.1f
-                                    )
-
-                        val heightRatio =
-                            (
-                                hoopProfile
-                                    .usableHeightMm *
-                                    0.96f
-                                ) /
-                                firstDesign
-                                    .bounds
-                                    .heightMm
-                                    .coerceAtLeast(
-                                        0.1f
-                                    )
-
-                        val scaleRatio =
-                            minOf(
-                                widthRatio,
-                                heightRatio
-                            )
-
-                        val fittedHeight =
-                            (
-                                requestedHeight *
-                                    scaleRatio
-                                )
-                                .coerceIn(
-                                    TextHoopAutoFit
-                                        .MIN_HEIGHT_MM,
-                                    TextHoopAutoFit
-                                        .MAX_HEIGHT_MM
-                                )
-
-                        if (
-                            kotlin.math.abs(
-                                fittedHeight -
-                                    requestedHeight
-                            ) <
-                            0.05f
-                        ) {
-                            requestedHeight to
-                                first
-                        } else {
-                            fittedHeight to
-                                generateAt(
-                                    fittedHeight
-                                )
-                        }
-                    }
-                } else if (
-                    autoFitToHoop
+                    effectiveAutoFitToHoop
                 ) {
                     val fit =
                         TextHoopAutoFit
@@ -529,10 +446,6 @@ fun CreateNameScreen(
                         fit !=
                             null
                     ) {
-                        /*
-                         * Reaproveita o design já calculado pelo auto-fit em
-                         * vez de gerar a mesma matriz novamente.
-                         */
                         fit.heightMm to
                             Result.success(
                                 fit.design
@@ -544,18 +457,24 @@ fun CreateNameScreen(
                             )
                     }
                 } else {
+                    /*
+                     * O MãoDesign digitaliza a fonte importada na altura
+                     * solicitada; não redimensiona o glifo para caber no
+                     * bastidor antes da simulação.
+                     */
                     requestedHeight to
                         generateAt(
                             requestedHeight
                         )
                 }
+
             }
 
         val resolvedHeight =
             generated.first
 
         if (
-            autoFitToHoop &&
+            effectiveAutoFitToHoop &&
             kotlin.math.abs(
                 heightMm -
                     resolvedHeight
@@ -1095,6 +1014,8 @@ fun CreateNameScreen(
                                                      */
                                                     rotationDegrees =
                                                         0f
+                                                    autoFitToHoop =
+                                                        false
                                                 }
                                             )
                                         }
@@ -1830,8 +1751,12 @@ fun CreateNameScreen(
                         enabled =
                             preview !=
                                 null &&
-                                fitsHoop &&
-                                !previewUpdating,
+                                !previewUpdating &&
+                                (
+                                    fitsHoop ||
+                                        importedFont !=
+                                            null
+                                ),
                         modifier =
                             Modifier.weight(
                                 1f
