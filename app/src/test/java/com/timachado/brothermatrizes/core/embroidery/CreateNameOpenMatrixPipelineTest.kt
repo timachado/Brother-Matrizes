@@ -131,6 +131,11 @@ class CreateNameOpenMatrixPipelineTest {
             source.threadColors,
             canonicalDesign.threadColors
         )
+
+        assertTrue(
+            "A matriz criada e reaberta deve continuar marcada como modificada para o simulador usar o enquadramento pelos STITCHs.",
+            canonicalDesign.isModified
+        )
     }
     @Test
     fun simulationCanPreserveVectorGuideWithoutChangingCanonicalStitches() {
