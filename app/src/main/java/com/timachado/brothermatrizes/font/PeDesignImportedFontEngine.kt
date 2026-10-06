@@ -229,7 +229,7 @@ internal object PeDesignImportedFontEngine {
                     options.spacingMm *
                         10f
 
-            val useMaoSkiaBackend =
+            val useNativeOutlineBackend =
                 Build.SUPPORTED_ABIS
                     .any {
                             abi ->
@@ -241,7 +241,7 @@ internal object PeDesignImportedFontEngine {
 
             val polygonsByGlyph =
                 if (
-                    useMaoSkiaBackend
+                    useNativeOutlineBackend
                 ) {
                     /*
                      * Adamya/Ademya usa o mesmo backend vetorial do
@@ -4665,13 +4665,15 @@ internal object PeDesignImportedFontEngine {
                             selectionAnchor !=
                                 null
                         ) {
-                            nextColumnFromNearestEntry(
+                            nextColumnFollowingObject(
                                 columns =
                                     remaining,
                                 anchor =
                                     selectionAnchor,
                                 underlayMode =
-                                    underlayMode
+                                    underlayMode,
+                                polygons =
+                                    polygons
                             )
                         } else {
                             nextColumnInReadingOrder(
@@ -4891,21 +4893,34 @@ internal object PeDesignImportedFontEngine {
                     anchor
             )
 
-        private fun nextColumnFromNearestEntry(
+        /**
+         * PE-DESIGN-style object traversal:
+         * 1) while there is a column that can be reached through the filled
+         *    area of the current glyph, stay on that same embroidery object;
+         * 2) only when the object is exhausted, move to the next column in
+         *    stable reading order.
+         *
+         * Distance may choose the entry end of a connected column, but it may
+         * never pull an unrelated leg forward merely because it is closer.
+         */
+        private fun nextColumnFollowingObject(
             columns: List<SatinColumn>,
             anchor: FPoint,
-            underlayMode: SatinUnderlayMode
-        ): SatinColumn? =
-            columns.minByOrNull {
-                    column ->
-                val rows =
-                    column.rows
+            underlayMode: SatinUnderlayMode,
+            polygons: List<Polygon>
+        ): SatinColumn? {
+            val connected =
+                columns.mapNotNull {
+                        column ->
+                    val rows =
+                        column.rows
 
-                if (
-                    rows.isEmpty()
-                ) {
-                    Float.MAX_VALUE
-                } else {
+                    if (
+                        rows.isEmpty()
+                    ) {
+                        return@mapNotNull null
+                    }
+
                     val includeUnderlay =
                         underlayMode !=
                             SatinUnderlayMode.NONE &&
@@ -4925,22 +4940,74 @@ internal object PeDesignImportedFontEngine {
                             row.a
                         }
 
-                    minOf(
-                        distance(
-                            anchor,
-                            entry(
-                                rows.first()
-                            )
-                        ),
-                        distance(
-                            anchor,
-                            entry(
-                                rows.last()
-                            )
+                    val first =
+                        entry(
+                            rows.first()
                         )
-                    )
+
+                    val last =
+                        entry(
+                            rows.last()
+                        )
+
+                    val firstDistance =
+                        distance(
+                            anchor,
+                            first
+                        )
+
+                    val lastDistance =
+                        distance(
+                            anchor,
+                            last
+                        )
+
+                    val candidateEntry =
+                        if (
+                            lastDistance <
+                                firstDistance
+                        ) {
+                            last
+                        } else {
+                            first
+                        }
+
+                    val candidateDistance =
+                        minOf(
+                            firstDistance,
+                            lastDistance
+                        )
+
+                    if (
+                        candidateDistance <=
+                            NEAR_COLUMN_JOIN_UNITS &&
+                        segmentInsideGlyph(
+                            from =
+                                anchor,
+                            to =
+                                candidateEntry,
+                            polygons =
+                                polygons
+                        )
+                    ) {
+                        Pair(
+                            column,
+                            candidateDistance
+                        )
+                    } else {
+                        null
+                    }
                 }
-            }
+
+            return connected
+                .minByOrNull {
+                    it.second
+                }
+                ?.first
+                ?: nextColumnInReadingOrder(
+                    columns
+                )
+        }
 
         private fun visualLowerEnd(
             column: SatinColumn
@@ -7799,6 +7866,149 @@ internal object PeDesignImportedFontEngine {
                 0f
         )
             .size
+
+    internal fun debugConnectedObjectWinsOverCloserUnrelatedLeg():
+        Float {
+        fun columnAt(
+            x: Float,
+            y: Float
+        ): SatinColumn =
+            SatinColumn(
+                mutableListOf(
+                    SatinRow(
+                        FPoint(
+                            x,
+                            y
+                        ),
+                        FPoint(
+                            x +
+                                2f,
+                            y
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            x,
+                            y +
+                                2f
+                        ),
+                        FPoint(
+                            x +
+                                2f,
+                            y +
+                                2f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            x,
+                            y +
+                                4f
+                        ),
+                        FPoint(
+                            x +
+                                2f,
+                            y +
+                                4f
+                        )
+                    ),
+                    SatinRow(
+                        FPoint(
+                            x,
+                            y +
+                                6f
+                        ),
+                        FPoint(
+                            x +
+                                2f,
+                            y +
+                                6f
+                        )
+                    )
+                )
+            )
+
+        val sameObject =
+            columnAt(
+                15f,
+                0f
+            )
+
+        val closerButSeparated =
+            columnAt(
+                0f,
+                8f
+            )
+
+        val polygons =
+            listOf(
+                Polygon(
+                    listOf(
+                        FPoint(
+                            -3f,
+                            -3f
+                        ),
+                        FPoint(
+                            25f,
+                            -3f
+                        ),
+                        FPoint(
+                            25f,
+                            7f
+                        ),
+                        FPoint(
+                            -3f,
+                            7f
+                        )
+                    )
+                ),
+                Polygon(
+                    listOf(
+                        FPoint(
+                            -3f,
+                            8f
+                        ),
+                        FPoint(
+                            3f,
+                            8f
+                        ),
+                        FPoint(
+                            3f,
+                            18f
+                        ),
+                        FPoint(
+                            -3f,
+                            18f
+                        )
+                    )
+                )
+            )
+
+        val selected =
+            nextColumnFollowingObject(
+                columns =
+                    listOf(
+                        closerButSeparated,
+                        sameObject
+                    ),
+                anchor =
+                    FPoint(
+                        0f,
+                        0f
+                    ),
+                underlayMode =
+                    SatinUnderlayMode.CENTER,
+                polygons =
+                    polygons
+            )
+                ?: error(
+                    "Nenhuma coluna selecionada."
+                )
+
+        return columnLeftEdgeX(
+            selected
+        )
+    }
 
     private fun safeName(
         value: String
