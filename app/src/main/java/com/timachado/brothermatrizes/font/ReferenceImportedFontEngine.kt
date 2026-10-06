@@ -229,12 +229,28 @@ internal object ReferenceImportedFontEngine {
 
             val paint =
                 Paint(
-                    Paint.ANTI_ALIAS_FLAG
+                    Paint.ANTI_ALIAS_FLAG or
+                        Paint.LINEAR_TEXT_FLAG or
+                        Paint.SUBPIXEL_TEXT_FLAG
                 ).apply {
                     this.typeface =
                         typeface
                     style =
                         Paint.Style.FILL
+
+                    /*
+                     * SKFont trabalha sobre o contorno vetorial sem hinting de
+                     * tela. O Android Paint, quando deixado no padrão, pode
+                     * ajustar o glifo à grade de pixels e mudar exatamente as
+                     * interseções usadas pelo SatinColumnSampler.
+                     */
+                    hinting =
+                        Paint.HINTING_OFF
+                    textScaleX =
+                        1f
+                    textSkewX =
+                        0f
+
                     textSize =
                         resolveFontSizeForCapHeight(
                             paint =
@@ -278,8 +294,14 @@ internal object ReferenceImportedFontEngine {
                 "A fonte não gerou glifos bordáveis."
             }
 
+            /*
+             * MãoDesign centraliza pelo TightBounds do SKPath. Path.computeBounds
+             * pode incluir diferenças do backend Android; para manter o mesmo
+             * referencial usado depois em Polygonize, calculamos os limites
+             * sobre a própria amostragem vetorial (2 unidades por amostra).
+             */
             val unionBounds =
-                unionBounds(
+                sampledTightBounds(
                     glyphPaths
                 )
 
@@ -1056,43 +1078,117 @@ internal object ReferenceImportedFontEngine {
         return paths
     }
 
-    private fun unionBounds(
+    private fun sampledTightBounds(
         glyphs: List<GlyphPath>
     ): RectF {
-        val union =
-            RectF()
+        var minX =
+            Float.POSITIVE_INFINITY
 
-        var initialized =
-            false
+        var minY =
+            Float.POSITIVE_INFINITY
+
+        var maxX =
+            Float.NEGATIVE_INFINITY
+
+        var maxY =
+            Float.NEGATIVE_INFINITY
+
+        val position =
+            FloatArray(
+                2
+            )
 
         glyphs.forEach {
                 glyph ->
-            val bounds =
-                RectF()
-
-            glyph.path
-                .computeBounds(
-                    bounds,
+            val measure =
+                PathMeasure(
+                    glyph.path,
                     true
                 )
 
-            if (
-                !initialized
-            ) {
-                union.set(
-                    bounds
-                )
+            do {
+                val length =
+                    measure.length
 
-                initialized =
-                    true
-            } else {
-                union.union(
-                    bounds
-                )
-            }
+                if (
+                    length <=
+                        0f ||
+                    !length.isFinite()
+                ) {
+                    continue
+                }
+
+                val sampleCount =
+                    max(
+                        8,
+                        ceil(
+                            length /
+                                2f
+                        ).toInt()
+                    )
+
+                for (
+                    index in
+                        0 until
+                            sampleCount
+                ) {
+                    val distance =
+                        length *
+                            index /
+                            sampleCount
+
+                    if (
+                        measure.getPosTan(
+                            distance,
+                            position,
+                            null
+                        )
+                    ) {
+                        minX =
+                            minOf(
+                                minX,
+                                position[0]
+                            )
+
+                        minY =
+                            minOf(
+                                minY,
+                                position[1]
+                            )
+
+                        maxX =
+                            maxOf(
+                                maxX,
+                                position[0]
+                            )
+
+                        maxY =
+                            maxOf(
+                                maxY,
+                                position[1]
+                            )
+                    }
+                }
+            } while (
+                measure.nextContour()
+            )
         }
 
-        return union
+        require(
+            minX.isFinite() &&
+                minY.isFinite() &&
+                maxX.isFinite() &&
+                maxY.isFinite()
+        ) {
+            "A fonte não gerou limites vetoriais válidos."
+        }
+
+        return RectF(
+            minX,
+            minY,
+            maxX,
+            maxY
+        )
     }
 
     private fun polygonize(
