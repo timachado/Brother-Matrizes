@@ -365,8 +365,19 @@ private data class SimulationTransform(
 ) {
     private val referencePoints =
         (
-            design.points +
-                design.guidePoints
+            if (
+                referenceTextMode
+            ) {
+                /*
+                 * O simulador do MãoDesign enquadra o bloco de pontos gerado.
+                 * guidePoints é apenas geometria auxiliar e não participa do
+                 * bounds visual da simulação.
+                 */
+                design.points
+            } else {
+                design.points +
+                    design.guidePoints
+            }
             )
             .filter {
                 it.command !=
@@ -1710,27 +1721,37 @@ private fun DrawScope.drawReferenceNeedle(
 
     drawCircle(
         color =
-            Color.White,
+            Color(
+                red =
+                    233f /
+                        255f,
+                green =
+                    225f /
+                        255f,
+                blue =
+                    208f /
+                        255f,
+                alpha =
+                    235f /
+                        255f
+            ),
         radius =
-            5f,
+            5.5f *
+                transform.uiScale,
         center =
             center
     )
 
     drawCircle(
         color =
-            color,
+            color.copy(
+                alpha =
+                    245f /
+                        255f
+            ),
         radius =
-            3.2f,
-        center =
-            center
-    )
-
-    drawCircle(
-        color =
-            Color.White,
-        radius =
-            1.1f,
+            3.5f *
+                transform.uiScale,
         center =
             center
     )
