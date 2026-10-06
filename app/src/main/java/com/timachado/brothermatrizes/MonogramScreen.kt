@@ -44,6 +44,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.MonogramGenerator
 import com.timachado.brothermatrizes.core.embroidery.MonogramOptions
@@ -135,7 +136,10 @@ fun MonogramScreen(
     }
 
     var outputFormat by remember {
-        mutableStateOf("DST")
+        mutableStateOf(
+            MatrixConverter
+                .preferredBrotherFormat
+        )
     }
 
     var color by remember {
@@ -1160,11 +1164,9 @@ fun MonogramScreen(
                                 8.dp
                             )
                 ) {
-                    listOf(
-                        "DST",
-                        "PES",
-                        "JEF"
-                    ).forEach {
+                    MatrixConverter
+                        .supportedFormats
+                        .forEach {
                             format ->
                         val selected =
                             outputFormat ==
