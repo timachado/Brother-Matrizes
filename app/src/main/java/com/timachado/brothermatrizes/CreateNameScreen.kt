@@ -233,6 +233,23 @@ fun CreateNameScreen(
                     importedFontId
             }
 
+    val referenceAdamyaSimulation =
+        importedFont
+            ?.displayName
+            ?.lowercase(
+                Locale.ROOT
+            )
+            ?.let {
+                    name ->
+                name.contains(
+                    "adamya"
+                ) ||
+                    name.contains(
+                        "ademya"
+                    )
+            }
+            ?: false
+
     val glyphProvider =
         importedFont
             ?.let {
@@ -1797,7 +1814,8 @@ fun CreateNameScreen(
                                 created !=
                                     null &&
                                 importedFont !=
-                                    null
+                                    null &&
+                                referenceAdamyaSimulation
                             ) {
                                 scope.launch {
                                     simulationPreparing =
