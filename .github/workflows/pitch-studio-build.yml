@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
-          cat .pitchstudio/online01.b64 .pitchstudio/online02a.b64 .pitchstudio/online02b.b64 .pitchstudio/online02c.b64 | base64 --decode > "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
+          cat .pitchstudio/online01.b64 .pitchstudio/online02a.b64 .pitchstudio/online02b.b64 .pitchstudio/online02c.b64 | base64 --decode > "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"\n          test "$(wc -c < "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt")" -eq 10031
 
           python3 - <<'PY'
           from pathlib import Path
@@ -68,15 +68,12 @@ jobs:
           # Decoder: adiciona entrada por arquivo temporário baixado.
           p = root / "app/src/main/java/br/com/timachado/pitchstudio/audio/AudioDecoder.kt"
           s = p.read_text(encoding="utf-8")
-          old = '''    fun decode(
-              context: Context,
-              uri: Uri,
-              displayName: String,
-              onProgress: (Progress) -> Unit = {}
-          ): AudioProject {
-              val extractor = MediaExtractor()
-              extractor.setDataSource(context, uri, null)'''
-          new = '''    fun decode(
+          if "fun decodeFile(" not in s:
+              start = s.index("    fun decode(")
+              extractor_marker = "        val extractor = MediaExtractor()\n        extractor.setDataSource(context, uri, null)"
+              marker_pos = s.index(extractor_marker, start)
+              old = s[start:marker_pos + len(extractor_marker)]
+              new = '''    fun decode(
               context: Context,
               uri: Uri,
               displayName: String,
@@ -102,22 +99,17 @@ jobs:
           ): AudioProject {
               val extractor = MediaExtractor()
               setSource(extractor)'''
-          if old not in s:
-              raise SystemExit("Bloco AudioDecoder esperado não encontrado")
-          s = s.replace(old, new)
+              s = s[:start] + new + s[start + len(old):]
           p.write_text(s, encoding="utf-8")
 
           # MainActivity: acrescenta os dois novos fluxos sem alterar o motor já aprovado.
           p = root / "app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
           s = p.read_text(encoding="utf-8")
-          anchor = '''        fileLabel = text("Nenhum arquivo carregado", 14f, false)
-          root.addView(fileLabel, full(wrap(), top = 8))
 
-          waveform = WaveformView(this).apply {'''
-          replacement = '''        fileLabel = text("Nenhum arquivo carregado", 14f, false)
-          root.addView(fileLabel, full(wrap(), top = 8))
-
-          val online = row()
+          if "OnlineMusic.showYouTubeSearch" not in s:
+              marker = '        waveform = WaveformView(this).apply {'
+              idx = s.index(marker)
+              online = '''        val online = row()
           online.addView(button("Buscar no YouTube") {
               OnlineMusic.showYouTubeSearch(this) { statusLabel.text = it }
           }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })
@@ -128,7 +120,7 @@ jobs:
                   onStatus = { statusLabel.text = it },
                   onProgress = { message, value -> showProgress(message, value) },
                   onDownloaded = { file, name -> loadRemoteAudio(file, name) },
-                  onError = { message -> hideProgress("Falha ao importar: $message") }
+                  onError = { message -> hideProgress("Falha ao importar: " + message) }
               )
           }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginStart = dp(6) })
           root.addView(online, full(wrap(), top = 10))
@@ -137,13 +129,13 @@ jobs:
               full(wrap(), top = 6)
           )
 
-          waveform = WaveformView(this).apply {'''
-          if anchor not in s:
-              raise SystemExit("Âncora da interface não encontrada")
-          s = s.replace(anchor, replacement)
+          '''
+              s = s[:idx] + online + s[idx:]
 
-          method_anchor = '''    private fun pickAudio() {'''
-          method = '''    private fun loadRemoteAudio(file: File, name: String) {
+          if "private fun loadRemoteAudio(" not in s:
+              marker = '    private fun pickAudio() {'
+              idx = s.index(marker)
+              method = '''    private fun loadRemoteAudio(file: File, name: String) {
               player.pause()
               refreshPlayButton()
               showProgress("Decodificando áudio importado…", 0)
@@ -173,16 +165,15 @@ jobs:
                   } catch (t: Throwable) {
                       file.delete()
                       handler.post {
-                          hideProgress("Falha ao decodificar o áudio importado: ${t.message ?: "formato incompatível"}")
+                          hideProgress("Falha ao decodificar o áudio importado: " + (t.message ?: "formato incompatível"))
                       }
                   }
               }
           }
 
-          private fun pickAudio() {'''
-          if method_anchor not in s:
-              raise SystemExit("Âncora de métodos não encontrada")
-          s = s.replace(method_anchor, method, 1)
+          '''
+              s = s[:idx] + method + s[idx:]
+
           p.write_text(s, encoding="utf-8")
 
           print("Pitch Studio v1.1 aplicado.")
