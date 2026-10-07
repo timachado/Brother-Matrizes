@@ -1,0 +1,72 @@
+name: Build Pitch Studio APK
+
+on:
+  push:
+    branches:
+      - pitch-studio-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Recriar projeto Pitch Studio
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .pitchstudio/part01.b64               .pitchstudio/part02.b64               .pitchstudio/part03.b64               .pitchstudio/part04.b64               .pitchstudio/part05.b64               .pitchstudio/part06.b64 > "$RUNNER_TEMP/PitchStudioAndroid.zip.b64"
+          test "$(wc -c < "$RUNNER_TEMP/PitchStudioAndroid.zip.b64")" -eq 39716
+          base64 --decode "$RUNNER_TEMP/PitchStudioAndroid.zip.b64" > "$RUNNER_TEMP/PitchStudioAndroid.zip"
+          unzip -t "$RUNNER_TEMP/PitchStudioAndroid.zip"
+          mkdir -p "$RUNNER_TEMP/pitchstudio-src"
+          unzip -q "$RUNNER_TEMP/PitchStudioAndroid.zip" -d "$RUNNER_TEMP/pitchstudio-src"
+          test -f "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build.gradle.kts"
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android API 36
+        shell: bash
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
+
+      - name: Compilar APK
+        shell: bash
+        working-directory: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid
+        run: |
+          gradle --no-daemon :app:assembleDebug
+
+      - name: Verificar APK
+        shell: bash
+        working-directory: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-debug-apk
+          path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
