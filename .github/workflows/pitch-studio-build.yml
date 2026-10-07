@@ -30,6 +30,25 @@ jobs:
           unzip -q "$RUNNER_TEMP/PitchStudioAndroid.zip" -d "$RUNNER_TEMP/pitchstudio-src"
           test -f "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build.gradle.kts"
 
+      - name: Atualizar DSL do Kotlin
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["RUNNER_TEMP"]) / "pitchstudio-src/PitchStudioAndroid/app/build.gradle.kts"
+          s = p.read_text(encoding="utf-8")
+          old = '    kotlinOptions { jvmTarget = "17" }\n'
+          if old not in s:
+              raise SystemExit("kotlinOptions esperado não encontrado")
+          s = s.replace(old, "")
+          if "import org.jetbrains.kotlin.gradle.dsl.JvmTarget" not in s:
+              s = "import org.jetbrains.kotlin.gradle.dsl.JvmTarget\n\n" + s
+          s += '\n\nkotlin {\n    compilerOptions {\n        jvmTarget = JvmTarget.fromTarget("17")\n    }\n}\n'
+          p.write_text(s, encoding="utf-8")
+          print(p.read_text(encoding="utf-8"))
+          PY
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
