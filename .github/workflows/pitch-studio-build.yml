@@ -30,23 +30,162 @@ jobs:
           unzip -q "$RUNNER_TEMP/PitchStudioAndroid.zip" -d "$RUNNER_TEMP/pitchstudio-src"
           test -f "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build.gradle.kts"
 
-      - name: Atualizar DSL do Kotlin
+      - name: Aplicar Pitch Studio v1.1
         shell: bash
         run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          cat .pitchstudio/online01.b64 .pitchstudio/online02.b64 | base64 --decode > "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
+
           python3 - <<'PY'
           from pathlib import Path
           import os
-          p = Path(os.environ["RUNNER_TEMP"]) / "pitchstudio-src/PitchStudioAndroid/app/build.gradle.kts"
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "pitchstudio-src/PitchStudioAndroid"
+
+          # Gradle: versão 1.1.0 + DSL atual do Kotlin.
+          p = root / "app/build.gradle.kts"
           s = p.read_text(encoding="utf-8")
-          old = '    kotlinOptions { jvmTarget = "17" }\n'
-          if old not in s:
-              raise SystemExit("kotlinOptions esperado não encontrado")
-          s = s.replace(old, "")
+          s = s.replace("versionCode = 1", "versionCode = 2")
+          s = s.replace('versionName = "1.0.0"', 'versionName = "1.1.0"')
+          s = s.replace('    kotlinOptions { jvmTarget = "17" }\n', "")
           if "import org.jetbrains.kotlin.gradle.dsl.JvmTarget" not in s:
               s = "import org.jetbrains.kotlin.gradle.dsl.JvmTarget\n\n" + s
-          s += '\n\nkotlin {\n    compilerOptions {\n        jvmTarget = JvmTarget.fromTarget("17")\n    }\n}\n'
+          if "kotlin {\n    compilerOptions" not in s:
+              s += '\n\nkotlin {\n    compilerOptions {\n        jvmTarget = JvmTarget.fromTarget("17")\n    }\n}\n'
           p.write_text(s, encoding="utf-8")
-          print(p.read_text(encoding="utf-8"))
+
+          # INTERNET somente para busca oficial e importação de URL HTTPS direta.
+          p = root / "app/src/main/AndroidManifest.xml"
+          s = p.read_text(encoding="utf-8")
+          if 'android.permission.INTERNET' not in s:
+              s = s.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />'
+              )
+          p.write_text(s, encoding="utf-8")
+
+          # Decoder: adiciona entrada por arquivo temporário baixado.
+          p = root / "app/src/main/java/br/com/timachado/pitchstudio/audio/AudioDecoder.kt"
+          s = p.read_text(encoding="utf-8")
+          old = '''    fun decode(
+              context: Context,
+              uri: Uri,
+              displayName: String,
+              onProgress: (Progress) -> Unit = {}
+          ): AudioProject {
+              val extractor = MediaExtractor()
+              extractor.setDataSource(context, uri, null)'''
+          new = '''    fun decode(
+              context: Context,
+              uri: Uri,
+              displayName: String,
+              onProgress: (Progress) -> Unit = {}
+          ): AudioProject = decodeInternal(context, displayName, onProgress) { extractor ->
+              extractor.setDataSource(context, uri, null)
+          }
+
+          fun decodeFile(
+              context: Context,
+              file: File,
+              displayName: String,
+              onProgress: (Progress) -> Unit = {}
+          ): AudioProject = decodeInternal(context, displayName, onProgress) { extractor ->
+              extractor.setDataSource(file.absolutePath)
+          }
+
+          private fun decodeInternal(
+              context: Context,
+              displayName: String,
+              onProgress: (Progress) -> Unit,
+              setSource: (MediaExtractor) -> Unit
+          ): AudioProject {
+              val extractor = MediaExtractor()
+              setSource(extractor)'''
+          if old not in s:
+              raise SystemExit("Bloco AudioDecoder esperado não encontrado")
+          s = s.replace(old, new)
+          p.write_text(s, encoding="utf-8")
+
+          # MainActivity: acrescenta os dois novos fluxos sem alterar o motor já aprovado.
+          p = root / "app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
+          s = p.read_text(encoding="utf-8")
+          anchor = '''        fileLabel = text("Nenhum arquivo carregado", 14f, false)
+          root.addView(fileLabel, full(wrap(), top = 8))
+
+          waveform = WaveformView(this).apply {'''
+          replacement = '''        fileLabel = text("Nenhum arquivo carregado", 14f, false)
+          root.addView(fileLabel, full(wrap(), top = 8))
+
+          val online = row()
+          online.addView(button("Buscar no YouTube") {
+              OnlineMusic.showYouTubeSearch(this) { statusLabel.text = it }
+          }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })
+          online.addView(button("Importar link de áudio") {
+              OnlineMusic.showDirectAudioImport(
+                  activity = this,
+                  cacheDir = cacheDir,
+                  onStatus = { statusLabel.text = it },
+                  onProgress = { message, value -> showProgress(message, value) },
+                  onDownloaded = { file, name -> loadRemoteAudio(file, name) },
+                  onError = { message -> hideProgress("Falha ao importar: $message") }
+              )
+          }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginStart = dp(6) })
+          root.addView(online, full(wrap(), top = 10))
+          root.addView(
+              text("YouTube usa a busca oficial. Links HTTPS diretos de áudio podem ser importados e processados localmente.", 12f, false),
+              full(wrap(), top = 6)
+          )
+
+          waveform = WaveformView(this).apply {'''
+          if anchor not in s:
+              raise SystemExit("Âncora da interface não encontrada")
+          s = s.replace(anchor, replacement)
+
+          method_anchor = '''    private fun pickAudio() {'''
+          method = '''    private fun loadRemoteAudio(file: File, name: String) {
+              player.pause()
+              refreshPlayButton()
+              showProgress("Decodificando áudio importado…", 0)
+              executor.execute {
+                  try {
+                      val p = AudioDecoder.decodeFile(this, file, name) { pr ->
+                          handler.post { showProgress(pr.message, pr.percent) }
+                      }
+                      val estimate = try { KeyEstimator.estimate(p) } catch (_: Throwable) { null }
+                      file.delete()
+                      handler.post {
+                          player.pause()
+                          cleanupProjects()
+                          fileLabel.text = name
+                          original = p
+                          processed = null
+                          keyEstimate = estimate
+                          waveform.waveform = p.waveform
+                          waveform.progress = 0.0
+                          player.setProject(p)
+                          useProcessed = false
+                          updateAbButton()
+                          updateKeyLabel()
+                          hideProgress("Áudio importado da internet. O processamento permanece local no aparelho.")
+                          scheduleProcess(immediate = true)
+                      }
+                  } catch (t: Throwable) {
+                      file.delete()
+                      handler.post {
+                          hideProgress("Falha ao decodificar o áudio importado: ${t.message ?: "formato incompatível"}")
+                      }
+                  }
+              }
+          }
+
+          private fun pickAudio() {'''
+          if method_anchor not in s:
+              raise SystemExit("Âncora de métodos não encontrada")
+          s = s.replace(method_anchor, method, 1)
+          p.write_text(s, encoding="utf-8")
+
+          print("Pitch Studio v1.1 aplicado.")
           PY
 
       - name: Java 17
@@ -94,7 +233,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-debug-apk
+          name: PitchStudio-v1.1.0-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
