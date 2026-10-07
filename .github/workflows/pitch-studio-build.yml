@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
-          cat .pitchstudio/online01.b64 .pitchstudio/online02.b64 | base64 --decode > "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
+          cat .pitchstudio/online01.b64 .pitchstudio/online02a.b64 .pitchstudio/online02b.b64 .pitchstudio/online02c.b64 | base64 --decode > "$SRC/app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
 
           python3 - <<'PY'
           from pathlib import Path
