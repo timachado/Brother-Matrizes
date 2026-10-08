@@ -133,14 +133,35 @@ object EmbroiderySequenceAudit {
             val y = (point.yUnits - minY) / height
             x to (if (design.sourceYAxisDown) y else 1.0 - y)
         }
-        val lengths = mutableListOf(0.0)
-        for (i in 1 until path.size) {
-            val a = path[i - 1]
-            val b = path[i]
-            lengths += lengths.last() +
-                hypot((b.xUnits - a.xUnits).toDouble(), (b.yUnits - a.yUnits).toDouble())
+        // Somente a DISTANCIA COSTURADA deve contar na cronologia.
+        // Na forma anterior, remover os JUMPs antes de calcular
+        // comprimentos ligava falsamente dois trechos separados por
+        // um salto. O writer PES pode subdividir esses JUMPs, mudando
+        // muito os checkpoints sem que a ordem real tenha mudado.
+        val lengths = mutableListOf<Double>()
+        var total = 0.0
+        var previousStitch: EmbroideryPoint? = null
+        design.points.forEach { point ->
+            if (point.command == StitchCommand.STITCH) {
+                val previous = previousStitch
+                if (previous != null) {
+                    total += hypot(
+                        (point.xUnits - previous.xUnits).toDouble(),
+                        (point.yUnits - previous.yUnits).toDouble()
+                    )
+                }
+                lengths += total
+                previousStitch = point
+            } else if (
+                point.command == StitchCommand.JUMP ||
+                point.command == StitchCommand.TRIM ||
+                point.command == StitchCommand.COLOR_CHANGE ||
+                point.command == StitchCommand.STOP ||
+                point.command == StitchCommand.END
+            ) {
+                previousStitch = null
+            }
         }
-        val total = lengths.lastOrNull() ?: 0.0
         val checkpoints = (0..10).map { index ->
             val target = total * index / 10.0
             val slot = lengths.indexOfFirst { it >= target }.let {
