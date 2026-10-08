@@ -45,6 +45,7 @@ object EmbroiderySequenceAudit {
         val firstDistance: Double,
         val lastDistance: Double,
         val maxCheckpointDistance: Double,
+        val orderedMatchedRatio: Double,
         val checkpoints: Int,
         val before: Report,
         val after: Report
@@ -56,13 +57,18 @@ object EmbroiderySequenceAudit {
             get() = checkpoints >= 5 &&
                 firstDistance <= 0.08 &&
                 lastDistance <= 0.08 &&
-                maxCheckpointDistance <= 0.14
+                // Writer PES pode inserir pontos intermediarios, alterando
+                // o progresso por percentuais sem alterar a ORDEM fisica.
+                // A verificacao principal confirma que os pontos de
+                // origem reaparecem na mesma ordem de costura.
+                orderedMatchedRatio >= 0.95
 
         fun summary(): String =
             "before=${before.stitches} stitches / ${before.jumps} jumps " +
                 "after=${after.stitches} stitches / ${after.jumps} jumps " +
                 "first=${firstDistance} last=${lastDistance} " +
                 "maxCheckpoint=${maxCheckpointDistance} " +
+                "orderedMatch=${orderedMatchedRatio} " +
                 "revisits=${before.revisitBins}->${after.revisitBins} " +
                 "backtracks=${before.significantBacktracks}->${after.significantBacktracks} " +
                 "preserved=$orderedPathPreserved"
@@ -81,10 +87,65 @@ object EmbroiderySequenceAudit {
             firstDistance = distances.firstOrNull() ?: Double.POSITIVE_INFINITY,
             lastDistance = distances.lastOrNull() ?: Double.POSITIVE_INFINITY,
             maxCheckpointDistance = distances.maxOrNull() ?: Double.POSITIVE_INFINITY,
+            orderedMatchedRatio = orderedMatchRatio(generated, reopened),
             checkpoints = distances.size,
             before = before,
             after = after
         )
+    }
+
+    /**
+     * Verificacao da cronologia exata tolerando pontos intermediarios
+     * inseridos pelo encoder PES. Cada ponto STITCH original deve
+     * reaparecer em ordem na lista de STITCHs reaberta.
+     *
+     * Compara a POSICAO VISUAL relativa em unidades da maquina,
+     * portanto a transladacao da origem PES nao interfere.
+     * Retornos ou trocas de colunas reduzem a correspondencia.
+     */
+    private fun orderedMatchRatio(
+        generated: EmbroideryDesign,
+        reopened: EmbroideryDesign
+    ): Double {
+        fun coordinates(design: EmbroideryDesign): List<Pair<Int, Int>> {
+            val points = design.points.filter {
+                it.command == StitchCommand.STITCH
+            }
+            val minX = points.minOfOrNull { it.xUnits } ?: 0
+            val minY = points.minOfOrNull { it.yUnits } ?: 0
+            val maxY = points.maxOfOrNull { it.yUnits } ?: 0
+            return points.map { point ->
+                val relativeY = if (design.sourceYAxisDown) {
+                    point.yUnits - minY
+                } else {
+                    maxY - point.yUnits
+                }
+                (point.xUnits - minX) to relativeY
+            }
+        }
+
+        val before = coordinates(generated)
+        val after = coordinates(reopened)
+        if (before.isEmpty() || after.isEmpty()) return 0.0
+
+        var position = 0
+        var matched = 0
+        before.forEach { (x, y) ->
+            val lastCandidate = minOf(after.lastIndex, position + 48)
+            var found = -1
+            for (i in position..lastCandidate) {
+                val (cx, cy) = after[i]
+                if (abs(cx - x) <= 2 && abs(cy - y) <= 2) {
+                    found = i
+                    break
+                }
+            }
+            if (found >= 0) {
+                matched++
+                position = found + 1
+            }
+        }
+        return matched.toDouble() / before.size
     }
 
     /**
