@@ -3450,10 +3450,21 @@ object ImportedFontMatrixGenerator {
             .minByOrNull { line -> line.minOf { it.x } }
             ?.first()
 
-        val splitSegments =
+        val originalSegments =
             rebaseLeadingClosedStrokeFlow(
                 splitStrokeFlowSegments(normalizedLines)
             )
+
+        // Entra no pé INTERNO do primeiro glifo, inclusive quando a
+        // linha mediana é contínua e esse pé fica no meio de um ramo.
+        // Apenas escolher um rootHint não bastava: o planejador só
+        // aceitava as extremidades arbitrárias dos segmentos.
+        val (splitSegments, actualFirstEntry) =
+            if (preferInitialStroke) {
+                seedStrokeFlowAtInnerFoot(originalSegments)
+            } else {
+                originalSegments to null
+            }
 
         if (
             splitSegments.isEmpty()
@@ -3512,11 +3523,12 @@ object ImportedFontMatrixGenerator {
                 segments =
                     usableSegments,
                 rootHint =
-                    loopEntry ?: if (preferInitialStroke) {
-                        preferredOpenSwashEntry(usableSegments)
-                    } else {
-                        preferredStrokeFlowEntry(usableSegments)
-                    }
+                    actualFirstEntry ?: loopEntry
+                        ?: if (preferInitialStroke) {
+                            preferredOpenSwashEntry(usableSegments)
+                        } else {
+                            preferredStrokeFlowEntry(usableSegments)
+                        }
             )
 
         if (
@@ -3575,29 +3587,17 @@ object ImportedFontMatrixGenerator {
                 return@forEach
             }
 
-            when (
-                step.phase
-            ) {
-                StrokeFlowPhase.CENTER_RUN ->
-                    emitStrokeFlowCenterRun(
-                        output =
-                            output,
-                        rows =
-                            rows,
-                        includeUnderlay =
-                            includeUnderlay,
-                        densityUnits =
-                            densityUnits
-                    )
-
-                StrokeFlowPhase.SATIN_RETURN ->
-                    emitStrokeFlowCoverage(
-                        output =
-                            output,
-                        rows =
-                            rows
-                    )
-            }
+            // Cada linha medial é bordada de entrada até saída UMA
+            // vez, com underlay local e Satin intercalados. Antes,
+            // o centro percorria tudo e a cobertura voltava inteira,
+            // prendendo a agulha no mesmo pé e fazendo o simulador
+            // saltar novamente para outras regiões do mesmo glifo.
+            emitStrokeFlowProgressive(
+                output = output,
+                rows = rows,
+                includeUnderlay = includeUnderlay,
+                densityUnits = densityUnits
+            )
         }
 
         return if (
@@ -4161,14 +4161,13 @@ object ImportedFontMatrixGenerator {
                 toNode = chosen.toNode,
                 phase = StrokeFlowPhase.CENTER_RUN
             )
-            plan += StrokeFlowTraversalStep(
-                segmentId = chosen.segment.id,
-                fromNode = chosen.toNode,
-                toNode = chosen.fromNode,
-                phase = StrokeFlowPhase.SATIN_RETURN
-            )
-            // A cobertura terminou na entrada da area, nao na saida.
-            needle = chosen.entry
+            // O ultimo ponto Satin agora está na SAIDA real. Escolher
+            // o próximo ramo a partir da entrada causava retornos.
+            needle = if (chosen.fromNode == chosen.segment.startNode) {
+                chosen.segment.points.last()
+            } else {
+                chosen.segment.points.first()
+            }
             remaining.remove(chosen.segment)
         }
 
@@ -4183,6 +4182,83 @@ object ImportedFontMatrixGenerator {
         val distance = pointDistance(current, destination)
         val backwards = (current.x - destination.x).coerceAtLeast(0)
         return distance + backwards * 1.5
+    }
+
+    /**
+     * Resolve a entrada real do primeiro glifo no seu pé interno.
+     * A máscara usa X para a direita e Y para baixo. Se o ponto
+     * mais próximo está no MEIO de um traço, cortamos somente a
+     * topologia da linha mediana; os contornos Satin não mudam.
+     */
+    private fun seedStrokeFlowAtInnerFoot(
+        segments: List<StrokeFlowSegment>
+    ): Pair<List<StrokeFlowSegment>, SkeletonPoint?> {
+        if (segments.isEmpty()) return segments to null
+        val points = segments.flatMap { it.points }
+        val left = points.minOf { it.x }
+        val right = points.maxOf { it.x }
+        val top = points.minOf { it.y }
+        val bottom = points.maxOf { it.y }
+        val width = (right - left).coerceAtLeast(1)
+        val height = (bottom - top).coerceAtLeast(1)
+        val aimX = left + width * 0.36
+        val aimY = top + height * 0.88
+        val candidates = segments.flatMap { segment ->
+            segment.points.mapIndexedNotNull { index, point ->
+                if (
+                    point.x < left + width * 0.13 ||
+                    point.x > left + width * 0.64 ||
+                    point.y < top + height * 0.52
+                ) null else Triple(segment, index, point)
+            }
+        }
+        if (candidates.isEmpty()) return segments to null
+
+        val chosen = candidates.minBy { (_, _, point) ->
+            val dx = (point.x - aimX).toDouble() / width
+            val dy = (point.y - aimY).toDouble() / height
+            dx * dx + dy * dy * 1.4
+        }
+        val segment = chosen.first
+        val index = chosen.second
+        val entry = chosen.third
+        val line = segment.points
+
+        if (segment.startNode == segment.endNode && line.size > 3) {
+            val loop = line.dropLast(1)
+            val rotated = loop.drop(index) + loop.take(index)
+            val closed = rotated + rotated.first()
+            return segments.map { existing ->
+                if (existing.id == segment.id) {
+                    existing.copy(
+                        points = closed,
+                        startNode = strokeFlowNodeKey(entry),
+                        endNode = strokeFlowNodeKey(entry)
+                    )
+                } else existing
+            } to entry
+        }
+
+        if (index == 0 || index == line.lastIndex) {
+            return segments to entry
+        }
+
+        // Torna a entrada um nó REAL do grafo, sem alterar nem excluir
+        // trechos do desenho. Ambos os lados continuam bordáveis.
+        val firstHalf = line.subList(0, index + 1)
+        val secondHalf = line.subList(index, line.size)
+        val extraId = segments.maxOf { it.id } + 1
+        val first = segment.copy(
+            points = firstHalf,
+            endNode = strokeFlowNodeKey(entry)
+        )
+        val second = segment.copy(
+            id = extraId,
+            points = secondHalf,
+            startNode = strokeFlowNodeKey(entry)
+        )
+        return (segments.filter { it.id != segment.id } +
+            listOf(first, second)) to entry
     }
 
     private fun buildStrokeFlowRows(
@@ -4581,6 +4657,72 @@ object ImportedFontMatrixGenerator {
                     0
                 )
         }
+    }
+
+    /**
+     * Underlay e cobertura progressivos por linha Satin: nunca costura
+     * o centro inteiro para depois voltar por todo o mesmo percurso.
+     * O último ponto permanece na SAIDA do segmento, permitindo
+     * continuar a região seguinte a partir da posição física real.
+     */
+    private fun emitStrokeFlowProgressive(
+        output: MutableList<EmbroideryPoint>,
+        rows: List<StrokeFlowSatinRow>,
+        includeUnderlay: Boolean,
+        densityUnits: Float
+    ) {
+        if (rows.isEmpty()) return
+        val first = rows.first()
+        moveStrokeFlowTo(
+            output = output,
+            targetX = first.centerXUnits,
+            targetY = first.centerYUnits,
+            allowStitch = true
+        )
+        val underlayStride = maxOf(1, (14f / densityUnits).roundToInt())
+        rows.forEachIndexed { index, row ->
+            if (includeUnderlay &&
+                (index % underlayStride == 0 || index == rows.lastIndex)
+            ) {
+                val previous = output.last()
+                appendSplitStitch(
+                    output = output,
+                    fromX = previous.xUnits,
+                    fromY = previous.yUnits,
+                    toX = row.centerXUnits,
+                    toY = row.centerYUnits,
+                    maxLengthUnits = 70f
+                )
+            }
+            var previous = output.last()
+            appendSplitStitch(
+                output = output,
+                fromX = previous.xUnits,
+                fromY = previous.yUnits,
+                toX = row.aXUnits,
+                toY = row.aYUnits,
+                maxLengthUnits = 70f
+            )
+            previous = output.last()
+            appendSplitStitch(
+                output = output,
+                fromX = previous.xUnits,
+                fromY = previous.yUnits,
+                toX = row.bXUnits,
+                toY = row.bYUnits,
+                maxLengthUnits = 70f
+            )
+        }
+        val end = rows.last()
+        val previous = output.last()
+        appendSplitStitch(
+            output = output,
+            fromX = previous.xUnits,
+            fromY = previous.yUnits,
+            toX = end.centerXUnits,
+            toY = end.centerYUnits,
+            maxLengthUnits = 70f
+        )
     }
 
     private fun emitStrokeFlowCenterRun(
