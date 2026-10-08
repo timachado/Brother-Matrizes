@@ -2190,16 +2190,14 @@ internal object PeDesignImportedFontEngine {
                             positionOnPath(middle, path)
                         }.thenBy { columnLeftEdgeX(it.column) }
                     )
-                    ordered.forEach { candidate ->
-                        emitter.emitGlyph(
-                            columns = listOf(candidate.column),
-                            polygons = candidate.polygons,
-                            startHint = path.first(),
-                            underlayMode = underlayMode,
-                            densityMm = densityMm,
-                            guidedOrder = true
-                        )
-                    }
+                    emitter.emitGlyph(
+                        columns = ordered.map { it.column },
+                        polygons = allPolygons,
+                        startHint = path.first(),
+                        underlayMode = underlayMode,
+                        densityMm = densityMm,
+                        guidedOrder = true
+                    )
                 }
             }
         }
