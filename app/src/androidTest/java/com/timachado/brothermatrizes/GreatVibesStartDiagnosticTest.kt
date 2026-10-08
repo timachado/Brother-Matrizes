@@ -378,4 +378,58 @@ class GreatVibesStartDiagnosticTest {
                 1200
         )
     }
+
+    @Test
+    fun diagnoseMariaVisualStartOnGreatVibes() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val targetContext = instrumentation.targetContext
+        val fixture = File(targetContext.cacheDir, "GreatVibes-Regular.ttf")
+        instrumentation.context.assets.open("GreatVibes-Regular.ttf").use { input ->
+            fixture.outputStream().use { output -> input.copyTo(output) }
+        }
+        val font = ImportedFont(
+            id = fixture.name,
+            displayName = "Great Vibes",
+            fileName = fixture.name,
+            extension = "ttf",
+            absolutePath = fixture.absolutePath
+        )
+        val options = TextMatrixOptions(
+            text = "Maria",
+            heightMm = 60f,
+            spacingMm = 0f,
+            stitchLengthMm = 2.5f,
+            style = TextStitchStyle.SATIN,
+            satinWidthMm = 2.4f,
+            satinDensityMm = 0.4f,
+            satinPullCompensationMm = 0.2f,
+            satinShortStitches = true,
+            satinUnderlayMode = SatinUnderlayMode.NONE,
+            specialStitchMode = null,
+            color = 0xE63946,
+            outputFormat = "PES",
+            hoopProfile = HoopProfile.H200X300,
+            fabricProfile = FabricProfile.COTTON,
+            enforceHoop = false,
+            rotationDegrees = 0f
+        )
+        val design = ImportedFontMatrixGenerator.generateText(
+            font = font, text = "Maria", options = options
+        ).getOrThrow()
+        val first = design.points.first { it.command != StitchCommand.TRIM }
+        val b = design.bounds
+        Log.i("GreatVibesDiagnostic", "MARIA size=" + b.widthMm + "x" + b.heightMm + " pts=" + design.points.size)
+        Log.i("GreatVibesDiagnostic", "MARIA first=" + first.command + " " + first.xUnits + "," + first.yUnits
+             + " bounds=" + b.minXUnits + "," + b.minYUnits + ".." + b.maxXUnits + "," + b.maxYUnits)
+        Log.i("GreatVibesDiagnostic", "MARIA structural:\n" +
+            com.timachado.brothermatrizes.font.PeDesignImportedFontEngine.debugRealStartGeometry(
+                font = font, sourceText = "Maria", options = options
+            )
+        )
+        design.points.take(35).forEachIndexed { index, p ->
+            Log.i("GreatVibesDiagnostic", "MARIA_POINT " + index + " " + p.command + " " + p.xUnits + "," + p.yUnits)
+        }
+        assertTrue("Generated stitches must be nonempty.", design.stitchCount > 100)
+    }
+
 }
