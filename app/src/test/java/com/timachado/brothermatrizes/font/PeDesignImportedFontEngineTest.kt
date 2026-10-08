@@ -519,6 +519,16 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun structuralEntryUsesBottomOfYAxisDownInsteadOfTop() {
+        assertEquals(
+            "Em sourceYAxisDown=true, selecionar maior Y como base real.",
+            140f,
+            PeDesignImportedFontEngine.debugStructuralFootY() ?: Float.NaN,
+            0.1f
+        )
+    }
+
+    @Test
     fun firstSatinColumnStartsInsideLowerStrokeAndCoversTheEntireColumn() {
         val points =
             PeDesignImportedFontEngine
@@ -546,7 +556,7 @@ class PeDesignImportedFontEngineTest {
 
         assertEquals(
             "A entrada do primeiro center-run deve ficar no ponto interno inferior marcado (aproximadamente 25% da coluna).",
-            40,
+            100,
             firstJump.yUnits
         )
 
@@ -568,8 +578,8 @@ class PeDesignImportedFontEngineTest {
 
         val farIndex =
             stitches.indexOfFirst {
-                it.yUnits >=
-                    70
+                it.yUnits <=
+                    30
             }
 
         assertTrue(
@@ -586,18 +596,18 @@ class PeDesignImportedFontEngineTest {
                         1
                 )
                 .any {
-                    it.yUnits <=
-                        10
+                    it.yUnits >=
+                        130
                 }
         )
 
         assertTrue(
-            "A cobertura Satin deve voltar até a extremidade original; o floreio não pode ser removido.",
+            "A cobertura Satin deve retornar ate a base do traco sem eliminar os pontos.",
             points.any {
                 it.command ==
                     StitchCommand.STITCH &&
                     it.yUnits ==
-                    0
+                    140
             }
         )
     }
