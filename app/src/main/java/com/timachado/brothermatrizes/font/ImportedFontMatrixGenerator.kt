@@ -3437,9 +3437,13 @@ object ImportedFontMatrixGenerator {
                 0f
             )
 
+        // Reposiciona o inicio do laco fechado na entrada natural do
+        // primeiro glifo. Mudar apenas o rootHint nao funciona em ciclos:
+        // neles startNode == endNode e o inicio continua sendo o pixel
+        // arbitrario devolvido por traceSkeleton().
         val splitSegments =
-            splitStrokeFlowSegments(
-                rawLines
+            rebaseLeadingClosedStrokeFlow(
+                splitStrokeFlowSegments(rawLines)
             )
 
         if (
@@ -3749,6 +3753,63 @@ object ImportedFontMatrixGenerator {
             }
     }
 
+    /**
+     * Laços fechados não possuem início topológico: o primeiro pixel da
+     * varredura é arbitrário. Giramos APENAS o ciclo inicial (o mais à
+     * esquerda) para a entrada inferior/interior do floreio da letra.
+     *
+     * A lista circular mantém todas as arestas e sua geometria intactas,
+     * alterando somente onde a costura começa. Ramos abertos e os demais
+     * glifos não são modificados.
+     */
+    private fun rebaseLeadingClosedStrokeFlow(
+        segments: List<StrokeFlowSegment>
+    ): List<StrokeFlowSegment> {
+        val leadingLoop = segments
+            .filter { segment ->
+                segment.startNode == segment.endNode &&
+                    segment.points.size >= 6 &&
+                    segment.points.first() == segment.points.last()
+            }
+            .minWithOrNull(
+                compareBy<StrokeFlowSegment> { segment ->
+                    segment.points.minOf { it.x }
+                }.thenBy { segment ->
+                    segment.points.minOf { it.y }
+                }
+            ) ?: return segments
+
+        val path = leadingLoop.points.dropLast(1)
+        val left = path.minOf { it.x }
+        val right = path.maxOf { it.x }
+        val top = path.minOf { it.y }
+        val bottom = path.maxOf { it.y }
+
+        val desired = SkeletonPoint(
+            x = (left + (right - left) * 0.66f).roundToInt(),
+            y = (top + (bottom - top) * 0.80f).roundToInt()
+        )
+
+        val newStart = path.indices.minByOrNull { index ->
+            pointDistance(path[index], desired)
+        } ?: return segments
+
+        val reordered = (path.drop(newStart) + path.take(newStart))
+            .let { rotated -> rotated + rotated.first() }
+
+        return segments.map { segment ->
+            if (segment.id != leadingLoop.id) {
+                segment
+            } else {
+                segment.copy(
+                    points = reordered,
+                    startNode = strokeFlowNodeKey(reordered.first()),
+                    endNode = strokeFlowNodeKey(reordered.last())
+                )
+            }
+        }
+    }
+
     private fun orientedStrokeFlowPoints(
         segment: StrokeFlowSegment,
         fromNode: Long
@@ -3921,6 +3982,15 @@ object ImportedFontMatrixGenerator {
     private fun preferredStrokeFlowEntry(
         segments: List<StrokeFlowSegment>
     ): SkeletonPoint? {
+        // Um ciclo inicial recém reposicionado deve ser tratado como
+        // entrada real, em vez de usar o ponto arbitrário da máscara.
+        val firstClosedLoop = segments
+            .filter { it.startNode == it.endNode && it.points.size >= 6 }
+            .minByOrNull { segment -> segment.points.minOf { it.x } }
+        if (firstClosedLoop != null) {
+            return firstClosedLoop.points.first()
+        }
+
         val ends = segments.flatMap { segment ->
             listOf(segment.points.first(), segment.points.last())
         }
