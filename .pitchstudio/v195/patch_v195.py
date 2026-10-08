@@ -14,7 +14,14 @@ gradle=root/"app/build.gradle.kts"
 g=gradle.read_text(encoding="utf-8")
 assert g.count("versionCode = 14")==1 and g.count('versionName = "1.9.4"')==1
 assert 'applicationIdSuffix = ".expressive"' in g
+# Instalação isolada, sem sobrescrever a prévia 1.9.4 que pode estar no aparelho.
+g=g.replace('applicationIdSuffix = ".expressive"', 'applicationIdSuffix = ".expressivefix"',1)
 g=g.replace("versionCode = 14", "versionCode = 15",1)
 g=g.replace('versionName = "1.9.4"', 'versionName = "1.9.5"',1)
 gradle.write_text(g,encoding="utf-8")
+manifest=root/"app/src/main/AndroidManifest.xml"
+m=manifest.read_text(encoding="utf-8")
+if 'android:label="PitchStudio"' in m:
+    m=m.replace('android:label="PitchStudio"', 'android:label="PitchStudio Fix"',1)
+manifest.write_text(m,encoding="utf-8")
 print("PitchStudio 1.9.5: inicialização TextInputLayout corrigida; mídia e projeto preservados.")
