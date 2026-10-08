@@ -523,6 +523,25 @@ class PeDesignImportedFontEngineTest {
         val points = PeDesignImportedFontEngine.debugGuidedRouteStageOrder()
         val stitches = points.filter { it.command == StitchCommand.STITCH }
         assertTrue("A rota guiada precisa gerar pontos reais.", stitches.size > 10)
+        assertEquals(
+            "O primeiro comando deve posicionar a agulha SEM costurar.",
+            StitchCommand.JUMP, points.first().command
+        )
+        assertEquals(
+            "O PRIMEIRO ponto de agulha deve ser o inicio marcado pelo usuario.",
+            StitchCommand.STITCH, points[1].command
+        )
+        assertEquals("X de inicio nao pode ser movido.", 85, points[1].xUnits)
+        assertEquals("Y de inicio nao pode ser movido.", 25, points[1].yUnits)
+        assertEquals("Agulha e primeira perfuracao no mesmo X.",
+            points.first().xUnits, points[1].xUnits)
+        assertEquals("Agulha e primeira perfuracao no mesmo Y.",
+            points.first().yUnits, points[1].yUnits)
+        val firstTravel = points.indexOfFirst { i ->
+            i.command == StitchCommand.JUMP && i.xUnits != 85
+        }
+        assertTrue("A proxima regiao deve ser alcancada sem linha de ligacao.",
+            firstTravel > 1)
         assertTrue("O primeiro objeto deve ser o da direita.",
             stitches.first().xUnits >= 75)
         val firstLeft = stitches.indexOfFirst { it.xUnits <= 30 }
