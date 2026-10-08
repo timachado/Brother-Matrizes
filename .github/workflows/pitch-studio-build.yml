@@ -289,6 +289,21 @@ jobs:
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
           python3 .pitchstudio/v15/patch_v15.py "$SRC"
 
+      - name: Empacotar fontes de diagnóstico
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          tar -C "$SRC" -czf "$RUNNER_TEMP/PitchStudio-v1.5-sources.tgz"             app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt             app/src/main/java/br/com/timachado/pitchstudio/audio/DspEngine.kt             app/src/main/java/br/com/timachado/pitchstudio/audio/PcmAudioPlayer.kt             app/src/main/java/br/com/timachado/pitchstudio/audio/Mp3Exporter.kt             app/src/main/java/br/com/timachado/pitchstudio/YouTubeBrowserActivity.kt             app/src/main/java/br/com/timachado/pitchstudio/YouTubeImporter.kt             app/build.gradle.kts             settings.gradle.kts             gradle.properties
+
+      - name: Publicar fontes de diagnóstico
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-v1.5-sources
+          path: ${{ runner.temp }}/PitchStudio-v1.5-sources.tgz
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
