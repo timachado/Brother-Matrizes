@@ -6843,6 +6843,35 @@ internal object PeDesignImportedFontEngine {
                 selected
             )
         }
+
+        fun debugConnectedLeftBranchPriority(): Float {
+            fun column(x: Float) = SatinColumn(
+                (0..6 step 2).map { y ->
+                    SatinRow(
+                        FPoint(x, y.toFloat()),
+                        FPoint(x + 2f, y.toFloat())
+                    )
+                }.toMutableList()
+            )
+
+            val selected = nextColumnFollowingObject(
+                columns = listOf(column(50f), column(20f)),
+                anchor = FPoint(44f, 0f),
+                underlayMode = SatinUnderlayMode.NONE,
+                polygons = listOf(
+                    Polygon(
+                        listOf(
+                            FPoint(15f, -5f),
+                            FPoint(60f, -5f),
+                            FPoint(60f, 15f),
+                            FPoint(15f, 15f)
+                        )
+                    )
+                )
+            ) ?: error("Nenhum ramo conectado encontrado")
+
+            return columnLeftEdgeX(selected)
+        }
     }
 
     internal fun debugAxisReferenceEmissionPath(
@@ -8888,6 +8917,9 @@ internal object PeDesignImportedFontEngine {
             mutableListOf()
         )
             .debugConnectedObjectWinsOverCloserUnrelatedLeg()
+
+    internal fun debugConnectedLeftBranchPriority(): Float =
+        SatinEmitter(mutableListOf()).debugConnectedLeftBranchPriority()
 
     internal fun debugFlowJunctionContinuity():
         List<List<Pair<Int, Int>>> {
