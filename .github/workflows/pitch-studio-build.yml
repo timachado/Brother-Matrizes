@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - pitch-studio-build
+      - feature/pitchstudio-p0-p1-191
   workflow_dispatch:
 
 permissions:
@@ -313,6 +314,16 @@ jobs:
           sed -i 's/val target = if (useProcessed) processed ?: o else o/val target = o/' "$MAIN"
           sed -i 's/player.setProject(target, fraction)/player.setProject(target, fraction); applyPreviewParams()/' "$MAIN"
 
+      - name: Aplicar correções PitchStudio 1.9.1 (P0/P1)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          python3 -m py_compile .pitchstudio/v191/patch_v191.py
+          python3 .pitchstudio/v191/patch_v191.py "$SRC"
+          grep -F 'versionName = "1.9.1"' "$SRC/app/build.gradle.kts"
+          test -f "$SRC/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -373,7 +384,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.0-debug-apk
+          name: PitchStudio-v1.9.1-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
