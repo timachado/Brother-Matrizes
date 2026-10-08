@@ -73,7 +73,7 @@ class PeDesignImportedFontEngineTest {
 
         assertEquals(
             "O pé estrutural, não o laço da borda esquerda, deve iniciar a primeira letra.",
-            40f to 0f,
+            40f to 64f,
             first
         )
         assertTrue(
@@ -560,8 +560,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "O underlay deve entrar em 25% da primeira coluna, sem começar no extremo do floreio.",
-            40,
+            "Em coordenadas Android a base da coluna e o MAIOR valor de Y.",
+            140,
             firstJump.yUnits
         )
 
@@ -583,7 +583,7 @@ class PeDesignImportedFontEngineTest {
 
         val farIndex =
             stitches.indexOfFirst {
-                it.yUnits >=
+                it.yUnits <=
                     70
             }
 
@@ -594,25 +594,25 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertTrue(
-            "Depois de alcançar o extremo superior, a cobertura Satin deve retornar em direção ao pé.",
+            "Depois de alcancar o topo, a cobertura Satin deve retornar ao pe.",
             stitches
                 .drop(
                     farIndex +
                         1
                 )
                 .any {
-                    it.yUnits <=
-                        10
+                    it.yUnits >=
+                        130
                 }
         )
 
         assertTrue(
-            "A cobertura Satin deve voltar até a extremidade original; o floreio não pode ser removido.",
+            "A cobertura Satin tambem deve preservar o extremo inferior.",
             points.any {
                 it.command ==
                     StitchCommand.STITCH &&
                     it.yUnits ==
-                    0
+                    140
             }
         )
     }
