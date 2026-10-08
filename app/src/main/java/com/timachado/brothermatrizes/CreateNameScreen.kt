@@ -984,9 +984,9 @@ fun CreateNameScreen(
                                         "Percurso marcado indisponível — verifique a referência."
                                     } else if (useTracedMariaRoute &&
                                         layoutMode == TextLayoutMode.STRAIGHT) {
-                                        "Percurso marcado ATIVO: primeira pontada no início definido e 13 etapas."
+                                        "Satin guiado ATIVO: iniciar na marca e preencher cada letra por completo."
                                     } else {
-                                        "Percurso marcado DESATIVADO — simulação automática."
+                                        "Satin guiado DESATIVADO — percurso automatico."
                                     },
                                     color = if (tracedMariaRoute != null && useTracedMariaRoute &&
                                         layoutMode == TextLayoutMode.STRAIGHT) FioGold else FioTextMuted,
@@ -1861,12 +1861,12 @@ fun CreateNameScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            "Percurso guiado de Maria (13 etapas)",
+                                            "Costura Satin guiada por letra",
                                             color = FioText,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         Text(
-                                            "Usar a rota marcada na imagem, respeitando os 4 saltos sem pontada. Exclusivo para o nome e a fonte de referencia.",
+                                            "Seguir cada traco marcado com underlay e cobertura Satin, concluindo uma letra antes da proxima. Sem saltos artificiais entre etapas.",
                                             color = FioTextMuted,
                                             fontSize = 10.sp
                                         )
