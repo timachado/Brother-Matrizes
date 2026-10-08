@@ -10,6 +10,7 @@ on:
       - fix/pitchstudio-youtube-launch-195
       - feature/pitchstudio-project-library-197
       - feature/pitchstudio-tom-ideal-198
+      - feature/pitchstudio-voice-song-match-199
   workflow_dispatch:
 
 permissions:
@@ -387,6 +388,17 @@ jobs:
           python3 -m py_compile .pitchstudio/v198/patch_v198.py
           python3 .pitchstudio/v198/patch_v198.py "$SRC"
 
+      - name: Integrar comparação voz e música 1.9.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          PKG="$SRC/app/src/main/java/br/com/timachado/pitchstudio"
+          cp .pitchstudio/v199/SongPhraseAnalyzer.kt "$PKG/SongPhraseAnalyzer.kt"
+          python3 -m py_compile .pitchstudio/v199/patch_v199.py
+          python3 .pitchstudio/v199/patch_v199.py "$SRC"
+          grep -F 'versionName = "1.9.9"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -447,7 +459,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.8-M3Expressive-TomIdeal-preview-apk
+          name: PitchStudio-v1.9.9-VoiceSongMatch-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -465,13 +477,13 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v198/smoke-voice.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v199/smoke-voice-match.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Publicar evidências do teste Android
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.8-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-voice-smoke/
+          name: PitchStudio-v1.9.9-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-voice-match-smoke/
           if-no-files-found: warn
           retention-days: 7
