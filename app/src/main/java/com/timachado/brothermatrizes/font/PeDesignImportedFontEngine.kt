@@ -1957,7 +1957,8 @@ internal object PeDesignImportedFontEngine {
                     tortuosity =
                         tortuosity,
                     bottomCenter =
-                        centers.minBy {
+                        // sourceYAxisDown=true: maior Y e a base visual.
+                        centers.maxBy {
                             it.y
                         }
                 )
@@ -5751,11 +5752,11 @@ internal object PeDesignImportedFontEngine {
                 )
 
             /*
-             * Designs created by this engine use sourceYAxisDown=false.
-             * Simulator therefore renders smaller yUnits lower on screen.
+             * O design gerado usa sourceYAxisDown=true.
+             * Y maior significa ponto visualmente mais baixo.
              */
             return if (
-                first.y <=
+                first.y >=
                     last.y
             ) {
                 first
