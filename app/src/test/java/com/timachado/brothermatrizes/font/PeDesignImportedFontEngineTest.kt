@@ -8,6 +8,17 @@ import org.junit.Test
 class PeDesignImportedFontEngineTest {
 
     @Test
+    fun adamiyaLeftFlourishIsFinishedBeforeJumpingToRightLeg() {
+        assertEquals(
+            "O diagnóstico Maria mostrou uma faixa do M pendente à esquerda. " +
+                "Não avance para a perna direita antes de terminá-la.",
+            17f,
+            PeDesignImportedFontEngine.debugLeftMFlourishFinishesBeforeRightLeg(),
+            0.001f
+        )
+    }
+
+    @Test
     fun productionSatinPuroNeverAddsCenterUnderlay() {
         val modes = PeDesignImportedFontEngine
             .debugProductionUnderlayOverrides()
