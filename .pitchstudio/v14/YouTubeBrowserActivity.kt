@@ -1,0 +1,319 @@
+package br.com.timachado.pitchstudio
+
+import android.app.Activity
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+class YouTubeBrowserActivity : Activity() {
+    companion object {
+        const val EXTRA_FILE_PATH = "pitchstudio_file_path"
+        const val EXTRA_DISPLAY_NAME = "pitchstudio_display_name"
+    }
+
+    private lateinit var queryInput: EditText
+    private lateinit var status: TextView
+    private lateinit var progress: ProgressBar
+    private lateinit var resultsContainer: LinearLayout
+
+    private val thumbClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .build()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        buildUi()
+    }
+
+    private fun buildUi() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setBackgroundColor(Color.rgb(6, 17, 28))
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        header.addView(button("‹") { finish() }, LinearLayout.LayoutParams(dp(52), dp(48)))
+        header.addView(text("YouTube", 24f, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        root.addView(header)
+
+        root.addView(
+            text(
+                "Pesquise no YouTube. Abra para conferir ou baixe o áudio direto para o Pitch Studio.",
+                13f,
+                false
+            ),
+            full(wrap(), top = 4)
+        )
+
+        val searchRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        queryInput = EditText(this).apply {
+            hint = "Música, artista ou link do YouTube"
+            setHintTextColor(Color.rgb(135, 154, 174))
+            setTextColor(Color.WHITE)
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setBackgroundColor(Color.rgb(24, 39, 54))
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+
+        searchRow.addView(queryInput, LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+            marginEnd = dp(8)
+        })
+        searchRow.addView(button("Buscar") { submit() }, LinearLayout.LayoutParams(dp(92), dp(52)))
+        root.addView(searchRow, full(wrap(), top = 14))
+
+        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            visibility = View.GONE
+        }
+        root.addView(progress, full(dp(8), top = 10))
+
+        status = text("Digite uma música ou artista para pesquisar.", 13f, false)
+        root.addView(status, full(wrap(), top = 8))
+
+        resultsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(resultsContainer)
+        }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply {
+            topMargin = dp(8)
+        })
+
+        setContentView(root)
+    }
+
+    private fun submit() {
+        val value = queryInput.text.toString().trim()
+        if (value.isBlank()) return
+
+        if (YouTubeImporter.isYouTubeUrl(value)) {
+            downloadToPitchStudio(value, value)
+        } else {
+            search(value)
+        }
+    }
+
+    private fun search(query: String) {
+        status.text = "Pesquisando no YouTube…"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = true
+        resultsContainer.removeAllViews()
+
+        Thread {
+            try {
+                val results = YouTubeImporter.search(query, 20)
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+
+                    if (results.isEmpty()) {
+                        status.text = "Nenhum resultado encontrado."
+                        return@runOnUiThread
+                    }
+
+                    status.text = results.size.toString() + " resultados"
+                    results.forEach { addResultCard(it) }
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+                    status.text = "Falha na busca: " + (t.message ?: "erro desconhecido")
+                }
+            }
+        }.apply {
+            name = "PitchStudio-YouTubeSearch"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun addResultCard(result: YouTubeImporter.Result) {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundColor(Color.rgb(25, 39, 53))
+        }
+
+        val main = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
+        }
+
+        val thumb = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(Color.rgb(45, 57, 70))
+        }
+        main.addView(thumb, LinearLayout.LayoutParams(dp(128), dp(72)).apply {
+            marginEnd = dp(12)
+        })
+
+        val meta = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        meta.addView(text(result.title, 16f, true))
+
+        val duration = if (result.durationSeconds > 0) {
+            val total = result.durationSeconds
+            " • %02d:%02d".format(total / 60, total % 60)
+        } else ""
+
+        meta.addView(text(result.uploader + duration, 12f, false))
+        main.addView(meta, LinearLayout.LayoutParams(0, wrap(), 1f))
+        card.addView(main)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        actions.addView(
+            button("Abrir no YouTube") { openInYouTube(result.url) },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(6) }
+        )
+        actions.addView(
+            button("Baixar para Pitch Studio") { downloadToPitchStudio(result.url, result.title) },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(6) }
+        )
+
+        card.addView(actions, full(wrap(), top = 10))
+        resultsContainer.addView(card, full(wrap(), top = 8))
+
+        if (result.thumbnailUrl.isNotBlank()) {
+            loadThumbnail(result.thumbnailUrl, thumb)
+        }
+    }
+
+    private fun openInYouTube(url: String) {
+        val normalized = try {
+            YouTubeImporter.normalizeYouTubeUrl(url)
+        } catch (_: Throwable) {
+            url
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(normalized)).apply {
+            setPackage("com.google.android.youtube")
+        }
+
+        try {
+            startActivity(intent)
+        } catch (_: Throwable) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
+            } catch (_: Throwable) {
+                status.text = "Não foi possível abrir o YouTube."
+            }
+        }
+    }
+
+    private fun downloadToPitchStudio(url: String, title: String) {
+        status.text = "Preparando " + title + "…"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = false
+        progress.progress = 2
+
+        Thread {
+            try {
+                val downloaded = YouTubeImporter.downloadBestAudio(this, url) { message, value ->
+                    runOnUiThread {
+                        status.text = message
+                        progress.progress = value.coerceIn(0, 100)
+                    }
+                }
+
+                runOnUiThread {
+                    progress.progress = 100
+                    status.text = "Carregando no Pitch Studio…"
+
+                    val result = Intent().apply {
+                        putExtra(EXTRA_FILE_PATH, downloaded.file.absolutePath)
+                        putExtra(EXTRA_DISPLAY_NAME, downloaded.displayName)
+                    }
+                    setResult(RESULT_OK, result)
+                    finish()
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    status.text = "Falha ao baixar: " + (t.message ?: "conteúdo indisponível")
+                }
+            }
+        }.apply {
+            name = "PitchStudio-YouTubeDownload"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun loadThumbnail(url: String, target: ImageView) {
+        Thread {
+            try {
+                val response = thumbClient.newCall(Request.Builder().url(url).build()).execute()
+                response.use {
+                    if (!it.isSuccessful) return@use
+                    val bytes = it.body?.bytes() ?: return@use
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use
+                    runOnUiThread { target.setImageBitmap(bitmap) }
+                }
+            } catch (_: Throwable) {
+            }
+        }.apply {
+            name = "PitchStudio-Thumbnail"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun button(label: String, action: () -> Unit): Button =
+        Button(this).apply {
+            text = label
+            isAllCaps = false
+            setTextColor(Color.rgb(198, 222, 238))
+            setBackgroundColor(Color.rgb(73, 78, 85))
+            setOnClickListener { action() }
+        }
+
+    private fun text(value: String, size: Float, bold: Boolean): TextView =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(if (bold) Color.WHITE else Color.rgb(174, 193, 211))
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+
+    private fun full(height: Int, top: Int = 0): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(-1, height).apply { topMargin = dp(top) }
+
+    private fun wrap(): Int = LinearLayout.LayoutParams.WRAP_CONTENT
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+}
