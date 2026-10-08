@@ -16,6 +16,7 @@ on:
       - feature/pitchstudio-real-vocal-stems-1102
       - fix/pitchstudio-stem-validation-1103
       - feature/pitchstudio-stem-wav-export-1104
+      - feature/pitchstudio-long-stems-1105
   workflow_dispatch:
 
 permissions:
@@ -475,6 +476,20 @@ jobs:
           python3 .pitchstudio/v1104/patch_v1104.py "$SRC"
           grep -F 'versionName = "1.10.4"' "$SRC/app/build.gradle.kts"
 
+      - name: Integrar separação vocal longa PitchStudio 1.10.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          PKG="$SRC/app/src/main/java/br/com/timachado/pitchstudio"
+          TESTS="$SRC/app/src/test/java/br/com/timachado/pitchstudio"
+          cp .pitchstudio/v1105/VocalStemSeparator.kt "$PKG/VocalStemSeparator.kt"
+          cp .pitchstudio/v1105/VocalChunkPlan.kt "$PKG/VocalChunkPlan.kt"
+          cp .pitchstudio/v1105/VocalChunkPlanTest.kt "$TESTS/VocalChunkPlanTest.kt"
+          python3 -m py_compile .pitchstudio/v1105/patch_v1105.py
+          python3 .pitchstudio/v1105/patch_v1105.py "$SRC"
+          grep -F 'versionName = "1.10.5"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -535,7 +550,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.4-VocalStems-preview-apk
+          name: PitchStudio-v1.10.5-LongStems-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -545,7 +560,7 @@ jobs:
         run: |
           if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
 
-      - name: Verificar abertura do YouTube em Android 15
+      - name: Verificar Tom Ideal 12s, WAV e YouTube no Android 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -553,7 +568,7 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1104/smoke-wav.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1105/smoke-long-stems.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Criar APK ARM64 otimizado
         if: always()
@@ -561,9 +576,9 @@ jobs:
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
-          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.4-arm64-unsigned.apk"
-          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.4-arm64-aligned.apk"
-          OUT="$RUNNER_TEMP/PitchStudio-v1.10.4-arm64-preview.apk"
+          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.5-arm64-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.5-arm64-aligned.apk"
+          OUT="$RUNNER_TEMP/PitchStudio-v1.10.5-arm64-preview.apk"
           TOOLS="$ANDROID_HOME/build-tools/35.0.0"
           test -f "$SRC"
           cp "$SRC" "$TEST_APK"
@@ -599,8 +614,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.4-Vocals-ARM64-apk
-          path: ${{ runner.temp }}/PitchStudio-v1.10.4-arm64-preview.apk
+          name: PitchStudio-v1.10.5-LongStems-ARM64-apk
+          path: ${{ runner.temp }}/PitchStudio-v1.10.5-arm64-preview.apk
           if-no-files-found: warn
           retention-days: 7
 
@@ -608,7 +623,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.4-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-stem-wav-smoke/
+          name: PitchStudio-v1.10.5-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-long-stems-smoke/
           if-no-files-found: warn
           retention-days: 7
