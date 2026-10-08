@@ -4712,6 +4712,22 @@ object ImportedFontMatrixGenerator {
         }
     }
 
+    internal fun debugStrokeFlowLowerEntry(): Pair<SkeletonPoint, SkeletonPoint> {
+        val segments = splitStrokeFlowSegments(
+            listOf(
+                listOf(SkeletonPoint(0, 0), SkeletonPoint(0, 55)),
+                listOf(SkeletonPoint(35, 85), SkeletonPoint(50, 50)),
+                listOf(SkeletonPoint(65, 50), SkeletonPoint(90, 0))
+            )
+        )
+        val first = planStrokeFlowTraversal(
+            segments = segments,
+            rootHint = preferredStrokeFlowEntry(segments)
+        ).first()
+        return strokeFlowNodePoint(first.fromNode) to
+            strokeFlowNodePoint(first.toNode)
+    }
+
     private fun orderStrokeFlowSkeletonLines(
         source:
             List<List<SkeletonPoint>>
