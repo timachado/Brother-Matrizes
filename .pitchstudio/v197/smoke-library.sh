@@ -15,17 +15,24 @@ adb install -r "$APK"
 adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity"
 sleep 5
 test_visible() {
-  adb shell uiautomator dump /sdcard/screen.xml >/dev/null 2>&1
-  adb shell cat /sdcard/screen.xml > "$OUT/current.xml"
-  python3 - "$OUT/current.xml" "$1" <<'PY'
+  for attempt in 1 2 3 4; do
+    adb shell uiautomator dump /sdcard/screen.xml >/dev/null 2>&1
+    adb shell cat /sdcard/screen.xml > "$OUT/current.xml"
+    if python3 - "$OUT/current.xml" "$1" <<'PY'
 import sys
 from xml.etree import ElementTree as ET
 nodes=list(ET.parse(sys.argv[1]).getroot().iter("node"))
 target=sys.argv[2]
 if not any(target in (n.get("text","")+" "+n.get("content-desc","")) for n in nodes):
-    raise SystemExit("Elemento ausente: "+target)
+    raise SystemExit(1)
 print("Encontrado:",target)
 PY
+    then return 0; fi
+    adb shell input swipe 525 1450 525 650 300
+    sleep 1
+  done
+  echo "Não encontrou texto: $1" >&2
+  return 1
 }
 tap_text() {
   for attempt in 1 2 3 4; do
@@ -92,12 +99,19 @@ test_visible "Teste Biblioteca 197"
 test_visible "-2 semitons"
 test_visible "Ajuste fino: -5 cents"
 echo "PASSOU: áudio e ajustes foram restaurados no Android."
+tap_text "Salvar projeto"
+tap_text "Salvar"
+sleep 5
+tap_text "Meus projetos"
+test_visible "Meus projetos (2)"
+adb shell input keyevent 4
+echo "PASSOU: salvamento criado pelo aplicativo e listado como segundo projeto."
 adb shell am force-stop "$PKG"
 adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity"
 sleep 3
 tap_text "Meus projetos"
-test_visible "Teste Biblioteca 197"
-echo "PASSOU: projeto permaneceu salvo após reiniciar o aplicativo."
+test_visible "Meus projetos (2)"
+echo "PASSOU: os dois projetos permaneceram salvos após reiniciar o aplicativo."
 adb shell input keyevent 4
 sleep 1
 adb shell input swipe 525 650 525 1500 260
