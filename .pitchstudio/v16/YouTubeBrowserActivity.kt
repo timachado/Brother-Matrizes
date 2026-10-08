@@ -294,14 +294,26 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun addResultCard(result: YouTubeImporter.Result) {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            setBackgroundColor(Color.rgb(25, 39, 53))
+        val card = MaterialCardView(this).apply {
+            radius = dp(26).toFloat()
+            strokeWidth = dp(1)
+            strokeColor = Color.rgb(49, 66, 92)
+            cardElevation = 0f
+            setCardBackgroundColor(Color.rgb(19, 30, 49))
         }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(13), dp(13), dp(14))
+        }
+        card.addView(content)
 
         val mediaFrame = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
+            background = GradientDrawable().apply {
+                setColor(Color.BLACK)
+                cornerRadius = dp(18).toFloat()
+            }
+            clipToOutline = true
+            contentDescription = "Prévia em vídeo"
         }
 
         val thumb = ImageView(this).apply {
@@ -317,15 +329,16 @@ class YouTubeBrowserActivity : Activity() {
             )
         )
 
-        val playOverlay = button("▶  Pré-visualizar") {
+        val playOverlay = button("▶ Ver vídeo") {
             previewInCard(result, mediaFrame, playOverlayRef = null)
         }.apply {
-            setBackgroundColor(Color.argb(205, 25, 32, 40))
+            backgroundTintList = ColorStateList.valueOf(Color.argb(230, 33, 43, 69))
             setTextColor(Color.WHITE)
+            contentDescription = "Reproduzir prévia de " + result.title
         }
 
         val overlayParams = FrameLayout.LayoutParams(
-            dp(172),
+            dp(154),
             dp(52),
             Gravity.CENTER
         )
@@ -337,10 +350,13 @@ class YouTubeBrowserActivity : Activity() {
             previewInCard(result, mediaFrame, playOverlay)
         }
 
-        card.addView(mediaFrame, full(dp(205)))
+        content.addView(mediaFrame, full(dp(188)))
 
-        val title = text(result.title, 17f, true)
-        card.addView(title, full(wrap(), top = 10))
+        val title = text(result.title, 18f, true).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        content.addView(title, full(wrap(), top = 12))
 
         val duration = if (result.durationSeconds > 0) {
             val total = result.durationSeconds
@@ -349,41 +365,37 @@ class YouTubeBrowserActivity : Activity() {
             ""
         }
 
-        card.addView(
+        content.addView(
             text(result.uploader + duration, 13f, false),
             full(wrap(), top = 3)
         )
 
+        content.addView(
+            button("Usar no PitchStudio") {
+                downloadToPitchStudio(result.url, result.title)
+            }.apply {
+                backgroundTintList = ColorStateList.valueOf(Color.rgb(43, 219, 230))
+                setTextColor(Color.rgb(7, 13, 25))
+                contentDescription = "Importar " + result.title + " para o PitchStudio"
+            }, full(dp(54), top = 12)
+        )
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-
         actions.addView(
-            button("▶ Reproduzir aqui") {
+            button("▶ Prévia") {
                 previewInCard(result, mediaFrame, playOverlay)
             },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginEnd = dp(5)
-            }
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) }
         )
-
         actions.addView(
-            button("Baixar para Pitch Studio") {
-                downloadToPitchStudio(result.url, result.title)
-            },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(5)
-            }
-        )
-
-        card.addView(actions, full(wrap(), top = 10))
-
-        card.addView(
-            button("Salvar música no aparelho") {
+            button("Salvar arquivo") {
                 saveMusic(result.url, result.title)
             },
-            full(dp(48), top = 8)
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) }
         )
+        content.addView(actions, full(wrap(), top = 8))
 
         resultsContainer.addView(card, full(wrap(), top = 10))
 
