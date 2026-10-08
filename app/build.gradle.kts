@@ -12,8 +12,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 135
-        versionName = "0.46.75"
+        versionCode = 136
+        versionName = "0.46.76"
 
         buildConfigField(
             "String",
