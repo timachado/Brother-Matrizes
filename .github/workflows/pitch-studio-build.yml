@@ -258,14 +258,12 @@ jobs:
           # Colar um link do YouTube no campo genérico também importa para o Pitch Studio.
           p = root / "app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
           s = p.read_text(encoding="utf-8")
-          pattern = re.compile(
-              r'''        if \(host == "youtu\.be" \|\| host\.endsWith\("youtube\.com"\) \|\| host\.endsWith\("youtube-nocookie\.com"\)\) \{
-          .*?
-                  return
-              \}''',
-              re.S
-          )
-          replacement = '''        if (
+          old = '''        if (host == "youtu.be" || host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+              try { activity.startActivity(Intent(Intent.ACTION_VIEW, parsed)) } catch (_: Throwable) {}
+              onError("Links do YouTube são reproduzidos pelo serviço oficial. Para processar, use arquivo local ou link direto de áudio.")
+              return
+          }'''
+          new = '''        if (
               host == "youtu.be" ||
               host.endsWith("youtube.com") ||
               host.endsWith("youtube-nocookie.com") ||
@@ -282,9 +280,9 @@ jobs:
               )
               return
           }'''
-          s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit("bloco de rejeição do YouTube não encontrado")
+          if old not in s:
+              raise SystemExit("bloco exato do YouTube não encontrado")
+          s = s.replace(old, new, 1)
           p.write_text(s, encoding="utf-8")
 
           print("Pitch Studio v1.2 aplicado.")
