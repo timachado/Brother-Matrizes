@@ -94,6 +94,20 @@ object YouTubeImporter {
             }
     }
 
+    fun resultFromUrl(videoUrl: String): Result {
+        ensureInitialized()
+        val normalizedUrl = normalizeYouTubeUrl(videoUrl)
+        val info = StreamInfo.getInfo(ServiceList.YouTube, normalizedUrl)
+
+        return Result(
+            title = info.name,
+            uploader = info.uploaderName.orEmpty(),
+            durationSeconds = info.duration,
+            url = normalizedUrl,
+            thumbnailUrl = info.thumbnails.firstOrNull()?.url.orEmpty()
+        )
+    }
+
     fun resolvePreview(videoUrl: String): Preview {
         ensureInitialized()
         val normalizedUrl = normalizeYouTubeUrl(videoUrl)
