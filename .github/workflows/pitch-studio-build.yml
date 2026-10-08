@@ -434,16 +434,16 @@ jobs:
           cp .pitchstudio/v1102/MODEL_NOTICE.txt "$ASSETS/MDX_MODEL_NOTICE.txt"
           python3 -m py_compile .pitchstudio/v1102/patch_v1102.py
           python3 .pitchstudio/v1102/patch_v1102.py "$SRC"
-          MODEL="$ASSETS/UVR_MDXNET_9482.fp16acc.tflite"
+          MODEL="$ASSETS/UVR_MDXNET_9482.onnx"
           curl -fL --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 240 \
-            'https://huggingface.co/gyoom-sa/UVR-MDX-LiteRT/resolve/cfcf0bb8ae993732a23691b94cf05fa3fcf3d603/UVR_MDXNET_9482.fp16acc.tflite?download=true' \
+            'https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx' \
             -o "$MODEL"
           python3 - "$MODEL" <<'PY'
           from pathlib import Path
           import sys,hashlib
           file=Path(sys.argv[1]); data=file.read_bytes()
           assert 25000000 < len(data) < 40000000, f'Modelo incompleto: {len(data)} bytes'
-          assert data[4:8]==b'TFL3', 'Formato TFLite inválido'
+          assert not data.startswith(b'<html'), 'Arquivo HTML no lugar do modelo'
           print('Modelo MDX-Net bytes:',len(data))
           print('Modelo MDX-Net SHA-256:',hashlib.sha256(data).hexdigest())
           PY
