@@ -1,10 +1,10 @@
 PitchStudio — créditos de modelo de separação vocal
 ===================================================
 
-Modelo: UVR_MDXNET_9482.fp16acc.tflite
+Modelo: UVR_MDXNET_9482.onnx
 Função: separar voz e acompanhamento de um trecho musical.
-Fonte: https://huggingface.co/gyoom-sa/UVR-MDX-LiteRT
-Revisão fixada: cfcf0bb8ae993732a23691b94cf05fa3fcf3d603
+Fonte: https://github.com/k2-fsa/sherpa-onnx/releases/tag/source-separation-models
+Distribuição: release source-separation-models; peso UVR_MDXNET_9482.onnx
 Licença declarada: MIT, conforme repositório e pesos anteriores do Ultimate Vocal Remover.
 O aplicativo não transmite áudio para o serviço do modelo: a inferência é local.
 
