@@ -99,6 +99,8 @@ test_visible "Teste Biblioteca 197"
 test_visible "-2 semitons"
 test_visible "Ajuste fino: -5 cents"
 echo "PASSOU: áudio e ajustes foram restaurados no Android."
+for back_to_top in 1 2 3; do adb shell input swipe 525 520 525 1550 200; done
+sleep 1
 tap_text "Salvar projeto"
 tap_text "Salvar"
 sleep 5
