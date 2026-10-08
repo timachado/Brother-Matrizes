@@ -298,6 +298,9 @@ jobs:
           cp .pitchstudio/v16/Mp3Exporter.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/audio/Mp3Exporter.kt"
           cp .pitchstudio/v16/YouTubeBrowserActivity.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/YouTubeBrowserActivity.kt"
           python3 .pitchstudio/v16/01_build.py "$SRC"
+          MANIFEST="$SRC/app/src/main/AndroidManifest.xml"
+          sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">#' "$MANIFEST"
+          sed -i '0,/<application/s//<application tools:replace="android:label"/' "$MANIFEST"
           python3 .pitchstudio/v16/02_controls.py "$SRC"
           python3 .pitchstudio/v16/03_setters.py "$SRC"
 
