@@ -385,6 +385,28 @@ class PeDesignImportedFontEngineTest {
     }
 
     @Test
+    fun largeAdamiyaLikeFlourishFindsLowerCurveNotLeftOuterEdge() {
+        // Curva sintetica com a mesma escala do floreio Adamiya;
+        // nao redistribui o arquivo de fonte enviado pelo usuario.
+        val loop = (0 until 720).map { index ->
+            val angle = index * (2.0 * Math.PI / 720.0)
+            val x = 260f + 230f * kotlin.math.cos(angle).toFloat()
+            val y = -220f + 350f * kotlin.math.sin(angle).toFloat()
+            x to y
+        }
+
+        val start = PeDesignImportedFontEngine
+            .debugGlyphVisualStartPoint(loop)
+
+        assertTrue(
+            "O inicio do floreio deve ficar no pe inferior, nao na lateral esquerda.",
+            start != null &&
+                start.first in 250f..270f &&
+                start.second in 120f..135f
+        )
+    }
+
+    @Test
     fun cursiveVisualStartPrefersLowerEntryStrokeInsteadOfLeftmostLoopExtremity() {
         val start =
             PeDesignImportedFontEngine
