@@ -5,6 +5,7 @@ on:
     branches:
       - pitch-studio-build
       - feature/pitchstudio-p0-p1-191
+      - feature/pitchstudio-m3-expressive-193
   workflow_dispatch:
 
 permissions:
@@ -333,6 +334,17 @@ jobs:
           python3 .pitchstudio/v192/patch_v192.py "$SRC"
           grep -F 'versionName = "1.9.2"' "$SRC/app/build.gradle.kts"
 
+      - name: Aplicar PitchStudio 1.9.3 Material 3 Expressive
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          python3 -m py_compile .pitchstudio/v193/patch_v193.py
+          python3 .pitchstudio/v193/patch_v193.py "$SRC"
+          grep -F 'versionName = "1.9.3"' "$SRC/app/build.gradle.kts"
+          grep -F 'Theme.PitchStudioExpressive' "$SRC/app/src/main/AndroidManifest.xml"
+          grep -F 'com.google.android.material:material:1.14.0' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -393,7 +405,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.2-debug-apk
+          name: PitchStudio-v1.9.3-M3Expressive-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
