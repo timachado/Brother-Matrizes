@@ -136,26 +136,46 @@ tap "YouTube"
 visible "EXPLORAR MÚSICAS"
 echo "PASSOU: fluxo YouTube permanece funcional."
 # Teste da inferência real com arquivo PCM interno de 7s, sem YouTube ou rede.
-echo "Preparando faixa sintética estéreo para inferência ONNX…"
+echo "Obtendo áudio vocal real de referência do sherpa-onnx..."
+curl --fail --location --retry 3 --connect-timeout 30 --max-time 150 \
+  'https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/qi-feng-le-zh.wav' \
+  --output "$OUT/qi-feng-le-zh.wav"
 python3 - "$OUT" <<'PY'
 from pathlib import Path
-import json, math, struct, sys, time
-dir=Path(sys.argv[1]); rate=44100; duration=7; frames=rate*duration
-notes=(261.63,293.66,329.63,392.00)
-with (dir/"stems_test.f32").open("wb") as out:
-    for i in range(frames):
-        freq=notes[min(3,int(i/rate)%4)]
-        lead=0.35*math.sin(2*math.pi*freq*i/rate)
-        bass=0.13*math.sin(2*math.pi*110*i/rate)
-        mixed=float(lead+bass)
-        out.write(struct.pack('<ff',mixed,mixed))
+import array, json, math, sys, struct, time, wave
+directory=Path(sys.argv[1])
+# Referência pública oficial do mesmo modelo, cantada, em lugar de uma
+# senoide sintética sem características espectrais de uma voz humana.
+with wave.open(str(directory/"qi-feng-le-zh.wav"),"rb") as wav:
+    rate=wav.getframerate()
+    channels=wav.getnchannels()
+    width=wav.getsampwidth()
+    total=wav.getnframes()
+    assert rate==44100 and channels==2 and width==2, (rate,channels,width)
+    frames=min(rate*7,total)
+    start=max(0, min(rate*9, total-frames))
+    wav.setpos(start)
+    data=wav.readframes(frames)
+samples=array.array("h"); samples.frombytes(data)
+if sys.byteorder!="little": samples.byteswap()
+assert len(samples)==frames*2
+energy=0.0; peak=0.0
+with (directory/"stems_test.f32").open("wb") as out:
+    for value in samples:
+        floating=value/32768.0
+        energy+=floating*floating
+        peak=max(peak,abs(floating))
+        out.write(struct.pack("<f",floating))
+rms=math.sqrt(energy/len(samples))
+assert rms>0.003,(rms,frames)
 meta={
-"schema":1,"title":"Teste IA Musical","updatedAt":int(time.time()*1000),
-"sampleRate":rate,"channels":2,"frames":frames,"peak":0.48,
-"waveform":[0.48]*90,"semitones":0,"cents":0,"speed":1.0,
-"quality":"ALTA","position":0.0
+    "schema":1,"title":"Teste IA Musical","updatedAt":int(time.time()*1000),
+    "sampleRate":rate,"channels":2,"frames":frames,"peak":peak,
+    "waveform":[peak]*90,"semitones":0,"cents":0,"speed":1.0,
+    "quality":"ALTA","position":0.0
 }
-(dir/"stems_test.json").write_text(json.dumps(meta),encoding="utf-8")
+(directory/"stems_test.json").write_text(json.dumps(meta),encoding="utf-8")
+print(f"Faixa real: {frames/rate:.2f}s a {rate} Hz, RMS original {rms:.5f}")
 PY
 ID="223e4567-e89b-12d3-a456-426614174111"
 adb push "$OUT/stems_test.f32" /data/local/tmp/pitchstudio-vocal-test.f32 >/dev/null
@@ -176,7 +196,7 @@ tap "Tom Ideal"
 # O novo botão pode ficar fora da dobra; tap() rola antes de tocar.
 adb logcat -c || true
 tap "Isolar voz com IA"
-echo "Executando separação neural com arquivo real de modelo no Android…"
+echo "Executando separação neural no Android sobre gravação vocal de referência…"
 SUCCESS=0
 for attempt in $(seq 1 40); do
   readui
