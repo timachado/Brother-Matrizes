@@ -4248,12 +4248,17 @@ object ImportedFontMatrixGenerator {
         val firstHalf = line.subList(0, index + 1)
         val secondHalf = line.subList(index, line.size)
         val extraId = segments.maxOf { it.id } + 1
+        // Em um empate de distância no nó de entrada, prossiga
+        // primeiro para o lado mais à direita (avanço no nome).
+        val prefersSecond =
+            secondHalf.last().x >= firstHalf.first().x
         val first = segment.copy(
+            id = if (prefersSecond) extraId else segment.id,
             points = firstHalf,
             endNode = strokeFlowNodeKey(entry)
         )
         val second = segment.copy(
-            id = extraId,
+            id = if (prefersSecond) segment.id else extraId,
             points = secondHalf,
             startNode = strokeFlowNodeKey(entry)
         )
@@ -4914,6 +4919,50 @@ object ImportedFontMatrixGenerator {
             maxLengthUnits =
                 70f
         )
+    }
+
+    internal fun debugProgressiveStrokeFlow():
+        Pair<List<Int>, Int> {
+        val rows = (0..12).map { index ->
+            StrokeFlowSatinRow(
+                centerXUnits = index * 10,
+                centerYUnits = 0,
+                aXUnits = index * 10,
+                aYUnits = -4,
+                bXUnits = index * 10,
+                bYUnits = 4
+            )
+        }
+        val points = mutableListOf<EmbroideryPoint>()
+        emitStrokeFlowProgressive(
+            output = points,
+            rows = rows,
+            includeUnderlay = true,
+            densityUnits = 4f
+        )
+        return points
+            .filter { it.command == StitchCommand.STITCH }
+            .map { it.xUnits } to
+            points.count { it.command == StitchCommand.JUMP }
+    }
+
+    internal fun debugSeedAtInnerFoot():
+        Pair<Pair<Int, Int>, Int> {
+        val line = listOf(
+            SkeletonPoint(0, 15),
+            SkeletonPoint(15, 40),
+            SkeletonPoint(32, 88),
+            SkeletonPoint(40, 90),
+            SkeletonPoint(55, 72),
+            SkeletonPoint(75, 33),
+            SkeletonPoint(100, 4)
+        )
+        val parts = splitStrokeFlowSegments(listOf(line))
+        val (segments, hint) = seedStrokeFlowAtInnerFoot(parts)
+        val planned = planStrokeFlowTraversal(segments, hint)
+        val first = planned.first()
+        val exit = strokeFlowNodePoint(first.toNode)
+        return (hint!!.x to hint.y) to exit.x
     }
 
     internal fun debugStrokeFlowPostOrder():
