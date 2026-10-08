@@ -15,9 +15,6 @@ def one(before, after):
 
 one('import android.Manifest\n', '''import android.Manifest
 import android.app.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
-import java.io.File
 import java.io.FileInputStream
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
