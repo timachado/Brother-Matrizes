@@ -6,7 +6,7 @@ mkdir -p "$OUT"
 cleanup() {
   adb shell screencap -p /sdcard/pitchstudio-smoke.png >/dev/null 2>&1 || true
   adb pull /sdcard/pitchstudio-smoke.png "$OUT/screen.png" >/dev/null 2>&1 || true
-  adb logcat -d -b main -b crash -t 2000 > "$OUT/logcat.txt" 2>/dev/null || true
+  adb logcat -d -b main -b crash > "$OUT/logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity activities > "$OUT/activities.txt" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -36,8 +36,10 @@ PY
 )
 read -r X Y <<< "$POSITION"
 echo "Abrindo YouTube no Android: toque ($X,$Y)"
+adb logcat -c
 adb shell input tap "$X" "$Y"
 sleep 6
+adb logcat -d -b main -b crash > "$OUT/post-tap-logcat.txt" || true
 adb shell uiautomator dump /sdcard/after.xml >/dev/null
 adb shell cat /sdcard/after.xml > "$OUT/after.xml"
 python3 - "$OUT/after.xml" <<'PY'
