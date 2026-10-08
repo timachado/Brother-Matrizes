@@ -549,8 +549,19 @@ class PeDesignImportedFontEngineTest {
             firstLeft > 0)
         assertTrue("Nao deve retornar ao objeto da direita apos iniciar o da esquerda.",
             stitches.drop(firstLeft).none { it.xUnits >= 75 })
-        assertTrue("A transicao anotada deve gerar um salto sem ponto.",
-            points.any { it.command == StitchCommand.JUMP && it.xUnits in 40..60 })
+        val firstLeftStitchPosition = points.indexOfFirst {
+            it.command == StitchCommand.STITCH && it.xUnits <= 30
+        }
+        assertTrue(
+            "Concluir o primeiro glifo antes de deslocar para o segundo.",
+            firstTravel < firstLeftStitchPosition
+        )
+        assertTrue(
+            "A marca antiga JUMP_NO_STITCH nao pode forcar um desvio em area vazia.",
+            points.none {
+                it.command == StitchCommand.JUMP && it.xUnits in 40..60
+            }
+        )
     }
 
     @Test
