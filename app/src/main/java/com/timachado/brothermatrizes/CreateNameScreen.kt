@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -2032,6 +2033,47 @@ fun CreateNameScreen(
                             fontWeight =
                                 FontWeight.Bold
                         )
+                    }
+                }
+
+                if (
+                    BuildConfig.DEBUG &&
+                    importedFont != null &&
+                    stitchStyle == TextStitchStyle.SATIN
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            preview?.let { created ->
+                                scope.launch {
+                                    val outcome = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            MatrixSequenceDiagnosticExport.export(
+                                                context = context,
+                                                created = created
+                                            )
+                                        }
+                                    }
+                                    outcome.onSuccess { fileName ->
+                                        Toast.makeText(
+                                            context,
+                                            "Diagnóstico salvo em Downloads: $fileName",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }.onFailure { error ->
+                                        Toast.makeText(
+                                            context,
+                                            "Falha ao exportar: " +
+                                                (error.message ?: "erro desconhecido"),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        },
+                        enabled = preview != null && !previewUpdating,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Exportar diagnóstico da sequência (ZIP)")
                     }
                 }
 
