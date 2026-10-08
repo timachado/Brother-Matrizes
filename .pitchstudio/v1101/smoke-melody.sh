@@ -20,8 +20,19 @@ adb shell pm grant "$PKG" android.permission.RECORD_AUDIO
 adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity"
 sleep 5
 readui() {
-  adb shell uiautomator dump /sdcard/view.xml >/dev/null 2>&1
-  adb shell cat /sdcard/view.xml > "$OUT/current.xml"
+  for overlay_attempt in 1 2 3; do
+    adb shell uiautomator dump /sdcard/view.xml >/dev/null 2>&1 || true
+    adb shell cat /sdcard/view.xml > "$OUT/current.xml" || true
+    if grep -qiE 'Quickstep (isn.t responding|keeps stopping)|System UI isn.t responding' "$OUT/current.xml"; then
+      echo "Aviso de ANR do launcher do EMULADOR; fechando apenas a janela do sistema."
+      adb shell input tap 530 1180 || true
+      sleep 2
+      adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity" >/dev/null 2>&1 || true
+      sleep 2
+      continue
+    fi
+    break
+  done
 }
 visible() {
   readui
