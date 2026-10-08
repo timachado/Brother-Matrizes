@@ -404,7 +404,7 @@ class GreatVibesStartDiagnosticTest {
             satinDensityMm = 0.4f,
             satinPullCompensationMm = 0.2f,
             satinShortStitches = true,
-            satinUnderlayMode = SatinUnderlayMode.NONE,
+            satinUnderlayMode = SatinUnderlayMode.CENTER,
             specialStitchMode = null,
             color = 0xE63946,
             outputFormat = "PES",
