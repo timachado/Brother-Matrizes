@@ -3,6 +3,9 @@ package com.timachado.brothermatrizes
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.timachado.brothermatrizes.core.embroidery.EmbroiderySequenceAudit
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
+import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
@@ -62,6 +65,31 @@ class MariaSatinPathDiagnosticTest {
         ).getOrThrow()
         val points = matrix.points
         assertTrue("A matriz deve conter pontos", points.isNotEmpty())
+
+        val reopened = GeneratedMatrixPipeline.canonicalize(
+            design = matrix,
+            outputSuffix = "maria-sequence-audit"
+        )
+        assertTrue("A matriz PES deve reabrir", reopened is EmbroideryLoadResult.Success)
+        val reopenedDesign = (reopened as EmbroideryLoadResult.Success).design
+        val result = EmbroiderySequenceAudit.compare(matrix, reopenedDesign)
+
+        File(context.filesDir, "maria-generated-full.csv").writeText(
+            EmbroiderySequenceAudit.fullCsv("generated", matrix)
+        )
+        File(context.filesDir, "maria-reopened-pes-full.csv").writeText(
+            EmbroiderySequenceAudit.fullCsv("reopened-PES", reopenedDesign)
+        )
+        File(context.filesDir, "maria-comparison.txt").writeText(
+            result.summary() + "\n" +
+                result.before.csv() + "\n" +
+                result.after.csv()
+        )
+        Log.i("MariaSequence", "PES_COMPARISON: ${result.summary()}")
+        assertTrue(
+            "A conversao PES mudou a sequencia de percursos: ${result.summary()}",
+            result.orderedPathPreserved
+        )
         val minimumX = points.minOf { it.xUnits }
         val maximumX = points.maxOf { it.xUnits }
         val minimumY = points.minOf { it.yUnits }
