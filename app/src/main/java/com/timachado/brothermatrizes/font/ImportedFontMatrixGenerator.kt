@@ -3437,13 +3437,19 @@ object ImportedFontMatrixGenerator {
                 0f
             )
 
-        // Reposiciona o inicio do laco fechado na entrada natural do
-        // primeiro glifo. Mudar apenas o rootHint nao funciona em ciclos:
-        // neles startNode == endNode e o inicio continua sendo o pixel
-        // arbitrario devolvido por traceSkeleton().
+        // A entrada precisa ser corrigida ANTES da divisao nas
+        // bifurcacoes. Um laco ligado ao corpo da letra deixa de ser
+        // um ciclo isolado depois de splitStrokeFlowSegments().
+        val normalizedLines = rebaseLeadingClosedSkeletonLine(rawLines)
+        val loopEntry = normalizedLines
+            .firstOrNull { line ->
+                line.size >= 6 && line.first() == line.last()
+            }
+            ?.first()
+
         val splitSegments =
             rebaseLeadingClosedStrokeFlow(
-                splitStrokeFlowSegments(rawLines)
+                splitStrokeFlowSegments(normalizedLines)
             )
 
         if (
@@ -3503,7 +3509,7 @@ object ImportedFontMatrixGenerator {
                 segments =
                     usableSegments,
                 rootHint =
-                    preferredStrokeFlowEntry(usableSegments)
+                    loopEntry ?: preferredStrokeFlowEntry(usableSegments)
             )
 
         if (
@@ -3751,6 +3757,42 @@ object ImportedFontMatrixGenerator {
                         )
                 )
             }
+    }
+
+    /**
+     * Gira o primeiro contorno fechado ainda no esqueleto bruto. Fazemos
+     * isso antes de separar bifurcacoes, pois o laco do M pode estar
+     * conectado ao seu primeiro traco vertical.
+     */
+    private fun rebaseLeadingClosedSkeletonLine(
+        rawLines: List<List<SkeletonPoint>>
+    ): List<List<SkeletonPoint>> {
+        val index = rawLines.indices
+            .filter { i ->
+                rawLines[i].size >= 6 &&
+                    rawLines[i].first() == rawLines[i].last()
+            }
+            .minByOrNull { i -> rawLines[i].minOf { it.x } }
+            ?: return rawLines
+
+        val circular = rawLines[index].dropLast(1)
+        val left = circular.minOf { it.x }
+        val right = circular.maxOf { it.x }
+        val top = circular.minOf { it.y }
+        val bottom = circular.maxOf { it.y }
+        val desired = SkeletonPoint(
+            x = (left + (right - left) * 0.66f).roundToInt(),
+            y = (top + (bottom - top) * 0.80f).roundToInt()
+        )
+        val start = circular.indices.minByOrNull {
+            pointDistance(circular[it], desired)
+        } ?: return rawLines
+
+        val rotated = (circular.drop(start) + circular.take(start))
+            .let { it + it.first() }
+        return rawLines.mapIndexed { i, line ->
+            if (i == index) rotated else line
+        }
     }
 
     /**
