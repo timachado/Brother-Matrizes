@@ -42,14 +42,17 @@ tap_text() {
 import re,sys
 from xml.etree import ElementTree as ET
 target=sys.argv[2]
-for node in ET.parse(sys.argv[1]).getroot().iter("node"):
-    label=(node.get("text","")+" "+node.get("content-desc","")).strip()
-    if target in label:
-        m=re.findall(r"\d+",node.get("bounds",""))
-        if len(m)==4:
-            a,b,c,d=map(int,m)
-            print((a+c)//2,(b+d)//2)
-            raise SystemExit(0)
+nodes=list(ET.parse(sys.argv[1]).getroot().iter("node"))
+for exact in (True, False):
+    for node in nodes:
+        label=(node.get("text","")+" "+node.get("content-desc","")).strip()
+        selected=(label==target) if exact else (target in label)
+        if selected:
+            m=re.findall(r"\d+",node.get("bounds",""))
+            if len(m)==4:
+                a,b,c,d=map(int,m)
+                print((a+c)//2,(b+d)//2)
+                raise SystemExit(0)
 raise SystemExit(1)
 PY
 ); then
