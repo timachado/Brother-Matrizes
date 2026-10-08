@@ -13,6 +13,7 @@ on:
       - feature/pitchstudio-voice-song-match-199
       - feature/pitchstudio-tom-ideal-excerpt-1100
       - feature/pitchstudio-melody-focus-1101
+      - feature/pitchstudio-real-vocal-stems-1102
   workflow_dispatch:
 
 permissions:
@@ -421,6 +422,34 @@ jobs:
           python3 .pitchstudio/v1101/patch_v1101.py "$SRC"
           grep -F 'versionName = "1.10.1"' "$SRC/app/build.gradle.kts"
 
+      - name: Incluir motor MDX-Net e modelo vocal 1.10.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          PKG="$SRC/app/src/main/java/br/com/timachado/pitchstudio"
+          ASSETS="$SRC/app/src/main/assets"
+          mkdir -p "$ASSETS"
+          cp .pitchstudio/v1102/VocalStemSeparator.kt "$PKG/VocalStemSeparator.kt"
+          cp .pitchstudio/v1102/MODEL_NOTICE.txt "$ASSETS/MDX_MODEL_NOTICE.txt"
+          python3 -m py_compile .pitchstudio/v1102/patch_v1102.py
+          python3 .pitchstudio/v1102/patch_v1102.py "$SRC"
+          MODEL="$ASSETS/UVR_MDXNET_9482.onnx"
+          curl -fL --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 240 \
+            'https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx' \
+            -o "$MODEL"
+          python3 - "$MODEL" <<'PY'
+          from pathlib import Path
+          import sys,hashlib
+          file=Path(sys.argv[1]); data=file.read_bytes()
+          assert 25000000 < len(data) < 40000000, f'Modelo incompleto: {len(data)} bytes'
+          assert not data.startswith(b'<html'), 'Arquivo HTML no lugar do modelo'
+          assert hashlib.sha256(data).hexdigest() == '9d78f8566fa8198065214ab628be1de966a500c57786695aa4b13e2b27a7727d', 'Hash SHA-256 do modelo não corresponde à distribuição validada'
+          print('Modelo MDX-Net bytes:',len(data))
+          print('Modelo MDX-Net SHA-256:',hashlib.sha256(data).hexdigest())
+          PY
+          grep -F 'versionName = "1.10.2"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -481,7 +510,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.1-MelodyFocus-preview-apk
+          name: PitchStudio-v1.10.2-VocalStems-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -499,13 +528,62 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1101/smoke-melody.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1102/smoke-vocals.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+
+      - name: Criar APK ARM64 otimizado
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-aligned.apk"
+          OUT="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-preview.apk"
+          TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          test -f "$SRC"
+          cp "$SRC" "$TEST_APK"
+          zip -q -d "$TEST_APK" 'lib/armeabi-v7a/*' 'lib/x86/*' 'lib/x86_64/*'
+          "$TOOLS/zipalign" -p -f 4 "$TEST_APK" "$ALIGNED"
+          KEYSTORE="$HOME/.android/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android \
+              -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          "$TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass pass:android \
+            --key-pass pass:android --ks-key-alias androiddebugkey \
+            --out "$OUT" "$ALIGNED"
+          "$TOOLS/apksigner" verify --verbose "$OUT"
+          python3 - "$OUT" <<'PY'
+          import sys,zipfile,hashlib
+          from pathlib import Path
+          apk=Path(sys.argv[1])
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              abis={name.split('/')[1] for name in z.namelist() if name.startswith('lib/') and name.endswith('.so')}
+              assert abis=={'arm64-v8a'}, f'ABIs inesperadas: {abis}'
+              assert 'assets/UVR_MDXNET_9482.onnx' in z.namelist()
+              model=z.read('assets/UVR_MDXNET_9482.onnx')
+              assert hashlib.sha256(model).hexdigest()=='9d78f8566fa8198065214ab628be1de966a500c57786695aa4b13e2b27a7727d'
+          print('ARM64 optimized APK MB:',round(apk.stat().st_size/1024/1024,2))
+          print('ARM64 APK SHA-256:',hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+
+      - name: Publicar APK ARM64
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-v1.10.2-Vocals-ARM64-apk
+          path: ${{ runner.temp }}/PitchStudio-v1.10.2-arm64-preview.apk
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Publicar evidências do teste Android
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.1-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-melody-smoke/
+          name: PitchStudio-v1.10.2-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-vocals-smoke/
           if-no-files-found: warn
           retention-days: 7
