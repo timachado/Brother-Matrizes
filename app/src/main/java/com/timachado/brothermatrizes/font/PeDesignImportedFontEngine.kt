@@ -2063,13 +2063,58 @@ internal object PeDesignImportedFontEngine {
         glyphIndex: Int,
         columns: List<SatinColumn>,
         polygons: List<Polygon>
-    ): FPoint? =
-        if (glyphIndex == 0) {
-            satinStructuralStartPoint(columns)
-                ?: glyphVisualStartPoint(polygons)
-        } else {
-            null
+    ): FPoint? {
+        if (glyphIndex != 0) return null
+
+        // For script capitals, the axis sampler often classifies the large
+        // ornamental loop as the leftmost structural column. That was causing
+        // Maria to spend a third of its stitches tracing the outer loop
+        // before reaching the natural entry foot of the M.
+        //
+        // Prefer the lower INTERNAL valley of the actual glyph outline
+        // when it is clearly distinct from the outer-left flourish.
+        // Keep the existing structural fallback for regular glyphs.
+        val structural = satinStructuralStartPoint(columns)
+        val outline = glyphVisualStartPoint(polygons)
+        val points = polygons.flatMap { it.points }
+        if (outline != null && points.isNotEmpty()) {
+            val minX = points.minOf { it.x }
+            val maxX = points.maxOf { it.x }
+            val width = (maxX - minX).coerceAtLeast(1f)
+            val fraction = (outline.x - minX) / width
+            if (fraction in 0.14f..0.55f) {
+                return outline
+            }
         }
+        return structural ?: outline
+    }
+
+    internal fun debugProductionFlourishEntry(): Pair<Float, Float>? {
+        val left = SatinColumn(
+            (0..4).map { i ->
+                SatinRow(FPoint(0f, i * 4f), FPoint(10f, i * 4f))
+            }.toMutableList()
+        )
+        val main = SatinColumn(
+            (0..8).map { i ->
+                SatinRow(FPoint(24f, i * 5f), FPoint(38f, i * 5f))
+            }.toMutableList()
+        )
+        val outline = Polygon(
+            listOf(
+                FPoint(0f, 18f), FPoint(8f, 9f),
+                FPoint(16f, 14f), FPoint(24f, 40f),
+                FPoint(34f, 15f), FPoint(50f, 8f),
+                FPoint(70f, 35f), FPoint(84f, 12f),
+                FPoint(96f, 20f)
+            )
+        )
+        return resolveProductionStartHint(
+            glyphIndex = 0,
+            columns = listOf(left, main),
+            polygons = listOf(outline)
+        )?.let { it.x to it.y }
+    }
 
     internal fun debugProductionStartHint(): Pair<Pair<Float, Float>?, Boolean> {
         val leftFlourish = SatinColumn(
