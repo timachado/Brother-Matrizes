@@ -7978,6 +7978,35 @@ internal object PeDesignImportedFontEngine {
         )?.x
     }
 
+    internal fun debugIncompleteHandTraceStillSewsWholeStroke(): List<EmbroideryPoint> {
+        val glyph = Polygon(listOf(
+            FPoint(0f, 0f), FPoint(120f, 0f),
+            FPoint(120f, 55f), FPoint(0f, 55f)
+        ))
+        // O usuario desenhou apenas os primeiros 15% da faixa. O motor
+        // precisa cobrir o RESTO da tipografia por seu contorno real.
+        val route = GuidedSatinRoute(
+            start = GuidedSatinPoint(0.04f, 0.5f),
+            steps = listOf(
+                GuidedSatinStep(1, false, listOf(
+                    GuidedSatinPoint(0.04f, 0.5f),
+                    GuidedSatinPoint(0.15f, 0.5f)
+                ))
+            )
+        )
+        val output = mutableListOf<EmbroideryPoint>()
+        emitUserGuidedRoute(
+            emitter = SatinEmitter(output),
+            polygonsByGlyph = listOf(listOf(glyph)),
+            route = route,
+            densityMm = 0.4f,
+            maxSatinWidthMm = 7f,
+            pullMm = 0.2f,
+            underlayMode = SatinUnderlayMode.CENTER
+        )
+        return output
+    }
+
     internal fun debugGuidedConnectedLetterHasNoForcedJump(): List<EmbroideryPoint> {
         val outline = Polygon(
             listOf(
