@@ -69,6 +69,7 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     override fun onDestroy() {
+        ++searchRequest
         stopActivePreview()
         pendingSave?.file?.delete()
         pendingSave = null
@@ -224,6 +225,8 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun loadSingleResult(url: String) {
+        stopActivePreview()
+        val request = ++searchRequest
         status.text = "Carregando vídeo do YouTube…"
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = true
@@ -236,6 +239,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Vídeo encontrado."
                     addResultCard(result)
                 }
@@ -243,6 +247,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Falha ao abrir o vídeo: " +
                         YouTubeImporter.friendlyMessage(t)
                 }
@@ -255,6 +260,8 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun search(query: String) {
+        stopActivePreview()
+        val request = ++searchRequest
         status.text = "Pesquisando no YouTube…"
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = true
@@ -268,6 +275,7 @@ class YouTubeBrowserActivity : Activity() {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
 
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     if (results.isEmpty()) {
                         status.text = "Nenhum resultado encontrado."
                         return@runOnUiThread
@@ -282,6 +290,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Falha na busca: " +
                         YouTubeImporter.friendlyMessage(t)
                 }
@@ -657,8 +666,9 @@ class YouTubeBrowserActivity : Activity() {
         Thread {
             try {
                 FileInputStream(downloaded.file).use { input ->
-                    contentResolver.openOutputStream(uri, "w")!!
-                        .use { output ->
+                    requireNotNull(contentResolver.openOutputStream(uri, "w")) {
+                        "Não foi possível abrir o destino de salvamento."
+                    }.use { output ->
                             input.copyTo(output, 128 * 1024)
                         }
                 }
@@ -724,12 +734,20 @@ class YouTubeBrowserActivity : Activity() {
     private fun button(
         label: String,
         action: () -> Unit
-    ): Button =
-        Button(this).apply {
+    ): MaterialButton =
+        MaterialButton(this).apply {
             text = label
             isAllCaps = false
-            setTextColor(Color.rgb(198, 222, 238))
-            setBackgroundColor(Color.rgb(73, 78, 85))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL))
+            setTextColor(Color.rgb(236, 245, 255))
+            backgroundTintList = ColorStateList.valueOf(Color.rgb(42, 55, 80))
+            cornerRadius = dp(20)
+            insetTop = 0
+            insetBottom = 0
+            minHeight = dp(48)
+            minWidth = 0
+            setPadding(dp(9), 0, dp(9), 0)
             setOnClickListener { action() }
         }
 
@@ -748,11 +766,10 @@ class YouTubeBrowserActivity : Activity() {
             )
 
             if (bold) {
-                setTypeface(
-                    typeface,
-                    android.graphics.Typeface.BOLD
-                )
+                setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD))
             }
+            includeFontPadding = false
+            setLineSpacing(dp(2).toFloat(), 1.0f)
         }
 
     private fun full(
