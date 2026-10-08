@@ -18,6 +18,7 @@ on:
       - feature/pitchstudio-stem-wav-export-1104
       - feature/pitchstudio-long-stems-1105
       - fix/pitchstudio-stability-1106
+      - fix/pitchstudio-youtube-stability-1107
   workflow_dispatch:
 
 permissions:
@@ -505,6 +506,19 @@ jobs:
           python3 .pitchstudio/v1106/patch_v1106.py "$SRC"
           grep -F 'versionName = "1.10.6"' "$SRC/app/build.gradle.kts"
 
+      - name: Aplicar estabilidade YouTube PitchStudio 1.10.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          PKG="$SRC/app/src/main/java/br/com/timachado/pitchstudio"
+          TESTS="$SRC/app/src/test/java/br/com/timachado/pitchstudio"
+          cp .pitchstudio/v1107/YouTubeUrlRules.kt "$PKG/YouTubeUrlRules.kt"
+          cp .pitchstudio/v1107/YouTubeUrlRulesTest.kt "$TESTS/YouTubeUrlRulesTest.kt"
+          python3 -m py_compile .pitchstudio/v1107/patch_v1107.py
+          python3 .pitchstudio/v1107/patch_v1107.py "$SRC"
+          grep -F 'versionName = "1.10.7"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -565,7 +579,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.6-Stability-preview-apk
+          name: PitchStudio-v1.10.7-YouTube-Stability-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -575,7 +589,7 @@ jobs:
         run: |
           if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
 
-      - name: Verificar Tom Ideal, WAV, YouTube e MP3 no Android 15
+      - name: Verificar YouTube, Tom Ideal, WAV e MP3 no Android 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -583,7 +597,7 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1106/smoke-stability.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1107/smoke-youtube.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Criar APK ARM64 otimizado
         if: always()
@@ -591,9 +605,9 @@ jobs:
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
-          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.6-arm64-unsigned.apk"
-          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.6-arm64-aligned.apk"
-          OUT="$RUNNER_TEMP/PitchStudio-v1.10.6-arm64-preview.apk"
+          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.7-arm64-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.7-arm64-aligned.apk"
+          OUT="$RUNNER_TEMP/PitchStudio-v1.10.7-arm64-preview.apk"
           TOOLS="$ANDROID_HOME/build-tools/35.0.0"
           test -f "$SRC"
           cp "$SRC" "$TEST_APK"
@@ -629,8 +643,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.6-Stability-ARM64-apk
-          path: ${{ runner.temp }}/PitchStudio-v1.10.6-arm64-preview.apk
+          name: PitchStudio-v1.10.7-YouTube-Stability-ARM64-apk
+          path: ${{ runner.temp }}/PitchStudio-v1.10.7-arm64-preview.apk
           if-no-files-found: warn
           retention-days: 7
 
@@ -638,7 +652,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.6-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-stability-smoke/
+          name: PitchStudio-v1.10.7-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-youtube-smoke/
           if-no-files-found: warn
           retention-days: 7
