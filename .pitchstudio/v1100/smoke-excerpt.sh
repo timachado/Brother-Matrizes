@@ -90,7 +90,8 @@ tap "Analisar minha voz"
 # "Concluir análise" ainda esteja visível depois da coleta.
 sleep 14
 visible "Analisar novamente"
-visible "Mais grave"
+# Após a introdução do seletor, os botões ficam abaixo da dobra.
+# tap() localiza o controle e rola a tela antes de tocá-lo.
 tap "Mais grave"
 sleep 2
 visible "PitchStudio"
@@ -109,6 +110,10 @@ for attempt in 1 2 3 4 5 6 7; do
   sleep 1
 done
 echo "PASSOU: retorno do Tom Ideal ao editor."
+for back_to_top in 1 2 3 4 5 6; do
+  adb shell input swipe 500 450 500 1550 230
+done
+sleep 1
 tap "YouTube"
 visible "EXPLORAR MÚSICAS"
 echo "PASSOU: fluxo YouTube permanece funcional."
