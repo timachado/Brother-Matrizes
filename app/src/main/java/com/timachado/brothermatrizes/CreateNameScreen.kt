@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -103,6 +104,16 @@ fun CreateNameScreen(
     val scope =
         rememberCoroutineScope()
 
+    val createNamePreferences =
+        remember(
+            context
+        ) {
+            context.getSharedPreferences(
+                "create_name_preferences_v2",
+                Context.MODE_PRIVATE
+            )
+        }
+
     val importedFonts =
         remember {
             ImportedFontStore
@@ -113,13 +124,33 @@ fun CreateNameScreen(
         mutableStateOf("Texto")
     }
 
+    val initialDisplayMode =
+        remember(
+            createNamePreferences
+        ) {
+            val saved =
+                createNamePreferences
+                    .getString(
+                        "display_mode",
+                        null
+                    )
+
+            EmbroideryDisplayMode
+                .entries
+                .firstOrNull {
+                    it.name ==
+                        saved
+                }
+                ?: EmbroideryDisplayMode.SOLID
+        }
+
     var displayMode by remember {
         /*
-         * Sólida é a visualização inicial previsível.
-         * Realista/Pontos só entram quando o usuário escolher.
+         * Primeira execução começa em Sólida. Depois disso, respeita a
+         * escolha explícita do usuário entre Sólida / Pontos / Realista.
          */
         mutableStateOf(
-            EmbroideryDisplayMode.SOLID
+            initialDisplayMode
         )
     }
 
@@ -127,9 +158,28 @@ fun CreateNameScreen(
         mutableStateOf(true)
     }
 
+    val initialImportedFontId =
+        remember(
+            importedFonts,
+            createNamePreferences
+        ) {
+            createNamePreferences
+                .getString(
+                    "imported_font_id",
+                    null
+                )
+                ?.takeIf {
+                        savedId ->
+                    importedFonts.any {
+                        it.id ==
+                            savedId
+                    }
+                }
+        }
+
     var importedFontId by remember {
         mutableStateOf<String?>(
-            null
+            initialImportedFontId
         )
     }
 
@@ -189,9 +239,29 @@ fun CreateNameScreen(
         )
     }
 
+    val initialBuiltInFont =
+        remember(
+            createNamePreferences
+        ) {
+            val saved =
+                createNamePreferences
+                    .getString(
+                        "built_in_font",
+                        null
+                    )
+
+            EmbroideryFontPreset
+                .entries
+                .firstOrNull {
+                    it.name ==
+                        saved
+                }
+                ?: EmbroideryFontPreset.LINE
+        }
+
     var font by remember {
         mutableStateOf(
-            EmbroideryFontPreset.LINE
+            initialBuiltInFont
         )
     }
 
@@ -436,12 +506,10 @@ fun CreateNameScreen(
             true
 
         /*
-         * Não mantenha uma prévia antiga enquanto outra fonte está sendo
-         * digitalizada. Isso evita mostrar a fonte anterior com os botões
-         * bloqueados e dá feedback correto de atualização.
+         * Mantém a última prévia válida visível enquanto recalcula a nova.
+         * Uma atualização normal não deve parecer erro nem piscar o canvas
+         * para preto.
          */
-        previewResult =
-            null
 
         /*
          * Debounce curto: trocar fonte/slider rapidamente não deve iniciar
@@ -699,16 +767,39 @@ fun CreateNameScreen(
                     modifier =
                         Modifier.fillMaxSize()
                 )
+
+                if (
+                    previewUpdating
+                ) {
+                    Text(
+                        "Atualizando prévia…",
+                        modifier =
+                            Modifier
+                                .align(
+                                    Alignment.BottomCenter
+                                )
+                                .padding(
+                                    10.dp
+                                ),
+                        color =
+                            FioTextMuted,
+                        fontSize =
+                            10.sp
+                    )
+                }
             } else {
+                val actualError =
+                    result
+                        ?.exceptionOrNull()
+                        ?.message
+
                 Text(
                     if (
                         previewUpdating
                     ) {
                         "Atualizando prévia…"
                     } else {
-                        result
-                            ?.exceptionOrNull()
-                            ?.message
+                        actualError
                             ?: "Digite um nome para gerar a prévia."
                     },
                     modifier =
@@ -719,9 +810,16 @@ fun CreateNameScreen(
                             18.dp
                         ),
                     color =
-                        Color(
-                            0xFFFF9F9A
-                        ),
+                        if (
+                            actualError !=
+                                null
+                        ) {
+                            Color(
+                                0xFFFF9F9A
+                            )
+                        } else {
+                            FioTextMuted
+                        },
                     fontSize =
                         11.sp
                 )
@@ -1044,6 +1142,18 @@ fun CreateNameScreen(
                                                     option
                                                 importedFontId =
                                                     null
+
+                                                createNamePreferences
+                                                    .edit()
+                                                    .putString(
+                                                        "built_in_font",
+                                                        option.name
+                                                    )
+                                                    .remove(
+                                                        "imported_font_id"
+                                                    )
+                                                    .apply()
+
                                                 rotationDegrees =
                                                     0f
                                             }
@@ -1106,10 +1216,17 @@ fun CreateNameScreen(
                                                     importedFontId =
                                                         imported.id
 
+                                                    createNamePreferences
+                                                        .edit()
+                                                        .putString(
+                                                            "imported_font_id",
+                                                            imported.id
+                                                        )
+                                                        .apply()
+
                                                     /*
                                                      * Rotação é opção do layout/pedido, nunca
-                                                     * propriedade da fonte. O MãoDesign recebe
-                                                     * RotationDegrees separadamente.
+                                                     * propriedade da fonte.
                                                      */
                                                     rotationDegrees =
                                                         0f
@@ -1120,7 +1237,7 @@ fun CreateNameScreen(
                             }
 
                             Text(
-                                "Motor de colunas Satin: preserva o contorno da TTF/OTF, escolhe automaticamente o melhor eixo de varredura e divide apenas colunas fisicamente largas.",
+                                "Motor Satin por fluxo de traço: preserva o contorno da TTF/OTF, mantém continuidade das colunas e evita saltos/ramificações redundantes.",
                                 color =
                                     FioTextMuted,
                                 fontSize =
@@ -1474,6 +1591,14 @@ fun CreateNameScreen(
                                             onClick = {
                                                 displayMode =
                                                     mode
+
+                                                createNamePreferences
+                                                    .edit()
+                                                    .putString(
+                                                        "display_mode",
+                                                        mode.name
+                                                    )
+                                                    .apply()
                                             }
                                         )
                                     }
