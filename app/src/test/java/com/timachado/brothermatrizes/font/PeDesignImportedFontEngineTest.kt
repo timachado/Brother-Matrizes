@@ -58,6 +58,22 @@ class PeDesignImportedFontEngineTest {
     }
 
     @Test
+    fun productionGeneratorUsesStructuralFirstGlyphEntry() {
+        val (first, continuesFromNeedle) =
+            PeDesignImportedFontEngine.debugProductionStartHint()
+
+        assertEquals(
+            "O pé estrutural, não o laço da borda esquerda, deve iniciar a primeira letra.",
+            40f to 0f,
+            first
+        )
+        assertTrue(
+            "As letras seguintes devem continuar da posição atual da agulha.",
+            continuesFromNeedle
+        )
+    }
+
+    @Test
     fun firstSatinRegionStartsNearestToTheGlyphStartHint() {
         val points =
             PeDesignImportedFontEngine
@@ -535,8 +551,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "A primeira coluna deve começar pelo pé visual inferior (menor yUnits para sourceYAxisDown=false).",
-            0,
+            "O underlay deve entrar em 25% da primeira coluna, sem começar no extremo do floreio.",
+            40,
             firstJump.yUnits
         )
 
