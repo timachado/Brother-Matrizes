@@ -37,7 +37,7 @@ from xml.etree import ElementTree as ET
 target=sys.argv[2]
 for node in ET.parse(sys.argv[1]).getroot().iter("node"):
     label=(node.get("text","")+" "+node.get("content-desc","")).strip()
-    if label==target or node.get("text","")==target:
+    if target in label:
         m=re.findall(r"\d+",node.get("bounds",""))
         if len(m)==4:
             a,b,c,d=map(int,m)
@@ -98,3 +98,9 @@ sleep 3
 tap_text "Meus projetos"
 test_visible "Teste Biblioteca 197"
 echo "PASSOU: projeto permaneceu salvo após reiniciar o aplicativo."
+adb shell input keyevent 4
+sleep 1
+adb shell input swipe 525 650 525 1500 260
+tap_text "YouTube"
+test_visible "EXPLORAR MÚSICAS"
+echo "PASSOU: a tela do YouTube também abre no mesmo APK."
