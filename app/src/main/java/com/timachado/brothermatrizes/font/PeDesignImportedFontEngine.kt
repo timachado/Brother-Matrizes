@@ -9,6 +9,8 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryStressPolicy
+import com.timachado.brothermatrizes.core.embroidery.GuidedSatinRoute
+import com.timachado.brothermatrizes.core.embroidery.GuidedSatinPoint
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
@@ -449,6 +451,20 @@ internal object PeDesignImportedFontEngine {
                         points
                 )
 
+            if (options.guidedSatinRoute != null) {
+                require(text.equals("Maria", ignoreCase = true)) {
+                    "O percurso guiado foi desenhado para Maria. Desative-o para outro nome."
+                }
+                emitUserGuidedRoute(
+                    emitter = emitter,
+                    polygonsByGlyph = polygonsByGlyph,
+                    route = options.guidedSatinRoute,
+                    densityMm = densityMm,
+                    maxSatinWidthMm = maxSatinWidthMm,
+                    pullMm = pullMm,
+                    underlayMode = options.satinUnderlayMode
+                )
+            } else {
             polygonsByGlyph
                 .forEachIndexed {
                         glyphIndex,
@@ -497,6 +513,7 @@ internal object PeDesignImportedFontEngine {
                             densityMm
                     )
                 }
+            }
 
             require(
                 points.any {
@@ -2050,6 +2067,141 @@ internal object PeDesignImportedFontEngine {
             }
 
         return selected.bottomCenter
+    }
+
+    private data class GuidedColumn(
+        val column: SatinColumn,
+        val polygons: List<Polygon>
+    )
+
+    /**
+     * A rota feita no desenho dirige a ordem dos OBJETOS Satin, nunca a
+     * posicao de cada picada. O sampler permanece responsavel pela
+     * cobertura fisica das letras; os saltos da rota sao sempre JUMP.
+     */
+    private fun emitUserGuidedRoute(
+        emitter: SatinEmitter,
+        polygonsByGlyph: List<List<Polygon>>,
+        route: GuidedSatinRoute,
+        densityMm: Float,
+        maxSatinWidthMm: Float,
+        pullMm: Float,
+        underlayMode: SatinUnderlayMode
+    ) {
+        val allPolygons = polygonsByGlyph.flatten()
+        val outlines = allPolygons.flatMap { it.points }
+        require(outlines.size >= 3) { "Nao ha contorno para orientar o percurso." }
+        val minX = outlines.minOf { it.x }
+        val minY = outlines.minOf { it.y }
+        val width = (outlines.maxOf { it.x } - minX).coerceAtLeast(1f)
+        val height = (outlines.maxOf { it.y } - minY).coerceAtLeast(1f)
+
+        fun map(p: GuidedSatinPoint) = FPoint(
+            x = minX + p.x * width,
+            y = minY + p.y * height
+        )
+
+        val mapped = route.steps.map { step -> step.points.map(::map) }
+        val satinIndices = route.steps.indices.filter { !route.steps[it].jumpWithoutStitch }
+        require(satinIndices.isNotEmpty())
+
+        fun polylineDistance(point: FPoint, path: List<FPoint>): Float {
+            if (path.size == 1) return distance(point, path.first())
+            return path.zipWithNext().minOf { (a, b) ->
+                val dx = b.x - a.x
+                val dy = b.y - a.y
+                val length2 = dx * dx + dy * dy
+                val t = if (length2 < 0.0001f) 0f else
+                    (((point.x - a.x) * dx + (point.y - a.y) * dy) / length2).coerceIn(0f, 1f)
+                distance(point, FPoint(a.x + t * dx, a.y + t * dy))
+            }
+        }
+
+        fun positionOnPath(point: FPoint, path: List<FPoint>): Float {
+            var cumulative = 0f
+            var bestProgress = 0f
+            var bestDistance = Float.MAX_VALUE
+            path.zipWithNext().forEach { (a, b) ->
+                val dx = b.x - a.x
+                val dy = b.y - a.y
+                val length2 = dx * dx + dy * dy
+                val length = kotlin.math.sqrt(length2)
+                val t = if (length2 < 0.0001f) 0f else
+                    (((point.x - a.x) * dx + (point.y - a.y) * dy) / length2).coerceIn(0f, 1f)
+                val projected = FPoint(a.x + t * dx, a.y + t * dy)
+                val d = distance(point, projected)
+                if (d < bestDistance) {
+                    bestDistance = d
+                    bestProgress = cumulative + t * length
+                }
+                cumulative += length
+            }
+            return bestProgress
+        }
+
+        val regionColumns = route.steps.indices.map {
+            mutableListOf<GuidedColumn>()
+        }
+
+        polygonsByGlyph.forEach { polygons ->
+            val columns = sampleColumns(
+                polygons = polygons,
+                densityMm = densityMm,
+                maxSatinWidthMm = maxSatinWidthMm,
+                pullCompensationMm = pullMm
+            )
+            columns.filter { it.rows.isNotEmpty() }.forEach { column ->
+                val centers = column.rows.map(::center)
+                // A media do caminho da coluna evita escolher a etapa errada
+                // quando dois ramos cursivos se cruzam num unico ponto.
+                val sample = listOf(0, centers.lastIndex / 4, centers.lastIndex / 2,
+                    centers.lastIndex * 3 / 4, centers.lastIndex).map { centers[it] }
+                val chosen = satinIndices.minWithOrNull(
+                    compareBy<Int> { stage ->
+                        sample.map { polylineDistance(it, mapped[stage]) }.average()
+                    }.thenBy { it }
+                ) ?: error("Percurso sem etapa Satin.")
+                regionColumns[chosen] += GuidedColumn(column, polygons)
+            }
+        }
+
+        require(regionColumns.sumOf { it.size } > 0) { "Nenhuma coluna Satin encontrada." }
+
+        // O marcador inicial do desenho e posicao de referencia/agulha.
+        // Nao inventar STITCH isolado numa area vazia da letra.
+        emitter.guidedJump(map(route.start))
+
+        route.steps.forEachIndexed { index, step ->
+            val path = mapped[index]
+            if (step.jumpWithoutStitch) {
+                // Deslocamentos explicitamente anotados permanecem JUMP.
+                path.forEach(emitter::guidedJump)
+            } else {
+                val assigned = regionColumns[index]
+                if (assigned.isNotEmpty()) {
+                    emitter.guidedJump(path.first())
+                    // Costurar todos os fragmentos da regiao antes de ir adiante.
+                    // Nao permitir que a proximidade altere a ordem anotada.
+                    val ordered = assigned.sortedWith(
+                        compareBy<GuidedColumn> { candidate ->
+                            val centers = candidate.column.rows.map(::center)
+                            val middle = centers[centers.lastIndex / 2]
+                            positionOnPath(middle, path)
+                        }.thenBy { columnLeftEdgeX(it.column) }
+                    )
+                    ordered.forEach { candidate ->
+                        emitter.emitGlyph(
+                            columns = listOf(candidate.column),
+                            polygons = candidate.polygons,
+                            startHint = path.first(),
+                            underlayMode = underlayMode,
+                            densityMm = densityMm,
+                            guidedOrder = true
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun nextColumnInReadingOrder(
@@ -5252,7 +5404,8 @@ internal object PeDesignImportedFontEngine {
             polygons: List<Polygon>,
             startHint: FPoint?,
             underlayMode: SatinUnderlayMode,
-            densityMm: Float
+            densityMm: Float,
+            guidedOrder: Boolean = false
         ) {
             val remaining =
                 columns
@@ -5304,7 +5457,9 @@ internal object PeDesignImportedFontEngine {
 
                 val selected =
                     (
-                        if (
+                        if (guidedOrder) {
+                            remaining.firstOrNull()
+                        } else if (
                             firstColumn &&
                             startsDesignAtVisualHint &&
                             startHint !=
@@ -5456,7 +5611,10 @@ internal object PeDesignImportedFontEngine {
                             polygons
                     )
 
-                if (
+                if (guidedOrder && firstColumn) {
+                    // A troca de regiao do roteiro e sempre sem pontada.
+                    travelTo(entry)
+                } else if (
                     continuousInsideJoin
                 ) {
                     /*
@@ -6209,6 +6367,10 @@ internal object PeDesignImportedFontEngine {
             emitStitchTo(
                 anchor
             )
+        }
+
+        fun guidedJump(target: FPoint) {
+            travelTo(target)
         }
 
         private fun travelTo(
