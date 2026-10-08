@@ -13,24 +13,33 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.MediaController
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.VideoView
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.FileInputStream
 import java.util.concurrent.TimeUnit
 
 class YouTubeBrowserActivity : Activity() {
     companion object {
         const val EXTRA_FILE_PATH = "pitchstudio_file_path"
         const val EXTRA_DISPLAY_NAME = "pitchstudio_display_name"
+        private const val REQ_SAVE = 8401
     }
 
     private lateinit var queryInput: EditText
     private lateinit var status: TextView
     private lateinit var progress: ProgressBar
     private lateinit var resultsContainer: LinearLayout
+    private lateinit var previewBox: LinearLayout
+    private lateinit var previewTitle: TextView
+    private lateinit var videoView: VideoView
+
+    private var pendingSave: YouTubeImporter.Downloaded? = null
 
     private val thumbClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -40,6 +49,13 @@ class YouTubeBrowserActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+    }
+
+    override fun onDestroy() {
+        try { videoView.stopPlayback() } catch (_: Throwable) {}
+        pendingSave?.file?.delete()
+        pendingSave = null
+        super.onDestroy()
     }
 
     private fun buildUi() {
@@ -60,7 +76,7 @@ class YouTubeBrowserActivity : Activity() {
 
         root.addView(
             text(
-                "Pesquise no YouTube. Abra para conferir ou baixe o áudio direto para o Pitch Studio.",
+                "Pesquise, pré-visualize e baixe o áudio direto para o Pitch Studio.",
                 13f,
                 false
             ),
@@ -97,6 +113,22 @@ class YouTubeBrowserActivity : Activity() {
         status = text("Digite uma música ou artista para pesquisar.", 13f, false)
         root.addView(status, full(wrap(), top = 8))
 
+        previewBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setBackgroundColor(Color.rgb(16, 28, 40))
+        }
+
+        previewTitle = text("", 15f, true)
+        previewBox.addView(previewTitle)
+
+        videoView = VideoView(this).apply {
+            setBackgroundColor(Color.BLACK)
+        }
+        previewBox.addView(videoView, full(dp(220), top = 8))
+        root.addView(previewBox, full(wrap(), top = 10))
+
         resultsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -117,7 +149,7 @@ class YouTubeBrowserActivity : Activity() {
         if (value.isBlank()) return
 
         if (YouTubeImporter.isYouTubeUrl(value)) {
-            downloadToPitchStudio(value, value)
+            previewByUrl(value, "Prévia do YouTube")
         } else {
             search(value)
         }
@@ -141,14 +173,14 @@ class YouTubeBrowserActivity : Activity() {
                         return@runOnUiThread
                     }
 
-                    status.text = results.size.toString() + " resultados"
+                    status.text = results.size.toString() + " resultados encontrados."
                     results.forEach { addResultCard(it) }
                 }
             } catch (t: Throwable) {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
-                    status.text = "Falha na busca: " + (t.message ?: "erro desconhecido")
+                    status.text = "Falha na busca: " + YouTubeImporter.friendlyMessage(t)
                 }
             }
         }.apply {
@@ -193,20 +225,22 @@ class YouTubeBrowserActivity : Activity() {
         main.addView(meta, LinearLayout.LayoutParams(0, wrap(), 1f))
         card.addView(main)
 
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
-        actions.addView(
-            button("Abrir no YouTube") { openInYouTube(result.url) },
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row1.addView(
+            button("Pré-visualizar") { previewResult(result) },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(6) }
         )
-        actions.addView(
+        row1.addView(
             button("Baixar para Pitch Studio") { downloadToPitchStudio(result.url, result.title) },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(6) }
         )
+        card.addView(row1, full(wrap(), top = 10))
 
-        card.addView(actions, full(wrap(), top = 10))
+        card.addView(
+            button("Salvar música no aparelho") { saveMusic(result.url, result.title) },
+            full(dp(46), top = 8)
+        )
+
         resultsContainer.addView(card, full(wrap(), top = 8))
 
         if (result.thumbnailUrl.isNotBlank()) {
@@ -214,29 +248,62 @@ class YouTubeBrowserActivity : Activity() {
         }
     }
 
-    private fun openInYouTube(url: String) {
-        val normalized = try {
-            YouTubeImporter.normalizeYouTubeUrl(url)
-        } catch (_: Throwable) {
-            url
-        }
+    private fun previewResult(result: YouTubeImporter.Result) {
+        previewByUrl(result.url, result.title)
+    }
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(normalized)).apply {
-            setPackage("com.google.android.youtube")
-        }
+    private fun previewByUrl(url: String, title: String) {
+        status.text = "Preparando prévia…"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = true
 
-        try {
-            startActivity(intent)
-        } catch (_: Throwable) {
+        Thread {
             try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized)))
-            } catch (_: Throwable) {
-                status.text = "Não foi possível abrir o YouTube."
+                val preview = YouTubeImporter.resolvePreview(url)
+
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+                    previewBox.visibility = View.VISIBLE
+                    previewTitle.text = preview.title + " • " + preview.resolution
+                    status.text = "Prévia pronta."
+
+                    val controller = MediaController(this)
+                    controller.setAnchorView(videoView)
+                    videoView.setMediaController(controller)
+
+                    val headers = mapOf(
+                        "User-Agent" to "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36",
+                        "Accept" to "*/*"
+                    )
+
+                    videoView.setVideoURI(Uri.parse(preview.url), headers)
+                    videoView.setOnPreparedListener {
+                        it.isLooping = false
+                        videoView.start()
+                    }
+                    videoView.setOnErrorListener { _, _, _ ->
+                        status.text = "Não foi possível reproduzir esta prévia."
+                        true
+                    }
+                    videoView.requestFocus()
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+                    status.text = "Falha na prévia: " + YouTubeImporter.friendlyMessage(t)
+                }
             }
+        }.apply {
+            name = "PitchStudio-YouTubePreview"
+            isDaemon = true
+            start()
         }
     }
 
     private fun downloadToPitchStudio(url: String, title: String) {
+        try { videoView.pause() } catch (_: Throwable) {}
         status.text = "Preparando " + title + "…"
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = false
@@ -265,11 +332,101 @@ class YouTubeBrowserActivity : Activity() {
             } catch (t: Throwable) {
                 runOnUiThread {
                     progress.visibility = View.GONE
-                    status.text = "Falha ao baixar: " + (t.message ?: "conteúdo indisponível")
+                    status.text = "Falha ao baixar: " + YouTubeImporter.friendlyMessage(t)
                 }
             }
         }.apply {
             name = "PitchStudio-YouTubeDownload"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun saveMusic(url: String, title: String) {
+        try { videoView.pause() } catch (_: Throwable) {}
+        status.text = "Preparando a música para salvar…"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = false
+        progress.progress = 2
+
+        Thread {
+            try {
+                val downloaded = YouTubeImporter.downloadBestAudio(this, url) { message, value ->
+                    runOnUiThread {
+                        status.text = message
+                        progress.progress = value.coerceIn(0, 100)
+                    }
+                }
+
+                runOnUiThread {
+                    pendingSave?.file?.delete()
+                    pendingSave = downloaded
+                    progress.visibility = View.GONE
+
+                    val ext = downloaded.displayName.substringAfterLast('.', "m4a").lowercase()
+                    val mime = when (ext) {
+                        "mp3" -> "audio/mpeg"
+                        "mp4", "m4a" -> "audio/mp4"
+                        "ogg" -> "audio/ogg"
+                        "webm" -> "audio/webm"
+                        else -> "audio/*"
+                    }
+
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = mime
+                        putExtra(Intent.EXTRA_TITLE, downloaded.displayName)
+                    }
+                    startActivityForResult(intent, REQ_SAVE)
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    status.text = "Falha ao salvar: " + YouTubeImporter.friendlyMessage(t)
+                }
+            }
+        }.apply {
+            name = "PitchStudio-YouTubeSave"
+            isDaemon = true
+            start()
+        }
+    }
+
+    @Deprecated("Compatibilidade com Android sem Activity Result API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_SAVE) return
+
+        if (resultCode != RESULT_OK) {
+            pendingSave?.file?.delete()
+            pendingSave = null
+            status.text = "Salvamento cancelado."
+            return
+        }
+
+        val uri = data?.data ?: return
+        val downloaded = pendingSave ?: return
+        pendingSave = null
+
+        Thread {
+            try {
+                FileInputStream(downloaded.file).use { input ->
+                    contentResolver.openOutputStream(uri, "w")!!.use { output ->
+                        input.copyTo(output, 128 * 1024)
+                    }
+                }
+                downloaded.file.delete()
+                runOnUiThread {
+                    status.text = "Música salva com sucesso no aparelho."
+                }
+            } catch (t: Throwable) {
+                downloaded.file.delete()
+                runOnUiThread {
+                    status.text = "Falha ao salvar a música."
+                }
+            }
+        }.apply {
+            name = "PitchStudio-SaveMusic"
             isDaemon = true
             start()
         }
