@@ -114,8 +114,12 @@ fun CreateNameScreen(
     }
 
     var displayMode by remember {
+        /*
+         * Sólida é a visualização inicial previsível.
+         * Realista/Pontos só entram quando o usuário escolher.
+         */
         mutableStateOf(
-            EmbroideryDisplayMode.REALISTIC
+            EmbroideryDisplayMode.SOLID
         )
     }
 
@@ -207,6 +211,12 @@ fun CreateNameScreen(
     var hoopProfile by remember {
         mutableStateOf(
             HoopProfile.H100X100
+        )
+    }
+
+    var hoopManuallySelected by remember {
+        mutableStateOf(
+            false
         )
     }
 
@@ -370,6 +380,21 @@ fun CreateNameScreen(
             heightMm
         }
 
+    /*
+     * Trocar apenas o bastidor não altera a geometria TTF/OTF importada.
+     * Para fontes importadas, o bastidor muda enquadramento/validação sem
+     * reiniciar a digitalização Satin inteira.
+     */
+    val previewHoopKey =
+        if (
+            importedFont !=
+                null
+        ) {
+            null
+        } else {
+            hoopProfile
+        }
+
     LaunchedEffect(
         autoFitToHoop,
         previewHeightKey,
@@ -387,7 +412,7 @@ fun CreateNameScreen(
         font,
         importedFontId,
         outputFormat,
-        hoopProfile,
+        previewHoopKey,
         fabricProfile,
         layoutMode,
         arcHeightMm,
@@ -518,7 +543,8 @@ fun CreateNameScreen(
             importedFont !=
                 null &&
             generatedDesign !=
-                null
+                null &&
+            !hoopManuallySelected
         ) {
             val automaticHoop =
                 smallestHoopForEitherOrientation(
@@ -1531,6 +1557,8 @@ fun CreateNameScreen(
                                                 hoopProfile ==
                                                     option,
                                             onClick = {
+                                                hoopManuallySelected =
+                                                    true
                                                 hoopProfile =
                                                     option
                                             }
