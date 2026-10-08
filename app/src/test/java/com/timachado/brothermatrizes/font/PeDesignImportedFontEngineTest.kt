@@ -301,8 +301,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "A primeira coluna agora comeca no pe e termina no topo; a proxima entra pelo topo adjacente.",
-            0,
+            "A primeira coluna termina no extremo de Y=20; a coluna seguinte deve iniciar nesse mesmo extremo, sem voltar ao topo.",
+            20,
             entry?.second
         )
     }
