@@ -7,6 +7,36 @@ import org.junit.Test
 class CreateNameOpenMatrixPipelineTest {
 
     @Test
+    fun selectedHoopSurvivesGeneratedMatrixCanonicalization() {
+        val selectedHoop = HoopProfile.H130X180
+        val nameDesign = TextMatrixGenerator
+            .generate(
+                TextMatrixOptions(
+                    text = "Maria",
+                    heightMm = 18f,
+                    style = TextStitchStyle.SATIN,
+                    outputFormat = "PES",
+                    hoopProfile = selectedHoop
+                )
+            )
+            .getOrThrow()
+            .copy(hoopProfile = selectedHoop)
+
+        val canonical = GeneratedMatrixPipeline
+            .canonicalize(
+                design = nameDesign,
+                outputSuffix = "selected-hoop",
+                preserveGuidePoints = true
+            )
+
+        assertTrue(canonical is EmbroideryLoadResult.Success)
+        val result = (canonical as EmbroideryLoadResult.Success).design
+        assertEquals(selectedHoop, result.hoopProfile)
+        assertEquals(nameDesign.stitchCount, result.stitchCount)
+    }
+
+
+    @Test
     fun generatedNameSequenceIsExactlyTheOpenMatrixSequence() {
         val source =
             TextMatrixGenerator
