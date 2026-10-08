@@ -217,9 +217,9 @@ if [ "$SUCCESS" -ne 1 ]; then
   exit 1
 fi
 echo "PASSOU: teste de inferência do modelo ONNX em emulador Android."
+# O trecho isolado dura ~5,8 s. Pausar imediatamente, pois
+# uiautomator dump + scroll pode consumir toda a reprodução.
 tap "Ouvir voz isolada"
-visible "Pausar prévia vocal"
-sleep 2
 tap "Pausar prévia vocal"
 visible "Continuar prévia vocal"
 echo "PASSOU: prévia vocal temporária reproduziu e pausou via AudioTrack."
