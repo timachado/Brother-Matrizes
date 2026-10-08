@@ -1956,8 +1956,9 @@ internal object PeDesignImportedFontEngine {
                         pathLength,
                     tortuosity =
                         tortuosity,
+                    // A extracao Android/Skia usa Y positivo para baixo.
                     bottomCenter =
-                        centers.minBy {
+                        centers.maxBy {
                             it.y
                         }
                 )
@@ -5846,12 +5847,10 @@ internal object PeDesignImportedFontEngine {
                         .last()
                 )
 
-            /*
-             * Designs created by this engine use sourceYAxisDown=false.
-             * Simulator therefore renders smaller yUnits lower on screen.
-             */
+            // O contorno nativo e emitido com sourceYAxisDown=true.
+            // Portanto o pe visual da coluna corresponde ao MAIOR Y.
             return if (
-                first.y <=
+                first.y >=
                     last.y
             ) {
                 first
@@ -6147,12 +6146,10 @@ internal object PeDesignImportedFontEngine {
                 return null
             }
 
-            val index =
-                if (insetFirstColumn) {
-                    firstColumnUnderlayStartIndex(centers)
-                } else {
-                    0
-                }
+            // A primeira perfuracao precisa coincidir com a entrada
+            // real do glifo. Comecar artificialmente a 25% da passada
+            // deslocava a agulha para dentro de um segmento ja escolhido.
+            val index = 0
 
             return centers[
                 index
@@ -6181,12 +6178,9 @@ internal object PeDesignImportedFontEngine {
                 return
             }
 
-            val startIndex =
-                if (insetFirstColumn) {
-                    firstColumnUnderlayStartIndex(centers)
-                } else {
-                    0
-                }
+            // A passada central parte do pe selecionado e atravessa
+            // a coluna uma unica vez, antes da cobertura Satin.
+            val startIndex = 0
 
             // Uma única passada central do ponto de entrada até o extremo.
             centers
