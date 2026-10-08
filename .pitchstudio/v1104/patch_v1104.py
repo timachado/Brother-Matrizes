@@ -21,7 +21,7 @@ import java.io.BufferedOutputStream
 import java.util.UUID
 ''')
 
-one('''        const val MIC_REQUEST = 814''','''        const val MIC_REQUEST = 814
+one('''        private const val MIC_REQUEST = 814''','''        private const val MIC_REQUEST = 814
         private const val EXPORT_WAV_REQUEST = 9024
         private const val WAV_CACHE_STATE = "saved_voice_wav_staging"''')
 
