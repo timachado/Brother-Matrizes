@@ -571,10 +571,10 @@ class PeDesignImportedFontEngineTest {
             firstTravel < firstLeftStitchPosition
         )
         assertTrue(
-            "A marca antiga JUMP_NO_STITCH nao pode forcar um desvio em area vazia.",
-            points.none {
-                it.command == StitchCommand.JUMP && it.xUnits in 40..60
-            }
+            "O primeiro glifo deve ser inteiramente costurado antes do deslocamento fisico necessario ate a outra letra.",
+            points.subList(2, firstTravel).count {
+                it.command == StitchCommand.STITCH && it.xUnits >= 75
+            } > 10
         )
     }
 
