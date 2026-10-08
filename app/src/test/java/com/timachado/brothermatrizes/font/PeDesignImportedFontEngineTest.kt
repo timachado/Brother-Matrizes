@@ -509,7 +509,7 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
-    fun firstSatinColumnStartsAtVisualLowerFootAndRunsUpward() {
+    fun firstSatinColumnStartsInsideLowerStrokeAndCoversTheEntireColumn() {
         val points =
             PeDesignImportedFontEngine
                 .debugFirstColumnInsetPath()
@@ -535,8 +535,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "A primeira coluna deve começar pelo pé visual inferior (menor yUnits para sourceYAxisDown=false).",
-            0,
+            "A entrada do primeiro center-run deve ficar no ponto interno inferior marcado (aproximadamente 25% da coluna).",
+            40,
             firstJump.yUnits
         )
 
@@ -563,7 +563,7 @@ class PeDesignImportedFontEngineTest {
             }
 
         assertTrue(
-            "O center-run deve subir do pé até o extremo superior antes de iniciar a cobertura Satin.",
+            "O center-run deve subir do ponto de entrada interno até o extremo superior antes da cobertura Satin.",
             farIndex >
                 0
         )
