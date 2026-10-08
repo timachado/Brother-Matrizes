@@ -54,33 +54,55 @@ methods = '''    private fun openYouTubeBrowser() {
         )
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        if (requestCode != 7301 || resultCode != RESULT_OK) return
-
-        val path = data?.getStringExtra(YouTubeBrowserActivity.EXTRA_FILE_PATH).orEmpty()
-        val name = data?.getStringExtra(YouTubeBrowserActivity.EXTRA_DISPLAY_NAME)
-            ?.takeIf { it.isNotBlank() }
-            ?: "youtube-audio"
-
-        if (path.isBlank()) {
-            toast("O YouTube não retornou um arquivo de áudio.")
-            return
-        }
-
-        val file = File(path)
-        if (!file.exists() || file.length() <= 0L) {
-            toast("O arquivo baixado não está disponível.")
-            return
-        }
-
-        statusLabel.text = "Áudio do YouTube recebido. Carregando no Pitch Studio…"
-        loadRemoteAudio(file, name)
-    }
-
 '''
 s = s.replace(marker, methods + marker, 1)
+
+old_result = '''    @Deprecated("Compatibilidade ampla sem dependência AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        when (requestCode) {
+            REQ_AUDIO -> data?.data?.let { loadAudio(it) }
+            REQ_EXPORT -> data?.data?.let { exportTo(it) }
+        }
+    }
+'''
+
+new_result = '''    @Deprecated("Compatibilidade ampla sem dependência AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+
+        when (requestCode) {
+            REQ_AUDIO -> data?.data?.let { loadAudio(it) }
+            REQ_EXPORT -> data?.data?.let { exportTo(it) }
+            7301 -> {
+                val path = data?.getStringExtra(YouTubeBrowserActivity.EXTRA_FILE_PATH).orEmpty()
+                val name = data?.getStringExtra(YouTubeBrowserActivity.EXTRA_DISPLAY_NAME)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "youtube-audio"
+
+                if (path.isBlank()) {
+                    toast("O YouTube não retornou um arquivo de áudio.")
+                    return
+                }
+
+                val file = File(path)
+                if (!file.exists() || file.length() <= 0L) {
+                    toast("O arquivo baixado não está disponível.")
+                    return
+                }
+
+                statusLabel.text = "Áudio do YouTube recebido. Carregando no Pitch Studio…"
+                loadRemoteAudio(file, name)
+            }
+        }
+    }
+'''
+
+if old_result not in s:
+    raise SystemExit("onActivityResult base não encontrado")
+s = s.replace(old_result, new_result, 1)
 p.write_text(s, encoding="utf-8")
 
 print("Pitch Studio v1.4 aplicado.")
