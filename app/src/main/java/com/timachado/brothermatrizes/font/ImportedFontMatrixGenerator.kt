@@ -3040,8 +3040,7 @@ object ImportedFontMatrixGenerator {
                 EmbroideryPoint
             >()
 
-        glyphPolygons.forEach {
-                polygons ->
+        glyphPolygons.forEachIndexed { glyphIndex, polygons ->
             val contours =
                 polygons
                     .map {
@@ -3087,7 +3086,7 @@ object ImportedFontMatrixGenerator {
             if (
                 contours.isEmpty()
             ) {
-                return@forEach
+                return@forEachIndexed
             }
 
             val glyphPoints =
@@ -3095,13 +3094,15 @@ object ImportedFontMatrixGenerator {
                     contours =
                         contours,
                     options =
-                        options
+                        options,
+                    preferInitialStroke =
+                        glyphIndex == 0
                 )
 
             if (
                 glyphPoints.isEmpty()
             ) {
-                return@forEach
+                return@forEachIndexed
             }
 
             if (
@@ -3164,7 +3165,8 @@ object ImportedFontMatrixGenerator {
 
     private fun buildSatinByAxis(
         contours: List<SampledContour>,
-        options: TextMatrixOptions
+        options: TextMatrixOptions,
+        preferInitialStroke: Boolean = false
     ): MutableList<EmbroideryPoint> {
         val allPoints =
             contours.flatMap {
@@ -3510,7 +3512,11 @@ object ImportedFontMatrixGenerator {
                 segments =
                     usableSegments,
                 rootHint =
-                    loopEntry ?: preferredStrokeFlowEntry(usableSegments)
+                    loopEntry ?: if (preferInitialStroke) {
+                        preferredOpenSwashEntry(usableSegments)
+                    } else {
+                        preferredStrokeFlowEntry(usableSegments)
+                    }
             )
 
         if (
@@ -4014,6 +4020,45 @@ object ImportedFontMatrixGenerator {
             outgoing.first +
             incoming.second *
                 outgoing.second
+    }
+
+    /**
+     * A letra cursiva inicial pode ter floreio ABERTO, com uma ponta
+     * externa na esquerda e a entrada natural interna mais a direita.
+     * Procurar só o extremo mais baixo faz com que a máquina comece
+     * no contorno externo, exatamente como no vídeo de Maria.
+     * Usamos endpoints do PRIMEIRO glifo, sem alterar os pontos Satin.
+     */
+    private fun preferredOpenSwashEntry(
+        segments: List<StrokeFlowSegment>
+    ): SkeletonPoint? {
+        if (segments.isEmpty()) return null
+        val all = segments.flatMap { it.points }
+        val left = all.minOf { it.x }
+        val right = all.maxOf { it.x }
+        val top = all.minOf { it.y }
+        val bottom = all.maxOf { it.y }
+        val width = (right - left).coerceAtLeast(1)
+        val height = (bottom - top).coerceAtLeast(1)
+
+        val desiredX = left + width * 0.56
+        val desiredY = top + height * 0.80
+        val endpoints = segments
+            .flatMap { listOf(it.points.first(), it.points.last()) }
+            .distinct()
+        val lowerLeading = endpoints.filter { point ->
+            point.x <= left + width * 0.71 &&
+                point.y >= top + height * 0.50
+        }
+        val candidates = if (lowerLeading.isNotEmpty()) {
+            lowerLeading
+        } else {
+            endpoints
+        }
+        return candidates.minByOrNull { point ->
+            kotlin.math.abs(point.x - desiredX) +
+                kotlin.math.abs(point.y - desiredY) * 0.75
+        }
     }
 
     /**
@@ -4828,6 +4873,29 @@ object ImportedFontMatrixGenerator {
                 "," +
                 to.y
         }
+    }
+
+    internal fun debugOpenSwashEntry(): Pair<Int, Int> {
+        val sections = splitStrokeFlowSegments(
+            listOf(
+                listOf(
+                    SkeletonPoint(0, 82),
+                    SkeletonPoint(0, 40),
+                    SkeletonPoint(10, 5),
+                    SkeletonPoint(40, 0),
+                    SkeletonPoint(55, 80)
+                ),
+                listOf(
+                    SkeletonPoint(70, 88),
+                    SkeletonPoint(90, 30),
+                    SkeletonPoint(100, 0)
+                )
+            )
+        )
+        val entry = preferredOpenSwashEntry(sections)!!
+        val traversal = planStrokeFlowTraversal(sections, entry)
+        val actual = strokeFlowNodePoint(traversal.first().fromNode)
+        return actual.x to actual.y
     }
 
     internal fun debugConnectedLoopEntrance(): Pair<Pair<Int, Int>, Int> {
