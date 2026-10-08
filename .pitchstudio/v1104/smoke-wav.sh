@@ -236,13 +236,7 @@ if ! echo "$DOCUMENT_ACTIVITY" | grep -Eiq 'documentsui|files|documents'; then
     exit 1
   fi
 fi
-STAGE=$(adb shell run-as "$PKG" ls cache | tr -d '\r' | grep -E '^pitch_voice_export_.*\.wav
-
-if adb logcat -d -b crash -t 1500 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.stemexport'; then
- echo "FALHA: crash identificado no logcat" >&2
- exit 1
-fi
- | head -n1)
+STAGE=$(adb shell run-as "$PKG" ls cache | tr -d '\r' | grep -E '^pitch_voice_export_.*\.wav$' | head -n1)
 if [ -z "$STAGE" ]; then
   echo "FALHA: exportação não preparou WAV antes do seletor." >&2
   exit 1
