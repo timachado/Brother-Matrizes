@@ -190,6 +190,13 @@ assert g.count("versionCode = 10") == 1, "Versão base não encontrada"
 assert g.count('versionName = "1.9.0"') == 1, "Nome de versão base não encontrado"
 g = g.replace("versionCode = 10", "versionCode = 11")
 g = g.replace('versionName = "1.9.0"', 'versionName = "1.9.1"')
+# Instalação lado a lado: não substitui nem apaga os dados do app v1.9.0.
+assert "    buildTypes {" in g, "buildTypes não encontrado"
+g = g.replace(
+    "    buildTypes {",
+    '    buildTypes {\n        debug {\n            applicationIdSuffix = ".preview"\n            versionNameSuffix = "-preview"\n        }',
+    1
+)
 gradle.write_text(g, encoding="utf-8")
 
 # Ícone conceitual de onda contínua: provisório até a marca definitiva.
