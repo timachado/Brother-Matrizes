@@ -275,7 +275,7 @@ for n in nodes:
         continue
     if n.get("enabled")=="false":
         continue
-    bounds=list(map(int,re.findall(r"\\d+",n.get("bounds",""))))
+    bounds=list(map(int,re.findall(r"\d+",n.get("bounds",""))))
     if len(bounds)==4:
         a,b,c,d=bounds
         print((a+c)//2,(b+d)//2)
