@@ -2,15 +2,20 @@ package br.com.timachado.pitchstudio
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.inputmethod.EditorInfo
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -18,6 +23,12 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -45,6 +56,7 @@ class YouTubeBrowserActivity : Activity() {
     private var activeFrame: FrameLayout? = null
     private var activePlayOverlay: View? = null
     private var pendingSave: YouTubeImporter.Downloaded? = null
+    private var searchRequest = 0
 
     private val thumbClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -57,6 +69,7 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     override fun onDestroy() {
+        ++searchRequest
         stopActivePreview()
         pendingSave?.file?.delete()
         pendingSave = null
@@ -66,8 +79,17 @@ class YouTubeBrowserActivity : Activity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            setBackgroundColor(Color.rgb(6, 17, 28))
+            setBackgroundColor(Color.rgb(7, 13, 25))
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(
+                dp(16) + bars.left, dp(12) + bars.top,
+                dp(16) + bars.right, dp(16) + bars.bottom
+            )
+            insets
         }
 
         val header = LinearLayout(this).apply {
@@ -75,14 +97,25 @@ class YouTubeBrowserActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        header.addView(button("‹") { finish() }, LinearLayout.LayoutParams(dp(52), dp(48)))
-        header.addView(text("YouTube", 24f, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(button("‹") { finish() }.apply {
+            contentDescription = "Voltar ao estúdio"
+            cornerRadius = dp(24)
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val heading = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        heading.addView(text("EXPLORAR MÚSICAS", 11f, true).apply {
+            setTextColor(Color.rgb(43, 219, 230))
+            letterSpacing = 0.11f
+        })
+        heading.addView(text("YouTube", 26f, true))
+        header.addView(heading, LinearLayout.LayoutParams(0, wrap(), 1f).apply {
+            marginStart = dp(12)
+        })
         root.addView(header)
 
         root.addView(
             text(
-                "Pesquise, toque na prévia e assista ao vídeo do YouTube no próprio resultado antes de baixar.",
-                13f,
+                "Encontre sua música, assista à prévia em vídeo e escolha como usar o áudio.",
+                14f,
                 false
             ),
             full(wrap(), top = 4)
@@ -93,26 +126,42 @@ class YouTubeBrowserActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        queryInput = EditText(this).apply {
-            hint = "Música, artista ou link do YouTube"
-            setHintTextColor(Color.rgb(135, 154, 174))
-            setTextColor(Color.WHITE)
-            setSingleLine(true)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setBackgroundColor(Color.rgb(24, 39, 54))
-            setPadding(dp(12), 0, dp(12), 0)
+        val searchField = TextInputLayout(this).apply {
+            hint = "Música, artista ou link"
+            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_FILLED
+            boxBackgroundColor = Color.rgb(23, 35, 55)
+            boxStrokeWidth = 0
+            boxStrokeWidthFocused = dp(2)
+            setBoxStrokeColor(Color.rgb(43, 219, 230))
+            setBoxCornerRadii(
+                dp(22).toFloat(), dp(22).toFloat(),
+                dp(22).toFloat(), dp(22).toFloat()
+            )
+            endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
         }
-
-        searchRow.addView(
-            queryInput,
-            LinearLayout.LayoutParams(0, dp(52), 1f).apply {
-                marginEnd = dp(8)
+        queryInput = TextInputEditText(this).apply {
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(173, 189, 210))
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    submit()
+                    true
+                } else false
             }
-        )
-
+        }
+        searchField.addView(queryInput, ViewGroup.LayoutParams(-1, dp(56)))
+        searchRow.addView(searchField, LinearLayout.LayoutParams(0, dp(68), 1f).apply {
+            marginEnd = dp(8)
+        })
         searchRow.addView(
-            button("Buscar") { submit() },
-            LinearLayout.LayoutParams(dp(92), dp(52))
+            button("Buscar") { submit() }.apply {
+                backgroundTintList = ColorStateList.valueOf(Color.rgb(43, 219, 230))
+                setTextColor(Color.rgb(7, 13, 25))
+            },
+            LinearLayout.LayoutParams(dp(96), dp(54))
         )
 
         root.addView(searchRow, full(wrap(), top = 14))
@@ -126,7 +175,9 @@ class YouTubeBrowserActivity : Activity() {
             visibility = View.GONE
         }
 
-        root.addView(progress, full(dp(8), top = 10))
+        progress.progressTintList = ColorStateList.valueOf(Color.rgb(43, 219, 230))
+        progress.progressBackgroundTintList = ColorStateList.valueOf(Color.rgb(45, 58, 80))
+        root.addView(progress, full(dp(5), top = 8))
 
         status = text(
             "Digite uma música, artista ou cole um link do YouTube.",
@@ -134,7 +185,8 @@ class YouTubeBrowserActivity : Activity() {
             false
         )
 
-        root.addView(status, full(wrap(), top = 8))
+        status.contentDescription = "Status da busca de música"
+        root.addView(status, full(wrap(), top = 12))
 
         resultsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -142,6 +194,7 @@ class YouTubeBrowserActivity : Activity() {
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
+            clipToPadding = false
             addView(resultsContainer)
         }
 
@@ -153,11 +206,16 @@ class YouTubeBrowserActivity : Activity() {
         )
 
         setContentView(root)
+        ViewCompat.requestApplyInsets(root)
     }
 
     private fun submit() {
         val value = queryInput.text.toString().trim()
-        if (value.isBlank()) return
+        if (value.isBlank()) {
+            status.text = "Digite uma música, artista ou link para pesquisar."
+            return
+        }
+        queryInput.clearFocus()
 
         if (YouTubeImporter.isYouTubeUrl(value)) {
             loadSingleResult(value)
@@ -167,6 +225,8 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun loadSingleResult(url: String) {
+        stopActivePreview()
+        val request = ++searchRequest
         status.text = "Carregando vídeo do YouTube…"
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = true
@@ -179,6 +239,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Vídeo encontrado."
                     addResultCard(result)
                 }
@@ -186,6 +247,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Falha ao abrir o vídeo: " +
                         YouTubeImporter.friendlyMessage(t)
                 }
@@ -198,6 +260,8 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun search(query: String) {
+        stopActivePreview()
+        val request = ++searchRequest
         status.text = "Pesquisando no YouTube…"
         progress.visibility = View.VISIBLE
         progress.isIndeterminate = true
@@ -211,6 +275,7 @@ class YouTubeBrowserActivity : Activity() {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
 
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     if (results.isEmpty()) {
                         status.text = "Nenhum resultado encontrado."
                         return@runOnUiThread
@@ -225,6 +290,7 @@ class YouTubeBrowserActivity : Activity() {
                 runOnUiThread {
                     progress.visibility = View.GONE
                     progress.isIndeterminate = false
+                    if (request != searchRequest || isFinishing || isDestroyed) return@runOnUiThread
                     status.text = "Falha na busca: " +
                         YouTubeImporter.friendlyMessage(t)
                 }
@@ -237,14 +303,26 @@ class YouTubeBrowserActivity : Activity() {
     }
 
     private fun addResultCard(result: YouTubeImporter.Result) {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            setBackgroundColor(Color.rgb(25, 39, 53))
+        val card = MaterialCardView(this).apply {
+            radius = dp(26).toFloat()
+            strokeWidth = dp(1)
+            strokeColor = Color.rgb(49, 66, 92)
+            cardElevation = 0f
+            setCardBackgroundColor(Color.rgb(19, 30, 49))
         }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(13), dp(13), dp(14))
+        }
+        card.addView(content)
 
         val mediaFrame = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
+            background = GradientDrawable().apply {
+                setColor(Color.BLACK)
+                cornerRadius = dp(18).toFloat()
+            }
+            clipToOutline = true
+            contentDescription = "Prévia em vídeo"
         }
 
         val thumb = ImageView(this).apply {
@@ -260,15 +338,16 @@ class YouTubeBrowserActivity : Activity() {
             )
         )
 
-        val playOverlay = button("▶  Pré-visualizar") {
+        val playOverlay = button("▶ Ver vídeo") {
             previewInCard(result, mediaFrame, playOverlayRef = null)
         }.apply {
-            setBackgroundColor(Color.argb(205, 25, 32, 40))
+            backgroundTintList = ColorStateList.valueOf(Color.argb(230, 33, 43, 69))
             setTextColor(Color.WHITE)
+            contentDescription = "Reproduzir prévia de " + result.title
         }
 
         val overlayParams = FrameLayout.LayoutParams(
-            dp(172),
+            dp(154),
             dp(52),
             Gravity.CENTER
         )
@@ -280,10 +359,13 @@ class YouTubeBrowserActivity : Activity() {
             previewInCard(result, mediaFrame, playOverlay)
         }
 
-        card.addView(mediaFrame, full(dp(205)))
+        content.addView(mediaFrame, full(dp(188)))
 
-        val title = text(result.title, 17f, true)
-        card.addView(title, full(wrap(), top = 10))
+        val title = text(result.title, 18f, true).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        content.addView(title, full(wrap(), top = 12))
 
         val duration = if (result.durationSeconds > 0) {
             val total = result.durationSeconds
@@ -292,41 +374,37 @@ class YouTubeBrowserActivity : Activity() {
             ""
         }
 
-        card.addView(
+        content.addView(
             text(result.uploader + duration, 13f, false),
             full(wrap(), top = 3)
         )
 
+        content.addView(
+            button("Usar no PitchStudio") {
+                downloadToPitchStudio(result.url, result.title)
+            }.apply {
+                backgroundTintList = ColorStateList.valueOf(Color.rgb(43, 219, 230))
+                setTextColor(Color.rgb(7, 13, 25))
+                contentDescription = "Importar " + result.title + " para o PitchStudio"
+            }, full(dp(54), top = 12)
+        )
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-
         actions.addView(
-            button("▶ Reproduzir aqui") {
+            button("▶ Prévia") {
                 previewInCard(result, mediaFrame, playOverlay)
             },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginEnd = dp(5)
-            }
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) }
         )
-
         actions.addView(
-            button("Baixar para Pitch Studio") {
-                downloadToPitchStudio(result.url, result.title)
-            },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(5)
-            }
-        )
-
-        card.addView(actions, full(wrap(), top = 10))
-
-        card.addView(
-            button("Salvar música no aparelho") {
+            button("Salvar arquivo") {
                 saveMusic(result.url, result.title)
             },
-            full(dp(48), top = 8)
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) }
         )
+        content.addView(actions, full(wrap(), top = 8))
 
         resultsContainer.addView(card, full(wrap(), top = 10))
 
@@ -588,8 +666,9 @@ class YouTubeBrowserActivity : Activity() {
         Thread {
             try {
                 FileInputStream(downloaded.file).use { input ->
-                    contentResolver.openOutputStream(uri, "w")!!
-                        .use { output ->
+                    requireNotNull(contentResolver.openOutputStream(uri, "w")) {
+                        "Não foi possível abrir o destino de salvamento."
+                    }.use { output ->
                             input.copyTo(output, 128 * 1024)
                         }
                 }
@@ -655,12 +734,20 @@ class YouTubeBrowserActivity : Activity() {
     private fun button(
         label: String,
         action: () -> Unit
-    ): Button =
-        Button(this).apply {
+    ): MaterialButton =
+        MaterialButton(this).apply {
             text = label
             isAllCaps = false
-            setTextColor(Color.rgb(198, 222, 238))
-            setBackgroundColor(Color.rgb(73, 78, 85))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL))
+            setTextColor(Color.rgb(236, 245, 255))
+            backgroundTintList = ColorStateList.valueOf(Color.rgb(42, 55, 80))
+            cornerRadius = dp(20)
+            insetTop = 0
+            insetBottom = 0
+            minHeight = dp(48)
+            minWidth = 0
+            setPadding(dp(9), 0, dp(9), 0)
             setOnClickListener { action() }
         }
 
@@ -679,11 +766,10 @@ class YouTubeBrowserActivity : Activity() {
             )
 
             if (bold) {
-                setTypeface(
-                    typeface,
-                    android.graphics.Typeface.BOLD
-                )
+                setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD))
             }
+            includeFontPadding = false
+            setLineSpacing(dp(2).toFloat(), 1.0f)
         }
 
     private fun full(
