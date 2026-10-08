@@ -180,6 +180,116 @@ jobs:
           print("Pitch Studio v1.1 aplicado.")
           PY
 
+      - name: Aplicar Pitch Studio v1.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+
+          cp .pitchstudio/v12/ExtractorDownloader.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/ExtractorDownloader.kt"
+          cp .pitchstudio/v12/YouTubeImporter.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/YouTubeImporter.kt"
+          cp .pitchstudio/v12/YouTubeUi.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/YouTubeUi.kt"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "pitchstudio-src/PitchStudioAndroid"
+
+          # JitPack para NewPipeExtractor.
+          p = root / "settings.gradle.kts"
+          s = p.read_text(encoding="utf-8")
+          if "https://jitpack.io" not in s:
+              s = s.replace(
+                  "mavenCentral()",
+                  'mavenCentral()\n        maven { url = uri("https://jitpack.io") }'
+              )
+          p.write_text(s, encoding="utf-8")
+
+          # v1.2 + dependências do extrator local.
+          p = root / "app/build.gradle.kts"
+          s = p.read_text(encoding="utf-8")
+          s = s.replace("versionCode = 2", "versionCode = 3")
+          s = s.replace('versionName = "1.1.0"', 'versionName = "1.2.0"')
+
+          if "isCoreLibraryDesugaringEnabled = true" not in s:
+              s, count = re.subn(
+                  r'(targetCompatibility\s*=\s*JavaVersion\.VERSION_17\s*\n)(\s*})',
+                  r'\1        isCoreLibraryDesugaringEnabled = true\n\2',
+                  s,
+                  count=1
+              )
+              if count != 1:
+                  raise SystemExit("compileOptions não encontrado para desugaring")
+
+          if "com.github.teamnewpipe:newpipeextractor:0.26.5" not in s:
+              s += """
+          
+          dependencies {
+              implementation("com.github.teamnewpipe:newpipeextractor:0.26.5")
+              implementation("com.squareup.okhttp3:okhttp:5.4.0")
+              coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
+          }
+          """
+          p.write_text(s, encoding="utf-8")
+
+          # Busca do YouTube agora fica dentro do Pitch Studio e importa o áudio escolhido.
+          p = root / "app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
+          s = p.read_text(encoding="utf-8")
+          old = 'OnlineMusic.showYouTubeSearch(this) { statusLabel.text = it }'
+          new = """YouTubeUi.show(
+              activity = this,
+              cacheDir = cacheDir,
+              onStatus = { statusLabel.text = it },
+              onProgress = { message, value -> showProgress(message, value) },
+              onDownloaded = { file, name -> loadRemoteAudio(file, name) },
+              onError = { message -> hideProgress("Falha no YouTube: " + message) }
+          )"""
+          if old not in s:
+              raise SystemExit("chamada antiga de busca YouTube não encontrada")
+          s = s.replace(old, new, 1)
+          s = s.replace(
+              "YouTube usa a busca oficial. Links HTTPS diretos de áudio podem ser importados e processados localmente.",
+              "YouTube: pesquise ou cole o link; o áudio é baixado temporariamente e carregado no Pitch Studio."
+          )
+          p.write_text(s, encoding="utf-8")
+
+          # Colar um link do YouTube no campo genérico também importa para o Pitch Studio.
+          p = root / "app/src/main/java/br/com/timachado/pitchstudio/OnlineMusic.kt"
+          s = p.read_text(encoding="utf-8")
+          pattern = re.compile(
+              r'''        if \(host == "youtu\.be" \|\| host\.endsWith\("youtube\.com"\) \|\| host\.endsWith\("youtube-nocookie\.com"\)\) \{
+          .*?
+                  return
+              \}''',
+              re.S
+          )
+          replacement = '''        if (
+              host == "youtu.be" ||
+              host.endsWith("youtube.com") ||
+              host.endsWith("youtube-nocookie.com") ||
+              host.endsWith("music.youtube.com")
+          ) {
+              YouTubeUi.importUrl(
+                  activity,
+                  cacheDir,
+                  rawUrl,
+                  onStatus,
+                  onProgress,
+                  onDownloaded,
+                  onError
+              )
+              return
+          }'''
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("bloco de rejeição do YouTube não encontrado")
+          p.write_text(s, encoding="utf-8")
+
+          print("Pitch Studio v1.2 aplicado.")
+          PY
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -225,7 +335,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.1.0-debug-apk
+          name: PitchStudio-v1.2.0-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
