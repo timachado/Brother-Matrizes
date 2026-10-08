@@ -490,6 +490,76 @@ private fun DrawScope.drawGrid(
     }
 }
 
+internal fun shouldPreserveHoopPosition(
+    design: EmbroideryDesign,
+    hoop: HoopProfile,
+    rotateHoop: Boolean
+): Boolean {
+    if (
+        !design.isModified
+    ) {
+        return false
+    }
+
+    val usableWidthUnits =
+        (
+            if (
+                rotateHoop
+            ) {
+                hoop.usableHeightMm
+            } else {
+                hoop.usableWidthMm
+            }
+            ) *
+            10f
+
+    val usableHeightUnits =
+        (
+            if (
+                rotateHoop
+            ) {
+                hoop.usableWidthMm
+            } else {
+                hoop.usableHeightMm
+            }
+            ) *
+            10f
+
+    val halfWidth =
+        usableWidthUnits /
+            2f
+
+    val halfHeight =
+        usableHeightUnits /
+            2f
+
+    val tolerance =
+        1f
+
+    val bounds =
+        design.bounds
+
+    /*
+     * Uma edição realmente posicionada dentro do bastidor deve manter sua
+     * posição. Já um PES gerado/reaberto costuma vir em coordenadas positivas
+     * (0..largura / 0..altura); se essas coordenadas colocam o desenho fora da
+     * área segura apesar de ele caber nela, o Viewer centraliza apenas a
+     * apresentação. Os pontos físicos do arquivo não são alterados.
+     */
+    return bounds.minXUnits >=
+        -halfWidth -
+            tolerance &&
+        bounds.maxXUnits <=
+            halfWidth +
+                tolerance &&
+        bounds.minYUnits >=
+            -halfHeight -
+                tolerance &&
+        bounds.maxYUnits <=
+            halfHeight +
+                tolerance
+}
+
 private fun DrawScope.drawDesign(
     design: EmbroideryDesign,
     points: List<EmbroideryPoint>,
@@ -593,9 +663,17 @@ private fun DrawScope.drawDesign(
             userScale
 
     val preserveHoopPosition =
-        hoop !=
-            null &&
-        design.isModified
+        hoop?.let {
+                selectedHoop ->
+            shouldPreserveHoopPosition(
+                design =
+                    design,
+                hoop =
+                    selectedHoop,
+                rotateHoop =
+                    rotateHoop
+            )
+        } ?: false
 
     val centerXUnits =
         if (
