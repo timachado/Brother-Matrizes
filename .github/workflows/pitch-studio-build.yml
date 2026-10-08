@@ -444,6 +444,7 @@ jobs:
           file=Path(sys.argv[1]); data=file.read_bytes()
           assert 25000000 < len(data) < 40000000, f'Modelo incompleto: {len(data)} bytes'
           assert not data.startswith(b'<html'), 'Arquivo HTML no lugar do modelo'
+          assert hashlib.sha256(data).hexdigest() == '9d78f8566fa8198065214ab628be1de966a500c57786695aa4b13e2b27a7727d', 'Hash SHA-256 do modelo não corresponde à distribuição validada'
           print('Modelo MDX-Net bytes:',len(data))
           print('Modelo MDX-Net SHA-256:',hashlib.sha256(data).hexdigest())
           PY
