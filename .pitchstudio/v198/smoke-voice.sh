@@ -74,9 +74,9 @@ visible "Analisar minha voz"
 visible "Compare três versões"
 # A permissão fica reservada ao uso do microfone. Negar não pode encerrar a tela.
 tap "Analisar minha voz"
-sleep 3
-tap "Concluir análise"
-sleep 4
+# No emulador a captura termina sozinha após 12 segundos. Não exigir que
+# "Concluir análise" ainda esteja visível depois da coleta.
+sleep 14
 visible "Analisar novamente"
 visible "Mais grave"
 tap "Mais grave"
