@@ -3410,12 +3410,6 @@ object ImportedFontMatrixGenerator {
             return mutableListOf()
         }
 
-        val rootGuide =
-            orderStrokeFlowSkeletonLines(
-                rawLines
-            )
-                .firstOrNull()
-
         val densityUnits =
             (
                 options.satinDensityMm *
@@ -3505,8 +3499,7 @@ object ImportedFontMatrixGenerator {
                 segments =
                     usableSegments,
                 rootHint =
-                    rootGuide
-                        ?.firstOrNull()
+                    preferredStrokeFlowEntry(usableSegments)
             )
 
         if (
@@ -3920,286 +3913,113 @@ object ImportedFontMatrixGenerator {
     }
 
     /**
-     * DFS pós-ordem do grafo de traços.
+     * O primeiro ponto é procurado no pé inferior esquerdo do primeiro
+     * glifo, perto da entrada natural do traçado (inclusive letras cursivas
+     * com laço de abertura). Evita usar a maior linha da máscara como início,
+     * pois ela pode começar no alto ou no lado externo do laço.
+     */
+    private fun preferredStrokeFlowEntry(
+        segments: List<StrokeFlowSegment>
+    ): SkeletonPoint? {
+        val ends = segments.flatMap { segment ->
+            listOf(segment.points.first(), segment.points.last())
+        }
+        if (ends.isEmpty()) return null
+
+        val left = ends.minOf { it.x }
+        val right = ends.maxOf { it.x }
+        val top = ends.minOf { it.y }
+        val bottom = ends.maxOf { it.y }
+        // As coordenadas da mascara crescem para baixo.
+        return SkeletonPoint(
+            x = (left + (right - left) * 0.34f).roundToInt(),
+            y = (top + (bottom - top) * 0.86f).roundToInt()
+        )
+    }
+
+    /**
+     * Sequencia fisica da agulha: cada area recebe primeiro o underlay e,
+     * imediatamente, sua cobertura Satin. O Satin retorna ate o ponto de
+     * entrada (fromNode); portanto a proxima area precisa ser escolhida a
+     * partir desse ponto REAL, nao do toNode da ida.
      *
-     * CENTER_RUN é emitido ao descer na aresta.
-     * SATIN_RETURN é emitido somente no backtracking. Assim, numa bifurcação,
-     * os ramos-filhos são concluídos antes que o Satin feche o ramo-pai —
-     * exatamente o padrão observado em 1000338102.mp4.
+     * A selecao por proximidade evita saltos entre ramificacoes distantes.
+     * A penalizacao moderada por voltar a esquerda evita retomadas tardias
+     * de zonas ja ultrapassadas durante a progressao pelo glifo.
      */
     private fun planStrokeFlowTraversal(
-        segments:
-            List<StrokeFlowSegment>,
-        rootHint:
-            SkeletonPoint?
+        segments: List<StrokeFlowSegment>,
+        rootHint: SkeletonPoint?
     ): List<StrokeFlowTraversalStep> {
-        if (
-            segments.isEmpty()
-        ) {
-            return emptyList()
-        }
+        if (segments.isEmpty()) return emptyList()
 
-        val byId =
-            segments.associateBy {
-                it.id
-            }
+        val remaining = segments.toMutableList()
+        val plan = mutableListOf<StrokeFlowTraversalStep>()
+        var needle = rootHint
 
-        val adjacency =
-            linkedMapOf<
-                Long,
-                MutableList<Int>
-            >()
-
-        segments.forEach {
-                segment ->
-            adjacency
-                .getOrPut(
-                    segment.startNode
-                ) {
-                    mutableListOf()
-                }
-                .add(
-                    segment.id
-                )
-
-            if (
-                segment.endNode !=
-                    segment.startNode
-            ) {
-                adjacency
-                    .getOrPut(
-                        segment.endNode
-                    ) {
-                        mutableListOf()
-                    }
-                    .add(
-                        segment.id
-                    )
-            }
-        }
-
-        val visited =
-            mutableSetOf<Int>()
-
-        val result =
-            mutableListOf<
-                StrokeFlowTraversalStep
-            >()
-
-        fun otherNode(
-            segment: StrokeFlowSegment,
-            node: Long
-        ): Long =
-            if (
-                segment.startNode ==
-                    node
-            ) {
-                segment.endNode
-            } else {
-                segment.startNode
-            }
-
-        fun visit(
-            node: Long,
-            incoming:
-                Pair<Double, Double>?
-        ) {
-            val candidates =
-                adjacency[
-                    node
-                ]
-                    .orEmpty()
-                    .filter {
-                        it !in
-                            visited
-                    }
-                    .sortedWith(
-                        compareByDescending<Int> {
-                                edgeId ->
-                            val edge =
-                                byId[
-                                    edgeId
-                                ]
-                                    ?: return@compareByDescending 0.0
-
-                            strokeFlowContinuationScore(
-                                incoming =
-                                    incoming,
-                                outgoing =
-                                    strokeFlowOutgoingDirection(
-                                        segment =
-                                            edge,
-                                        fromNode =
-                                            node
-                                    )
-                            )
-                        }.thenByDescending {
-                                edgeId ->
-                            byId[
-                                edgeId
-                            ]?.let {
-                                skeletonLineLength(
-                                    it.points
-                                )
-                            } ?: 0f
-                        }
-                    )
-
-            candidates.forEach {
-                    edgeId ->
-                if (
-                    edgeId in
-                        visited
-                ) {
-                    return@forEach
-                }
-
-                val edge =
-                    byId[
-                        edgeId
-                    ]
-                        ?: return@forEach
-
-                val nextNode =
-                    otherNode(
-                        edge,
-                        node
-                    )
-
-                visited +=
-                    edgeId
-
-                // Conclui a area atual (underlay + cobertura Satin)
-                // antes de explorar outra ramificacao. A antiga travessia
-                // pos-ordem deixava a cobertura pendente enquanto passava
-                // por outros glifos/segmentos, criando voltas no bordado.
-                result +=
-                    StrokeFlowTraversalStep(
-                        segmentId =
-                            edgeId,
-                        fromNode =
-                            node,
-                        toNode =
-                            nextNode,
-                        phase =
-                            StrokeFlowPhase
-                                .CENTER_RUN
-                    )
-
-                result +=
-                    StrokeFlowTraversalStep(
-                        segmentId =
-                            edgeId,
-                        fromNode =
-                            nextNode,
-                        toNode =
-                            node,
-                        phase =
-                            StrokeFlowPhase
-                                .SATIN_RETURN
-                    )
-
-                visit(
-                    node =
-                        nextNode,
-                    incoming =
-                        strokeFlowArrivalDirection(
-                            segment =
-                                edge,
-                            fromNode =
-                                node
-                        )
-                )
-            }
-        }
-
-        fun distanceToHint(
-            node: Long,
-            hint: SkeletonPoint?
-        ): Double {
-            if (
-                hint ==
-                    null
-            ) {
-                return 0.0
-            }
-
-            val point =
-                strokeFlowNodePoint(
-                    node
-                )
-
-            return pointDistance(
-                point,
-                hint
-            )
-        }
-
-        var nextRoot =
-            adjacency.keys
-                .minByOrNull {
-                    distanceToHint(
-                        it,
-                        rootHint
-                    )
-                }
-                ?: return emptyList()
-
-        var lastRoot =
-            nextRoot
-
-        while (
-            visited.size <
-                segments.size
-        ) {
-            visit(
-                node =
-                    nextRoot,
-                incoming =
-                    null
+        while (remaining.isNotEmpty()) {
+            data class Choice(
+                val segment: StrokeFlowSegment,
+                val entry: SkeletonPoint,
+                val fromNode: Long,
+                val toNode: Long,
+                val score: Double
             )
 
-            lastRoot =
-                nextRoot
-
-            val remainingNodes =
-                adjacency.keys.filter {
-                        node ->
-                    adjacency[
-                        node
-                    ]
-                        .orEmpty()
-                        .any {
-                            it !in
-                                visited
-                        }
-                }
-
-            if (
-                remainingNodes.isEmpty()
-            ) {
-                break
+            val choices = remaining.flatMap { segment ->
+                val start = segment.points.first()
+                val finish = segment.points.last()
+                listOf(
+                    Choice(
+                        segment,
+                        start,
+                        segment.startNode,
+                        segment.endNode,
+                        travelCost(needle, start)
+                    ),
+                    Choice(
+                        segment,
+                        finish,
+                        segment.endNode,
+                        segment.startNode,
+                        travelCost(needle, finish)
+                    )
+                )
             }
 
-            val lastPoint =
-                strokeFlowNodePoint(
-                    lastRoot
-                )
+            val chosen = choices.minWithOrNull(
+                compareBy<Choice> { it.score }
+                    .thenBy { it.segment.id }
+            ) ?: break
 
-            nextRoot =
-                remainingNodes.minByOrNull {
-                        node ->
-                    pointDistance(
-                        strokeFlowNodePoint(
-                            node
-                        ),
-                        lastPoint
-                    )
-                }
-                    ?: break
+            plan += StrokeFlowTraversalStep(
+                segmentId = chosen.segment.id,
+                fromNode = chosen.fromNode,
+                toNode = chosen.toNode,
+                phase = StrokeFlowPhase.CENTER_RUN
+            )
+            plan += StrokeFlowTraversalStep(
+                segmentId = chosen.segment.id,
+                fromNode = chosen.toNode,
+                toNode = chosen.fromNode,
+                phase = StrokeFlowPhase.SATIN_RETURN
+            )
+            // A cobertura terminou na entrada da area, nao na saida.
+            needle = chosen.entry
+            remaining.remove(chosen.segment)
         }
 
-        return result
+        return plan
+    }
+
+    private fun travelCost(
+        current: SkeletonPoint?,
+        destination: SkeletonPoint
+    ): Double {
+        if (current == null) return 0.0
+        val distance = pointDistance(current, destination)
+        val backwards = (current.x - destination.x).coerceAtLeast(0)
+        return distance + backwards * 1.5
     }
 
     private fun buildStrokeFlowRows(
