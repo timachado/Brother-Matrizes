@@ -98,6 +98,10 @@ tap "Isolar voz com IA"
 visible "Importe uma música"
 tap "Analisar trecho selecionado"
 visible "Importe uma música"
+# O novo card de IA desloca o microfone para cima na tela:
+# retornar ao topo antes de tentar tocar no botão.
+for up in 1 2 3 4 5; do adb shell input swipe 520 500 520 1550 230; done
+sleep 1
 # A permissão fica reservada ao uso do microfone. Negar não pode encerrar a tela.
 tap "Analisar minha voz"
 # No emulador a captura termina sozinha após 12 segundos. Não exigir que
