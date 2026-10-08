@@ -6,6 +6,12 @@ import org.junit.Test
 class StrokeFlowTraversalTest {
 
     @Test
+    fun startsAtLowerLeftEntryInsteadOfLongOuterContour() {
+        val entry = ImportedFontMatrixGenerator.debugStrokeFlowLowerEntry()
+        assertEquals(35 to 85, entry)
+    }
+
+    @Test
     fun eachAreaFinishesItsSatinBeforeMovingToNextBranch() {
         val plan =
             ImportedFontMatrixGenerator
