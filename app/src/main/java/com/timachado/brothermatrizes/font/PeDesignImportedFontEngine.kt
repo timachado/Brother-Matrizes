@@ -1611,13 +1611,21 @@ internal object PeDesignImportedFontEngine {
                 return@forEach
             }
 
+            // A janela anterior (2..6 amostras) percorria menos
+            // de 12 unidades do contorno e nao encontrava o fundo
+            // do floreio largo da Adamiya. Use a escala fisica do
+            // glifo: PathMeasure amostra a cada ~2 unidades.
             val window =
                 minOf(
-                    6,
                     max(
                         2,
                         contour.size /
-                            24
+                            8
+                    ),
+                    max(
+                        6,
+                        (glyphHeight *
+                            0.10f).roundToInt()
                     )
                 )
 
