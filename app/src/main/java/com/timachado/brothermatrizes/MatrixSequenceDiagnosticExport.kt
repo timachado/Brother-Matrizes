@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.os.Build
@@ -18,6 +19,9 @@ import java.util.zip.ZipOutputStream
  * o simulador; nao copia nem publica o arquivo TTF/OTF do usuario.
  */
 internal object MatrixSequenceDiagnosticExport {
+    // API 29+ is checked BEFORE referencing MediaStore.Downloads.
+    // This beta action is unavailable on devices running Android 9 or older.
+    @SuppressLint("NewApi")
     fun export(context: Context, created: EmbroideryDesign): String {
         require(Build.VERSION.SDK_INT >= 29) {
             "Exportação CSV requer Android 10 ou superior."
