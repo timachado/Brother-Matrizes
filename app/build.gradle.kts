@@ -33,7 +33,7 @@ android {
             // Identifica inequivocamente o motor experimental em
             // Configurações > Aplicativos > Brother Matrizes > versão.
             // Não altera applicationId nem dados persistidos.
-            versionNameSuffix = "-flow-topology-beta"
+            versionNameSuffix = "-sequence-audit-beta"
             /*
              * Project token do PostHog é um identificador público de cliente,
              * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
