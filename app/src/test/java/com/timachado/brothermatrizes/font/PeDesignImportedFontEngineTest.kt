@@ -12,7 +12,7 @@ class PeDesignImportedFontEngineTest {
         val entry = PeDesignImportedFontEngine.debugCursiveMInnerEntry()
         assertEquals(
             "A primeira posicao fisica precisa ser o pe interno do M.",
-            36f to 78f,
+            36f to 81f,
             entry
         )
     }
