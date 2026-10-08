@@ -6,6 +6,16 @@ import org.junit.Test
 class StrokeFlowTraversalTest {
 
     @Test
+    fun openingLoopStillStartsAtRequestedEntryWhenConnectedToLetter() {
+        val (firstPoint, resultingSegments) =
+            ImportedFontMatrixGenerator.debugConnectedLoopEntrance()
+        assertEquals(5 to 10, firstPoint)
+        // O laco se dividiu no no de conexao com o restante do M.
+        // Ainda assim o ponto inicial precisa sobreviver.
+        assertEquals(3, resultingSegments)
+    }
+
+    @Test
     fun closedOpeningLoopStartsNearInnerLowerStrokeWithoutChangingItsEdges() {
         val (initialPoint, remainsClosed, sameEdges) =
             ImportedFontMatrixGenerator.debugClosedLoopEntrance()
