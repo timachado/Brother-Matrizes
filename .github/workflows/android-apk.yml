@@ -2,7 +2,7 @@ name: Build Brother Matrizes Android APK
 
 on:
   push:
-    branches: ["refactor/brother-matrizes-clean-0469", "fix/pe-design-active-entry-0469", "fix/maria-first-main-stroke-0469", "fix/stroke-flow-continuous-maria-0469", "experiment/pe-design-continuous-satin-0469", "experiment/pe-design-satin-puro-0469", "experiment/pe-design-flow-topology-0469", "experiment/maria-sequence-audit-0469"]
+    branches: ["refactor/brother-matrizes-clean-0469", "fix/pe-design-active-entry-0469", "fix/maria-first-main-stroke-0469", "fix/stroke-flow-continuous-maria-0469", "experiment/pe-design-continuous-satin-0469", "experiment/pe-design-satin-puro-0469", "experiment/pe-design-flow-topology-0469", "experiment/maria-sequence-audit-0469", "fix/maria-complete-left-satin-0469"]
   workflow_dispatch:
 
 permissions:
