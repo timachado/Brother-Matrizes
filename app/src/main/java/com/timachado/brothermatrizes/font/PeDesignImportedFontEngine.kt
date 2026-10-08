@@ -2071,12 +2071,15 @@ internal object PeDesignImportedFontEngine {
     }
 
     /**
-     * No modo guiado, a trajetoria manual DEFINE o eixo das pontadas Satin.
-     * Nao reordena colunas calculadas por scanline: resampla o traço, calcula
-     * a normal local e encontra as duas bordas reais da fonte TTF/OTF.
+     * A forma da fonte e a unica autoridade para COBERTURA Satin. Os caminhos
+     * anotados pelo usuario controlam apenas a sequencia dos tracos.
      *
-     * Cada glifo e concluido antes do proximo; as etapas JUMP_NO_STITCH do
-     * editor sao anotacoes antigas, nao ordens de pular no bordado.
+     * O gerador anterior projetava a linha desenhada sobre o contorno e
+     * descartava as amostras ligeiramente fora da letra. Isso deixava
+     * lacunas visiveis e concentrava pontos em poucos trechos.
+     *
+     * O medial-flow gerado a partir da mascara da fonte fornece os eixos
+     * completos, inclusive as curvas que a anotacao nao alcançou.
      */
     private fun emitUserGuidedRoute(
         emitter: SatinEmitter,
@@ -2088,121 +2091,111 @@ internal object PeDesignImportedFontEngine {
         underlayMode: SatinUnderlayMode
     ) {
         val outlines = polygonsByGlyph.flatten().flatMap { it.points }
-        require(outlines.size >= 3) { "Fonte sem contornos para percurso Satin." }
+        require(outlines.size >= 3) { "Fonte sem contornos bordaveis." }
         val minX = outlines.minOf { it.x }
         val minY = outlines.minOf { it.y }
         val width = (outlines.maxOf { it.x } - minX).coerceAtLeast(1f)
         val height = (outlines.maxOf { it.y } - minY).coerceAtLeast(1f)
-
-        fun map(p: GuidedSatinPoint): FPoint =
+        fun map(p: GuidedSatinPoint) =
             FPoint(minX + p.x * width, minY + p.y * height)
 
-        val physicalGuidePaths = route.steps
+        val guides = route.steps
             .filter { !it.jumpWithoutStitch && it.points.size >= 2 }
             .map { step -> step.points.map(::map) }
-        require(physicalGuidePaths.isNotEmpty()) {
-            "A referencia precisa conter pelo menos um caminho de costura."
+        require(guides.isNotEmpty()) { "A referencia nao tem tracos Satin." }
+
+        fun projection(point: FPoint, path: List<FPoint>): Pair<Float, Float> {
+            var progress = 0f
+            var walked = 0f
+            var minDistance = Float.POSITIVE_INFINITY
+            path.zipWithNext().forEach { (a, b) ->
+                val dx = b.x - a.x
+                val dy = b.y - a.y
+                val squared = dx * dx + dy * dy
+                val t = if (squared < 0.0001f) 0f else
+                    (((point.x - a.x) * dx + (point.y - a.y) * dy) / squared)
+                        .coerceIn(0f, 1f)
+                val projected = FPoint(a.x + t * dx, a.y + t * dy)
+                val d = distance(point, projected)
+                if (d < minDistance) {
+                    minDistance = d
+                    progress = walked + t * distance(a, b)
+                }
+                walked += distance(a, b)
+            }
+            return minDistance to progress
         }
 
-        val pitch = (densityMm * 10f).coerceIn(2.5f, 12f)
-        val pullUnits = pullMm * 10f
-        val widthUnits = maxSatinWidthMm * 10f
-
-        // O usuario marcou o inicio da agulha, nao o primeiro contorno.
-        emitter.guidedFirstStitch(map(route.start))
-
+        val start = map(route.start)
+        var firstGlyph = true
         polygonsByGlyph.forEachIndexed { glyphIndex, polygons ->
             if (polygons.isEmpty()) return@forEachIndexed
-            val glyphPoints = polygons.flatMap { it.points }
-            val glyphMinX = glyphPoints.minOf { it.x }
-            val glyphMaxX = glyphPoints.maxOf { it.x }
-            val margin = widthUnits.coerceAtMost(25f)
-            val columns = mutableListOf<SatinColumn>()
-            var guidedRows = 0
 
-            fun snapIntoGlyph(
-                candidate: FPoint,
-                tangent: FPoint
-            ): FPoint? {
-                if (pointInsidePolygons(candidate, polygons)) return candidate
-                // O dedo do usuario segue uma imagem, nao o eixo matematico
-                // da fonte. Corrigir pequenos desvios na normal do traço,
-                // mas nunca atravessar outra letra procurando um atalho.
-                val normal = FPoint(-tangent.y, tangent.x)
-                val searchLimit = (widthUnits * 0.55f).coerceIn(5f, 25f)
-                var offset = 1f
-                while (offset <= searchLimit) {
-                    val negative = FPoint(
-                        candidate.x - normal.x * offset,
-                        candidate.y - normal.y * offset
-                    )
-                    if (pointInsidePolygons(negative, polygons)) return negative
-                    val positive = FPoint(
-                        candidate.x + normal.x * offset,
-                        candidate.y + normal.y * offset
-                    )
-                    if (pointInsidePolygons(positive, polygons)) return positive
-                    offset += 1f
-                }
-                return null
-            }
-
-            physicalGuidePaths.forEach { guide ->
-                val sampled = resampleFlowPath(guide, pitch)
-                var pending = mutableListOf<SatinRow>()
-
-                fun finishCurrentStroke() {
-                    if (pending.size >= 2) {
-                        columns += SatinColumn(pending)
-                        guidedRows += pending.size
-                    }
-                    pending = mutableListOf()
-                }
-
-                sampled.forEachIndexed { index, original ->
-                    if (original.x !in (glyphMinX - margin)..(glyphMaxX + margin)) {
-                        finishCurrentStroke()
-                        return@forEachIndexed
-                    }
-                    val tangent = localFlowTangent(sampled, index)
-                        ?: run {
-                            finishCurrentStroke()
-                            return@forEachIndexed
-                        }
-                    val snappedCenter = snapIntoGlyph(original, tangent)
-                        ?: run {
-                            finishCurrentStroke()
-                            return@forEachIndexed
-                        }
-                    val row = satinRowFromFlow(
-                        center = snappedCenter,
-                        tangent = tangent,
-                        polygons = polygons,
-                        pullUnits = pullUnits,
-                        maxWidthUnits = widthUnits
-                    ) ?: run {
-                        finishCurrentStroke()
-                        return@forEachIndexed
-                    }
-                    val previous = pending.lastOrNull()
-                    if (
-                        previous == null ||
-                        distance(center(previous), center(row)) >= pitch * 0.5f
-                    ) pending += row
-                }
-                finishCurrentStroke()
-            }
-
-            // Nao voltar silenciosamente ao sampler antigo: isso recriava
-            // o erro das faixas muito longas e do contorno costurado depois.
-            require(guidedRows > 0 && columns.isNotEmpty()) {
-                "O percurso marcado nao coincide com os tracos da letra " +
-                    (glyphIndex + 1) + ". Confira a fonte importada e o desenho."
-            }
-            emitter.emitGlyph(
-                columns = columns,
+            // Criar TODOS os eixos pelo contorno da fonte. Nao filtrar por
+            // proximidade com a anotacao: ela e aproximada e pode estar
+            // deslocada em relacao ao glifo real importado.
+            val medialColumns = sampleAdaptiveFlowColumns(
                 polygons = polygons,
-                startHint = if (glyphIndex == 0) map(route.start) else null,
+                densityMm = densityMm,
+                maxSatinWidthMm = maxSatinWidthMm,
+                pullCompensationMm = pullMm
+            ).filter { it.rows.size >= 2 }
+
+            require(medialColumns.isNotEmpty()) {
+                "A fonte nao produziu eixos Satin completos na letra " +
+                    (glyphIndex + 1) + ". Tente outra fonte ou altura."
+            }
+
+            val ordered = medialColumns.map { column ->
+                val centers = column.rows.map(::center)
+                val probes = listOf(
+                    centers.first(),
+                    centers[centers.lastIndex / 2],
+                    centers.last()
+                )
+                val stage = guides.indices.minByOrNull { index ->
+                    probes.sumOf { projection(it, guides[index]).first.toDouble() }
+                } ?: 0
+                val position = projection(centers[centers.lastIndex / 2], guides[stage]).second
+                Triple(column, stage, position)
+            }.sortedWith(
+                compareBy<Triple<SatinColumn, Int, Float>> { it.second }
+                    .thenBy { it.third }
+            ).map { it.first }.toMutableList()
+
+            if (firstGlyph && ordered.isNotEmpty()) {
+                // A primeira regiao parte do inicio marcado, nao de um
+                // segmento aleatorio do esqueleto.
+                val chosen = ordered.minBy { column ->
+                    column.rows.minOf { row ->
+                        minOf(
+                            distance(start, center(row)),
+                            distance(start, row.a),
+                            distance(start, row.b)
+                        )
+                    }
+                }
+                ordered.remove(chosen)
+                ordered.add(0, chosen)
+            }
+
+            if (firstGlyph) {
+                // Nao perfurar uma regiao vazia fora da tipografia por
+                // causa da imprecisao da marca sobre uma imagem de tela.
+                val firstNeedle = if (pointInsidePolygons(start, polygons)) {
+                    start
+                } else {
+                    ordered.first().rows.minBy { distance(start, center(it)) }
+                        .let(::center)
+                }
+                emitter.guidedFirstStitch(firstNeedle)
+                firstGlyph = false
+            }
+
+            emitter.emitGlyph(
+                columns = ordered,
+                polygons = polygons,
+                startHint = if (glyphIndex == 0) start else null,
                 underlayMode = underlayMode,
                 densityMm = densityMm,
                 guidedOrder = true
