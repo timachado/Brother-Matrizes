@@ -519,6 +519,20 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun tracedGuideMustNotLeaveUnsewnAreasOfTheImportedFont() {
+        val points = PeDesignImportedFontEngine
+            .debugIncompleteHandTraceStillSewsWholeStroke()
+        val stitches = points.filter { it.command == StitchCommand.STITCH }
+        assertTrue("O contorno vetorial deve gerar cobertura do inicio.",
+            stitches.any { it.xUnits < 15 })
+        assertTrue("A ponta da letra deve continuar bordada mesmo quando o guia termina cedo.",
+            stitches.any { it.xUnits > 105 })
+        assertTrue("A cobertura Satin deve atravessar ambos os lados do traco.",
+            stitches.any { it.yUnits < 5 } &&
+                stitches.any { it.yUnits > 50 })
+    }
+
+    @Test
     fun guidedStrokeGeneratesTransverseSatinInsteadOfLongAxisColumns() {
         val stitches = PeDesignImportedFontEngine
             .debugGuidedConnectedLetterHasNoForcedJump()
