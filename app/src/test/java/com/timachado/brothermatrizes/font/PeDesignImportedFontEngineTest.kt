@@ -487,6 +487,16 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun connectedLeftBranchIsSewnBeforeCloserRightBranch() {
+        assertEquals(
+            "Uma coluna conectada à esquerda não deve ficar pendente enquanto o motor avança para a direita.",
+            20f,
+            PeDesignImportedFontEngine.debugConnectedLeftBranchPriority(),
+            0.01f
+        )
+    }
+
+    @Test
     fun structuralSatinStartSkipsCurvedLeadingFlourish() {
         val x =
             PeDesignImportedFontEngine
