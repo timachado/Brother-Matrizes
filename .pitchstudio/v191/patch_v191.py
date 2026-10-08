@@ -137,6 +137,11 @@ one(
         val o = original; val p = processed"""
 )
 
+one(
+    'exports.addView(button("MP3 320 kbps")',
+    'exports.addView(button("MP3 (até 320 kbps)")'
+)
+
 main.write_text(s, encoding="utf-8")
 
 gradle = root / "app/build.gradle.kts"
