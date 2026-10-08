@@ -2120,16 +2120,83 @@ internal object PeDesignImportedFontEngine {
         val structural = satinStructuralStartPoint(columns)
         val outline = glyphVisualStartPoint(polygons)
         val points = polygons.flatMap { it.points }
-        if (outline != null && points.isNotEmpty()) {
-            val minX = points.minOf { it.x }
-            val maxX = points.maxOf { it.x }
-            val width = (maxX - minX).coerceAtLeast(1f)
-            val fraction = (outline.x - minX) / width
-            if (fraction in 0.14f..0.55f) {
-                return outline
+        if (points.isEmpty()) return structural ?: outline
+
+        val minX = points.minOf { it.x }
+        val maxX = points.maxOf { it.x }
+        val minY = points.minOf { it.y }
+        val maxY = points.maxOf { it.y }
+        val width = (maxX - minX).coerceAtLeast(1f)
+        val height = (maxY - minY).coerceAtLeast(1f)
+
+        // Regression captured in video 1000353806.mp4:
+        // the production generator still starts at the lower OUTER
+        // edge of Adamiya's ornamental M, despite a new column order.
+        // The former rule chose the far-left structural column if
+        // the contour valley detector only found one valley.
+        //
+        // For wide script initials with multiple Satin columns,
+        // search ACTUAL medial-line rows for the lower inner foot
+        // of the initial letter. This is a real stitchable position,
+        // unlike an arbitrary coordinate inside the outline.
+        // Narrow initials and simple fonts retain the old heuristic.
+        if (columns.size >= 4 && width >= height * 1.15f) {
+            val innerRows = columns.flatMap { column ->
+                column.rows.map { row -> center(row) }
+            }.filter { point ->
+                val relativeX = (point.x - minX) / width
+                val relativeY = (point.y - minY) / height
+                relativeX in 0.24f..0.60f &&
+                    relativeY in 0.57f..0.96f
+            }
+            if (innerRows.isNotEmpty()) {
+                return innerRows.minBy { point ->
+                    val x = (point.x - minX) / width
+                    val y = (point.y - minY) / height
+                    val dx = x - 0.38f
+                    val dy = y - 0.80f
+                    dx * dx + dy * dy
+                }
             }
         }
+
+        if (outline != null) {
+            val fraction = (outline.x - minX) / width
+            if (fraction in 0.14f..0.55f) return outline
+        }
         return structural ?: outline
+    }
+
+    internal fun debugCursiveMInnerEntry(): Pair<Float, Float>? {
+        fun columnAt(x: Float, y: Float): SatinColumn =
+            SatinColumn(
+                (0..5).map { i ->
+                    SatinRow(
+                        FPoint(x, y + i * 3f),
+                        FPoint(x + 8f, y + i * 3f)
+                    )
+                }.toMutableList()
+            )
+
+        val columns = listOf(
+            columnAt(0f, 65f),   // external ornament
+            columnAt(12f, 48f),  // ascending loop
+            columnAt(32f, 72f),  // lower INTERNAL foot
+            columnAt(56f, 21f),
+            columnAt(84f, 23f),
+            columnAt(108f, 40f)
+        )
+        val contour = Polygon(
+            listOf(
+                FPoint(0f, 0f), FPoint(130f, 0f),
+                FPoint(130f, 100f), FPoint(0f, 100f)
+            )
+        )
+        return resolveProductionStartHint(
+            glyphIndex = 0,
+            columns = columns,
+            polygons = listOf(contour)
+        )?.let { it.x to it.y }
     }
 
     internal fun debugProductionFlourishEntry(): Pair<Float, Float>? {
