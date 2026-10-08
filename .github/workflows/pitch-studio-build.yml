@@ -7,6 +7,7 @@ on:
       - feature/pitchstudio-p0-p1-191
       - feature/pitchstudio-m3-expressive-193
       - feature/pitchstudio-m3-youtube-194
+      - fix/pitchstudio-youtube-launch-195
   workflow_dispatch:
 
 permissions:
@@ -354,6 +355,14 @@ jobs:
           python3 -m py_compile .pitchstudio/v194/patch_v194.py
           python3 .pitchstudio/v194/patch_v194.py "$SRC"
 
+      - name: Corrigir inicialização YouTube v1.9.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          python3 -m py_compile .pitchstudio/v195/patch_v195.py
+          python3 .pitchstudio/v195/patch_v195.py "$SRC"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -414,7 +423,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.4-M3Expressive-YouTube-debug-apk
+          name: PitchStudio-v1.9.5-M3Expressive-YouTube-fix-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
