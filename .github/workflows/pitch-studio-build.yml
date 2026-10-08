@@ -305,8 +305,8 @@ jobs:
           python3 .pitchstudio/v16/03_setters.py "$SRC"
 
           BUILD="$SRC/app/build.gradle.kts"
-          sed -i 's/versionCode = 7/versionCode = 8/' "$BUILD"
-          sed -i 's/versionName = "1.6.0"/versionName = "1.7.0"/' "$BUILD"
+          sed -i 's/versionCode = 7/versionCode = 9/' "$BUILD"
+          sed -i 's/versionName = "1.6.0"/versionName = "1.8.0"/' "$BUILD"
 
           MAIN="$SRC/app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
           sed -i '/if (useProcessed) player.setProject(out, player.fraction())/d' "$MAIN"
@@ -373,7 +373,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.7.0-debug-apk
+          name: PitchStudio-v1.8.0-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
