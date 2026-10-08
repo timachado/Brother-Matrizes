@@ -27,7 +27,7 @@ internal object YouTubeUrlRules {
     }
 
     fun normalize(raw: String): String {
-        val uri = parse(raw) ?: error("O endereço do YouTube é inválido.")
+        val uri = parse(raw) ?: throw IllegalArgumentException("O endereço do YouTube é inválido.")
         require(isYouTubeUrl(raw)) { "O link deve usar HTTPS e domínio oficial do YouTube." }
         val host = uri.host!!.lowercase()
         val segments = uri.path.orEmpty().trim('/').split('/').filter { it.isNotBlank() }
@@ -46,7 +46,7 @@ internal object YouTubeUrlRules {
 
             else -> null
         }?.takeIf { videoId.matches(it) }
-            ?: error("Não reconheci o identificador deste vídeo do YouTube.")
+            ?: throw IllegalArgumentException("Não reconheci o identificador deste vídeo do YouTube.")
 
         return "https://www.youtube.com/watch?v=$id"
     }
