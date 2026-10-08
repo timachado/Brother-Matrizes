@@ -6,6 +6,16 @@ import org.junit.Test
 class StrokeFlowTraversalTest {
 
     @Test
+    fun closedOpeningLoopStartsNearInnerLowerStrokeWithoutChangingItsEdges() {
+        val (initialPoint, remainsClosed, sameEdges) =
+            ImportedFontMatrixGenerator.debugClosedLoopEntrance()
+
+        assertEquals(5 to 10, initialPoint)
+        assertEquals(true, remainsClosed)
+        assertEquals(true, sameEdges)
+    }
+
+    @Test
     fun startsAtLowerLeftEntryInsteadOfLongOuterContour() {
         val entry = ImportedFontMatrixGenerator.debugStrokeFlowLowerEntry()
         assertEquals(35 to 85, entry)
