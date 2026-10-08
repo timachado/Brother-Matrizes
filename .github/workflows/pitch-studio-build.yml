@@ -451,6 +451,15 @@ jobs:
           PY
           grep -F 'versionName = "1.10.2"' "$SRC/app/build.gradle.kts"
 
+      - name: Integrar prévia vocal PitchStudio 1.10.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          python3 -m py_compile .pitchstudio/v1103/patch_v1103.py
+          python3 .pitchstudio/v1103/patch_v1103.py "$SRC"
+          grep -F 'versionName = "1.10.3"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -511,7 +520,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.2-VocalStems-preview-apk
+          name: PitchStudio-v1.10.3-VocalStems-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -529,7 +538,7 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1102/smoke-vocals.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1103/smoke-preview.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Criar APK ARM64 otimizado
         if: always()
@@ -537,9 +546,9 @@ jobs:
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
-          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-unsigned.apk"
-          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-aligned.apk"
-          OUT="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-preview.apk"
+          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.3-arm64-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.3-arm64-aligned.apk"
+          OUT="$RUNNER_TEMP/PitchStudio-v1.10.3-arm64-preview.apk"
           TOOLS="$ANDROID_HOME/build-tools/35.0.0"
           test -f "$SRC"
           cp "$SRC" "$TEST_APK"
@@ -575,8 +584,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.2-Vocals-ARM64-apk
-          path: ${{ runner.temp }}/PitchStudio-v1.10.2-arm64-preview.apk
+          name: PitchStudio-v1.10.3-Vocals-ARM64-apk
+          path: ${{ runner.temp }}/PitchStudio-v1.10.3-arm64-preview.apk
           if-no-files-found: warn
           retention-days: 7
 
@@ -584,7 +593,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.2-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-vocals-smoke/
+          name: PitchStudio-v1.10.3-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-stempreview-smoke/
           if-no-files-found: warn
           retention-days: 7
