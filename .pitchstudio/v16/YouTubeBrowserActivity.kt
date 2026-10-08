@@ -15,11 +15,12 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.MediaController
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.VideoView
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.FileInputStream
@@ -37,7 +38,7 @@ class YouTubeBrowserActivity : Activity() {
     private lateinit var progress: ProgressBar
     private lateinit var resultsContainer: LinearLayout
 
-    private var activeVideo: VideoView? = null
+    private var activeWebView: WebView? = null
     private var activeFrame: FrameLayout? = null
     private var activePlayOverlay: View? = null
     private var pendingSave: YouTubeImporter.Downloaded? = null
@@ -77,7 +78,7 @@ class YouTubeBrowserActivity : Activity() {
 
         root.addView(
             text(
-                "Pesquise, assista à prévia no próprio resultado e baixe o áudio para o Pitch Studio.",
+                "Pesquise, toque na prévia e assista ao vídeo do YouTube no próprio resultado antes de baixar.",
                 13f,
                 false
             ),
@@ -336,98 +337,81 @@ class YouTubeBrowserActivity : Activity() {
         mediaFrame: FrameLayout,
         playOverlayRef: View?
     ) {
-        status.text = "Preparando prévia do vídeo…"
-        progress.visibility = View.VISIBLE
-        progress.isIndeterminate = true
+        val videoId = youtubeVideoId(result.url)
 
-        Thread {
-            try {
-                val preview = YouTubeImporter.resolvePreview(result.url)
+        if (videoId == null) {
+            status.text = "Não foi possível identificar este vídeo do YouTube."
+            return
+        }
 
-                runOnUiThread {
-                    stopActivePreview()
+        stopActivePreview()
 
-                    progress.visibility = View.GONE
-                    progress.isIndeterminate = false
-                    status.text = "Reproduzindo prévia: " + preview.title
+        status.text = "Reproduzindo: " + result.title
+        progress.visibility = View.GONE
+        progress.isIndeterminate = false
 
-                    val video = VideoView(this).apply {
-                        setBackgroundColor(Color.BLACK)
-                    }
+        val webView = WebView(this).apply {
+            setBackgroundColor(Color.BLACK)
 
-                    val params = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            settings.loadsImagesAutomatically = true
+            settings.allowContentAccess = true
+            settings.allowFileAccess = false
 
-                    mediaFrame.addView(video, params)
+            webChromeClient = WebChromeClient()
+            webViewClient = WebViewClient()
+        }
 
-                    val controller = MediaController(this)
-                    controller.setAnchorView(video)
-                    video.setMediaController(controller)
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
 
-                    val headers = mapOf(
-                        "User-Agent" to
-                            "Mozilla/5.0 (Linux; Android 15) " +
-                            "AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36",
-                        "Accept" to "*/*"
-                    )
+        mediaFrame.addView(webView, params)
+        playOverlayRef?.visibility = View.GONE
 
-                    playOverlayRef?.visibility = View.GONE
+        val embedUrl =
+            "https://www.youtube.com/embed/" + videoId +
+            "?autoplay=1&playsinline=1&controls=1&rel=0"
 
-                    video.setVideoURI(Uri.parse(preview.url), headers)
+        webView.loadUrl(
+            embedUrl,
+            mapOf("Referer" to "https://www.youtube.com/")
+        )
 
-                    video.setOnPreparedListener {
-                        it.isLooping = false
-                        video.start()
-                        controller.show(2500)
-                    }
+        activeWebView = webView
+        activeFrame = mediaFrame
+        activePlayOverlay = playOverlayRef
+    }
 
-                    video.setOnCompletionListener {
-                        playOverlayRef?.visibility = View.VISIBLE
-                    }
-
-                    video.setOnErrorListener { _, _, _ ->
-                        status.text =
-                            "Não foi possível reproduzir esta prévia."
-                        playOverlayRef?.visibility = View.VISIBLE
-                        true
-                    }
-
-                    activeVideo = video
-                    activeFrame = mediaFrame
-                    activePlayOverlay = playOverlayRef
-
-                    video.requestFocus()
-                }
-            } catch (t: Throwable) {
-                runOnUiThread {
-                    progress.visibility = View.GONE
-                    progress.isIndeterminate = false
-                    status.text = "Falha na prévia: " +
-                        YouTubeImporter.friendlyMessage(t)
-                }
-            }
-        }.apply {
-            name = "PitchStudio-YouTubePreview"
-            isDaemon = true
-            start()
+    private fun youtubeVideoId(url: String): String? {
+        return try {
+            val normalized = YouTubeImporter.normalizeYouTubeUrl(url)
+            Uri.parse(normalized)
+                .getQueryParameter("v")
+                ?.takeIf { it.isNotBlank() }
+        } catch (_: Throwable) {
+            null
         }
     }
 
     private fun stopActivePreview() {
-        val video = activeVideo
+        val webView = activeWebView
         val frame = activeFrame
         val overlay = activePlayOverlay
 
-        if (video != null) {
-            try { video.stopPlayback() } catch (_: Throwable) {}
-            try { frame?.removeView(video) } catch (_: Throwable) {}
+        if (webView != null) {
+            try { webView.stopLoading() } catch (_: Throwable) {}
+            try { webView.loadUrl("about:blank") } catch (_: Throwable) {}
+            try { frame?.removeView(webView) } catch (_: Throwable) {}
+            try { webView.destroy() } catch (_: Throwable) {}
         }
 
         overlay?.visibility = View.VISIBLE
 
-        activeVideo = null
+        activeWebView = null
         activeFrame = null
         activePlayOverlay = null
     }
