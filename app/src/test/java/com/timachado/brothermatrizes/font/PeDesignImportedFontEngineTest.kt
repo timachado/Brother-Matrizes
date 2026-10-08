@@ -312,8 +312,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "Terminando a primeira coluna embaixo, a próxima deve entrar pelo extremo inferior.",
-            20,
+            "Com a primeira coluna iniciada na base Y-down, a próxima entra pelo extremo superior adjacente.",
+            0,
             entry?.second
         )
     }
@@ -509,8 +509,8 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "O início Satin deve cair no primeiro traço estrutural após o floreio curvo.",
-            24f,
+            "O início Satin deve cair no pé visual do primeiro traço estrutural após o floreio curvo.",
+            27f,
             x
                 ?: Float.NaN,
             1.5f
