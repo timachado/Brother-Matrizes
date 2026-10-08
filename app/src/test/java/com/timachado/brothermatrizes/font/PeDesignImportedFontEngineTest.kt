@@ -519,6 +519,20 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun guidedSatinCompletesConnectedLetterWithoutArtificialJumps() {
+        val points = PeDesignImportedFontEngine
+            .debugGuidedConnectedLetterHasNoForcedJump()
+        assertTrue("A letra deve conter cobertura Satin real.",
+            points.count { it.command == StitchCommand.STITCH } > 20)
+        assertEquals("Apenas a posicao inicial pode usar JUMP numa letra conectada.",
+            1, points.count { it.command == StitchCommand.JUMP })
+        assertEquals("A primeira perfuracao permanece no inicio marcado.",
+            StitchCommand.STITCH, points[1].command)
+        assertEquals(27, points[1].xUnits)
+        assertEquals(25, points[1].yUnits)
+    }
+
+    @Test
     fun userGuidedRouteCompletesRightRegionThenLeftWithNoStitchHop() {
         val points = PeDesignImportedFontEngine.debugGuidedRouteStageOrder()
         val stitches = points.filter { it.command == StitchCommand.STITCH }
