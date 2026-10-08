@@ -530,6 +530,55 @@ jobs:
           disable-animations: true
           script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1102/smoke-vocals.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
+      - name: Criar APK ARM64 otimizado
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          TEST_APK="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-unsigned.apk"
+          ALIGNED="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-aligned.apk"
+          OUT="$RUNNER_TEMP/PitchStudio-v1.10.2-arm64-preview.apk"
+          TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          test -f "$SRC"
+          cp "$SRC" "$TEST_APK"
+          zip -q -d "$TEST_APK" 'lib/armeabi-v7a/*' 'lib/x86/*' 'lib/x86_64/*'
+          "$TOOLS/zipalign" -p -f 4 "$TEST_APK" "$ALIGNED"
+          KEYSTORE="$HOME/.android/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android \
+              -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          "$TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass pass:android \
+            --key-pass pass:android --ks-key-alias androiddebugkey \
+            --out "$OUT" "$ALIGNED"
+          "$TOOLS/apksigner" verify --verbose "$OUT"
+          python3 - "$OUT" <<'PY'
+          import sys,zipfile,hashlib
+          from pathlib import Path
+          apk=Path(sys.argv[1])
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              abis={name.split('/')[1] for name in z.namelist() if name.startswith('lib/') and name.endswith('.so')}
+              assert abis=={'arm64-v8a'}, f'ABIs inesperadas: {abis}'
+              assert 'assets/UVR_MDXNET_9482.onnx' in z.namelist()
+              model=z.read('assets/UVR_MDXNET_9482.onnx')
+              assert hashlib.sha256(model).hexdigest()=='9d78f8566fa8198065214ab628be1de966a500c57786695aa4b13e2b27a7727d'
+          print('ARM64 optimized APK MB:',round(apk.stat().st_size/1024/1024,2))
+          print('ARM64 APK SHA-256:',hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+
+      - name: Publicar APK ARM64
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-v1.10.2-Vocals-ARM64-apk
+          path: ${{ runner.temp }}/PitchStudio-v1.10.2-arm64-preview.apk
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Publicar evidências do teste Android
         if: always()
         uses: actions/upload-artifact@v4
