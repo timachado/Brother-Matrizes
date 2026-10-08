@@ -2,7 +2,7 @@ name: Great Vibes Satin Diagnostic
 
 on:
   push:
-    branches: ["refactor/brother-matrizes-clean-0469", "fix/pe-design-active-entry-0469"]
+    branches: ["refactor/brother-matrizes-clean-0469", "fix/pe-design-active-entry-0469", "fix/maria-first-main-stroke-0469"]
     paths:
       - ".github/workflows/greatvibes-diagnostic.yml"
       - "app/src/androidTest/java/com/timachado/brothermatrizes/GreatVibesStartDiagnosticTest.kt"
