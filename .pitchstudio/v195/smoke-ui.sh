@@ -13,7 +13,7 @@ trap cleanup EXIT
 adb wait-for-device
 adb shell input keyevent 82 || true
 adb install -r "$APK"
-PKG="br.com.timachado.pitchstudio.expressive"
+PKG="br.com.timachado.pitchstudio.expressivefix"
 adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity"
 sleep 6
 adb shell uiautomator dump /sdcard/before.xml >/dev/null
@@ -50,7 +50,7 @@ if not any("EXPLORAR MÚSICAS" in t for t in texts):
     raise SystemExit("A tela do YouTube não abriu; conferir logcat.")
 print("PASSOU: YouTubeBrowserActivity iniciou e renderizou o cabeçalho no Android.")
 PY
-if adb logcat -d -b crash -t 1000 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.expressive'; then
+if adb logcat -d -b crash -t 1000 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.expressivefix'; then
   echo "Falha fatal identificada no processo." >&2
   exit 1
 fi
