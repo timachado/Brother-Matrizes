@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import re
 
 root = Path(sys.argv[1])
 
@@ -41,20 +42,14 @@ p.write_text(s, encoding="utf-8")
 p = root / "app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
 s = p.read_text(encoding="utf-8")
 
-old_button = '''        online.addView(button("Buscar no YouTube") {
-            YouTubeUi.show(
-                activity = this,
-                cacheDir = cacheDir,
-                onStatus = { statusLabel.text = it },
-                onProgress = { message, value -> showProgress(message, value) },
-                onDownloaded = { file, name -> loadRemoteAudio(file, name) },
-                onError = { message -> hideProgress("Falha no YouTube: " + message) }
-            )
-        }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })'''
-new_button = '''        online.addView(button("Abrir YouTube") { openYouTube() }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })'''
-if old_button not in s:
-    raise SystemExit("bloco atual do botão YouTube não encontrado")
-s = s.replace(old_button, new_button, 1)
+button_pattern = re.compile(
+    r'        online\.addView\(button\("Buscar no YouTube"\) \{.*?\}, LinearLayout\.LayoutParams\(0, dp\(52\), 1f\)\.apply \{ marginEnd = dp\(6\) \}\)',
+    re.S
+)
+new_button = '        online.addView(button("Abrir YouTube") { openYouTube() }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })'
+s, count = button_pattern.subn(new_button, s, count=1)
+if count != 1:
+    raise SystemExit("bloco estrutural do botão YouTube não encontrado")
 
 s = s.replace(
     "YouTube: pesquise ou cole o link; o áudio é baixado temporariamente e carregado no Pitch Studio.",
