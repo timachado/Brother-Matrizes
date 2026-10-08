@@ -142,6 +142,46 @@ one(
     'exports.addView(button("MP3 (até 320 kbps)")'
 )
 
+
+# Durante o arrasto, prévia em tempo real usa o áudio original.
+# Quando DSP termina, troca para os samples processados com pitch/speed neutros.
+one(
+    """    private fun applyPreviewParams() {
+        val pitch = if (useProcessed) {""",
+    """    private fun applyPreviewParams() {
+        if (useProcessed && original != null && processed != null &&
+            processed !== original && player.project === processed) {
+            player.setProject(original, player.fraction())
+        }
+        val pitch = if (useProcessed) {"""
+)
+
+one(
+    """                    processedGeneration = generation
+                    if (old != null && old !== original""",
+    """                    processedGeneration = generation
+                    if (useProcessed) {
+                        val fraction = player.fraction()
+                        player.setPreviewParams(1f, 1f)
+                        player.setProject(out, fraction)
+                    }
+                    if (old != null && old !== original"""
+)
+
+one(
+    """        val target = o
+        player.setProject(target, fraction); applyPreviewParams()
+        waveform.waveform = target.waveform""",
+    """        val target = if (useProcessed && processedGeneration == processingGeneration) {
+            processed ?: o
+        } else {
+            o
+        }
+        player.setProject(target, fraction)
+        if (target === o) applyPreviewParams() else player.setPreviewParams(1f, 1f)
+        waveform.waveform = target.waveform"""
+)
+
 main.write_text(s, encoding="utf-8")
 
 gradle = root / "app/build.gradle.kts"
