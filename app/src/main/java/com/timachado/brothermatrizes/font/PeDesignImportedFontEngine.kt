@@ -1747,6 +1747,13 @@ internal object PeDesignImportedFontEngine {
                 )!!
             }
 
+        // Um único vale inferior amplo (por exemplo, um floreio
+        // circular isolado) também é uma entrada válida. Antes,
+        // ignorávamos esse vale e voltávamos à borda externa esquerda.
+        if (valleyRepresentatives.size == 1) {
+            return valleyRepresentatives.first()
+        }
+
         if (
             valleyRepresentatives.size >=
                 2
