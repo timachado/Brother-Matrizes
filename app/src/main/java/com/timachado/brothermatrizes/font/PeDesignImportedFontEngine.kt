@@ -5936,10 +5936,107 @@ internal object PeDesignImportedFontEngine {
                     }
                 }
 
-            // So avance para um objeto sem conexao se todos
-            // os ramos proximos ja foram concluidos. Entre os ramos
-            // restantes, evita retornar ao extremo esquerdo por
-            // simples ordem de armazenamento do sampler.
+            // A Adamiya foi diagnosticada com a sequencia de 3.161
+            // pontadas REAL: a faixa esquerda do M so era preenchida
+            // depois de 5 outras colunas, com um JUMP que retornava
+            // de ~54% para ~18% da largura do nome.
+            //
+            // A simples proximidade da agulha escolhia uma perna do
+            // M ainda que houvesse cobertura pendente MAIS A ESQUERDA
+            // no MESMO contorno conectado. Primeiro esgotamos a
+            // frente de costura desse contorno; so depois avancamos
+            // para colunas de uma outra parte da letra.
+            //
+            // Colunas realmente separadas em outro contorno NAO
+            // bloqueiam a costura da area atual.
+            val owningPolygons = polygons.filter { polygon ->
+                pointInsidePolygon(anchor, polygon) ||
+                    pointNearPolygonEdge(
+                        point = anchor,
+                        polygon = polygon,
+                        margin = CONNECTOR_EDGE_MARGIN_UNITS
+                    )
+            }
+            val sameRegion = if (owningPolygons.isNotEmpty()) {
+                columns.filter { column ->
+                    val first = center(column.rows.first())
+                    val last = center(column.rows.last())
+                    owningPolygons.any { polygon ->
+                        pointInsidePolygon(first, polygon) ||
+                            pointInsidePolygon(last, polygon) ||
+                            pointNearPolygonEdge(
+                                point = first,
+                                polygon = polygon,
+                                margin = CONNECTOR_EDGE_MARGIN_UNITS
+                            ) ||
+                            pointNearPolygonEdge(
+                                point = last,
+                                polygon = polygon,
+                                margin = CONNECTOR_EDGE_MARGIN_UNITS
+                            )
+                    }
+                }
+            } else {
+                emptyList()
+            }
+            if (sameRegion.isNotEmpty()) {
+                val leftFront = sameRegion.minOf { column ->
+                    column.rows.minOf { row ->
+                        minOf(row.a.x, row.b.x)
+                    }
+                }
+                val rightEdge = sameRegion.maxOf { column ->
+                    column.rows.maxOf { row ->
+                        maxOf(row.a.x, row.b.x)
+                    }
+                }
+                val width = (rightEdge - leftFront).coerceAtLeast(1f)
+                val frontierAllowance = maxOf(
+                    NEAR_COLUMN_JOIN_UNITS,
+                    width * 0.055f
+                )
+                val pendingAtFront = sameRegion.filter { column ->
+                    val left = column.rows.minOf { row ->
+                        minOf(row.a.x, row.b.x)
+                    }
+                    left <= leftFront + frontierAllowance
+                }
+                val connectedAtFront = connected.filter { pair ->
+                    pair.first in pendingAtFront
+                }
+                val candidatePool = if (connectedAtFront.isNotEmpty()) {
+                    connectedAtFront.map { it.first }
+                } else {
+                    pendingAtFront
+                }
+                return candidatePool.minByOrNull { column ->
+                    val rows = column.rows
+                    val start = center(rows.first())
+                    val end = center(rows.last())
+                    val distanceToEntry = minOf(
+                        distance(anchor, start),
+                        distance(anchor, end)
+                    )
+                    val approachingFromStart =
+                        distance(anchor, start) <= distance(anchor, end)
+                    val directionalEnd = if (approachingFromStart) {
+                        end
+                    } else {
+                        start
+                    }
+                    val direction = FPoint(
+                        directionalEnd.x - if (approachingFromStart) start.x else end.x,
+                        directionalEnd.y - if (approachingFromStart) start.y else end.y
+                    )
+                    distanceToEntry + strokeContinuationTurnPenalty(
+                        previousTravelDirection,
+                        direction
+                    )
+                }
+            }
+
+            // Caso nao haja relacao de regiao verificavel, preserva o
+            // algoritmo anterior para contornos independentes.
             return connected
                 .minByOrNull { (column, gap) ->
                     val first = center(column.rows.first())
@@ -6965,6 +7062,36 @@ internal object PeDesignImportedFontEngine {
 
             current =
                 point
+        }
+
+        fun debugLeftMFlourishFinishesBeforeRightLeg(): Float {
+            fun band(x: Float, y: Float) = SatinColumn(
+                (0..6).map { step ->
+                    SatinRow(
+                        FPoint(x, y + step * 4f),
+                        FPoint(x + 8f, y + step * 4f)
+                    )
+                }.toMutableList()
+            )
+            val leftUnfinished = band(17f, 18f)
+            val rightLeg = band(43f, 18f)
+            val currentNeedle = FPoint(43f, 19f)
+            val glyph = Polygon(
+                listOf(
+                    FPoint(5f, 0f),
+                    FPoint(65f, 0f),
+                    FPoint(65f, 55f),
+                    FPoint(5f, 55f)
+                )
+            )
+            val next = nextColumnFollowingObject(
+                columns = listOf(rightLeg, leftUnfinished),
+                anchor = currentNeedle,
+                underlayMode = SatinUnderlayMode.NONE,
+                polygons = listOf(glyph),
+                previousTravelDirection = FPoint(5f, 0f)
+            ) ?: error("Sem coluna seguinte")
+            return minOf(next.rows.first().a.x, next.rows.first().b.x)
         }
 
         fun debugConnectedObjectWinsOverCloserUnrelatedLeg():
