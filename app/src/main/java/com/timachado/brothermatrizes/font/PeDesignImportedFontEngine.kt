@@ -55,6 +55,11 @@ internal object PeDesignImportedFontEngine {
         previous, candidate
     )
 
+    internal fun debugLeftMFlourishFinishesBeforeRightLeg(): Float =
+        SatinEmitter(mutableListOf()).debugLeftMFlourishFinishesBeforeRightLeg()
+
+
+
     private val capHeightRatioCache =
         mutableMapOf<String, Float?>()
 
