@@ -57,8 +57,9 @@ manifest=root/"app/src/main/AndroidManifest.xml"
 m=manifest.read_text(encoding="utf-8")
 permission='<uses-permission android:name="android.permission.RECORD_AUDIO" />'
 if permission not in m:
-    m=m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-        '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    '+permission,1)
+    opening=re.search(r'<manifest\b[^>]*>',m)
+    assert opening, "Tag manifest não encontrada"
+    m=m[:opening.end()] + '\n    ' + permission + m[opening.end():]
 assert permission in m, "Permissão não foi inserida"
 match=re.search(r'<application\b[^>]*>',m)
 assert match, "Tag application não localizada"
