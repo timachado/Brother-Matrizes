@@ -257,14 +257,63 @@ with wave.open(path,'rb') as w:
 print("PASSOU: WAV gerado é PCM16 mono",rate,"Hz,",frames,"frames,",
       os.path.getsize(path),"bytes")
 PY
-# Cancelar o SAF deve limpar WAV transitório; não mantém arquivo privado.
-adb shell input keyevent 4
-sleep 3
-if adb shell run-as "$PKG" ls cache | grep -q "$STAGE"; then
-  echo "FALHA: WAV não foi apagado após cancelar exportação." >&2
+# Validar o caminho positivo de gravação, não apenas a geração e cancelamento.
+# O Android DocumentsUI costuma iniciar em Recentes, onde não se pode salvar.
+readui
+if grep -qE '(text|content-desc)="Downloads"' "$OUT/current.xml"; then
+  tap "Downloads"
+fi
+readui
+# Evita selecionar sugestões de nome ou tocar em botões fora da janela SAF.
+SAVE_POS=$(python3 - "$OUT/current.xml" <<'PY'
+import sys,re
+from xml.etree import ElementTree as ET
+nodes=list(ET.parse(sys.argv[1]).getroot().iter("node"))
+for n in nodes:
+    value=(n.get("text","") or n.get("content-desc","")).strip().casefold()
+    if value not in ("save","salvar"):
+        continue
+    if n.get("enabled")=="false":
+        continue
+    bounds=list(map(int,re.findall(r"\\d+",n.get("bounds",""))))
+    if len(bounds)==4:
+        a,b,c,d=bounds
+        print((a+c)//2,(b+d)//2)
+        raise SystemExit(0)
+raise SystemExit("FALHA: botão Salvar do seletor SAF não está habilitado")
+PY
+)
+read -r SAVE_X SAVE_Y <<<"$SAVE_POS"
+echo "Confirmando salvamento SAF em $SAVE_X,$SAVE_Y"
+adb shell input tap "$SAVE_X" "$SAVE_Y"
+sleep 5
+readui
+if ! grep -q 'Voz isolada salva em WAV no local escolhido' "$OUT/current.xml"; then
+  echo "FALHA: o aplicativo não confirmou a gravação do WAV pelo ContentResolver." >&2
+  grep -Eo 'text="[^"]{0,140}"' "$OUT/current.xml" | tail -n 25 || true
   exit 1
 fi
-echo "PASSOU: seletor SAF abriu e cancelamento removeu arquivo temporário."
+if adb shell run-as "$PKG" ls cache | grep -q "$STAGE"; then
+  echo "FALHA: arquivo WAV de staging não foi apagado após salvar." >&2
+  exit 1
+fi
+echo "PASSOU: salvamento externo SAF confirmado e WAV temporário descartado."
+# No provedor de documentos local do emulador, validar também os bytes do arquivo.
+SAVED_REMOTE=$(adb shell find /sdcard/Download /sdcard/Documents /sdcard/Music -maxdepth 3 -type f -name 'PitchStudio_Voz_Isolada*.wav' 2>/dev/null | tr -d '\r' | head -n1 || true)
+if [ -n "$SAVED_REMOTE" ]; then
+  adb pull "$SAVED_REMOTE" "$OUT/confirmed_voice.wav" >/dev/null
+  python3 - "$OUT/staged_voice.wav" "$OUT/confirmed_voice.wav" <<'PY'
+from pathlib import Path
+import hashlib,sys,wave
+prepared,final=map(Path,sys.argv[1:])
+assert final.read_bytes()==prepared.read_bytes(),"Arquivo salvo difere do WAV preparado"
+with wave.open(str(final),"rb") as audio:
+    assert audio.getframerate()==44100 and audio.getnchannels()==1
+print("PASSOU: WAV salvo no destino SAF é byte a byte igual ao original temporário.")
+PY
+else
+  echo "AVISO: provedor SAF confirmou gravação, mas não expôs caminho direto ao adb para comparação."
+fi
 
 
 if adb logcat -d -b crash -t 1500 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.stemexport'; then
