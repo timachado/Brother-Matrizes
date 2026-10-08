@@ -5398,6 +5398,14 @@ internal object PeDesignImportedFontEngine {
                 startHint !=
                     null
 
+            // A primeira perfuracao deve nascer na entrada calculada
+            // do primeiro glifo, nao na primeira linha arbitraria do
+            // sampler de colunas. Essa coordenada e utilizada no
+            // mesmo arquivo de pontadas que o simulador vai reproduzir.
+            if (startsDesignAtVisualHint && startHint != null) {
+                travelTo(startHint)
+            }
+
             var firstColumn =
                 true
 
@@ -5456,6 +5464,7 @@ internal object PeDesignImportedFontEngine {
                     ) ?: break
 
                 val continuesCurrentObject =
+                    !firstColumn &&
                     current?.let {
                             anchor ->
                         columnConnectsToAnchor(
@@ -5479,11 +5488,10 @@ internal object PeDesignImportedFontEngine {
                 val anchor =
                     if (
                         firstColumn &&
-                        startsDesignAtVisualHint
+                        startsDesignAtVisualHint &&
+                        startHint != null
                     ) {
-                        visualLowerEnd(
-                            selected
-                        )
+                        startHint
                     } else {
                         current
                             ?: startHint
@@ -5837,14 +5845,27 @@ internal object PeDesignImportedFontEngine {
                     }
                 }
 
+            // So avance para um objeto sem conexao se todos
+            // os ramos proximos ja foram concluidos. Entre os ramos
+            // restantes, evita retornar ao extremo esquerdo por
+            // simples ordem de armazenamento do sampler.
             return connected
                 .minByOrNull {
                     it.second
                 }
                 ?.first
-                ?: nextColumnInReadingOrder(
-                    columns
-                )
+                ?: columns.minByOrNull { column ->
+                    val first = center(column.rows.first())
+                    val last = center(column.rows.last())
+                    val near = minOf(
+                        distance(anchor, first),
+                        distance(anchor, last)
+                    )
+                    val backwards = (
+                        anchor.x - maxOf(first.x, last.x)
+                    ).coerceAtLeast(0f)
+                    near + backwards * 1.5f
+                }
         }
 
         private fun visualLowerEnd(
@@ -6013,44 +6034,40 @@ internal object PeDesignImportedFontEngine {
              * 3) o Satin começa dali e percorre as linhas no sentido inverso,
              *    preenchendo de volta até a entrada da coluna.
              */
-            val coverageRows =
-                if (
-                    includeUnderlay
-                ) {
-                    emitCenterRunUnderlay(
-                        column =
-                            column,
-                        densityMm =
-                            densityMm,
-                        insetFirstColumn =
-                            insetFirstUnderlay,
-                        visualAnchor =
-                            visualAnchor
-                    )
-
-                    rows.asReversed()
-                } else {
-                    rows
-                }
-
-            emitLock(
-                coverageRows.first()
-            )
-
-            coverageRows.forEach {
-                    row ->
-                emitStitchTo(
-                    row.a
-                )
-
-                emitStitchTo(
-                    row.b
-                )
+            // O antigo center-run percorria a coluna inteira e
+            // voltava cobrindo cada linha de tras para frente.
+            // Na fonte Adamiya isso fazia a agulha ficar presa ao
+            // mesmo floreio antes de avancar. A cobertura agora
+            // segue sempre na ordem real das linhas Satin.
+            //
+            // A sustentacao central e intercalada a cada passo curto,
+            // antes das pontadas de cobertura locais. Todos os lados
+            // A/B e a densidade da coluna original sao preservados.
+            if (includeUnderlay) {
+                emitStitchTo(center(rows.first()))
             }
 
-            emitLock(
-                coverageRows.last()
+            emitLock(rows.first())
+
+            val stride = max(
+                1,
+                (20f / (densityMm * 10f).coerceAtLeast(0.5f))
+                    .roundToInt()
             )
+            rows.forEachIndexed { index, row ->
+                if (
+                    includeUnderlay &&
+                    index > 0 &&
+                    (index % stride == 0 || index == rows.lastIndex)
+                ) {
+                    emitStitchTo(center(row))
+                }
+
+                emitStitchTo(row.a)
+                emitStitchTo(row.b)
+            }
+
+            emitLock(rows.last())
         }
 
         private fun centerRunUnderlayPoints(
@@ -7281,6 +7298,18 @@ internal object PeDesignImportedFontEngine {
 
         return horizontal to
             vertical
+    }
+
+    internal fun debugFirstVisualEntry(): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
+        val points = debugProgressiveCenterUnderlayPath()
+        val first = points.firstOrNull {
+            it.command == StitchCommand.JUMP
+        } ?: return null
+        val end = points.lastOrNull {
+            it.command == StitchCommand.STITCH
+        } ?: return null
+        return (first.xUnits to first.yUnits) to
+            (end.xUnits to end.yUnits)
     }
 
     internal fun debugProgressiveCenterUnderlayPath():
