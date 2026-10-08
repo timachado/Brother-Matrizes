@@ -47,9 +47,12 @@ once('''        vocalSeparatorButton.isEnabled = false
 once('''temp = VocalStemSeparator.separate(this, project, fraction) { message ->''',
 '''temp = VocalStemSeparator.separate(this, project, fraction, requestedDuration) { message ->''')
 
-once('''                        vocalSeparatorButton.isEnabled = true''',
-'''                        vocalSeparatorButton.isEnabled = true
-                        vocalDurationButton.isEnabled = true''')
+once('''                    if (!isFinishing && !isDestroyed)
+                        vocalSeparatorButton.isEnabled = true''',
+'''                    if (!isFinishing && !isDestroyed) {
+                        vocalSeparatorButton.isEnabled = true
+                        vocalDurationButton.isEnabled = true
+                    }''')
 
 once('''"O arquivo contém somente o trecho vocal isolado (aproximadamente 5,8 segundos). " +''',
 '''"O arquivo contém somente o trecho vocal isolado na duração selecionada. " +''')
