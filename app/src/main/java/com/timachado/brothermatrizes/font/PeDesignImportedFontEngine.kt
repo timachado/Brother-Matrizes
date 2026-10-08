@@ -450,7 +450,8 @@ internal object PeDesignImportedFontEngine {
                 )
 
             polygonsByGlyph
-                .forEach {
+                .forEachIndexed {
+                        glyphIndex,
                         polygons ->
                     /*
                      * Fonte cursiva/importada precisa seguir o fluxo real do
@@ -484,7 +485,11 @@ internal object PeDesignImportedFontEngine {
                         polygons =
                             polygons,
                         startHint =
-                            null,
+                            if (glyphIndex == 0) {
+                                satinStructuralStartPoint(columns)
+                            } else {
+                                null
+                            },
                         underlayMode =
                             options
                                 .satinUnderlayMode,
@@ -5713,10 +5718,17 @@ internal object PeDesignImportedFontEngine {
                     }
                 }
 
+            // Esgota o ramo à esquerda antes de avançar para outro
+            // ramo conectado à direita. A distância só desempata a
+            // mesma posição espacial; não deve reordenar regiões do M.
             return connected
-                .minByOrNull {
-                    it.second
-                }
+                .minWithOrNull(
+                    compareBy<Pair<SatinColumn, Float>> {
+                        columnLeftEdgeX(it.first)
+                    }.thenBy {
+                        it.second
+                    }
+                )
                 ?.first
                 ?: nextColumnInReadingOrder(
                     columns
@@ -6040,10 +6052,8 @@ internal object PeDesignImportedFontEngine {
             }
 
             val index =
-                if (
-                    insetFirstColumn
-                ) {
-                    0
+                if (insetFirstColumn) {
+                    firstColumnUnderlayStartIndex(centers)
                 } else {
                     0
                 }
@@ -6076,7 +6086,11 @@ internal object PeDesignImportedFontEngine {
             }
 
             val startIndex =
-                0
+                if (insetFirstColumn) {
+                    firstColumnUnderlayStartIndex(centers)
+                } else {
+                    0
+                }
 
             // Uma única passada central do ponto de entrada até o extremo.
             centers
