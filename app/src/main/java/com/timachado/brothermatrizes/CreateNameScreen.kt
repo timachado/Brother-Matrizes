@@ -385,17 +385,7 @@ fun CreateNameScreen(
                     satinShortStitches =
                         satinShortStitches,
                     satinUnderlayMode =
-                        if (
-                            importedFont != null &&
-                            stitchStyle == TextStitchStyle.SATIN
-                        ) {
-                            // Nesta rota importada, o usuário pediu
-                            // cobertura Satin direta, sem passada
-                            // preliminar de underlay/ziguezague.
-                            SatinUnderlayMode.NONE
-                        } else {
-                            satinUnderlayMode
-                        },
+                        satinUnderlayMode,
                     specialStitchMode =
                         specialStitchMode,
                     color =
