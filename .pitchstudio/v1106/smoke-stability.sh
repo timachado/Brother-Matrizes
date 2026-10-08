@@ -373,24 +373,59 @@ MP3_REMOTE=$(adb shell find /sdcard/Download /sdcard/Documents /sdcard/Music \
 test -n "$MP3_REMOTE" || { echo "FALHA: MP3 exportado não localizado no Android." >&2; exit 1; }
 adb pull "$MP3_REMOTE" "$OUT/confirmed_export.mp3" >/dev/null
 python3 - "$OUT/confirmed_export.mp3" <<'PY'
-import json,sys,subprocess
-path=sys.argv[1]
-probe=subprocess.run(["ffprobe","-v","error","-show_entries",
-    "stream=codec_name,sample_rate,channels,bit_rate:format=duration",
-    "-of","json",path],capture_output=True,text=True,check=True)
-meta=json.loads(probe.stdout)
-streams=[s for s in meta.get("streams",[]) if s.get("codec_name")=="mp3"]
-assert len(streams)==1,meta
-audio=streams[0]
-duration=float(meta["format"]["duration"])
-assert int(audio["sample_rate"])==44100,audio
-assert int(audio["channels"])==2,audio
+import sys,shutil,subprocess,json
+from pathlib import Path
+raw=Path(sys.argv[1]).read_bytes()
+assert len(raw)>100000, "MP3 exportado está vazio ou truncado"
+pos=0
+if raw.startswith(b"ID3"):
+    assert len(raw)>=10
+    tag=(raw[6]<<21)|(raw[7]<<14)|(raw[8]<<7)|raw[9]
+    pos=10+tag
+mpeg_frames=0
+br_set=set()
+rates=set()
+modes=set()
+duration=0.0
+bitrates=[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0]
+while pos+4<=len(raw):
+    h=int.from_bytes(raw[pos:pos+4],"big")
+    assert (h>>21)&2047==2047, f"Frame MP3 inválido no byte {pos}"
+    version=(h>>19)&3
+    layer=(h>>17)&3
+    br_idx=(h>>12)&15
+    sr_idx=(h>>10)&3
+    assert version==3 and layer==1 and 1<=br_idx<=14 and sr_idx<=2,hex(h)
+    rate=(44100,48000,32000)[sr_idx]
+    bitrate=bitrates[br_idx]
+    channels=1 if ((h>>6)&3)==3 else 2
+    length=144000*bitrate//rate+((h>>9)&1)
+    assert pos+length<=len(raw), "MP3 termina no meio de um frame"
+    br_set.add(bitrate);rates.add(rate);modes.add(channels)
+    duration+=1152.0/rate
+    mpeg_frames+=1
+    pos+=length
+assert pos==len(raw) or (len(raw)-pos==128 and raw[pos:pos+3]==b"TAG"),"Resíduo inválido no MP3"
+assert mpeg_frames>=200,mpeg_frames
+assert rates=={44100} and modes=={2} and br_set=={320},(rates,modes,br_set)
 assert 13.7<=duration<=14.8,duration
-assert int(audio.get("bit_rate",0))>=300000,audio
-subprocess.run(["ffmpeg","-v","error","-i",path,"-f","null","-"],
-               check=True,capture_output=True)
-print("PASSOU: MP3 SAF salvo, 44,1 kHz estéreo, bitrate >=300kbps,")
-print(f"        duração {duration:.3f}s e decodificação completa via FFmpeg.")
+print(f"PASSOU: MP3 SAF salvo, {mpeg_frames} quadros MPEG íntegros, "
+      f"44,1 kHz, estéreo, 320kbps, duração {duration:.3f}s.")
+# FFmpeg é opcional: nem todas as imagens Ubuntu do Actions o incluem.
+# Quando disponível, decodificar todo o arquivo também.
+if shutil.which("ffprobe") and shutil.which("ffmpeg"):
+    probe=subprocess.run(["ffprobe","-v","error","-show_entries",
+        "stream=codec_name,sample_rate,channels,bit_rate:format=duration",
+        "-of","json",sys.argv[1]],capture_output=True,text=True,check=True)
+    meta=json.loads(probe.stdout)
+    audio=[s for s in meta.get("streams",[]) if s.get("codec_name")=="mp3"]
+    assert len(audio)==1,meta
+    assert int(audio[0]["sample_rate"])==44100
+    subprocess.run(["ffmpeg","-v","error","-i",sys.argv[1],"-f","null","-"],
+        check=True,capture_output=True)
+    print("PASSOU: decodificação completa do MP3 pelo FFmpeg.")
+else:
+    print("AVISO: FFmpeg ausente no runner; quadros validados integralmente sem dependência externa.")
 PY
 
 if adb logcat -d -b crash -t 1500 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.stableqa'; then
