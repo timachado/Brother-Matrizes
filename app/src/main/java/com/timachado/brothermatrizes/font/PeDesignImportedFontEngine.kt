@@ -2071,12 +2071,12 @@ internal object PeDesignImportedFontEngine {
     }
 
     /**
-     * Interpreta os tracos desenhados como GUIAS de sequencia para colunas
-     * Satin, nao como deslocamentos fisicos de agulha.
+     * No modo guiado, a trajetoria manual DEFINE o eixo das pontadas Satin.
+     * Nao reordena colunas calculadas por scanline: resampla o traço, calcula
+     * a normal local e encontra as duas bordas reais da fonte TTF/OTF.
      *
-     * Regra obrigatoria: finalizar TODAS as colunas de um glifo antes de
-     * passar ao seguinte. Etapas JUMP_NO_STITCH do editor anterior nao sao
-     * comandos de costura e nunca sao executadas aqui.
+     * Cada glifo e concluido antes do proximo; as etapas JUMP_NO_STITCH do
+     * editor sao anotacoes antigas, nao ordens de pular no bordado.
      */
     private fun emitUserGuidedRoute(
         emitter: SatinEmitter,
@@ -2088,98 +2088,121 @@ internal object PeDesignImportedFontEngine {
         underlayMode: SatinUnderlayMode
     ) {
         val outlines = polygonsByGlyph.flatten().flatMap { it.points }
-        require(outlines.size >= 3) { "A fonte nao gerou contornos para seguir." }
+        require(outlines.size >= 3) { "Fonte sem contornos para percurso Satin." }
         val minX = outlines.minOf { it.x }
         val minY = outlines.minOf { it.y }
         val width = (outlines.maxOf { it.x } - minX).coerceAtLeast(1f)
         val height = (outlines.maxOf { it.y } - minY).coerceAtLeast(1f)
-        fun map(p: GuidedSatinPoint) = FPoint(minX + p.x * width, minY + p.y * height)
 
-        val guides = route.steps
-            .filter { !it.jumpWithoutStitch }
+        fun map(p: GuidedSatinPoint): FPoint =
+            FPoint(minX + p.x * width, minY + p.y * height)
+
+        val physicalGuidePaths = route.steps
+            .filter { !it.jumpWithoutStitch && it.points.size >= 2 }
             .map { step -> step.points.map(::map) }
-        require(guides.isNotEmpty()) { "A referencia nao contem tracos Satin." }
-
-        fun segmentDistance(point: FPoint, a: FPoint, b: FPoint): Pair<Float, Float> {
-            val dx = b.x - a.x
-            val dy = b.y - a.y
-            val len2 = dx * dx + dy * dy
-            val t = if (len2 < 0.0001f) 0f else
-                (((point.x - a.x) * dx + (point.y - a.y) * dy) / len2).coerceIn(0f, 1f)
-            val projection = FPoint(a.x + t * dx, a.y + t * dy)
-            return distance(point, projection) to t
-        }
-        fun project(point: FPoint, path: List<FPoint>): Pair<Float, Float> {
-            if (path.size == 1) return distance(point, path.first()) to 0f
-            var travelled = 0f
-            var best = Float.MAX_VALUE
-            var progress = 0f
-            path.zipWithNext().forEach { (a, b) ->
-                val (d, t) = segmentDistance(point, a, b)
-                if (d < best) {
-                    best = d
-                    progress = travelled + t * distance(a, b)
-                }
-                travelled += distance(a, b)
-            }
-            return best to progress
+        require(physicalGuidePaths.isNotEmpty()) {
+            "A referencia precisa conter pelo menos um caminho de costura."
         }
 
-        // Primeira perfuracao no INICIO que o usuario marcou, nao apenas
-        // deslocamento de agulha. O Satin da letra deve partir dali.
-        val firstAnchor = map(route.start)
-        emitter.guidedFirstStitch(firstAnchor)
+        val pitch = (densityMm * 10f).coerceIn(2.5f, 12f)
+        val pullUnits = pullMm * 10f
+        val widthUnits = maxSatinWidthMm * 10f
+
+        // O usuario marcou o inicio da agulha, nao o primeiro contorno.
+        emitter.guidedFirstStitch(map(route.start))
 
         polygonsByGlyph.forEachIndexed { glyphIndex, polygons ->
-            val columns = sampleColumns(
-                polygons = polygons,
-                densityMm = densityMm,
-                maxSatinWidthMm = maxSatinWidthMm,
-                pullCompensationMm = pullMm
-            ).filter { it.rows.isNotEmpty() }
-            if (columns.isEmpty()) return@forEachIndexed
+            if (polygons.isEmpty()) return@forEachIndexed
+            val glyphPoints = polygons.flatMap { it.points }
+            val glyphMinX = glyphPoints.minOf { it.x }
+            val glyphMaxX = glyphPoints.maxOf { it.x }
+            val margin = widthUnits.coerceAtMost(25f)
+            val columns = mutableListOf<SatinColumn>()
+            var guidedRows = 0
 
-            val decorated = columns.map { column ->
-                val centers = column.rows.map(::center)
-                val middle = centers[centers.lastIndex / 2]
-                val stage = guides.indices.minByOrNull { guideIndex ->
-                    centers.filterIndexed { index, _ ->
-                        index == 0 || index == centers.lastIndex ||
-                            index == centers.lastIndex / 2
-                    }.map { project(it, guides[guideIndex]).first }.average()
-                } ?: 0
-                Triple(column, stage, project(middle, guides[stage]).second)
+            fun snapIntoGlyph(
+                candidate: FPoint,
+                tangent: FPoint
+            ): FPoint? {
+                if (pointInsidePolygons(candidate, polygons)) return candidate
+                // O dedo do usuario segue uma imagem, nao o eixo matematico
+                // da fonte. Corrigir pequenos desvios na normal do traço,
+                // mas nunca atravessar outra letra procurando um atalho.
+                val normal = FPoint(-tangent.y, tangent.x)
+                val searchLimit = (widthUnits * 0.55f).coerceIn(5f, 25f)
+                var offset = 1f
+                while (offset <= searchLimit) {
+                    val negative = FPoint(
+                        candidate.x - normal.x * offset,
+                        candidate.y - normal.y * offset
+                    )
+                    if (pointInsidePolygons(negative, polygons)) return negative
+                    val positive = FPoint(
+                        candidate.x + normal.x * offset,
+                        candidate.y + normal.y * offset
+                    )
+                    if (pointInsidePolygons(positive, polygons)) return positive
+                    offset += 1f
+                }
+                return null
             }
-            val inGuideOrder = decorated.sortedWith(
-                compareBy<Triple<SatinColumn, Int, Float>> { it.second }
-                    .thenBy { it.third }
-            ).map { it.first }.toMutableList()
 
-            // Na primeira letra, escolher o traco que de fato toca o
-            // marcador. Nunca iniciar por outro ramo so porque e mais a
-            // esquerda ou mais proximo de uma etapa posterior.
-            if (glyphIndex == 0) {
-                val nearest = columns.minByOrNull { column ->
-                    column.rows.minOf { row ->
-                        minOf(
-                            distance(firstAnchor, row.a),
-                            distance(firstAnchor, row.b),
-                            distance(firstAnchor, center(row))
-                        )
+            physicalGuidePaths.forEach { guide ->
+                val sampled = resampleFlowPath(guide, pitch)
+                var pending = mutableListOf<SatinRow>()
+
+                fun finishCurrentStroke() {
+                    if (pending.size >= 2) {
+                        columns += SatinColumn(pending)
+                        guidedRows += pending.size
                     }
+                    pending = mutableListOf()
                 }
-                if (nearest != null) {
-                    inGuideOrder.remove(nearest)
-                    inGuideOrder.add(0, nearest)
+
+                sampled.forEachIndexed { index, original ->
+                    if (original.x !in (glyphMinX - margin)..(glyphMaxX + margin)) {
+                        finishCurrentStroke()
+                        return@forEachIndexed
+                    }
+                    val tangent = localFlowTangent(sampled, index)
+                        ?: run {
+                            finishCurrentStroke()
+                            return@forEachIndexed
+                        }
+                    val center = snapIntoGlyph(original, tangent)
+                        ?: run {
+                            finishCurrentStroke()
+                            return@forEachIndexed
+                        }
+                    val row = satinRowFromFlow(
+                        center = center,
+                        tangent = tangent,
+                        polygons = polygons,
+                        pullUnits = pullUnits,
+                        maxWidthUnits = widthUnits
+                    ) ?: run {
+                        finishCurrentStroke()
+                        return@forEachIndexed
+                    }
+                    val previous = pending.lastOrNull()
+                    if (
+                        previous == null ||
+                        distance(center(previous), center(row)) >= pitch * 0.5f
+                    ) pending += row
                 }
+                finishCurrentStroke()
             }
 
-            // O emissor conclui o glifo inteiro ANTES do proximo.
-            // Nenhum JUMP da lista de etapas e emitido artificialmente.
+            // Nao voltar silenciosamente ao sampler antigo: isso recriava
+            // o erro das faixas muito longas e do contorno costurado depois.
+            require(guidedRows > 0 && columns.isNotEmpty()) {
+                "O percurso marcado nao coincide com os tracos da letra " +
+                    (glyphIndex + 1) + ". Confira a fonte importada e o desenho."
+            }
             emitter.emitGlyph(
-                columns = inGuideOrder,
+                columns = columns,
                 polygons = polygons,
-                startHint = if (glyphIndex == 0) firstAnchor else null,
+                startHint = if (glyphIndex == 0) map(route.start) else null,
                 underlayMode = underlayMode,
                 densityMm = densityMm,
                 guidedOrder = true
