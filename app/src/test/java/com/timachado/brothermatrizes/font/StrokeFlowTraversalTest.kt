@@ -6,6 +6,12 @@ import org.junit.Test
 class StrokeFlowTraversalTest {
 
     @Test
+    fun openInitialSwashStartsAtInnerLowerEndNotOuterLeftPoint() {
+        val start = ImportedFontMatrixGenerator.debugOpenSwashEntry()
+        assertEquals(55 to 80, start)
+    }
+
+    @Test
     fun openingLoopStillStartsAtRequestedEntryWhenConnectedToLetter() {
         val (firstPoint, resultingSegments) =
             ImportedFontMatrixGenerator.debugConnectedLoopEntrance()
