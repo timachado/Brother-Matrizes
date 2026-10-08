@@ -109,7 +109,8 @@ data class TextMatrixOptions(
     val hoopProfile: HoopProfile? = null,
     val fabricProfile: FabricProfile? = null,
     val enforceHoop: Boolean = false,
-    val rotationDegrees: Float = 0f
+    val rotationDegrees: Float = 0f,
+    val guidedSatinRoute: GuidedSatinRoute? = null
 )
 
 object TextMatrixGenerator {
