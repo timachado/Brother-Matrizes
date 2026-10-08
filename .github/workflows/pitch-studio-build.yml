@@ -197,6 +197,15 @@ jobs:
 
           root = Path(os.environ["RUNNER_TEMP"]) / "pitchstudio-src/PitchStudioAndroid"
 
+          # AndroidX é necessário pelas dependências HTTP atuais.
+          p = root / "gradle.properties"
+          s = p.read_text(encoding="utf-8") if p.exists() else ""
+          if "android.useAndroidX=true" not in s:
+              if s and not s.endswith("\n"):
+                  s += "\n"
+              s += "android.useAndroidX=true\n"
+          p.write_text(s, encoding="utf-8")
+
           # JitPack para NewPipeExtractor.
           p = root / "settings.gradle.kts"
           s = p.read_text(encoding="utf-8")
