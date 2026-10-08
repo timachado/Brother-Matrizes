@@ -2221,22 +2221,62 @@ internal object PeDesignImportedFontEngine {
      * skeleton pode multiplicar ramos em glifos cursivos complexos e inflar
      * a matriz para milhares de pontos redundantes.
      */
+    /**
+     * Extrai o percurso central antes de formar as colunas Satin.
+     *
+     * A rasterizacao por eixos divide floreios e pernas de letras
+     * cursivas em faixas independentes. Nenhuma ordenacao posterior
+     * reconstroi exatamente o caminho manuscrito, por isso o motor
+     * usava saltos e voltava a regioes que deixou incompletas.
+     *
+     * A rota adaptativa usa o esqueleto conectado da area desenhada,
+     * converte cada caminho em linhas Satin e preserva a geometria
+     * da borda original. A amostragem antiga permanece como fallback
+     * para caracteres extremamente finos ou contornos degenerados.
+     */
     private fun sampleColumns(
         polygons: List<Polygon>,
         densityMm: Float,
         maxSatinWidthMm: Float,
         pullCompensationMm: Float
-    ): List<SatinColumn> =
-        sampleAxisColumns(
-            polygons =
-                polygons,
-            densityMm =
-                densityMm,
-            maxSatinWidthMm =
-                maxSatinWidthMm,
-            pullCompensationMm =
-                pullCompensationMm
+    ): List<SatinColumn> {
+        val flow = sampleAdaptiveFlowColumns(
+            polygons = polygons,
+            densityMm = densityMm,
+            maxSatinWidthMm = maxSatinWidthMm,
+            pullCompensationMm = pullCompensationMm
         )
+        if (flow.isNotEmpty()) return flow
+        return sampleAxisColumns(
+            polygons = polygons,
+            densityMm = densityMm,
+            maxSatinWidthMm = maxSatinWidthMm,
+            pullCompensationMm = pullCompensationMm
+        )
+    }
+
+    internal fun debugUsesAdaptiveFlowSampling(): Boolean {
+        val contour = Polygon(
+            listOf(
+                FPoint(0f, 0f), FPoint(140f, 0f),
+                FPoint(140f, 26f), FPoint(0f, 26f)
+            )
+        )
+        val flow = sampleAdaptiveFlowColumns(
+            polygons = listOf(contour),
+            densityMm = 0.4f,
+            maxSatinWidthMm = 7f,
+            pullCompensationMm = 0f
+        )
+        val selected = sampleColumns(
+            polygons = listOf(contour),
+            densityMm = 0.4f,
+            maxSatinWidthMm = 7f,
+            pullCompensationMm = 0f
+        )
+        return flow.isNotEmpty() && selected.size == flow.size &&
+            selected.map { it.rows.size } == flow.map { it.rows.size }
+    }
 
     private const val MAX_FLOW_GRID_CELLS =
         250_000
