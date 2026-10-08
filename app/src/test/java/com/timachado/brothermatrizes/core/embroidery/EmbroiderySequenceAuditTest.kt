@@ -28,7 +28,9 @@ class EmbroiderySequenceAuditTest {
         val reopened = (canonical as EmbroideryLoadResult.Success).design
         val audit = EmbroiderySequenceAudit.compare(generated, reopened)
         assertTrue(
-            "PES nao pode mudar o percurso fisico: ${audit.summary()}",
+            "PES precisa preservar o percurso. ${audit.summary()}\n" +
+                "BEFORE=${audit.before.checkpoints}\n" +
+                "AFTER=${audit.after.checkpoints}",
             audit.orderedPathPreserved
         )
     }
