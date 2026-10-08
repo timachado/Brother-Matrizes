@@ -324,6 +324,12 @@ fi
 adb shell input keyevent 4
 sleep 3
 visible "PitchStudio"
+# O cartão FINALIZAR fica no fim do editor Material Expressive:
+# a rolagem deve atingir seu conteúdo antes de buscar o botão MP3.
+for down in 1 2 3 4 5 6; do
+  adb shell input swipe 520 1800 520 550 220
+done
+visible "MP3 (até 320 kbps)"
 tap "MP3 (até 320 kbps)"
 sleep 3
 readui
