@@ -225,6 +225,92 @@ object TextHoopAutoFit {
             }
         }
 
+    /**
+     * Fontes TTF/OTF exigem digitalizacao Satin relativamente cara.
+     * Recalcula o desenho em no maximo tres geracoes em vez de executar
+     * as doze iteracoes do ajuste para fontes internas.
+     */
+    fun fitImported(
+        hoop: HoopProfile,
+        requestedHeightMm: Float,
+        generator: (Float) -> Result<EmbroideryDesign>
+    ): Result<TextHoopAutoFitResult> = runCatching {
+        require(requestedHeightMm > 0f) {
+            "A altura solicitada deve ser positiva."
+        }
+
+        fun frame(design: EmbroideryDesign): Pair<Float, Float> {
+            val designLandscape =
+                design.bounds.widthMm > design.bounds.heightMm
+            val hoopLandscape = hoop.widthMm > hoop.heightMm
+            val rotated = hoop.widthMm != hoop.heightMm &&
+                designLandscape != hoopLandscape
+
+            return if (rotated) {
+                hoop.usableHeightMm to hoop.usableWidthMm
+            } else {
+                hoop.usableWidthMm to hoop.usableHeightMm
+            }
+        }
+
+        fun scaleToSafeArea(design: EmbroideryDesign): Float {
+            val (width, height) = frame(design)
+            return minOf(
+                width / design.bounds.widthMm.coerceAtLeast(0.1f),
+                height / design.bounds.heightMm.coerceAtLeast(0.1f)
+            )
+        }
+
+        fun fits(design: EmbroideryDesign): Boolean {
+            val (width, height) = frame(design)
+            return design.bounds.widthMm <= width &&
+                design.bounds.heightMm <= height
+        }
+
+        val initial = generator(requestedHeightMm).getOrThrow()
+        var resolvedHeight = requestedHeightMm
+        var resolvedDesign = initial
+
+        val targetHeight = (
+            requestedHeightMm *
+                scaleToSafeArea(initial) *
+                0.96f
+        ).coerceIn(MIN_HEIGHT_MM, MAX_HEIGHT_MM)
+
+        if (kotlin.math.abs(targetHeight - requestedHeightMm) >= 0.1f) {
+            resolvedDesign = generator(targetHeight).getOrThrow()
+            resolvedHeight = targetHeight
+        }
+
+        // Algumas fontes possuem margens de glifos nao lineares.
+        // Se a primeira estimativa ultrapassar a area util, refina uma vez.
+        if (!fits(resolvedDesign)) {
+            val correctedHeight = (
+                resolvedHeight *
+                    scaleToSafeArea(resolvedDesign) *
+                    0.94f
+            ).coerceIn(MIN_HEIGHT_MM, MAX_HEIGHT_MM)
+
+            if (correctedHeight < resolvedHeight - 0.1f) {
+                resolvedDesign = generator(correctedHeight).getOrThrow()
+                resolvedHeight = correctedHeight
+            }
+        }
+
+        require(fits(resolvedDesign)) {
+            "O texto nao cabe na area segura do bastidor " +
+                hoop.displayName + "."
+        }
+
+        val (safeWidth, safeHeight) = frame(resolvedDesign)
+        TextHoopAutoFitResult(
+            heightMm = resolvedHeight,
+            design = resolvedDesign,
+            widthFillRatio = resolvedDesign.bounds.widthMm / safeWidth,
+            heightFillRatio = resolvedDesign.bounds.heightMm / safeHeight
+        )
+    }
+
     fun dominantFillRatio(
         result: TextHoopAutoFitResult
     ): Float =
