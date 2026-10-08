@@ -7790,6 +7790,18 @@ internal object PeDesignImportedFontEngine {
         )?.x
     }
 
+    internal fun debugStructuralFootY(): Float? {
+        val column = SatinColumn(
+            listOf(0f, 40f, 80f, 120f, 140f).map { y ->
+                SatinRow(
+                    FPoint(24f, y),
+                    FPoint(38f, y)
+                )
+            }.toMutableList()
+        )
+        return satinStructuralStartPoint(listOf(column))?.y
+    }
+
     internal fun debugFirstColumnChosenByAnchor():
         Float? {
         val output =
