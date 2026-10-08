@@ -2,7 +2,7 @@ name: Build Brother Matrizes Android APK
 
 on:
   push:
-    branches: ["refactor/brother-matrizes-clean-0469"]
+    branches: ["refactor/brother-matrizes-clean-0469", "fix/pe-design-active-entry-0469"]
   workflow_dispatch:
 
 permissions:
