@@ -519,6 +519,22 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun userGuidedRouteCompletesRightRegionThenLeftWithNoStitchHop() {
+        val points = PeDesignImportedFontEngine.debugGuidedRouteStageOrder()
+        val stitches = points.filter { it.command == StitchCommand.STITCH }
+        assertTrue("A rota guiada precisa gerar pontos reais.", stitches.size > 10)
+        assertTrue("O primeiro objeto deve ser o da direita.",
+            stitches.first().xUnits >= 75)
+        val firstLeft = stitches.indexOfFirst { it.xUnits <= 30 }
+        assertTrue("A regiao da esquerda deve ser costurada depois da direita.",
+            firstLeft > 0)
+        assertTrue("Nao deve retornar ao objeto da direita apos iniciar o da esquerda.",
+            stitches.drop(firstLeft).none { it.xUnits >= 75 })
+        assertTrue("A transicao anotada deve gerar um salto sem ponto.",
+            points.any { it.command == StitchCommand.JUMP && it.xUnits in 40..60 })
+    }
+
+    @Test
     fun structuralEntryUsesBottomOfYAxisDownInsteadOfTop() {
         assertEquals(
             "Em sourceYAxisDown=true, selecionar maior Y como base real.",
