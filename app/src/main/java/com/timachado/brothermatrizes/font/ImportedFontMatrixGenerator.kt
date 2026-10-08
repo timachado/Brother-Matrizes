@@ -3442,9 +3442,10 @@ object ImportedFontMatrixGenerator {
         // um ciclo isolado depois de splitStrokeFlowSegments().
         val normalizedLines = rebaseLeadingClosedSkeletonLine(rawLines)
         val loopEntry = normalizedLines
-            .firstOrNull { line ->
+            .filter { line ->
                 line.size >= 6 && line.first() == line.last()
             }
+            .minByOrNull { line -> line.minOf { it.x } }
             ?.first()
 
         val splitSegments =
@@ -4827,6 +4828,32 @@ object ImportedFontMatrixGenerator {
                 "," +
                 to.y
         }
+    }
+
+    internal fun debugConnectedLoopEntrance(): Pair<Pair<Int, Int>, Int> {
+        val loop = listOf(
+            SkeletonPoint(0, 10),
+            SkeletonPoint(0, 5),
+            SkeletonPoint(0, 0),
+            SkeletonPoint(5, 0),
+            SkeletonPoint(10, 0),
+            SkeletonPoint(10, 5),
+            SkeletonPoint(10, 10),
+            SkeletonPoint(5, 10),
+            SkeletonPoint(0, 10)
+        )
+        val normalized = rebaseLeadingClosedSkeletonLine(
+            listOf(
+                loop,
+                listOf(SkeletonPoint(0, 10), SkeletonPoint(-5, 15))
+            )
+        )
+        val sections = splitStrokeFlowSegments(normalized)
+        val traversal = planStrokeFlowTraversal(
+            sections, normalized.first().first()
+        )
+        val start = strokeFlowNodePoint(traversal.first().fromNode)
+        return (start.x to start.y) to sections.size
     }
 
     internal fun debugClosedLoopEntrance(): Triple<Pair<Int, Int>, Boolean, Boolean> {
