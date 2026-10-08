@@ -87,6 +87,36 @@ object EmbroiderySequenceAudit {
         )
     }
 
+    /**
+     * CSV COMPLETO na ordem do arquivo, nao apenas a vista final
+     * da simulacao. Inclui cada STITCH/JUMP/TRIM, inclusive os
+     * eventos inseridos na exportacao PES.
+     */
+    fun fullCsv(stage: String, design: EmbroideryDesign): String {
+        val stitches = design.points.filter {
+            it.command == StitchCommand.STITCH
+        }
+        val minX = stitches.minOfOrNull { it.xUnits } ?: 0
+        val maxX = stitches.maxOfOrNull { it.xUnits } ?: minX
+        val minY = stitches.minOfOrNull { it.yUnits } ?: 0
+        val maxY = stitches.maxOfOrNull { it.yUnits } ?: minY
+        val dx = max(1, maxX - minX).toDouble()
+        val dy = max(1, maxY - minY).toDouble()
+
+        return buildString {
+            appendLine("stage,index,command,xUnits,yUnits,xNormalized,yVisualNormalized,colorIndex")
+            design.points.forEachIndexed { index, point ->
+                val x = (point.xUnits - minX) / dx
+                val y = (point.yUnits - minY) / dy
+                val visualY = if (design.sourceYAxisDown) y else 1.0 - y
+                appendLine(
+                    "$stage,$index,${point.command.name}," +
+                        "${point.xUnits},${point.yUnits},$x,$visualY,${point.colorIndex}"
+                )
+            }
+        }
+    }
+
     fun inspect(stage: String, design: EmbroideryDesign): Report {
         val path = design.points.filter {
             it.command == StitchCommand.STITCH
