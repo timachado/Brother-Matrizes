@@ -1,6 +1,7 @@
 package br.com.timachado.pitchstudio
 
 import android.content.Context
+import android.net.Uri
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.schabi.newpipe.extractor.NewPipe
@@ -18,7 +19,8 @@ object YouTubeImporter {
         val title: String,
         val uploader: String,
         val durationSeconds: Long,
-        val url: String
+        val url: String,
+        val thumbnailUrl: String
     )
 
     data class Downloaded(
@@ -67,7 +69,8 @@ object YouTubeImporter {
                     title = it.name,
                     uploader = it.uploaderName.orEmpty(),
                     durationSeconds = it.duration,
-                    url = it.url
+                    url = normalizeYouTubeUrl(it.url),
+                    thumbnailUrl = it.thumbnails.firstOrNull()?.url.orEmpty()
                 )
             }
     }
@@ -80,7 +83,8 @@ object YouTubeImporter {
         ensureInitialized()
         onProgress("Resolvendo áudio do YouTube…", 3)
 
-        val info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
+        val normalizedUrl = normalizeYouTubeUrl(videoUrl)
+        val info = StreamInfo.getInfo(ServiceList.YouTube, normalizedUrl)
         val stream = chooseAudioStream(info.audioStreams)
             ?: error("Nenhum stream de áudio utilizável foi encontrado para este vídeo.")
 
@@ -145,6 +149,38 @@ object YouTubeImporter {
             output.delete()
             throw t
         }
+    }
+
+    fun normalizeYouTubeUrl(value: String): String {
+        val raw = value.trim()
+        if (raw.isBlank()) error("Link do YouTube vazio.")
+
+        val candidate = if (raw.contains("://")) raw else "https://" + raw
+        val uri = Uri.parse(candidate)
+        val host = uri.host?.lowercase()?.removePrefix("www.")
+            ?: error("Link do YouTube inválido.")
+
+        val videoId = when {
+            host == "youtu.be" -> uri.pathSegments.firstOrNull()
+
+            host == "youtube.com" || host == "m.youtube.com" ||
+                host == "music.youtube.com" -> {
+                when {
+                    uri.path == "/watch" -> uri.getQueryParameter("v")
+                    uri.pathSegments.firstOrNull() in setOf("shorts", "live", "embed") ->
+                        uri.pathSegments.getOrNull(1)
+                    else -> uri.getQueryParameter("v")
+                }
+            }
+
+            else -> null
+        }?.substringBefore('?')
+            ?.substringBefore('&')
+            ?.trim()
+            ?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{6,20}")) }
+            ?: error("URL do YouTube não reconhecida.")
+
+        return "https://www.youtube.com/watch?v=" + videoId
     }
 
     private fun chooseAudioStream(streams: List<AudioStream>): AudioStream? {
