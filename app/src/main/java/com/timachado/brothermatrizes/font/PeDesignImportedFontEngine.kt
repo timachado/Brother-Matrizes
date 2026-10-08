@@ -2070,15 +2070,13 @@ internal object PeDesignImportedFontEngine {
         return selected.bottomCenter
     }
 
-    private data class GuidedColumn(
-        val column: SatinColumn,
-        val polygons: List<Polygon>
-    )
-
     /**
-     * A rota feita no desenho dirige a ordem dos OBJETOS Satin, nunca a
-     * posicao de cada picada. O sampler permanece responsavel pela
-     * cobertura fisica das letras; os saltos da rota sao sempre JUMP.
+     * Interpreta os tracos desenhados como GUIAS de sequencia para colunas
+     * Satin, nao como deslocamentos fisicos de agulha.
+     *
+     * Regra obrigatoria: finalizar TODAS as colunas de um glifo antes de
+     * passar ao seguinte. Etapas JUMP_NO_STITCH do editor anterior nao sao
+     * comandos de costura e nunca sao executadas aqui.
      */
     private fun emitUserGuidedRoute(
         emitter: SatinEmitter,
@@ -2089,118 +2087,103 @@ internal object PeDesignImportedFontEngine {
         pullMm: Float,
         underlayMode: SatinUnderlayMode
     ) {
-        val allPolygons = polygonsByGlyph.flatten()
-        val outlines = allPolygons.flatMap { it.points }
-        require(outlines.size >= 3) { "Nao ha contorno para orientar o percurso." }
+        val outlines = polygonsByGlyph.flatten().flatMap { it.points }
+        require(outlines.size >= 3) { "A fonte nao gerou contornos para seguir." }
         val minX = outlines.minOf { it.x }
         val minY = outlines.minOf { it.y }
         val width = (outlines.maxOf { it.x } - minX).coerceAtLeast(1f)
         val height = (outlines.maxOf { it.y } - minY).coerceAtLeast(1f)
+        fun map(p: GuidedSatinPoint) = FPoint(minX + p.x * width, minY + p.y * height)
 
-        fun map(p: GuidedSatinPoint) = FPoint(
-            x = minX + p.x * width,
-            y = minY + p.y * height
-        )
+        val guides = route.steps
+            .filter { !it.jumpWithoutStitch }
+            .map { step -> step.points.map(::map) }
+        require(guides.isNotEmpty()) { "A referencia nao contem tracos Satin." }
 
-        val mapped = route.steps.map { step -> step.points.map(::map) }
-        val satinIndices = route.steps.indices.filter { !route.steps[it].jumpWithoutStitch }
-        require(satinIndices.isNotEmpty())
-
-        fun polylineDistance(point: FPoint, path: List<FPoint>): Float {
-            if (path.size == 1) return distance(point, path.first())
-            return path.zipWithNext().minOf { (a, b) ->
-                val dx = b.x - a.x
-                val dy = b.y - a.y
-                val length2 = dx * dx + dy * dy
-                val t = if (length2 < 0.0001f) 0f else
-                    (((point.x - a.x) * dx + (point.y - a.y) * dy) / length2).coerceIn(0f, 1f)
-                distance(point, FPoint(a.x + t * dx, a.y + t * dy))
-            }
+        fun segmentDistance(point: FPoint, a: FPoint, b: FPoint): Pair<Float, Float> {
+            val dx = b.x - a.x
+            val dy = b.y - a.y
+            val len2 = dx * dx + dy * dy
+            val t = if (len2 < 0.0001f) 0f else
+                (((point.x - a.x) * dx + (point.y - a.y) * dy) / len2).coerceIn(0f, 1f)
+            val projection = FPoint(a.x + t * dx, a.y + t * dy)
+            return distance(point, projection) to t
         }
-
-        fun positionOnPath(point: FPoint, path: List<FPoint>): Float {
-            var cumulative = 0f
-            var bestProgress = 0f
-            var bestDistance = Float.MAX_VALUE
+        fun project(point: FPoint, path: List<FPoint>): Pair<Float, Float> {
+            if (path.size == 1) return distance(point, path.first()) to 0f
+            var travelled = 0f
+            var best = Float.MAX_VALUE
+            var progress = 0f
             path.zipWithNext().forEach { (a, b) ->
-                val dx = b.x - a.x
-                val dy = b.y - a.y
-                val length2 = dx * dx + dy * dy
-                val length = kotlin.math.sqrt(length2)
-                val t = if (length2 < 0.0001f) 0f else
-                    (((point.x - a.x) * dx + (point.y - a.y) * dy) / length2).coerceIn(0f, 1f)
-                val projected = FPoint(a.x + t * dx, a.y + t * dy)
-                val d = distance(point, projected)
-                if (d < bestDistance) {
-                    bestDistance = d
-                    bestProgress = cumulative + t * length
+                val (d, t) = segmentDistance(point, a, b)
+                if (d < best) {
+                    best = d
+                    progress = travelled + t * distance(a, b)
                 }
-                cumulative += length
+                travelled += distance(a, b)
             }
-            return bestProgress
+            return best to progress
         }
 
-        val regionColumns = route.steps.indices.map {
-            mutableListOf<GuidedColumn>()
-        }
+        // Primeira perfuracao no INICIO que o usuario marcou, nao apenas
+        // deslocamento de agulha. O Satin da letra deve partir dali.
+        val firstAnchor = map(route.start)
+        emitter.guidedFirstStitch(firstAnchor)
 
-        polygonsByGlyph.forEach { polygons ->
+        polygonsByGlyph.forEachIndexed { glyphIndex, polygons ->
             val columns = sampleColumns(
                 polygons = polygons,
                 densityMm = densityMm,
                 maxSatinWidthMm = maxSatinWidthMm,
                 pullCompensationMm = pullMm
-            )
-            columns.filter { it.rows.isNotEmpty() }.forEach { column ->
+            ).filter { it.rows.isNotEmpty() }
+            if (columns.isEmpty()) return@forEachIndexed
+
+            val decorated = columns.map { column ->
                 val centers = column.rows.map(::center)
-                // A media do caminho da coluna evita escolher a etapa errada
-                // quando dois ramos cursivos se cruzam num unico ponto.
-                val sample = listOf(0, centers.lastIndex / 4, centers.lastIndex / 2,
-                    centers.lastIndex * 3 / 4, centers.lastIndex).map { centers[it] }
-                val chosen = satinIndices.minWithOrNull(
-                    compareBy<Int> { stage ->
-                        sample.map { polylineDistance(it, mapped[stage]) }.average()
-                    }.thenBy { it }
-                ) ?: error("Percurso sem etapa Satin.")
-                regionColumns[chosen] += GuidedColumn(column, polygons)
+                val middle = centers[centers.lastIndex / 2]
+                val stage = guides.indices.minByOrNull { guideIndex ->
+                    centers.filterIndexed { index, _ ->
+                        index == 0 || index == centers.lastIndex ||
+                            index == centers.lastIndex / 2
+                    }.map { project(it, guides[guideIndex]).first }.average()
+                } ?: 0
+                Triple(column, stage, project(middle, guides[stage]).second)
             }
-        }
+            val inGuideOrder = decorated.sortedWith(
+                compareBy<Triple<SatinColumn, Int, Float>> { it.second }
+                    .thenBy { it.third }
+            ).map { it.first }.toMutableList()
 
-        require(regionColumns.sumOf { it.size } > 0) { "Nenhuma coluna Satin encontrada." }
-
-        // O JSON exige: firstStitchMustStartAtMarkedPosition=true.
-        // Posiciona sem costurar e emite a PRIMEIRA penetracao de agulha
-        // exatamente no ponto marcado; o deslocamento seguinte e JUMP.
-        emitter.guidedFirstStitch(map(route.start))
-
-        route.steps.forEachIndexed { index, step ->
-            val path = mapped[index]
-            if (step.jumpWithoutStitch) {
-                // Deslocamentos explicitamente anotados permanecem JUMP.
-                path.forEach(emitter::guidedJump)
-            } else {
-                val assigned = regionColumns[index]
-                if (assigned.isNotEmpty()) {
-                    emitter.guidedJump(path.first())
-                    // Costurar todos os fragmentos da regiao antes de ir adiante.
-                    // Nao permitir que a proximidade altere a ordem anotada.
-                    val ordered = assigned.sortedWith(
-                        compareBy<GuidedColumn> { candidate ->
-                            val centers = candidate.column.rows.map(::center)
-                            val middle = centers[centers.lastIndex / 2]
-                            positionOnPath(middle, path)
-                        }.thenBy { columnLeftEdgeX(it.column) }
-                    )
-                    emitter.emitGlyph(
-                        columns = ordered.map { it.column },
-                        polygons = allPolygons,
-                        startHint = path.first(),
-                        underlayMode = underlayMode,
-                        densityMm = densityMm,
-                        guidedOrder = true
-                    )
+            // Na primeira letra, escolher o traco que de fato toca o
+            // marcador. Nunca iniciar por outro ramo so porque e mais a
+            // esquerda ou mais proximo de uma etapa posterior.
+            if (glyphIndex == 0) {
+                val nearest = columns.minByOrNull { column ->
+                    column.rows.minOf { row ->
+                        minOf(
+                            distance(firstAnchor, row.a),
+                            distance(firstAnchor, row.b),
+                            distance(firstAnchor, center(row))
+                        )
+                    }
+                }
+                if (nearest != null) {
+                    inGuideOrder.remove(nearest)
+                    inGuideOrder.add(0, nearest)
                 }
             }
+
+            // O emissor conclui o glifo inteiro ANTES do proximo.
+            // Nenhum JUMP da lista de etapas e emitido artificialmente.
+            emitter.emitGlyph(
+                columns = inGuideOrder,
+                polygons = polygons,
+                startHint = if (glyphIndex == 0) firstAnchor else null,
+                underlayMode = underlayMode,
+                densityMm = densityMm,
+                guidedOrder = true
+            )
         }
     }
 
@@ -5511,7 +5494,10 @@ internal object PeDesignImportedFontEngine {
                         SatinUnderlayMode.NONE &&
                     selected.rows.size >=
                         4 &&
-                    !continuesCurrentObject
+                    (
+                        guidedOrder && firstColumn ||
+                        !continuesCurrentObject
+                    )
 
                 val anchor =
                     if (
@@ -5611,9 +5597,23 @@ internal object PeDesignImportedFontEngine {
                             polygons
                     )
 
-                if (guidedOrder && firstColumn) {
-                    // A troca de regiao do roteiro e sempre sem pontada.
-                    travelTo(entry)
+                if (
+                    guidedOrder &&
+                    currentPoint != null &&
+                    segmentInsideGlyph(
+                        from = currentPoint,
+                        to = entry,
+                        polygons = polygons
+                    )
+                ) {
+                    // Tracos realmente conectados dentro da letra devem
+                    // ser COSTURADOS, nao transformados em saltos.
+                    emitSegmented(
+                        from = currentPoint,
+                        to = entry,
+                        command = StitchCommand.STITCH,
+                        maxSegmentUnits = CONTINUOUS_CONNECTOR_STITCH_UNITS
+                    )
                 } else if (
                     continuousInsideJoin
                 ) {
