@@ -13,6 +13,7 @@ on:
       - feature/pitchstudio-voice-song-match-199
       - feature/pitchstudio-tom-ideal-excerpt-1100
       - feature/pitchstudio-melody-focus-1101
+      - feature/pitchstudio-real-vocal-stems-1102
   workflow_dispatch:
 
 permissions:
@@ -421,6 +422,33 @@ jobs:
           python3 .pitchstudio/v1101/patch_v1101.py "$SRC"
           grep -F 'versionName = "1.10.1"' "$SRC/app/build.gradle.kts"
 
+      - name: Incluir motor MDX-Net e modelo vocal 1.10.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          PKG="$SRC/app/src/main/java/br/com/timachado/pitchstudio"
+          ASSETS="$SRC/app/src/main/assets"
+          mkdir -p "$ASSETS"
+          cp .pitchstudio/v1102/VocalStemSeparator.kt "$PKG/VocalStemSeparator.kt"
+          cp .pitchstudio/v1102/MODEL_NOTICE.txt "$ASSETS/MDX_MODEL_NOTICE.txt"
+          python3 -m py_compile .pitchstudio/v1102/patch_v1102.py
+          python3 .pitchstudio/v1102/patch_v1102.py "$SRC"
+          MODEL="$ASSETS/UVR_MDXNET_9482.fp16acc.tflite"
+          curl -fL --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 240 \
+            'https://huggingface.co/gyoom-sa/UVR-MDX-LiteRT/resolve/cfcf0bb8ae993732a23691b94cf05fa3fcf3d603/UVR_MDXNET_9482.fp16acc.tflite?download=true' \
+            -o "$MODEL"
+          python3 - "$MODEL" <<'PY'
+          from pathlib import Path
+          import sys,hashlib
+          file=Path(sys.argv[1]); data=file.read_bytes()
+          assert 25000000 < len(data) < 40000000, f'Modelo incompleto: {len(data)} bytes'
+          assert data[4:8]==b'TFL3', 'Formato TFLite inválido'
+          print('Modelo MDX-Net bytes:',len(data))
+          print('Modelo MDX-Net SHA-256:',hashlib.sha256(data).hexdigest())
+          PY
+          grep -F 'versionName = "1.10.2"' "$SRC/app/build.gradle.kts"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -481,7 +509,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.1-MelodyFocus-preview-apk
+          name: PitchStudio-v1.10.2-VocalStems-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -499,13 +527,13 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1101/smoke-melody.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v1102/smoke-vocals.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Publicar evidências do teste Android
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.10.1-android-ui-smoke
-          path: ${{ runner.temp }}/pitchstudio-melody-smoke/
+          name: PitchStudio-v1.10.2-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-vocals-smoke/
           if-no-files-found: warn
           retention-days: 7
