@@ -4069,6 +4069,10 @@ object ImportedFontMatrixGenerator {
                 visited +=
                     edgeId
 
+                // Conclui a area atual (underlay + cobertura Satin)
+                // antes de explorar outra ramificacao. A antiga travessia
+                // pos-ordem deixava a cobertura pendente enquanto passava
+                // por outros glifos/segmentos, criando voltas no bordado.
                 result +=
                     StrokeFlowTraversalStep(
                         segmentId =
@@ -4082,18 +4086,6 @@ object ImportedFontMatrixGenerator {
                                 .CENTER_RUN
                     )
 
-                visit(
-                    node =
-                        nextNode,
-                    incoming =
-                        strokeFlowArrivalDirection(
-                            segment =
-                                edge,
-                            fromNode =
-                                node
-                        )
-                )
-
                 result +=
                     StrokeFlowTraversalStep(
                         segmentId =
@@ -4106,6 +4098,18 @@ object ImportedFontMatrixGenerator {
                             StrokeFlowPhase
                                 .SATIN_RETURN
                     )
+
+                visit(
+                    node =
+                        nextNode,
+                    incoming =
+                        strokeFlowArrivalDirection(
+                            segment =
+                                edge,
+                            fromNode =
+                                node
+                        )
+                )
             }
         }
 
