@@ -519,6 +519,28 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun guidedStrokeGeneratesTransverseSatinInsteadOfLongAxisColumns() {
+        val stitches = PeDesignImportedFontEngine
+            .debugGuidedConnectedLetterHasNoForcedJump()
+            .filter { it.command == StitchCommand.STITCH }
+        assertTrue("Deve gerar cobertura real ao longo de toda a letra.",
+            stitches.any { it.xUnits >= 70 } && stitches.any { it.xUnits <= 20 })
+        val transverseSegments = stitches.zipWithNext().count { (a, b) ->
+            kotlin.math.abs(b.yUnits - a.yUnits) >= 30 &&
+                kotlin.math.abs(b.xUnits - a.xUnits) <= 10
+        }
+        assertTrue(
+            "O eixo do traço e horizontal; as linhas Satin devem ser transversais.",
+            transverseSegments >= 8
+        )
+        val crowded = stitches.groupBy { it.xUnits / 8 }.values.maxOf { it.size }
+        assertTrue(
+            "Nenhuma unica coluna pode consumir a maior parte da costura.",
+            crowded < stitches.size * 0.45f
+        )
+    }
+
+    @Test
     fun guidedSatinCompletesConnectedLetterWithoutArtificialJumps() {
         val points = PeDesignImportedFontEngine
             .debugGuidedConnectedLetterHasNoForcedJump()
