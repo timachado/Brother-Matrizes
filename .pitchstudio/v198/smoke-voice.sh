@@ -67,6 +67,15 @@ PY
   echo "Controle não localizado: $1"
   exit 1
 }
+# A imagem do emulador às vezes apresenta ANR no Pixel Launcher.
+# Reabrir a Activity alvo ao invés de confundir a sobreposição com crash do app.
+for attempt in 1 2 3 4; do
+  if visible "PitchStudio"; then break; fi
+  echo "Aguardando launcher do emulador (tentativa $attempt)"
+  adb shell input keyevent 4 || true
+  adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity" || true
+  sleep 5
+done
 visible "PitchStudio"
 tap "Tom Ideal"
 visible "Tom Ideal"
