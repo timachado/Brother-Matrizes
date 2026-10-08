@@ -7962,6 +7962,46 @@ internal object PeDesignImportedFontEngine {
         )?.x
     }
 
+    internal fun debugGuidedConnectedLetterHasNoForcedJump(): List<EmbroideryPoint> {
+        val outline = Polygon(
+            listOf(
+                FPoint(0f, 0f), FPoint(90f, 0f),
+                FPoint(90f, 50f), FPoint(0f, 50f)
+            )
+        )
+        val route = GuidedSatinRoute(
+            start = GuidedSatinPoint(0.3f, 0.5f),
+            steps = listOf(
+                GuidedSatinStep(
+                    1, false,
+                    listOf(GuidedSatinPoint(0.1f, 0.5f),
+                        GuidedSatinPoint(0.5f, 0.5f))
+                ),
+                GuidedSatinStep(
+                    2, true,
+                    listOf(GuidedSatinPoint(0.5f, 0.5f),
+                        GuidedSatinPoint(0.7f, 0.5f))
+                ),
+                GuidedSatinStep(
+                    3, false,
+                    listOf(GuidedSatinPoint(0.7f, 0.5f),
+                        GuidedSatinPoint(0.95f, 0.5f))
+                )
+            )
+        )
+        val result = mutableListOf<EmbroideryPoint>()
+        emitUserGuidedRoute(
+            emitter = SatinEmitter(result),
+            polygonsByGlyph = listOf(listOf(outline)),
+            route = route,
+            densityMm = 0.4f,
+            maxSatinWidthMm = 7f,
+            pullMm = 0.2f,
+            underlayMode = SatinUnderlayMode.CENTER
+        )
+        return result
+    }
+
     internal fun debugGuidedRouteStageOrder(): List<EmbroideryPoint> {
         fun rect(left: Float, top: Float): Polygon =
             Polygon(listOf(
