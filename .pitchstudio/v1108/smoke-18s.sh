@@ -460,11 +460,7 @@ test "$CANCEL_OK" = 1 || {
   echo "FALHA: cancelamento vocal não finalizou." >&2
   exit 1
 }
-if adb shell run-as "$PKG" ls cache | grep -qE '^pitch_vocal_stem_.*\.f32
- echo "FALHA: crash identificado no logcat" >&2
- exit 1
-fi
-; then
+if adb shell run-as "$PKG" ls cache | grep -qE '^pitch_vocal_stem_.*\.f32$'; then
   echo "FALHA: áudio PCM temporário permaneceu após cancelar isolamento." >&2
   exit 1
 fi
