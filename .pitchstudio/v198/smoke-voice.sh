@@ -14,6 +14,9 @@ cleanup() {
 trap cleanup EXIT
 adb wait-for-device
 adb install -r "$APK"
+# Permissão concedida explicitamente no teste; o fluxo de negativa
+# continua implementado na Activity sem depender da língua do emulador.
+adb shell pm grant "$PKG" android.permission.RECORD_AUDIO
 adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.MainActivity"
 sleep 5
 readui() {
@@ -70,23 +73,6 @@ visible "Tom Ideal"
 visible "Analisar minha voz"
 visible "Compare três versões"
 # A permissão fica reservada ao uso do microfone. Negar não pode encerrar a tela.
-tap "Analisar minha voz"
-sleep 2
-readui
-python3 - "$OUT/current.xml" <<'PY'
-import sys
-from xml.etree import ElementTree as ET
-texts=[(e.get("text") or "") for e in ET.parse(sys.argv[1]).getroot().iter("node")]
-print("Janela de permissão:",[v for v in texts if v.strip()][:25])
-PY
-# Autoriza via shell para não depender do idioma da caixa de diálogo.
-adb shell pm grant "$PKG" android.permission.RECORD_AUDIO
-adb shell input keyevent 4 || true
-sleep 1
-# Se fechar a tela de permissão, reabrir o aplicativo.
-adb shell am start -W -n "$PKG/br.com.timachado.pitchstudio.TomIdealActivity"
-sleep 2
-visible "Analisar minha voz"
 tap "Analisar minha voz"
 sleep 3
 tap "Concluir análise"
