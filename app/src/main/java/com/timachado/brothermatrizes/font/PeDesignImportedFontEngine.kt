@@ -2168,9 +2168,10 @@ internal object PeDesignImportedFontEngine {
 
         require(regionColumns.sumOf { it.size } > 0) { "Nenhuma coluna Satin encontrada." }
 
-        // O marcador inicial do desenho e posicao de referencia/agulha.
-        // Nao inventar STITCH isolado numa area vazia da letra.
-        emitter.guidedJump(map(route.start))
+        // O JSON exige: firstStitchMustStartAtMarkedPosition=true.
+        // Posiciona sem costurar e emite a PRIMEIRA penetracao de agulha
+        // exatamente no ponto marcado; o deslocamento seguinte e JUMP.
+        emitter.guidedFirstStitch(map(route.start))
 
         route.steps.forEachIndexed { index, step ->
             val path = mapped[index]
@@ -6370,6 +6371,16 @@ internal object PeDesignImportedFontEngine {
 
         fun guidedJump(target: FPoint) {
             travelTo(target)
+        }
+
+        fun guidedFirstStitch(target: FPoint) {
+            require(current == null) {
+                "O inicio marcado deve ser a primeira pontada do desenho."
+            }
+            emit(target, StitchCommand.JUMP)
+            // Uma penetracao zero-deslocamento ancora o inicio definido
+            // pelo usuario; nao cria costura entre o marcador e o bordado.
+            emit(target, StitchCommand.STITCH)
         }
 
         private fun travelTo(
