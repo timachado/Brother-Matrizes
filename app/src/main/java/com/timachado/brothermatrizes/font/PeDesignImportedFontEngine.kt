@@ -2246,13 +2246,22 @@ internal object PeDesignImportedFontEngine {
             maxSatinWidthMm = maxSatinWidthMm,
             pullCompensationMm = pullCompensationMm
         )
-        if (flow.isNotEmpty()) return flow
-        return sampleAxisColumns(
+        val compact = sampleAxisColumns(
             polygons = polygons,
             densityMm = densityMm,
             maxSatinWidthMm = maxSatinWidthMm,
             pullCompensationMm = pullCompensationMm
         )
+
+        // A medial-line de formas com muitas bifurcacoes pode
+        // duplicar caminhos e produzir mais linhas do que o
+        // sampler compacto. Nao podemos aumentar silenciosamente
+        // a densidade / tempo de costura somente para acertar a ordem.
+        val flowRows = flow.sumOf { it.rows.size }
+        val compactRows = compact.sumOf { it.rows.size }
+        val withinBudget = compactRows == 0 ||
+            flowRows <= compactRows * 1.20f
+        return if (flowRows >= 3 && withinBudget) flow else compact
     }
 
     internal fun debugUsesAdaptiveFlowSampling(): Boolean {
