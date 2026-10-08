@@ -7990,7 +7990,7 @@ internal object PeDesignImportedFontEngine {
         val output = mutableListOf<EmbroideryPoint>()
         emitUserGuidedRoute(
             emitter = SatinEmitter(output),
-            polygonsByGlyph = listOf(listOf(rect(0f, 0f)), listOf(rect(80f, 0f))),
+            polygonsByGlyph = listOf(listOf(rect(80f, 0f)), listOf(rect(0f, 0f))),
             route = route,
             densityMm = 0.4f,
             maxSatinWidthMm = 7f,
