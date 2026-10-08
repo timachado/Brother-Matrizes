@@ -136,6 +136,8 @@ p.write_text(s,encoding='utf-8')
 p=root/'app/build.gradle.kts';g=p.read_text(encoding='utf-8')
 assert 'versionCode = 12' in g and 'versionName = "1.9.2"' in g
 g=g.replace('versionCode = 12','versionCode = 13').replace('versionName = "1.9.2"','versionName = "1.9.3"')
+assert 'applicationIdSuffix = ".preview"' in g
+g=g.replace('applicationIdSuffix = ".preview"', 'applicationIdSuffix = ".expressive"', 1)
 g+='\n\ndependencies { implementation("com.google.android.material:material:1.14.0") }\n'
 p.write_text(g,encoding='utf-8')
 values=root/'app/src/main/res/values';values.mkdir(parents=True,exist_ok=True)
