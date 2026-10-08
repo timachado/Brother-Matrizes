@@ -133,11 +133,7 @@ class YouTubeBrowserActivity : Activity() {
             boxStrokeWidth = 0
             boxStrokeWidthFocused = dp(2)
             setBoxStrokeColor(Color.rgb(43, 219, 230))
-            setBoxCornerRadii(
-                dp(22).toFloat(), dp(22).toFloat(),
-                dp(22).toFloat(), dp(22).toFloat()
-            )
-            endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
+
         }
         queryInput = TextInputEditText(this).apply {
             setTextColor(Color.WHITE)
@@ -153,6 +149,13 @@ class YouTubeBrowserActivity : Activity() {
             }
         }
         searchField.addView(queryInput, ViewGroup.LayoutParams(-1, dp(56)))
+        // Configure os cantos/ícone somente APÓS anexar o EditText.
+        // Evita crash de inicialização em combinações de SDK/Material.
+        searchField.setBoxCornerRadii(
+            dp(22).toFloat(), dp(22).toFloat(),
+            dp(22).toFloat(), dp(22).toFloat()
+        )
+        searchField.endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
         searchRow.addView(searchField, LinearLayout.LayoutParams(0, dp(68), 1f).apply {
             marginEnd = dp(8)
         })
