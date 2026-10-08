@@ -9,7 +9,7 @@ import java.nio.ByteOrder
 import kotlin.math.max
 
 /**
- * MP3 320 kbps usando JLAME puro Java.
+ * MP3 até 320 kbps usando JLAME puro Java.
  *
  * Não carrega bibliotecas .so e portanto não depende de ABI,
  * libstdc++, NDK ou codec MP3 do fabricante.
@@ -48,7 +48,9 @@ object Mp3Exporter {
             }
 
             flags.lame_set_VBR(Jlame.vbr_off)
-            flags.lame_set_brate(320)
+            // MPEG-2/2.5 não permite 320 kbps em taxas abaixo de 32 kHz.
+            val bitrate = if (sampleRate < 32000) 128 else 320
+            flags.lame_set_brate(bitrate)
             flags.lame_set_quality(2)
             flags.lame_set_write_id3tag_automatic(false)
 
