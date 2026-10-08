@@ -132,8 +132,8 @@ g=g.replace("versionCode = 21","versionCode = 22",1)
 g=g.replace('versionName = "1.10.1"','versionName = "1.10.2"',1)
 g=g.replace('applicationIdSuffix = ".melody"','applicationIdSuffix = ".stems"',1)
 g += '''
-dependencies { implementation("org.tensorflow:tensorflow-lite:2.17.0") }
-android { androidResources { noCompress += "tflite" } }
+dependencies { implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0") }
+android { androidResources { noCompress += "onnx" } }
 '''
 gradle.write_text(g,encoding="utf-8")
 print("PitchStudio 1.10.2: separação vocal MDX-Net LiteRT integrada ao Tom Ideal.")
