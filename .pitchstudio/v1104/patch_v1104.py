@@ -14,7 +14,7 @@ def one(before, after):
     s=s.replace(before,after,1)
 
 one('import android.Manifest\n', '''import android.Manifest
-import android.app.ActivityNotFoundException
+import android.content.ActivityNotFoundException
 import java.io.FileInputStream
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
