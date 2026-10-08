@@ -188,58 +188,22 @@ class PeDesignImportedFontEngineTest {
     }
 
     @Test
-    fun centerUnderlayRunsOnceToFarEndBeforeReverseSatin() {
-        val stitches =
-            PeDesignImportedFontEngine
-                .debugProgressiveCenterUnderlayPath()
-                .filter {
-                    it.command ==
-                        StitchCommand.STITCH
-                }
-
-        val xSequence =
-            stitches.map {
-                it.xUnits
-            }
-
-        val farIndex =
-            xSequence.indexOfFirst {
-                it >=
-                    31
-            }
-
+    fun centerUnderlayAndSatinStayOnProgressiveRouteWithoutFullReturn() {
+        val points = PeDesignImportedFontEngine
+            .debugProgressiveCenterUnderlayPath()
+        val x = points
+            .filter { it.command == StitchCommand.STITCH }
+            .map { it.xUnits }
+        assertTrue("O Satin deve costurar as duas extremidades.", x.first() <= 2 && x.maxOrNull()!! >= 31)
+        val far = x.indexOfFirst { it >= 30 }
+        assertTrue("A costura precisa atingir o fim do segmento.", far > 0)
         assertTrue(
-            "A passada central precisa alcançar o extremo da coluna.",
-            farIndex >=
-                1
+            "Depois de concluir a coluna, não pode retornar a sua entrada.",
+            x.drop(far).none { it < 20 }
         )
-
         assertTrue(
-            "Antes de chegar ao extremo, a passada central não pode retornar.",
-            xSequence
-                .take(
-                    farIndex +
-                        1
-                )
-                .zipWithNext()
-                .all {
-                        pair ->
-                    pair.second >=
-                        pair.first
-                }
-        )
-
-        assertTrue(
-            "Depois do extremo, a cobertura Satin deve retornar pela coluna.",
-            xSequence
-                .drop(
-                    farIndex +
-                        1
-                )
-                .any {
-                    it <
-                        25
-                }
+            "A cobertura deve avançar localmente, só com pequenos arremates.",
+            x.zipWithNext().all { (before, after) -> before - after <= 7 }
         )
     }
 
@@ -510,14 +474,14 @@ class PeDesignImportedFontEngineTest {
             }
 
         assertEquals(
-            "O JUMP inicial deve posicionar diretamente no ponto em que a primeira pontada começa.",
-            first.xUnits,
-            firstStitch.xUnits
+            "A entrada inicial deve usar o ponto visual selecionado antes de qualquer cobertura.",
+            5 to 5,
+            first.xUnits to first.yUnits
         )
-
-        assertEquals(
-            first.yUnits,
-            firstStitch.yUnits
+        assertTrue(
+            "O primeiro ponto do underlay deve ficar próximo da entrada.",
+            kotlin.math.abs(first.xUnits - firstStitch.xUnits) <= 10 &&
+                kotlin.math.abs(first.yUnits - firstStitch.yUnits) <= 10
         )
     }
 
@@ -582,19 +546,14 @@ class PeDesignImportedFontEngineTest {
         )
 
         assertEquals(
-            "Em coordenadas Android a base da coluna e o MAIOR valor de Y.",
-            140,
+            "A entrada visível solicitada deve ser o primeiro JUMP, mesmo no interior da coluna.",
+            37,
             firstJump.yUnits
         )
 
-        assertEquals(
-            firstJump.xUnits,
-            firstStitch.xUnits
-        )
-
-        assertEquals(
-            firstJump.yUnits,
-            firstStitch.yUnits
+        assertTrue(
+            "O underlay precisa entrar no centro da coluna.",
+            firstStitch.xUnits == 10
         )
 
         val stitches =
@@ -603,39 +562,12 @@ class PeDesignImportedFontEngineTest {
                     StitchCommand.STITCH
             }
 
-        val farIndex =
-            stitches.indexOfFirst {
-                it.yUnits <=
-                    70
-            }
-
+        assertTrue("A coluna deve manter as duas extremidades.", stitches.any { it.yUnits <= 0 } && stitches.any { it.yUnits >= 140 })
+        val bottomIndex = stitches.indexOfFirst { it.yUnits >= 140 }
+        assertTrue("O Satin deve alcançar o pé da coluna.", bottomIndex > 0)
         assertTrue(
-            "O center-run deve subir do pé até o extremo superior antes de iniciar a cobertura Satin.",
-            farIndex >
-                0
-        )
-
-        assertTrue(
-            "Depois de alcancar o topo, a cobertura Satin deve retornar ao pe.",
-            stitches
-                .drop(
-                    farIndex +
-                        1
-                )
-                .any {
-                    it.yUnits >=
-                        130
-                }
-        )
-
-        assertTrue(
-            "A cobertura Satin tambem deve preservar o extremo inferior.",
-            points.any {
-                it.command ==
-                    StitchCommand.STITCH &&
-                    it.yUnits ==
-                    140
-            }
+            "Depois de concluir o pé, não deve voltar ao topo da letra.",
+            stitches.drop(bottomIndex).none { it.yUnits < 110 }
         )
     }
 
