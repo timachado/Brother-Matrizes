@@ -93,7 +93,7 @@ visible "Tom Ideal"
 visible "Analisar minha voz"
 visible "Comparar voz e música"
 visible "Analisar trecho selecionado"
-visible "Isolar voz com IA"
+# O novo botão pode ficar fora da dobra; tap() rola antes de tocar.
 tap "Isolar voz com IA"
 visible "Importe uma música"
 tap "Analisar trecho selecionado"
@@ -169,7 +169,7 @@ tap "Teste IA Musical"
 tap "Abrir e continuar"
 sleep 6
 tap "Tom Ideal"
-visible "Isolar voz com IA"
+# O novo botão pode ficar fora da dobra; tap() rola antes de tocar.
 adb logcat -c || true
 tap "Isolar voz com IA"
 echo "Executando separação neural com arquivo real de modelo no Android…"
