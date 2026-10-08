@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.GuidedSatinRoute
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
@@ -185,6 +186,20 @@ fun CreateNameScreen(
 
     var text by remember {
         mutableStateOf("Maria")
+    }
+
+    // Percurso do cliente e opt-in; nenhuma outra fonte/nome e modificada.
+    var useTracedMariaRoute by remember {
+        mutableStateOf(false)
+    }
+
+    val tracedMariaRoute = remember(context) {
+        runCatching {
+            context.assets.open("embroidery_routes/maria-reference.route.json")
+                .bufferedReader(Charsets.UTF_8).use { reader ->
+                    GuidedSatinRoute.parse(reader.readText())
+                }
+        }.getOrNull()
     }
 
     var heightMm by remember {
@@ -399,7 +414,19 @@ fun CreateNameScreen(
                     fabricProfile =
                         fabricProfile,
                     rotationDegrees =
-                        rotationDegrees
+                        rotationDegrees,
+                    guidedSatinRoute =
+                        if (
+                            useTracedMariaRoute &&
+                            importedFont != null &&
+                            text.trim().equals("Maria", ignoreCase = true) &&
+                            stitchStyle == TextStitchStyle.SATIN &&
+                            layoutMode == TextLayoutMode.STRAIGHT
+                        ) {
+                            tracedMariaRoute
+                        } else {
+                            null
+                        }
                 ),
             layoutMode =
                 layoutMode,
@@ -453,6 +480,7 @@ fun CreateNameScreen(
         satinPullCompensationMm,
         satinShortStitches,
         satinUnderlayMode,
+        useTracedMariaRoute,
         specialStitchMode,
         color,
         font,
@@ -1794,6 +1822,35 @@ fun CreateNameScreen(
                                             outputFormat =
                                                 format
                                         }
+                                    )
+                                }
+                            }
+
+                            if (
+                                importedFont != null &&
+                                text.trim().equals("Maria", ignoreCase = true) &&
+                                stitchStyle == TextStitchStyle.SATIN
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Percurso guiado de Maria (13 etapas)",
+                                            color = FioText,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            "Usar a rota marcada na imagem, respeitando os 4 saltos sem pontada. Exclusivo para o nome e a fonte de referencia.",
+                                            color = FioTextMuted,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                    Switch(
+                                        checked = useTracedMariaRoute,
+                                        enabled = tracedMariaRoute != null && layoutMode == TextLayoutMode.STRAIGHT,
+                                        onCheckedChange = { useTracedMariaRoute = it }
                                     )
                                 }
                             }
