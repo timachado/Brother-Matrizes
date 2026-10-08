@@ -97,7 +97,9 @@ internal object MelodyFocusEstimator {
 
         // Se o baixo tem energia muito superior à frequência escolhida,
         // não há evidência suficiente de que seja a melodia cantada.
-        if (lowBass > 2.6 * leader.third && leader.first >= 190.0) return null
+        // Aplicar também aos candidatos de 130–190 Hz: harmônicos residuais
+        // de um baixo muito forte podem produzir um pico espúrio nessa região.
+        if (lowBass > 2.5 * leader.third) return null
 
         // Notas vizinhas podem compartilhar o mesmo pico FFT: comparar apenas
         // candidatas separadas por >= 1.6 semitom.
