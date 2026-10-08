@@ -10,6 +10,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryStressPolicy
 import com.timachado.brothermatrizes.core.embroidery.GuidedSatinRoute
+import com.timachado.brothermatrizes.core.embroidery.GuidedSatinStep
 import com.timachado.brothermatrizes.core.embroidery.GuidedSatinPoint
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
@@ -7950,6 +7951,44 @@ internal object PeDesignImportedFontEngine {
                 nextStroke
             )
         )?.x
+    }
+
+    internal fun debugGuidedRouteStageOrder(): List<EmbroideryPoint> {
+        fun rect(left: Float, top: Float): Polygon =
+            Polygon(listOf(
+                FPoint(left, top),
+                FPoint(left + 20f, top),
+                FPoint(left + 20f, top + 50f),
+                FPoint(left, top + 50f)
+            ))
+        val route = GuidedSatinRoute(
+            start = GuidedSatinPoint(0.85f, 0.5f),
+            steps = listOf(
+                GuidedSatinStep(1, false, listOf(
+                    GuidedSatinPoint(0.87f, 0.9f),
+                    GuidedSatinPoint(0.87f, 0.1f)
+                )),
+                GuidedSatinStep(2, true, listOf(
+                    GuidedSatinPoint(0.55f, 0.5f),
+                    GuidedSatinPoint(0.45f, 0.5f)
+                )),
+                GuidedSatinStep(3, false, listOf(
+                    GuidedSatinPoint(0.12f, 0.9f),
+                    GuidedSatinPoint(0.12f, 0.1f)
+                ))
+            )
+        )
+        val output = mutableListOf<EmbroideryPoint>()
+        emitUserGuidedRoute(
+            emitter = SatinEmitter(output),
+            polygonsByGlyph = listOf(listOf(rect(0f, 0f)), listOf(rect(80f, 0f))),
+            route = route,
+            densityMm = 0.4f,
+            maxSatinWidthMm = 7f,
+            pullMm = 0.2f,
+            underlayMode = SatinUnderlayMode.CENTER
+        )
+        return output
     }
 
     internal fun debugStructuralFootY(): Float? {
