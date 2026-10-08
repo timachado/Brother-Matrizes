@@ -8,6 +8,16 @@ import org.junit.Test
 class PeDesignImportedFontEngineTest {
 
     @Test
+    fun cursiveMStartsOnInnerLowerMedialColumnNotOuterOrnamentalEdge() {
+        val entry = PeDesignImportedFontEngine.debugCursiveMInnerEntry()
+        assertEquals(
+            "A primeira posicao fisica precisa ser o pe interno do M.",
+            36f to 78f,
+            entry
+        )
+    }
+
+    @Test
     fun adamiyaLeftFlourishIsFinishedBeforeJumpingToRightLeg() {
         assertEquals(
             "O diagnóstico Maria mostrou uma faixa do M pendente à esquerda. " +
