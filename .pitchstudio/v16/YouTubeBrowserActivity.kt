@@ -27,8 +27,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -126,21 +124,22 @@ class YouTubeBrowserActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        val searchField = TextInputLayout(this).apply {
+        // Campo Android clássico estilizado como Material 3 Expressive.
+        // Evita inicialização frágil do TextInputLayout em Activity tradicional.
+        queryInput = EditText(this).apply {
             hint = "Música, artista ou link"
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_FILLED
-            boxBackgroundColor = Color.rgb(23, 35, 55)
-            boxStrokeWidth = 0
-            boxStrokeWidthFocused = dp(2)
-            setBoxStrokeColor(Color.rgb(43, 219, 230))
-
-        }
-        queryInput = TextInputEditText(this).apply {
             setTextColor(Color.WHITE)
             setHintTextColor(Color.rgb(173, 189, 210))
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT
             imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setPadding(dp(16), 0, dp(16), 0)
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(23, 35, 55))
+                cornerRadius = dp(22).toFloat()
+            }
+            contentDescription = "Pesquisar música, artista ou link do YouTube"
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                     submit()
@@ -148,15 +147,7 @@ class YouTubeBrowserActivity : Activity() {
                 } else false
             }
         }
-        searchField.addView(queryInput, ViewGroup.LayoutParams(-1, dp(56)))
-        // Configure os cantos/ícone somente APÓS anexar o EditText.
-        // Evita crash de inicialização em combinações de SDK/Material.
-        searchField.setBoxCornerRadii(
-            dp(22).toFloat(), dp(22).toFloat(),
-            dp(22).toFloat(), dp(22).toFloat()
-        )
-        searchField.endIconMode = TextInputLayout.END_ICON_CLEAR_TEXT
-        searchRow.addView(searchField, LinearLayout.LayoutParams(0, dp(68), 1f).apply {
+        searchRow.addView(queryInput, LinearLayout.LayoutParams(0, dp(56), 1f).apply {
             marginEnd = dp(8)
         })
         searchRow.addView(
