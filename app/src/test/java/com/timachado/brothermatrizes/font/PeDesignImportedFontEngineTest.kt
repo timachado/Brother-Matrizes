@@ -58,6 +58,15 @@ class PeDesignImportedFontEngineTest {
     }
 
     @Test
+    fun productionScriptMStartsAtInnerFootBeforeOuterFlourish() {
+        assertEquals(
+            "A entrada do M cursivo deve usar o vale interno do glifo e não o laço externo.",
+            24f to 40f,
+            PeDesignImportedFontEngine.debugProductionFlourishEntry()
+        )
+    }
+
+    @Test
     fun productionGeneratorUsesStructuralFirstGlyphEntry() {
         val (first, continuesFromNeedle) =
             PeDesignImportedFontEngine.debugProductionStartHint()
