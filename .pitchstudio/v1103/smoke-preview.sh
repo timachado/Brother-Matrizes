@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 APK="$1"
-PKG="br.com.timachado.pitchstudio.stems"
-OUT="$RUNNER_TEMP/pitchstudio-vocals-smoke"
+PKG="br.com.timachado.pitchstudio.stempreview"
+OUT="$RUNNER_TEMP/pitchstudio-stempreview-smoke"
 mkdir -p "$OUT"
 cleanup() {
   adb logcat -d -b main -b crash > "$OUT/logcat.txt" 2>/dev/null || true
@@ -200,7 +200,7 @@ echo "Executando separação neural no Android sobre gravação vocal de referê
 SUCCESS=0
 for attempt in $(seq 1 40); do
   readui
-  if grep -qE 'Voz estimada por separação neural|A IA separou a faixa vocal' "$OUT/current.xml"; then
+  if grep -qE 'Voz estimada por separação neural|A voz foi extraída, mas' "$OUT/current.xml"; then
     echo "PASSOU: modelo ONNX executado e arquivo vocal temporário processado."
     SUCCESS=1
     break
@@ -217,8 +217,14 @@ if [ "$SUCCESS" -ne 1 ]; then
   exit 1
 fi
 echo "PASSOU: teste de inferência do modelo ONNX em emulador Android."
+# O trecho isolado dura ~5,8 s. Pausar imediatamente, pois
+# uiautomator dump + scroll pode consumir toda a reprodução.
+tap "Ouvir voz isolada"
+tap "Pausar prévia vocal"
+visible "Continuar prévia vocal"
+echo "PASSOU: prévia vocal temporária reproduziu e pausou via AudioTrack."
 
-if adb logcat -d -b crash -t 1500 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.stems'; then
+if adb logcat -d -b crash -t 1500 | grep -E 'FATAL EXCEPTION|Process: br.com.timachado.pitchstudio.stempreview'; then
  echo "FALHA: crash identificado no logcat" >&2
  exit 1
 fi
