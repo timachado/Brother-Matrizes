@@ -7,6 +7,7 @@ on:
       - feature/pitchstudio-p0-p1-191
       - feature/pitchstudio-m3-expressive-193
       - feature/pitchstudio-m3-youtube-194
+      - fix/pitchstudio-youtube-launch-195
   workflow_dispatch:
 
 permissions:
@@ -354,6 +355,14 @@ jobs:
           python3 -m py_compile .pitchstudio/v194/patch_v194.py
           python3 .pitchstudio/v194/patch_v194.py "$SRC"
 
+      - name: Corrigir inicialização YouTube v1.9.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          python3 -m py_compile .pitchstudio/v196/patch_v196.py
+          python3 .pitchstudio/v196/patch_v196.py "$SRC"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -414,7 +423,31 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.4-M3Expressive-YouTube-debug-apk
+          name: PitchStudio-v1.9.6-M3Expressive-YouTube-hotfix-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Habilitar KVM para o emulador Android
+        shell: bash
+        run: |
+          if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Verificar abertura do YouTube em Android 15
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v195/smoke-ui.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+
+      - name: Publicar evidências do teste Android
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-v1.9.6-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-ui-smoke/
+          if-no-files-found: warn
           retention-days: 7

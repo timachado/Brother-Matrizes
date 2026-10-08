@@ -15,7 +15,6 @@ yt = root / "app/src/main/java/br/com/timachado/pitchstudio/YouTubeBrowserActivi
 source = yt.read_text(encoding="utf-8")
 for marker in (
     "MaterialCardView(this)",
-    "TextInputLayout(this)",
     "ViewCompat.setOnApplyWindowInsetsListener(root)",
     "Usar no PitchStudio",
     "previewInCard(result, mediaFrame, playOverlay)",
@@ -23,4 +22,5 @@ for marker in (
     "saveMusic(result.url, result.title)",
 ):
     assert marker in source, f"Componente/ação ausente: {marker}"
+assert "queryInput = EditText(this)" in source or "TextInputLayout(this)" in source, "Busca YouTube ausente"
 print("PitchStudio v1.9.4: busca YouTube Expressive integrada sem alterar fluxos de mídia.")
