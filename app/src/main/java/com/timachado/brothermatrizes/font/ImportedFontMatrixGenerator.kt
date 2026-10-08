@@ -4059,6 +4059,11 @@ object ImportedFontMatrixGenerator {
 
             val chosen = choices.minWithOrNull(
                 compareBy<Choice> { it.score }
+                    // Se um ramo toca a entrada do laco, o laco
+                    // reposicionado deve iniciar antes desse ramo.
+                    .thenByDescending {
+                        it.segment.startNode == it.segment.endNode
+                    }
                     .thenBy { it.segment.id }
             ) ?: break
 
