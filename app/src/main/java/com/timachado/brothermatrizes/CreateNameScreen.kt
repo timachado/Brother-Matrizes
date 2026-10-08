@@ -227,7 +227,7 @@ fun CreateNameScreen(
 
     var satinUnderlayMode by remember {
         mutableStateOf(
-            SatinUnderlayMode.CENTER
+            SatinUnderlayMode.NONE
         )
     }
 
@@ -385,7 +385,17 @@ fun CreateNameScreen(
                     satinShortStitches =
                         satinShortStitches,
                     satinUnderlayMode =
-                        satinUnderlayMode,
+                        if (
+                            importedFont != null &&
+                            stitchStyle == TextStitchStyle.SATIN &&
+                            specialStitchMode == null
+                        ) {
+                            // Apenas na fonte TTF/OTF do experimento:
+                            // sem center-run nem underlay adicional.
+                            SatinUnderlayMode.NONE
+                        } else {
+                            satinUnderlayMode
+                        },
                     specialStitchMode =
                         specialStitchMode,
                     color =
@@ -1213,7 +1223,7 @@ fun CreateNameScreen(
                             }
 
                             Text(
-                                "Motor Satin por fluxo de traço: preserva o contorno da TTF/OTF, mantém continuidade das colunas e evita saltos/ramificações redundantes.",
+                                "Teste Satin Puro: sem underlay e sem passada central. A cobertura Satin permanece alternando as duas bordas da letra.",
                                 color =
                                     FioTextMuted,
                                 fontSize =
