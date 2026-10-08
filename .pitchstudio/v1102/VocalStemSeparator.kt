@@ -2,13 +2,14 @@ package br.com.timachado.pitchstudio
 
 import android.content.Context
 import br.com.timachado.pitchstudio.audio.AudioProject
-import org.tensorflow.lite.Interpreter
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
@@ -29,7 +30,7 @@ import kotlin.math.sin
  * Sem upload, sem tocar no arquivo PCM original, sem gravação persistente.
  */
 internal object VocalStemSeparator {
-    const val MODEL_ASSET = "UVR_MDXNET_9482.fp16acc.tflite"
+    const val MODEL_ASSET = "UVR_MDXNET_9482.onnx"
     const val MODEL_LICENSE = "UVR MDX-Net (MIT)"
     private const val RATE = 44100
     private const val FFT_SIZE = 4096
@@ -74,20 +75,25 @@ internal object VocalStemSeparator {
             stft(right, packed, 2)
             if (Thread.currentThread().isInterrupted) error("Análise cancelada")
             progress("Separando vocal com modelo MDX-Net…")
-            context.assets.openFd(MODEL_ASSET).use { descriptor ->
-                java.io.FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
-                    val mapped = channel.map(FileChannel.MapMode.READ_ONLY,
-                        descriptor.startOffset, descriptor.length)
-                    Interpreter(mapped, Interpreter.Options().apply {
-                        setNumThreads(2)
-                    }).use { interpreter ->
-                        val shape = interpreter.getInputTensor(0).shape()
-                        require(shape.contentEquals(intArrayOf(1, 4, HALF, FRAMES))) {
-                            "Modelo de separação incompatível"
+            // ONNX Runtime Android: a sessão aceita arquivo .onnx privado.
+            val modelFile = cacheModel(context)
+            val env = OrtEnvironment.getEnvironment()
+            OrtSession.SessionOptions().use { opts ->
+                opts.setIntraOpNumThreads(2)
+                env.createSession(modelFile.absolutePath, opts).use { session ->
+                    packed.rewind()
+                    OnnxTensor.createTensor(
+                        env, packed.asFloatBuffer(), longArrayOf(1L, 4L, HALF.toLong(), FRAMES.toLong())
+                    ).use { inputTensor ->
+                        session.run(mapOf(session.inputNames.first() to inputTensor)).use { results ->
+                            val outputTensor = results[0] as OnnxTensor
+                            val floats = outputTensor.floatBuffer
+                            require(floats.remaining() == TENSOR_FLOATS) {
+                                "Formato de resultado ONNX incompatível."
+                            }
+                            inferred.rewind()
+                            while (floats.hasRemaining()) inferred.putFloat(floats.get())
                         }
-                        packed.rewind()
-                        inferred.rewind()
-                        interpreter.run(packed, inferred)
                     }
                 }
             }
@@ -131,6 +137,32 @@ internal object VocalStemSeparator {
         } catch (t: Throwable) {
             file.delete()
             throw t
+        }
+    }
+
+    /**
+     * Modelo já distribuído dentro do APK; cópia local não contém áudio do usuário.
+     * Salvamento temporário e substituição atômica evitam sessões com arquivo parcial.
+     */
+    private fun cacheModel(context: Context): File {
+        val stored = File(context.cacheDir, MODEL_ASSET)
+        if (stored.length() in 25_000_000..40_000_000) return stored
+        val temp = File(context.cacheDir, MODEL_ASSET + ".part")
+        try {
+            context.assets.open(MODEL_ASSET).use { input ->
+                FileOutputStream(temp).use { output ->
+                    input.copyTo(output, 256 * 1024)
+                    output.fd.sync()
+                }
+            }
+            check(temp.length() in 25_000_000..40_000_000) {
+                "O modelo de IA incluído no pacote está incompleto."
+            }
+            check(temp.renameTo(stored)) { "Não foi possível preparar o modelo local." }
+            return stored
+        } catch (error: Throwable) {
+            temp.delete()
+            throw error
         }
     }
 
