@@ -2169,13 +2169,13 @@ internal object PeDesignImportedFontEngine {
                             finishCurrentStroke()
                             return@forEachIndexed
                         }
-                    val center = snapIntoGlyph(original, tangent)
+                    val snappedCenter = snapIntoGlyph(original, tangent)
                         ?: run {
                             finishCurrentStroke()
                             return@forEachIndexed
                         }
                     val row = satinRowFromFlow(
-                        center = center,
+                        center = snappedCenter,
                         tangent = tangent,
                         polygons = polygons,
                         pullUnits = pullUnits,
