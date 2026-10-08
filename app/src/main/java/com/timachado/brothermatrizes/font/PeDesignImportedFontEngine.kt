@@ -450,7 +450,8 @@ internal object PeDesignImportedFontEngine {
                 )
 
             polygonsByGlyph
-                .forEach {
+                .forEachIndexed {
+                        glyphIndex,
                         polygons ->
                     /*
                      * Fonte cursiva/importada precisa seguir o fluxo real do
@@ -484,7 +485,11 @@ internal object PeDesignImportedFontEngine {
                         polygons =
                             polygons,
                         startHint =
-                            null,
+                            resolveProductionStartHint(
+                                glyphIndex = glyphIndex,
+                                columns = columns,
+                                polygons = polygons
+                            ),
                         underlayMode =
                             options
                                 .satinUnderlayMode,
@@ -2044,6 +2049,64 @@ internal object PeDesignImportedFontEngine {
             }
 
         return selected.bottomCenter
+    }
+
+    /**
+     * Real production entry for the first TTF/OTF glyph.
+     *
+     * Previously generate() always passed null to emitGlyph(), leaving
+     * the first Satin column selected by the arbitrary leftmost bounding
+     * box rather than the lower structural foot requested by the user.
+     * Later glyphs continue from the existing needle position.
+     */
+    private fun resolveProductionStartHint(
+        glyphIndex: Int,
+        columns: List<SatinColumn>,
+        polygons: List<Polygon>
+    ): FPoint? =
+        if (glyphIndex == 0) {
+            satinStructuralStartPoint(columns)
+                ?: glyphVisualStartPoint(polygons)
+        } else {
+            null
+        }
+
+    internal fun debugProductionStartHint(): Pair<Pair<Float, Float>?, Boolean> {
+        val leftFlourish = SatinColumn(
+            (0..4).map { offset ->
+                SatinRow(
+                    FPoint(0f, offset * 4f),
+                    FPoint(10f, offset * 4f)
+                )
+            }.toMutableList()
+        )
+        val structural = SatinColumn(
+            (0..8).map { offset ->
+                SatinRow(
+                    FPoint(30f, offset * 8f),
+                    FPoint(50f, offset * 8f)
+                )
+            }.toMutableList()
+        )
+        val polygons = listOf(
+            Polygon(
+                listOf(
+                    FPoint(0f, 0f), FPoint(50f, 0f),
+                    FPoint(50f, 64f), FPoint(0f, 64f)
+                )
+            )
+        )
+        val first = resolveProductionStartHint(
+            glyphIndex = 0,
+            columns = listOf(leftFlourish, structural),
+            polygons = polygons
+        )
+        val next = resolveProductionStartHint(
+            glyphIndex = 1,
+            columns = listOf(leftFlourish, structural),
+            polygons = polygons
+        )
+        return first?.let { it.x to it.y } to (next == null)
     }
 
     private fun nextColumnInReadingOrder(
@@ -6040,10 +6103,8 @@ internal object PeDesignImportedFontEngine {
             }
 
             val index =
-                if (
-                    insetFirstColumn
-                ) {
-                    0
+                if (insetFirstColumn) {
+                    firstColumnUnderlayStartIndex(centers)
                 } else {
                     0
                 }
@@ -6076,7 +6137,11 @@ internal object PeDesignImportedFontEngine {
             }
 
             val startIndex =
-                0
+                if (insetFirstColumn) {
+                    firstColumnUnderlayStartIndex(centers)
+                } else {
+                    0
+                }
 
             // Uma única passada central do ponto de entrada até o extremo.
             centers
