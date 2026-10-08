@@ -4782,6 +4782,31 @@ object ImportedFontMatrixGenerator {
         }
     }
 
+    internal fun debugClosedLoopEntrance(): Triple<Pair<Int, Int>, Boolean, Boolean> {
+        val original = listOf(
+            SkeletonPoint(0, 10),
+            SkeletonPoint(0, 5),
+            SkeletonPoint(0, 0),
+            SkeletonPoint(5, 0),
+            SkeletonPoint(10, 0),
+            SkeletonPoint(10, 5),
+            SkeletonPoint(10, 10),
+            SkeletonPoint(5, 10),
+            SkeletonPoint(0, 10)
+        )
+        val segments = splitStrokeFlowSegments(listOf(original))
+        val corrected = rebaseLeadingClosedStrokeFlow(segments).single().points
+
+        fun edges(path: List<SkeletonPoint>): Set<Set<SkeletonPoint>> =
+            path.zipWithNext().map { (a, b) -> setOf(a, b) }.toSet()
+
+        return Triple(
+            corrected.first().let { it.x to it.y },
+            corrected.first() == corrected.last(),
+            edges(corrected) == edges(original)
+        )
+    }
+
     internal fun debugStrokeFlowLowerEntry(): Pair<Int, Int> {
         val segments = splitStrokeFlowSegments(
             listOf(
