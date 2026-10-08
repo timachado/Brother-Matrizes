@@ -48,6 +48,13 @@ internal object PeDesignImportedFontEngine {
         List<SatinUnderlayMode> =
         SatinUnderlayMode.entries.map(::effectiveProductionUnderlayMode)
 
+    internal fun debugContinuationPenalty(
+        previous: Pair<Float, Float>,
+        candidate: Pair<Float, Float>
+    ): Float = SatinEmitter(mutableListOf()).debugContinuationPenalty(
+        previous, candidate
+    )
+
     private val capHeightRatioCache =
         mutableMapOf<String, Float?>()
 
