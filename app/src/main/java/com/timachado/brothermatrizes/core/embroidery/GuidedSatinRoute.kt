@@ -51,6 +51,10 @@ data class GuidedSatinRoute(
             }
 
             val rules = root.getJSONObject("instructions")
+            require(rules.getBoolean("firstStitchMustStartAtMarkedPosition")) {
+                "A rota precisa determinar a primeira penetracao da agulha."
+            }
+            require(rules.getBoolean("finishCurrentConnectedSatinRegionBeforeNext"))
             require(rules.getBoolean("pathIsRegionGuidanceNotIndividualNeedleStitches"))
             require(rules.getBoolean("doNotReturnToCompletedSatinRegion"))
             require(rules.getBoolean("doNotDrawUnmarkedConnectingStitches"))
