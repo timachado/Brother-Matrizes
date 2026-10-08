@@ -8,6 +8,7 @@ on:
       - feature/pitchstudio-m3-expressive-193
       - feature/pitchstudio-m3-youtube-194
       - fix/pitchstudio-youtube-launch-195
+      - feature/pitchstudio-project-library-197
   workflow_dispatch:
 
 permissions:
@@ -363,6 +364,17 @@ jobs:
           python3 -m py_compile .pitchstudio/v196/patch_v196.py
           python3 .pitchstudio/v196/patch_v196.py "$SRC"
 
+      - name: Integrar biblioteca de projetos PitchStudio 1.9.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          cp .pitchstudio/v197/ProjectLibrary.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/ProjectLibrary.kt"
+          python3 -m py_compile .pitchstudio/v197/patch_v197.py
+          python3 .pitchstudio/v197/patch_v197.py "$SRC"
+          grep -F 'versionName = "1.9.7"' "$SRC/app/build.gradle.kts"
+          grep -F 'Meus projetos' "$SRC/app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -423,7 +435,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.6-M3Expressive-YouTube-hotfix-apk
+          name: PitchStudio-v1.9.7-M3Expressive-Library-preview-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -447,7 +459,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.6-android-ui-smoke
+          name: PitchStudio-v1.9.7-android-ui-smoke
           path: ${{ runner.temp }}/pitchstudio-ui-smoke/
           if-no-files-found: warn
           retention-days: 7
