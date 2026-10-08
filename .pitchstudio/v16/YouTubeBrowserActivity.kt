@@ -18,9 +18,11 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.FileInputStream
@@ -38,7 +40,8 @@ class YouTubeBrowserActivity : Activity() {
     private lateinit var progress: ProgressBar
     private lateinit var resultsContainer: LinearLayout
 
-    private var activeWebView: WebView? = null
+    private var activePlayer: ExoPlayer? = null
+    private var activePlayerView: PlayerView? = null
     private var activeFrame: FrameLayout? = null
     private var activePlayOverlay: View? = null
     private var pendingSave: YouTubeImporter.Downloaded? = null
@@ -337,81 +340,104 @@ class YouTubeBrowserActivity : Activity() {
         mediaFrame: FrameLayout,
         playOverlayRef: View?
     ) {
-        val videoId = youtubeVideoId(result.url)
+        status.text = "Preparando vídeo…"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = true
 
-        if (videoId == null) {
-            status.text = "Não foi possível identificar este vídeo do YouTube."
-            return
-        }
+        Thread {
+            try {
+                val preview = YouTubeImporter.resolvePreview(result.url)
 
-        stopActivePreview()
+                runOnUiThread {
+                    stopActivePreview()
 
-        status.text = "Reproduzindo: " + result.title
-        progress.visibility = View.GONE
-        progress.isIndeterminate = false
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+                    status.text = "Reproduzindo: " + preview.title
 
-        val webView = WebView(this).apply {
-            setBackgroundColor(Color.BLACK)
+                    val httpFactory = DefaultHttpDataSource.Factory()
+                        .setUserAgent(
+                            "Mozilla/5.0 (Linux; Android 15) " +
+                                "AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36"
+                        )
+                        .setAllowCrossProtocolRedirects(true)
+                        .setDefaultRequestProperties(
+                            mapOf(
+                                "Accept" to "*/*",
+                                "Referer" to "https://www.youtube.com/"
+                            )
+                        )
 
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
-            settings.loadsImagesAutomatically = true
-            settings.allowContentAccess = true
-            settings.allowFileAccess = false
+                    val mediaSourceFactory = DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(httpFactory)
 
-            webChromeClient = WebChromeClient()
-            webViewClient = WebViewClient()
-        }
+                    val player = ExoPlayer.Builder(this)
+                        .setMediaSourceFactory(mediaSourceFactory)
+                        .build()
 
-        val params = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
+                    val playerView = PlayerView(this).apply {
+                        useController = true
+                        this.player = player
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                        setBackgroundColor(Color.BLACK)
+                    }
 
-        mediaFrame.addView(webView, params)
-        playOverlayRef?.visibility = View.GONE
+                    val params = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
 
-        val embedUrl =
-            "https://www.youtube.com/embed/" + videoId +
-            "?autoplay=1&playsinline=1&controls=1&rel=0"
+                    mediaFrame.addView(playerView, params)
+                    playOverlayRef?.visibility = View.GONE
 
-        webView.loadUrl(
-            embedUrl,
-            mapOf("Referer" to "https://www.youtube.com/")
-        )
+                    player.setMediaItem(MediaItem.fromUri(preview.url))
+                    player.prepare()
+                    player.playWhenReady = true
 
-        activeWebView = webView
-        activeFrame = mediaFrame
-        activePlayOverlay = playOverlayRef
-    }
-
-    private fun youtubeVideoId(url: String): String? {
-        return try {
-            val normalized = YouTubeImporter.normalizeYouTubeUrl(url)
-            Uri.parse(normalized)
-                .getQueryParameter("v")
-                ?.takeIf { it.isNotBlank() }
-        } catch (_: Throwable) {
-            null
+                    activePlayer = player
+                    activePlayerView = playerView
+                    activeFrame = mediaFrame
+                    activePlayOverlay = playOverlayRef
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    progress.visibility = View.GONE
+                    progress.isIndeterminate = false
+                    status.text = "Falha na prévia: " +
+                        YouTubeImporter.friendlyMessage(t)
+                }
+            }
+        }.apply {
+            name = "PitchStudio-YouTubePreview"
+            isDaemon = true
+            start()
         }
     }
 
     private fun stopActivePreview() {
-        val webView = activeWebView
+        val player = activePlayer
+        val playerView = activePlayerView
         val frame = activeFrame
         val overlay = activePlayOverlay
 
-        if (webView != null) {
-            try { webView.stopLoading() } catch (_: Throwable) {}
-            try { webView.loadUrl("about:blank") } catch (_: Throwable) {}
-            try { frame?.removeView(webView) } catch (_: Throwable) {}
-            try { webView.destroy() } catch (_: Throwable) {}
+        try {
+            player?.stop()
+            player?.release()
+        } catch (_: Throwable) {
+        }
+
+        if (playerView != null) {
+            try {
+                playerView.player = null
+                frame?.removeView(playerView)
+            } catch (_: Throwable) {
+            }
         }
 
         overlay?.visibility = View.VISIBLE
 
-        activeWebView = null
+        activePlayer = null
+        activePlayerView = null
         activeFrame = null
         activePlayOverlay = null
     }
