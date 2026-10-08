@@ -33,6 +33,14 @@ class PeDesignImportedFontEngineTest {
     }
 
     @Test
+    fun productionSatinUsesConnectedStrokeFlowInsteadOfAxisSlices() {
+        assertTrue(
+            "O motor ativo deve amostrar caminho central adaptativo antes do fallback por eixos.",
+            PeDesignImportedFontEngine.debugUsesAdaptiveFlowSampling()
+        )
+    }
+
+    @Test
     fun samplerChoosesNarrowerAxisForWideRectangle() {
         val widths =
             PeDesignImportedFontEngine
