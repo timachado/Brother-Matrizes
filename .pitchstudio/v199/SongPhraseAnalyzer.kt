@@ -29,7 +29,8 @@ internal object SongPhraseAnalyzer {
             project.frames < project.sampleRate * 2L || !project.pcmFile.isFile) return null
         val frames = project.frames
         val durationFrames = min(frames, project.sampleRate * 11L)
-        val start = ((frames - durationFrames) * startFraction.coerceIn(0.0,1.0)).toLong()
+        val start = (frames * startFraction.coerceIn(0.0, 1.0)).toLong()
+            .coerceAtMost(frames - durationFrames)
         val hop = (project.sampleRate * 0.32).roundToInt().coerceAtLeast(4096)
         val readSize = 4096
         val channels = project.channels
