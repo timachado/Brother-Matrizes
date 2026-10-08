@@ -8,6 +8,31 @@ import org.junit.Test
 class PeDesignImportedFontEngineTest {
 
     @Test
+    fun productionSatinPuroNeverAddsCenterUnderlay() {
+        val modes = PeDesignImportedFontEngine
+            .debugProductionUnderlayOverrides()
+        assertTrue("A lista de modos nao pode estar vazia.", modes.isNotEmpty())
+        assertTrue(
+            "O modo Satin puro deve eliminar o underlay mesmo se estiver ativado na UI.",
+            modes.all { it.name == "NONE" }
+        )
+    }
+
+    @Test
+    fun connectedColumnsPreferStraightContinuationOverTurnBack() {
+        val sameDirection = PeDesignImportedFontEngine
+            .debugContinuationPenalty(1f to 0f, 1f to 0f)
+        val sideBranch = PeDesignImportedFontEngine
+            .debugContinuationPenalty(1f to 0f, 0f to 1f)
+        val backwards = PeDesignImportedFontEngine
+            .debugContinuationPenalty(1f to 0f, -1f to 0f)
+
+        assertEquals(0f, sameDirection, 0.001f)
+        assertTrue("Ramo lateral deve ter custo de curva.", sideBranch > sameDirection)
+        assertTrue("Voltar ao trecho anterior deve ser mais caro que seguir em frente.", backwards > sideBranch)
+    }
+
+    @Test
     fun samplerChoosesNarrowerAxisForWideRectangle() {
         val widths =
             PeDesignImportedFontEngine
