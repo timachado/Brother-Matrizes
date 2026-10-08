@@ -289,6 +289,23 @@ jobs:
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
           python3 .pitchstudio/v15/patch_v15.py "$SRC"
 
+      - name: Aplicar Pitch Studio v1.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
+          cp .pitchstudio/v16/PcmAudioPlayer.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/audio/PcmAudioPlayer.kt"
+          cp .pitchstudio/v16/Mp3Exporter.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/audio/Mp3Exporter.kt"
+          cp .pitchstudio/v16/YouTubeBrowserActivity.kt "$SRC/app/src/main/java/br/com/timachado/pitchstudio/YouTubeBrowserActivity.kt"
+          python3 .pitchstudio/v16/01_build.py "$SRC"
+          python3 .pitchstudio/v16/02_controls.py "$SRC"
+          python3 .pitchstudio/v16/03_setters.py "$SRC"
+
+          MAIN="$SRC/app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
+          sed -i '/if (useProcessed) player.setProject(out, player.fraction())/d' "$MAIN"
+          sed -i 's/val target = if (useProcessed) processed ?: o else o/val target = o/' "$MAIN"
+          sed -i 's/player.setProject(target, fraction)/player.setProject(target, fraction); applyPreviewParams()/' "$MAIN"
+
       - name: Empacotar fontes de diagnóstico
         shell: bash
         run: |
@@ -349,7 +366,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.5.0-debug-apk
+          name: PitchStudio-v1.6.0-debug-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
