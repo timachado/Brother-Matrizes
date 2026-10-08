@@ -38,6 +38,16 @@ import kotlin.math.roundToInt
  */
 internal object PeDesignImportedFontEngine {
 
+    // A alternancia A/B e a propria costura Satin, nao e um
+    // zig-zag extra. Somente as passadas de preparacao sao removidas.
+    private fun effectiveProductionUnderlayMode(
+        requested: SatinUnderlayMode
+    ): SatinUnderlayMode = SatinUnderlayMode.NONE
+
+    internal fun debugProductionUnderlayOverrides():
+        List<SatinUnderlayMode> =
+        SatinUnderlayMode.entries.map(::effectiveProductionUnderlayMode)
+
     private val capHeightRatioCache =
         mutableMapOf<String, Float?>()
 
@@ -490,9 +500,14 @@ internal object PeDesignImportedFontEngine {
                                 columns = columns,
                                 polygons = polygons
                             ),
+                        // Modo experimental de diagnostico: SOMENTE
+                        // cobertura Satin. A opcao de underlay da UI
+                        // nao adiciona center-run, zig-zag preparatorio
+                        // nem reforco neste gerador de fonte TTF/OTF.
                         underlayMode =
-                            options
-                                .satinUnderlayMode,
+                            effectiveProductionUnderlayMode(
+                                options.satinUnderlayMode
+                            ),
                         densityMm =
                             densityMm
                     )
@@ -5408,6 +5423,7 @@ internal object PeDesignImportedFontEngine {
 
             var firstColumn =
                 true
+            var previousTravelDirection: FPoint? = null
 
             while (
                 remaining.isNotEmpty()
@@ -5454,7 +5470,9 @@ internal object PeDesignImportedFontEngine {
                                 underlayMode =
                                     underlayMode,
                                 polygons =
-                                    polygons
+                                    polygons,
+                                previousTravelDirection =
+                                    previousTravelDirection
                             )
                         } else {
                             nextColumnInReadingOrder(
@@ -5648,6 +5666,22 @@ internal object PeDesignImportedFontEngine {
                         }
                 )
 
+                // Apos terminar o ultimo arremate da coluna,
+                // a proxima escolha considera o sentido em que a
+                // costura estava AVANCANDO, nao somente a distancia
+                // ate o ponto atual (que favorecia a perna direita
+                // do M e deixava ramos pendentes).
+                val centers = column.rows.map(::center)
+                previousTravelDirection =
+                    if (centers.size >= 2) {
+                        FPoint(
+                            centers.last().x - centers[centers.lastIndex - 1].x,
+                            centers.last().y - centers[centers.lastIndex - 1].y
+                        )
+                    } else {
+                        null
+                    }
+
                 remaining.remove(
                     selected
                 )
@@ -5753,7 +5787,8 @@ internal object PeDesignImportedFontEngine {
             columns: List<SatinColumn>,
             anchor: FPoint,
             underlayMode: SatinUnderlayMode,
-            polygons: List<Polygon>
+            polygons: List<Polygon>,
+            previousTravelDirection: FPoint? = null
         ): SatinColumn? {
             val connected =
                 columns.mapNotNull {
@@ -5850,8 +5885,25 @@ internal object PeDesignImportedFontEngine {
             // restantes, evita retornar ao extremo esquerdo por
             // simples ordem de armazenamento do sampler.
             return connected
-                .minByOrNull {
-                    it.second
+                .minByOrNull { (column, gap) ->
+                    val first = center(column.rows.first())
+                    val last = center(column.rows.last())
+                    val approachFromStart = distance(anchor, first) <=
+                        distance(anchor, last)
+                    val rows = column.rows
+                    val direction =
+                        if (rows.size < 2) null
+                        else if (approachFromStart) {
+                            val next = center(rows[1])
+                            FPoint(next.x - first.x, next.y - first.y)
+                        } else {
+                            val prior = center(rows[rows.lastIndex - 1])
+                            FPoint(prior.x - last.x, prior.y - last.y)
+                        }
+                    gap + strokeContinuationTurnPenalty(
+                        previousTravelDirection,
+                        direction
+                    )
                 }
                 ?.first
                 ?: columns.minByOrNull { column ->
@@ -5867,6 +5919,42 @@ internal object PeDesignImportedFontEngine {
                     near + backwards * 1.5f
                 }
         }
+
+        /**
+         * O caminho central da coluna anterior determina o sentido de
+         * continuidade no entroncamento de uma letra. Distancia sozinha
+         * pode escolher uma perna lateral e depois voltar para o ramo
+         * principal. Penalizamos inversoes de direcao, sem adicionar
+         * pontos ou alterar densidade e geometria Satin.
+         */
+        private fun strokeContinuationTurnPenalty(
+            previous: FPoint?,
+            candidate: FPoint?
+        ): Float {
+            if (previous == null || candidate == null) return 0f
+            val previousLen = hypot(
+                previous.x.toDouble(), previous.y.toDouble()
+            ).toFloat()
+            val candidateLen = hypot(
+                candidate.x.toDouble(), candidate.y.toDouble()
+            ).toFloat()
+            if (previousLen <= 0.001f || candidateLen <= 0.001f) {
+                return 0f
+            }
+            val cosine = (
+                (previous.x * candidate.x + previous.y * candidate.y) /
+                    (previousLen * candidateLen)
+            ).coerceIn(-1f, 1f)
+            return (1f - cosine) * NEAR_COLUMN_JOIN_UNITS
+        }
+
+        fun debugContinuationPenalty(
+            previous: Pair<Float, Float>,
+            candidate: Pair<Float, Float>
+        ): Float = strokeContinuationTurnPenalty(
+            FPoint(previous.first, previous.second),
+            FPoint(candidate.first, candidate.second)
+        )
 
         private fun visualLowerEnd(
             column: SatinColumn
