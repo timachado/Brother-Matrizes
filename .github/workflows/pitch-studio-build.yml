@@ -427,3 +427,27 @@ jobs:
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Habilitar KVM para o emulador Android
+        shell: bash
+        run: |
+          if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Verificar abertura do YouTube em Android 15
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: bash "$GITHUB_WORKSPACE/.pitchstudio/v195/smoke-ui.sh" "$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk"
+
+      - name: Publicar evidências do teste Android
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchStudio-v1.9.5-android-ui-smoke
+          path: ${{ runner.temp }}/pitchstudio-ui-smoke/
+          if-no-files-found: warn
+          retention-days: 7
