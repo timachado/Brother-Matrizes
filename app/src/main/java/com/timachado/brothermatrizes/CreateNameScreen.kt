@@ -188,9 +188,11 @@ fun CreateNameScreen(
         mutableStateOf("Maria")
     }
 
-    // Percurso do cliente e opt-in; nenhuma outra fonte/nome e modificada.
+    // A referencia marcada pelo usuario e aplicada automaticamente a Maria
+    // em fonte importada + Satin. Outras palavras continuam no motor normal.
+    // A chave manual permite desativar para fontes nao correspondentes.
     var useTracedMariaRoute by remember {
-        mutableStateOf(false)
+        mutableStateOf(true)
     }
 
     val tracedMariaRoute = remember(context) {
@@ -971,6 +973,28 @@ fun CreateNameScreen(
                                 singleLine =
                                     true
                             )
+
+                            if (
+                                importedFont != null &&
+                                text.trim().equals("Maria", ignoreCase = true) &&
+                                stitchStyle == TextStitchStyle.SATIN
+                            ) {
+                                Text(
+                                    if (tracedMariaRoute == null) {
+                                        "Percurso marcado indisponível — verifique a referência."
+                                    } else if (useTracedMariaRoute &&
+                                        layoutMode == TextLayoutMode.STRAIGHT) {
+                                        "Percurso marcado ATIVO: primeira pontada no início definido e 13 etapas."
+                                    } else {
+                                        "Percurso marcado DESATIVADO — simulação automática."
+                                    },
+                                    color = if (tracedMariaRoute != null && useTracedMariaRoute &&
+                                        layoutMode == TextLayoutMode.STRAIGHT) FioGold else FioTextMuted,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
 
                             Spacer(
                                 Modifier.height(
