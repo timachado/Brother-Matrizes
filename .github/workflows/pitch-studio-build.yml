@@ -355,13 +355,13 @@ jobs:
           python3 -m py_compile .pitchstudio/v194/patch_v194.py
           python3 .pitchstudio/v194/patch_v194.py "$SRC"
 
-      - name: Corrigir inicialização YouTube v1.9.5
+      - name: Corrigir inicialização YouTube v1.9.6
         shell: bash
         run: |
           set -euo pipefail
           SRC="$RUNNER_TEMP/pitchstudio-src/PitchStudioAndroid"
-          python3 -m py_compile .pitchstudio/v195/patch_v195.py
-          python3 .pitchstudio/v195/patch_v195.py "$SRC"
+          python3 -m py_compile .pitchstudio/v196/patch_v196.py
+          python3 .pitchstudio/v196/patch_v196.py "$SRC"
 
       - name: Empacotar fontes de diagnóstico
         shell: bash
@@ -423,7 +423,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.5-M3Expressive-YouTube-fix-apk
+          name: PitchStudio-v1.9.6-M3Expressive-YouTube-hotfix-apk
           path: ${{ runner.temp }}/pitchstudio-src/PitchStudioAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -447,7 +447,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: PitchStudio-v1.9.5-android-ui-smoke
+          name: PitchStudio-v1.9.6-android-ui-smoke
           path: ${{ runner.temp }}/pitchstudio-ui-smoke/
           if-no-files-found: warn
           retention-days: 7
