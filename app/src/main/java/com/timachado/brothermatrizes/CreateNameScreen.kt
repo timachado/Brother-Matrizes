@@ -278,16 +278,20 @@ fun CreateNameScreen(
         )
     }
 
+    val initialSelectedHoop = remember(createNamePreferences) {
+        createNamePreferences
+            .getString("selected_hoop", null)
+            ?.let { saved ->
+                HoopProfile.entries.firstOrNull { it.name == saved }
+            }
+    }
+
     var hoopProfile by remember {
-        mutableStateOf(
-            HoopProfile.H100X100
-        )
+        mutableStateOf(initialSelectedHoop ?: HoopProfile.H100X100)
     }
 
     var hoopManuallySelected by remember {
-        mutableStateOf(
-            false
-        )
+        mutableStateOf(initialSelectedHoop != null)
     }
 
     var fabricProfile by remember {
@@ -316,23 +320,6 @@ fun CreateNameScreen(
                 it.id ==
                     importedFontId
             }
-
-    val referenceAdamyaSimulation =
-        importedFont
-            ?.displayName
-            ?.lowercase(
-                Locale.ROOT
-            )
-            ?.let {
-                    name ->
-                name.contains(
-                    "adamya"
-                ) ||
-                    name.contains(
-                        "ademya"
-                    )
-            }
-            ?: false
 
     val glyphProvider =
         importedFont
@@ -450,20 +437,9 @@ fun CreateNameScreen(
             heightMm
         }
 
-    /*
-     * Trocar apenas o bastidor não altera a geometria TTF/OTF importada.
-     * Para fontes importadas, o bastidor muda enquadramento/validação sem
-     * reiniciar a digitalização Satin inteira.
-     */
-    val previewHoopKey =
-        if (
-            importedFont !=
-                null
-        ) {
-            null
-        } else {
-            hoopProfile
-        }
+    // O bastidor tambem controla o ajuste de fontes TTF/OTF importadas.
+    // A mudanca precisa invalidar a previa e recalcular o tamanho.
+    val previewHoopKey = hoopProfile
 
     LaunchedEffect(
         autoFitToHoop,
@@ -549,18 +525,21 @@ fun CreateNameScreen(
 
                 if (
                     effectiveAutoFitToHoop &&
-                    importedFont !=
-                        null
+                    importedFont != null
                 ) {
-                    /*
-                     * O MãoDesign preserva a altura solicitada e enquadra o
-                     * desenho em um bastidor compatível. Não encolhemos a
-                     * fonte importada para o H100X100 antes da simulação.
-                     */
-                    requestedHeight to
-                        generateAt(
-                            requestedHeight
+                    val fit = TextHoopAutoFit
+                        .fitImported(
+                            hoop = hoopProfile,
+                            requestedHeightMm = requestedHeight,
+                            generator = ::generateAt
                         )
+                        .getOrNull()
+
+                    if (fit != null) {
+                        fit.heightMm to Result.success(fit.design)
+                    } else {
+                        requestedHeight to generateAt(requestedHeight)
+                    }
                 } else if (
                     effectiveAutoFitToHoop
                 ) {
@@ -626,16 +605,13 @@ fun CreateNameScreen(
                 hoopProfile =
                     automaticHoop
             }
-        } else if (
+        }
+
+        if (
             effectiveAutoFitToHoop &&
-            kotlin.math.abs(
-                heightMm -
-                    resolvedHeight
-            ) >=
-            0.05f
+            kotlin.math.abs(heightMm - resolvedHeight) >= 0.05f
         ) {
-            heightMm =
-                resolvedHeight
+            heightMm = resolvedHeight
         }
 
         previewResult =
@@ -1686,6 +1662,10 @@ fun CreateNameScreen(
                                                     true
                                                 hoopProfile =
                                                     option
+                                                createNamePreferences
+                                                    .edit()
+                                                    .putString("selected_hoop", option.name)
+                                                    .apply()
                                             }
                                         )
                                     }
@@ -1982,24 +1962,8 @@ fun CreateNameScreen(
                                  * O bastidor automático pode mudar, mas os
                                  * pontos, a orientação e a ordem da costura não.
                                  */
-                                val simulationDesign =
-                                    if (
-                                        importedFont !=
-                                            null &&
-                                        referenceAdamyaSimulation
-                                    ) {
-                                        created.copy(
-                                            hoopProfile =
-                                                smallestHoopForEitherOrientation(
-                                                    created
-                                                )
-                                        )
-                                    } else {
-                                        created
-                                    }
-
                                 onSimulate(
-                                    simulationDesign,
+                                    created.copy(hoopProfile = hoopProfile),
                                     displayMode
                                 )
                             }
@@ -2030,7 +1994,7 @@ fun CreateNameScreen(
                         onClick = {
                             preview?.let {
                                 onCreate(
-                                    it,
+                                    it.copy(hoopProfile = hoopProfile),
                                     displayMode
                                 )
                             }
