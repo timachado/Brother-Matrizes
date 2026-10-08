@@ -34,6 +34,7 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
     @Volatile var loopB: Double? = null
 
     private val playing = AtomicBoolean(false)
+    @Volatile private var playbackEpoch = 0L
     @Volatile private var track: AudioTrack? = null
     @Volatile private var thread: Thread? = null
 
@@ -56,6 +57,7 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
     fun play() {
         val p = project ?: return
         if (!playing.compareAndSet(false, true)) return
+        val session = ++playbackEpoch
 
         val channelMask =
             if (p.channels == 1) AudioFormat.CHANNEL_OUT_MONO
@@ -88,13 +90,19 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
 
+        if (audioTrack.state != AudioTrack.STATE_INITIALIZED) {
+            try { audioTrack.release() } catch (_: Throwable) {}
+            if (playbackEpoch == session) playing.set(false)
+            return
+        }
+
         track = audioTrack
         audioTrack.setVolume(volume)
         applyPlaybackParams(audioTrack)
         audioTrack.play()
 
         thread = Thread(
-            { streamLoop(p, audioTrack) },
+            { streamLoop(p, audioTrack, session) },
             "PitchStudio-Player"
         ).also { it.start() }
     }
@@ -142,6 +150,7 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
     }
 
     private fun stopInternal(reset: Boolean) {
+        ++playbackEpoch
         playing.set(false)
 
         try { track?.pause() } catch (_: Throwable) {}
@@ -154,14 +163,15 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
         if (reset) positionFrames = 0
     }
 
-    private fun streamLoop(p: AudioProject, audioTrack: AudioTrack) {
+    private fun streamLoop(p: AudioProject, audioTrack: AudioTrack, session: Long) {
         val channels = p.channels
         val framesPerChunk = 4096
         val bytes = ByteArray(framesPerChunk * channels * 4)
         val floats = FloatArray(framesPerChunk * channels)
 
-        RandomAccessFile(p.pcmFile, "r").use { raf ->
-            while (playing.get() && positionFrames < p.frames) {
+        try {
+          RandomAccessFile(p.pcmFile, "r").use { raf ->
+            while (playing.get() && playbackEpoch == session && positionFrames < p.frames) {
                 val a = loopA
                 val b = loopB
 
@@ -199,22 +209,26 @@ class PcmAudioPlayer(private val onEnded: () -> Unit = {}) {
                     AudioTrack.WRITE_BLOCKING
                 )
 
-                if (written <= 0) break
+                if (written <= 0 || playbackEpoch != session) break
                 positionFrames += written / channels
             }
         }
 
+        } catch (_: Exception) {
+            // Uma busca ou troca de música pode liberar a faixa durante a escrita.
+        }
         val naturalEnd = positionFrames >= p.frames
-        playing.set(false)
 
         try { audioTrack.stop() } catch (_: Throwable) {}
         try { audioTrack.release() } catch (_: Throwable) {}
 
-        if (track === audioTrack) track = null
-
-        if (naturalEnd) {
-            positionFrames = 0
-            onEnded()
+        if (playbackEpoch == session) {
+            playing.set(false)
+            if (track === audioTrack) track = null
+            if (naturalEnd) {
+                positionFrames = 0
+                onEnded()
+            }
         }
     }
 }
