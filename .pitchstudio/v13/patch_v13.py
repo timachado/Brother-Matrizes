@@ -41,14 +41,23 @@ p.write_text(s, encoding="utf-8")
 p = root / "app/src/main/java/br/com/timachado/pitchstudio/MainActivity.kt"
 s = p.read_text(encoding="utf-8")
 
-old_button = 'online.addView(button("Buscar no YouTube") { searchYouTube() }'
-new_button = 'online.addView(button("Abrir YouTube") { openYouTube() }'
+old_button = '''        online.addView(button("Buscar no YouTube") {
+            YouTubeUi.show(
+                activity = this,
+                cacheDir = cacheDir,
+                onStatus = { statusLabel.text = it },
+                onProgress = { message, value -> showProgress(message, value) },
+                onDownloaded = { file, name -> loadRemoteAudio(file, name) },
+                onError = { message -> hideProgress("Falha no YouTube: " + message) }
+            )
+        }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })'''
+new_button = '''        online.addView(button("Abrir YouTube") { openYouTube() }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(6) })'''
 if old_button not in s:
-    raise SystemExit("botão antigo do YouTube não encontrado")
+    raise SystemExit("bloco atual do botão YouTube não encontrado")
 s = s.replace(old_button, new_button, 1)
 
 s = s.replace(
-    "YouTube: pesquise ou cole o link; o áudio é baixado temporariamente e carregado direto no Pitch Studio.",
+    "YouTube: pesquise ou cole o link; o áudio é baixado temporariamente e carregado no Pitch Studio.",
     "Abra o YouTube, escolha a música e toque em Compartilhar → Pitch Studio. O áudio será carregado automaticamente."
 )
 
@@ -75,9 +84,9 @@ if old_oncreate not in s:
     raise SystemExit("onCreate esperado não encontrado")
 s = s.replace(old_oncreate, new_oncreate, 1)
 
-marker = "    private fun searchYouTube() {"
+marker = "    private fun loadRemoteAudio("
 if marker not in s:
-    raise SystemExit("método searchYouTube não encontrado")
+    raise SystemExit("método loadRemoteAudio não encontrado")
 
 methods = r'''    private fun openYouTube() {
         val youtubeHome = Uri.parse("https://www.youtube.com/")
@@ -115,7 +124,15 @@ methods = r'''    private fun openYouTube() {
         }
 
         statusLabel.text = "Música recebida do YouTube. Preparando download…"
-        importYouTube(url)
+        YouTubeUi.importUrl(
+            activity = this,
+            cacheDir = cacheDir,
+            url = url,
+            onStatus = { statusLabel.text = it },
+            onProgress = { message, value -> showProgress(message, value) },
+            onDownloaded = { file, name -> loadRemoteAudio(file, name) },
+            onError = { message -> hideProgress("Falha no YouTube: " + message) }
+        )
     }
 
     private fun extractYouTubeUrl(text: String): String? {
