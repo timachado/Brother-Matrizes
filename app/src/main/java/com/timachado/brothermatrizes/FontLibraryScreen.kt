@@ -42,6 +42,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.font.ImportedFont
 import com.timachado.brothermatrizes.font.ImportedFontStore
+import com.timachado.brothermatrizes.font.FontArchiveImporter
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
@@ -73,6 +74,41 @@ fun FontLibraryScreen(
         mutableStateOf<String?>(
             null
         )
+    }
+
+    var browserOpen by remember { mutableStateOf(false) }
+
+    val zipPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                FontArchiveImporter.importZip(context, uri)
+            }
+            result.fold(
+                onSuccess = { fonts ->
+                    importedFonts = ImportedFontStore.list(context)
+                    statusMessage = "${fonts.size} fonte(s) importada(s) do ZIP."
+                },
+                onFailure = {
+                    statusMessage = it.message ?: "Não foi possível importar o ZIP."
+                }
+            )
+        }
+    }
+
+    if (browserOpen) {
+        DaFontBrowserScreen(
+            onBack = {
+                importedFonts = ImportedFontStore.list(context)
+                browserOpen = false
+            },
+            onImported = { count ->
+                importedFonts = ImportedFontStore.list(context)
+                statusMessage = "${count} fonte(s) baixada(s) e salva(s)."
+            }
+        )
+        return
     }
 
     val fontPicker =
@@ -208,6 +244,30 @@ fun FontLibraryScreen(
                 fontWeight =
                     FontWeight.Bold
             )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { browserOpen = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = FioSurfaceAlt,
+                    contentColor = FioText
+                )
+            ) { Text("Buscar no DaFont") }
+            Button(
+                onClick = {
+                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = FioSurfaceAlt,
+                    contentColor = FioText
+                )
+            ) { Text("Importar ZIP") }
         }
 
         Text(
