@@ -163,7 +163,16 @@ internal object CleanRoomSatinEngine {
         val skeleton = thin(raster)
         val skeletonPixels = skeleton.count { it }
         if (skeletonPixels < 1) return PlannedGlyph(emptyList(), 0, 0)
-        val routes = traceEdges(raster, skeleton)
+        // A máscara de uma linha diagonal de 1–2 pixels pode sofrer
+        // erosão quase completa no thinning Zhang-Suen. Reconstruir a
+        // linha central SOMENTE nesse caso; glifos complexos, curvas
+        // largas e demais sequências continuam no percurso aprovado.
+        val restoredHairline = if (contours.size == 1) {
+            recoverCollapsedThinStroke(raster, skeletonPixels)
+        } else null
+        val routes = if (restoredHairline != null) {
+            listOf(restoredHairline)
+        } else traceEdges(raster, skeleton)
         val pitch = densityMm * 10f
         val claimed = HashMap<Pair<Int, Int>, MutableList<Rail>>()
         // Hairline strokes of an imported script font may be less than
@@ -415,6 +424,69 @@ internal object CleanRoomSatinEngine {
                 )
             }
             .toList()
+    }
+
+    /**
+     * Only rescue an extremely slender, single-contour line if the thinning
+     * phase destroyed almost all its medial axis. No changes to the order of
+     * ordinary satin branches or to the simulator.
+     */
+    private fun recoverCollapsedThinStroke(
+        raster: Raster,
+        skeletonPixels: Int
+    ): List<V>? {
+        var minX = raster.width
+        var maxX = -1
+        var minY = raster.height
+        var maxY = -1
+        var pixels = 0
+        for (y in 1 until raster.height - 1) {
+            for (x in 1 until raster.width - 1) {
+                if (!raster.inside(x, y)) continue
+                pixels++
+                minX = minOf(minX, x)
+                maxX = maxOf(maxX, x)
+                minY = minOf(minY, y)
+                maxY = maxOf(maxY, y)
+            }
+        }
+        if (pixels == 0) return null
+        val spanX = maxX - minX + 1
+        val spanY = maxY - minY + 1
+        val majorSpan = max(spanX, spanY)
+        if (majorSpan < 15 ||
+            pixels > majorSpan * 3.2f ||
+            skeletonPixels >= majorSpan * 0.35f) return null
+
+        // The raster is a skinny ribbon. Its row/column midpoint follows
+        // the ORIGINAL font geometry, not an invented straight line.
+        return if (spanY >= spanX) {
+            (minY..maxY).mapNotNull { y ->
+                var occupied = 0
+                var sumX = 0f
+                for (x in minX..maxX) if (raster.inside(x, y)) {
+                    occupied++
+                    sumX += x
+                }
+                if (occupied == 0) null else V(
+                    raster.left + (sumX / occupied) * raster.step,
+                    raster.top + y * raster.step
+                )
+            }.takeIf { it.size >= 8 }
+        } else {
+            (minX..maxX).mapNotNull { x ->
+                var occupied = 0
+                var sumY = 0f
+                for (y in minY..maxY) if (raster.inside(x, y)) {
+                    occupied++
+                    sumY += y
+                }
+                if (occupied == 0) null else V(
+                    raster.left + x * raster.step,
+                    raster.top + (sumY / occupied) * raster.step
+                )
+            }.takeIf { it.size >= 8 }
+        }
     }
 
     private fun rasterize(contours: List<List<V>>, densityMm: Float): Raster {
