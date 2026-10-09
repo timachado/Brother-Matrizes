@@ -202,6 +202,53 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun tinyMissingSatinRailIsRestoredOnlyInsideOriginalFontGeometry() {
+        fun rail(y: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(0f, y),
+            CleanRoomSatinEngine.V(12f, y)
+        )
+        val route = (0..4).map { CleanRoomSatinEngine.V(6f, it * 4f) }
+        val source = listOf(rail(0f), rail(4f), null, rail(12f), rail(16f))
+        val result = CleanRoomSatinEngine.repairShortRailGaps(
+            source, route, gridStep = 1.1f
+        ) { true }
+        assertTrue("O pulo de uma coluna deve ser preenchido.", result[2] != null)
+        assertEquals(8f, result[2]!!.middle.y, 0.01f)
+        assertEquals("Colunas existentes não devem mudar.", source[1], result[1])
+        assertEquals("Colunas existentes não devem mudar.", source[3], result[3])
+    }
+
+    @Test
+    fun realFontCounterOrDisconnectedStrokeMustStayOpen() {
+        fun rail(y: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(0f, y),
+            CleanRoomSatinEngine.V(12f, y)
+        )
+        val route = (0..4).map { CleanRoomSatinEngine.V(6f, it * 4f) }
+        val source = listOf(rail(0f), rail(4f), null, rail(12f), rail(16f))
+        val result = CleanRoomSatinEngine.repairShortRailGaps(
+            source, route, gridStep = 1.1f
+        ) { p -> p.y != 8f }
+        assertEquals("Espaço real no contorno não deve virar ponto Satin.",
+            null, result[2])
+    }
+
+    @Test
+    fun largerMissingSectionIsNotConnectedArtificially() {
+        fun rail(y: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(0f, y),
+            CleanRoomSatinEngine.V(12f, y)
+        )
+        val route = (0..6).map { CleanRoomSatinEngine.V(6f, it * 4f) }
+        val source = listOf(rail(0f), rail(4f), null, null, null, rail(20f), rail(24f))
+        val result = CleanRoomSatinEngine.repairShortRailGaps(
+            source, route, gridStep = 1.1f
+        ) { true }
+        assertEquals("Regiões maiores permanecem separadas.", 3,
+            result.count { it == null })
+    }
+
+    @Test
     fun underlayAddsOneRunNotMultipleFullWidthLayers() {
         val glyph = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 20f, 160f)), densityMm = 0.4f
