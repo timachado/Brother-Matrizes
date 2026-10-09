@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
+import androidx.core.view.WindowCompat
 import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
@@ -141,6 +143,13 @@ class MainActivity : ComponentActivity() {
                 AppColorMode.DARK -> true
                 AppColorMode.LIGHT -> false
                 AppColorMode.SYSTEM -> isSystemInDarkTheme()
+            }
+            SideEffect {
+                val controller = WindowCompat.getInsetsController(
+                    window, window.decorView
+                )
+                controller.isAppearanceLightStatusBars = !darkTheme
+                controller.isAppearanceLightNavigationBars = !darkTheme
             }
             BrotherMatrizesTheme(
                 textScaleMultiplier = textScale,
