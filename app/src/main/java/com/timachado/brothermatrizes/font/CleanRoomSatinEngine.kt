@@ -359,7 +359,7 @@ internal object CleanRoomSatinEngine {
                 track.add(current)
                 if (current == source) break
             }
-            if (track.size >= 3) paths += track.map(raster::point)
+            if (track.size >= 2) paths += track.map(raster::point)
         }
         // Endpoints / branches first; loops and remaining edges second.
         val ordered = nodes.sortedWith(compareBy<Int> {
