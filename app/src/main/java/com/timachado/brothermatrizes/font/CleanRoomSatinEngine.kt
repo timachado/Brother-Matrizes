@@ -166,7 +166,10 @@ internal object CleanRoomSatinEngine {
         val routes = traceEdges(raster, skeleton)
         val pitch = densityMm * 10f
         val claimed = HashMap<Pair<Int, Int>, MutableList<Rail>>()
-        val tolerance = (pitch * 0.28f).coerceIn(0.65f, 1.4f)
+        // Hairline strokes of an imported script font may be less than
+        // 0.3 mm wide in a small hoop. Do not classify adjacent, visibly
+        // distinct transverse bars as already-covered rails.
+        val tolerance = (pitch * 0.16f).coerceIn(0.35f, 0.75f)
         fun cell(v: V) =
             floor(v.x / (tolerance * 2.4f)).toInt() to
                 floor(v.y / (tolerance * 2.4f)).toInt()
@@ -205,7 +208,7 @@ internal object CleanRoomSatinEngine {
                 val tangent = normalized(V(next.x - prev.x, next.y - prev.y))
                 if (tangent == null) return@forEachIndexed
                 val row = crossSection(raster, c, V(-tangent.y, tangent.x), pullMm * 10f)
-                if (row == null || length(row.a, row.b) < 4f) {
+                if (row == null || length(row.a, row.b) < 1.5f) {
                     endBatch()
                 } else if (seen(row)) {
                     duplicates++
@@ -423,7 +426,7 @@ internal object CleanRoomSatinEngine {
         val maxY = points.maxOf { it.y }
         // No bastidor pequeno os detalhes cursivos podem ter menos de
         // 0,25 mm: evitar que a amostragem grosseira quebre o contorno.
-        var step = max(0.85f, densityMm * 10f * 0.34f)
+        var step = max(0.75f, densityMm * 10f * 0.26f)
         var width = ceil((maxX - minX) / step).toInt() + 5
         var height = ceil((maxY - minY) / step).toInt() + 5
         while (width.toLong() * height.toLong() > 350_000) {
@@ -434,23 +437,23 @@ internal object CleanRoomSatinEngine {
         val left = minX - step * 2
         val top = minY - step * 2
         val mask = BooleanArray(width * height)
-        for (y in 1 until height - 1) {
-            val rowY = top + y * step
-            // Contornos TrueType usam preenchimento WINDING (não paridade).
-            // EVEN_ODD pode apagar trechos onde hastes de uma fonte cursiva
-            // se sobrepõem, produzindo letras visivelmente "quebradas".
+        // Conservative subpixel scan conversion: sample the centre and two
+        // nearby Y positions within each pixel row. A very narrow cursive
+        // stroke must not disappear just because it misses a grid centre.
+        // Keep the TrueType non-zero winding rule and the original contours;
+        // no closing/dilation is applied to large areas or letter counters.
+        fun fillRow(pixelY: Int, sampleY: Float) {
             val intersections = mutableListOf<Pair<Float, Int>>()
             contours.forEach { polygon ->
                 if (polygon.size < 3) return@forEach
                 polygon.indices.forEach { i ->
                     val a = polygon[i]
                     val b = polygon[(i + 1) % polygon.size]
-                    if ((a.y <= rowY && b.y > rowY) ||
-                        (b.y <= rowY && a.y > rowY)) {
+                    if ((a.y <= sampleY && b.y > sampleY) ||
+                        (b.y <= sampleY && a.y > sampleY)) {
                         val x = a.x +
-                            (rowY - a.y) * (b.x - a.x) / (b.y - a.y)
-                        val direction = if (b.y > a.y) 1 else -1
-                        intersections += x to direction
+                            (sampleY - a.y) * (b.x - a.x) / (b.y - a.y)
+                        intersections += x to (if (b.y > a.y) 1 else -1)
                     }
                 }
             }
@@ -459,11 +462,26 @@ internal object CleanRoomSatinEngine {
             for (i in 0 until intersections.lastIndex) {
                 winding += intersections[i].second
                 if (winding == 0) continue
-                val from = max(1, ceil((intersections[i].first - left) / step).toInt())
-                val to = minOf(width - 2,
-                    floor((intersections[i + 1].first - left) / step).toInt())
-                for (x in from..to) mask[y * width + x] = true
+                val leftX = intersections[i].first
+                val rightX = intersections[i + 1].first
+                val from = max(1, ceil((leftX - left) / step).toInt())
+                val to = minOf(width - 2, floor((rightX - left) / step).toInt())
+                if (from <= to) {
+                    for (x in from..to) mask[pixelY * width + x] = true
+                } else if (rightX > leftX) {
+                    // Preserve a genuine filled interval thinner than one
+                    // raster cell. Crucial at the tips of M/a/r/i.
+                    val nearest = (((leftX + rightX) * 0.5f - left) / step)
+                        .roundToInt().coerceIn(1, width - 2)
+                    mask[pixelY * width + nearest] = true
+                }
             }
+        }
+        for (y in 1 until height - 1) {
+            val rowY = top + y * step
+            fillRow(y, rowY)
+            fillRow(y, rowY - step * 0.30f)
+            fillRow(y, rowY + step * 0.30f)
         }
         return Raster(width, height, step, left, top, mask)
     }
@@ -639,12 +657,17 @@ internal object CleanRoomSatinEngine {
         }
         val a = edge(-1f)
         val b = edge(1f)
-        if (a + b < 3f) return null
+        val originalWidth = a + b
+        if (originalWidth < mask.step * 0.45f) return null
+        // Avoid inflating 0.1 mm hairlines by a full pull-compensation
+        // amount on each side. Preserve the user's configured value for
+        // normal-width Satin strokes.
+        val safePull = minOf(pullUnits, max(0.4f, originalWidth * 0.5f))
         return Rail(
-            V(effectiveCenter.x - normal.x * (a + pullUnits),
-                effectiveCenter.y - normal.y * (a + pullUnits)),
-            V(effectiveCenter.x + normal.x * (b + pullUnits),
-                effectiveCenter.y + normal.y * (b + pullUnits))
+            V(effectiveCenter.x - normal.x * (a + safePull),
+                effectiveCenter.y - normal.y * (a + safePull)),
+            V(effectiveCenter.x + normal.x * (b + safePull),
+                effectiveCenter.y + normal.y * (b + safePull))
         )
     }
 
