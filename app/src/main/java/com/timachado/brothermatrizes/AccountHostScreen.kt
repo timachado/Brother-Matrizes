@@ -20,6 +20,7 @@ import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.DeviceIdentity
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.account.SignUpOutcome
+import com.timachado.brothermatrizes.core.settings.AppColorMode
 import com.timachado.brothermatrizes.core.network.NetworkStatus
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,9 @@ fun AccountHostScreen(
     onBack: () -> Unit,
     refreshRequest: Int = 0,
     textScale: Float,
-    onTextScaleChange: (Float) -> Unit
+    onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit
 ) {
     val context =
         LocalContext.current
@@ -569,6 +572,8 @@ fun AccountHostScreen(
                 textScale,
             onTextScaleChange =
                 onTextScaleChange,
+            colorMode = colorMode,
+            onColorModeChange = onColorModeChange,
             onGoogleSignIn = {
                 signInWithGoogle()
             },
