@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -80,27 +79,23 @@ fun DaFontBrowserScreen(
                 if (id < 0 || !pending.remove(id)) return
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        val cursor = downloadManager.query(
-                            DownloadManager.Query().setFilterById(id)
-                        )
-                        cursor.use {
-                            if (!it.moveToFirst()) return@withContext
-                                Result.failure<List<com.timachado.brothermatrizes.font.ImportedFont>>(
-                                    IllegalStateException("Download não encontrado.")
-                                )
-                            val status = it.getInt(it.getColumnIndexOrThrow(
-                                DownloadManager.COLUMN_STATUS
-                            ))
-                            if (status != DownloadManager.STATUS_SUCCESSFUL) return@withContext
-                                Result.failure<List<com.timachado.brothermatrizes.font.ImportedFont>>(
-                                    IllegalStateException("Download falhou. Tente novamente.")
-                                )
-                        }
-                        val uri = downloadManager.getUriForDownloadedFile(id)
-                            ?: return@withContext Result.failure<List<com.timachado.brothermatrizes.font.ImportedFont>>(
-                                IllegalStateException("Arquivo baixado indisponível.")
+                        runCatching {
+                            val cursor = downloadManager.query(
+                                DownloadManager.Query().setFilterById(id)
                             )
-                        FontArchiveImporter.importZip(context, uri)
+                            val successful = cursor.use { c ->
+                                c.moveToFirst() &&
+                                    c.getInt(c.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_STATUS
+                                    )) == DownloadManager.STATUS_SUCCESSFUL
+                            }
+                            check(successful) {
+                                "O download não foi concluído. Tente novamente."
+                            }
+                            val uri = downloadManager.getUriForDownloadedFile(id)
+                                ?: error("Arquivo baixado indisponível.")
+                            FontArchiveImporter.importZip(context, uri).getOrThrow()
+                        }
                     }
                     result.fold(
                         onSuccess = {
