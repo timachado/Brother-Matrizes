@@ -8,10 +8,12 @@ import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -35,6 +37,12 @@ object BrotherMatrizesAccountService {
             ) {
                 flowType =
                     FlowType.PKCE
+                // Keep the user's refresh token across Activity recreation.
+                // Defaults are enabled, explicit here to prevent accidental
+                // replacement with an in-memory session manager.
+                autoLoadFromStorage = true
+                autoSaveToStorage = true
+                alwaysAutoRefresh = true
                 scheme =
                     AUTH_SCHEME
                 host =
@@ -52,10 +60,22 @@ object BrotherMatrizesAccountService {
     suspend fun currentAccount():
         Result<AccountSnapshot?> =
         runCatching {
-            val session =
-                client.auth
-                    .currentSessionOrNull()
-                    ?: return@runCatching null
+            // Android can temporarily set the Auth status to Initializing
+            // when the app leaves or returns from the background. At that
+            // moment currentSessionOrNull() is *not* proof of sign-out.
+            // Wait for the persisted session to be loaded/refreshed first.
+            val auth = client.auth
+            auth.awaitInitialization()
+            val status = auth.sessionStatus.first {
+                it !is SessionStatus.Initializing
+            }
+            val session = when (status) {
+                is SessionStatus.Authenticated -> status.session
+                is SessionStatus.NotAuthenticated -> return@runCatching null
+                is SessionStatus.RefreshFailure ->
+                    error("Não foi possível atualizar sua sessão. Verifique a conexão e tente novamente.")
+                else -> error("A sessão ainda não está disponível.")
+            }
 
             val user =
                 session.user
