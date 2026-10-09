@@ -252,6 +252,7 @@ private sealed interface Screen {
     data object CreateDrawing : Screen
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
+    data object TelegramSearch : Screen
     data object Account : Screen
 
     data class Transfer(
@@ -621,6 +622,7 @@ private fun BrotherMatrizesApp(
 
                 Screen.Account,
                 Screen.ProjectLibrary,
+                Screen.TelegramSearch,
                 Screen.FontLibrary,
                 Screen.CreateName,
                 Screen.CreateMonogram,
@@ -674,6 +676,8 @@ private fun BrotherMatrizesApp(
         goBack()
     }
 
+    var telegramImportPending by remember { mutableStateOf(false) }
+
     val picker =
         rememberLauncherForActivityResult(
             ActivityResultContracts
@@ -708,20 +712,33 @@ private fun BrotherMatrizesApp(
 
                 when (result) {
                     is EmbroideryLoadResult.Success -> {
-                        activateDesign(
-                            result.design
-                        )
-
-                        screen =
-                            Screen.Viewer(
-                                result.design
+                        activateDesign(result.design)
+                        screen = Screen.Viewer(result.design)
+                        if (telegramImportPending) {
+                            telegramImportPending = false
+                            val saved = withContext(Dispatchers.IO) {
+                                ProjectStore.save(context, result.design)
+                            }
+                            saved.fold(
+                                onSuccess = { project ->
+                                    savedProjects = listOf(project) +
+                                        savedProjects.filter { it.id != project.id }
+                                    snackbar.showSnackbar(
+                                        "Matriz importada e salva na Biblioteca."
+                                    )
+                                },
+                                onFailure = {
+                                    snackbar.showSnackbar(
+                                        "Matriz aberta, mas não foi possível salvar na Biblioteca."
+                                    )
+                                }
                             )
+                        }
                     }
 
                     is EmbroideryLoadResult.Error -> {
-                        snackbar.showSnackbar(
-                            result.userMessage
-                        )
+                        telegramImportPending = false
+                        snackbar.showSnackbar(result.userMessage)
                     }
                 }
             }
@@ -1853,6 +1870,23 @@ private fun BrotherMatrizesApp(
                         onFonts = {
                             screen =
                                 Screen.FontLibrary
+                        },
+                        onSearchMatrices = {
+                            screen = Screen.TelegramSearch
+                        }
+                    )
+                }
+
+                Screen.TelegramSearch -> {
+                    TelegramMatrixSearchScreen(
+                        projects = savedProjects,
+                        onBack = { goBack() },
+                        onImport = {
+                            telegramImportPending = true
+                            picker.launch(arrayOf("*/*"))
+                        },
+                        onOpenSavedProject = { saved ->
+                            loadProject(saved, transferDirectly = false)
                         }
                     )
                 }
