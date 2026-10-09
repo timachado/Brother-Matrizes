@@ -5,6 +5,7 @@ import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.roundToInt
 
 class CleanRoomSatinEngineTest {
     private fun rectangle(
@@ -88,6 +89,26 @@ class CleanRoomSatinEngineTest {
         assertTrue("Haste do i mantida.", rails.any { it.middle.y > 0f })
         assertTrue("Pingo isolado do i precisa ser preenchido.",
             rails.any { it.middle.y < -22f })
+    }
+
+    @Test
+    fun smallDetachedDotKeepsMultipleSatinRowsInsteadOfOneDash() {
+        // Em alturas pequenas, a esqueletização pode reduzir um pingo a
+        // um pixel; a forma original precisa de várias barras transversais.
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(0f, 0f, 18f, 92f),
+                rectangle(5f, -26f, 9f, 10f)
+            ),
+            densityMm = 0.4f
+        )
+        val dot = plan.rails.flatten().filter { it.middle.y < -15f }
+        assertTrue("O pingo precisa de ao menos 3 barras Satin.", dot.size >= 3)
+        assertTrue("As barras precisam preencher alturas distintas.",
+            dot.map { it.middle.y.roundToInt() }.distinct().size >= 3)
+        val stitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        assertTrue("Pingo deve aparecer na sequência física de pontadas.",
+            stitches.count { it.command == StitchCommand.STITCH && it.yUnits < -15 } >= 5)
     }
 
     @Test
