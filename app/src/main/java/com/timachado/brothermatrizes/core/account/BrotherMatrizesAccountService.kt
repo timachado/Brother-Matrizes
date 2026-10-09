@@ -331,9 +331,25 @@ object BrotherMatrizesAccountService {
             ?: error("Sessão Google indisponível.")
         // WordPress is the only commercial source; never query the legacy
         // Supabase subscription, profile, device or pricing tables.
-        return WordPressLicensingClient.account(
-            userId, email, token, authDisplayName, authAvatarUrl
-        ).let { it }
+        return runCatching {
+            WordPressLicensingClient.account(
+                userId, email, token, authDisplayName, authAvatarUrl
+            )
+        }.getOrElse {
+            // Keep Google's verified identity visible if WordPress is being
+            // installed or temporarily offline; NEVER infer Pro permission.
+            AccountSnapshot(
+                userId = userId,
+                email = email,
+                displayName = authDisplayName
+                    ?: email.substringBefore('@').ifBlank { "Brother Matrizes" },
+                avatarUrl = authAvatarUrl,
+                planCode = "free",
+                subscriptionStatus = "unavailable",
+                currentPeriodEnd = null,
+                commercialConfigured = false
+            )
+        }
     }
 
     const val AUTH_SCHEME =
