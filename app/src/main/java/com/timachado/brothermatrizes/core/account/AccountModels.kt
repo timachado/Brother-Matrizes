@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.core.account
 
+import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -233,10 +234,18 @@ data class AccountSnapshot(
                     "trialing"
                 )
 
+    // Recurring entitlements expire server-side even when an out-of-date
+    // cached status still says active. Never grant paid access from a local
+    // button, price display or a user-editable profile field.
     val hasProAccess: Boolean
-        get() =
-            isPaid &&
-                isSubscriptionUsable
+        get() {
+            if (!isPaid || !isSubscriptionUsable) return false
+            if (isLifetime) return true
+            val expiry = currentPeriodEnd
+                ?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                ?: return false
+            return expiry.isAfter(Instant.now())
+        }
 
     fun canUse(
         feature: BrotherMatrizesFeature
