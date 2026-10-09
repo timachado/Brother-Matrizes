@@ -134,7 +134,9 @@ internal object WordPressLicensingClient {
             displayName = data.optString("display_name").ifBlank {
                 authName ?: authEmail.substringBefore('@').ifBlank { "Brother Matrizes" }
             },
-            avatarUrl = data.optString("avatar_url").ifBlank { authAvatar },
+            avatarUrl = data.optString("avatar_url").takeIf {
+                it.isNotBlank() && it != "null"
+            } ?: authAvatar,
             planCode = level,
             subscriptionStatus = license.optString("status", "free"),
             currentPeriodEnd = expires,
