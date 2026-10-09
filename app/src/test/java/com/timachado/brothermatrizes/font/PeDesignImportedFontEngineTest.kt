@@ -519,6 +519,22 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun duplicateSkeletonRailsMustNotHardenFirstLegOfM() {
+        val (original, deduplicated, distinct) =
+            PeDesignImportedFontEngine.debugOverlappingSatinRails()
+        assertEquals("O teste usa duas faixas redundantes com 25 linhas cada.",
+            50, original)
+        assertEquals(
+            "A mesma perna deve receber somente UMA cobertura Satin.",
+            25, deduplicated
+        )
+        assertEquals(
+            "Tracos fisicamente distintos nao podem perder preenchimento.",
+            50, distinct
+        )
+    }
+
+    @Test
     fun tracedGuideMustNotLeaveUnsewnAreasOfTheImportedFont() {
         val points = PeDesignImportedFontEngine
             .debugIncompleteHandTraceStillSewsWholeStroke()
