@@ -43,16 +43,19 @@ private data class StaticEmbroideryPath(
 private fun buildStaticEmbroideryPaths(
     points: List<EmbroideryPoint>
 ): List<StaticEmbroideryPath> {
-    val byColor = linkedMapOf<Int, Path>()
+    // Preservar a ordem dos blocos de cor: A -> B -> A nao deve ser
+    // reordenado para desenhar todos os trechos de A antes de B.
+    val paths = mutableListOf<StaticEmbroideryPath>()
     visitRenderedStitchSegments(points) { from, to ->
-        byColor.getOrPut(to.colorIndex) { Path() }.apply {
+        val active = paths.lastOrNull()?.takeIf {
+            it.colorIndex == to.colorIndex
+        } ?: StaticEmbroideryPath(to.colorIndex, Path()).also(paths::add)
+        active.path.apply {
             moveTo(from.xUnits.toFloat(), from.yUnits.toFloat())
             lineTo(to.xUnits.toFloat(), to.yUnits.toFloat())
         }
     }
-    return byColor.map { (colorIndex, path) ->
-        StaticEmbroideryPath(colorIndex = colorIndex, path = path)
-    }
+    return paths
 }
 
 private val fallbackPalette = listOf(
