@@ -336,9 +336,9 @@ object BrotherMatrizesAccountService {
                 userId, email, token, authDisplayName, authAvatarUrl
             )
         }.getOrElse {
-            // Keep Google's verified identity visible if WordPress is being
-            // installed or temporarily offline; NEVER infer Pro permission.
-            AccountSnapshot(
+            // A previously server-verified account is temporarily kept in
+            // process memory; no license is read from manipulable storage.
+            WordPressLicensingClient.recentlyVerified(userId) ?: AccountSnapshot(
                 userId = userId,
                 email = email,
                 displayName = authDisplayName
