@@ -684,6 +684,7 @@ private fun BrotherMatrizesApp(
                 .OpenDocument()
         ) { uri: Uri? ->
             if (uri == null) {
+                telegramImportPending = false
                 return@rememberLauncherForActivityResult
             }
 
