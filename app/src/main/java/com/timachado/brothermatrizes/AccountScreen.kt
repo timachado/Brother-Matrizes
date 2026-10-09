@@ -51,6 +51,7 @@ import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.AccountSubscriptionEvent
 import com.timachado.brothermatrizes.core.network.SafeRemoteImage
 import com.timachado.brothermatrizes.core.settings.UiPreferencesStore
+import com.timachado.brothermatrizes.core.settings.AppColorMode
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -79,6 +80,8 @@ fun AccountScreen(
     onBack: () -> Unit,
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit,
     onGoogleSignIn: () -> Unit,
     onSignIn: (
         email: String,
@@ -237,10 +240,10 @@ fun AccountScreen(
         }
 
         TextScalePreferenceCard(
-            textScale =
-                textScale,
-            onTextScaleChange =
-                onTextScaleChange
+            textScale = textScale,
+            onTextScaleChange = onTextScaleChange,
+            colorMode = colorMode,
+            onColorModeChange = onColorModeChange
         )
 
         Spacer(
@@ -279,7 +282,9 @@ fun AccountScreen(
 @Composable
 private fun TextScalePreferenceCard(
     textScale: Float,
-    onTextScaleChange: (Float) -> Unit
+    onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit
 ) {
     Card(
         modifier =
@@ -405,6 +410,37 @@ private fun TextScalePreferenceCard(
                 fontSize =
                     9.sp
             )
+
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Aparência",
+                color = FioText,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                "Escolha o tema deste aparelho. O modo Sistema acompanha o Android.",
+                color = FioTextMuted,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AppColorMode.entries.forEach { option ->
+                    OutlinedButton(
+                        onClick = { onColorModeChange(option) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            (if (colorMode == option) "● " else "") + option.label,
+                            color = if (colorMode == option) FioGold else FioText,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
