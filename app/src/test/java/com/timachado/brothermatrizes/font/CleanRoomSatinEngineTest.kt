@@ -57,6 +57,26 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun overlappingTrueTypeOutlinesDoNotEraseCursiveStrokes() {
+        // Contornos com mesma orientação se sobrepõem em letras ornamentais.
+        // Pela regra non-zero winding, a área comum permanece preenchida.
+        // Pelo antigo even-odd, dois contornos iguais se anulavam inteiros.
+        val stem = rectangle(0f, 0f, 24f, 132f)
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(stem, stem), densityMm = 0.4f
+        )
+        assertTrue(
+            "Hastes com sobreposição de contornos não podem desaparecer.",
+            plan.rails.flatten().size >= 15
+        )
+        val stitched = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        assertTrue(
+            "A geometria sobreposta deve produzir cobertura Satin.",
+            stitched.any { it.command == StitchCommand.STITCH }
+        )
+    }
+
+    @Test
     fun isolatedDotOfLetterIIsNotOmitted() {
         val glyph = CleanRoomSatinEngine.planContours(
             listOf(
