@@ -51,7 +51,6 @@ import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
-import com.timachado.brothermatrizes.core.embroidery.SpecialStitchMode
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
 import com.timachado.brothermatrizes.core.embroidery.TextHoopAutoFit
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutGenerator
@@ -231,14 +230,6 @@ fun CreateNameScreen(
         )
     }
 
-    var specialStitchMode by remember {
-        mutableStateOf<
-            SpecialStitchMode?
-        >(
-            null
-        )
-    }
-
     val initialBuiltInFont =
         remember(
             createNamePreferences
@@ -386,8 +377,8 @@ fun CreateNameScreen(
                         satinShortStitches,
                     satinUnderlayMode =
                         satinUnderlayMode,
-                    specialStitchMode =
-                        specialStitchMode,
+                    // Keep the standard Satin/Running workflow; no special mode.
+                    specialStitchMode = null,
                     color =
                         color,
                     font =
@@ -453,7 +444,6 @@ fun CreateNameScreen(
         satinPullCompensationMm,
         satinShortStitches,
         satinUnderlayMode,
-        specialStitchMode,
         color,
         font,
         importedFontId,
@@ -1389,8 +1379,6 @@ fun CreateNameScreen(
                                             onClick = {
                                                 stitchStyle =
                                                     option
-                                                specialStitchMode =
-                                                    null
                                             }
                                         )
                                     }
@@ -1828,100 +1816,6 @@ fun CreateNameScreen(
 
                             }
 
-                            Text(
-                                "Tipo de ponto especial",
-                                modifier =
-                                    Modifier.padding(
-                                        top =
-                                            10.dp
-                                    ),
-                                color =
-                                    FioText,
-                                fontWeight =
-                                    FontWeight.SemiBold
-                            )
-
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(
-                                            rememberScrollState()
-                                        )
-                                        .padding(
-                                            vertical =
-                                                6.dp
-                                        ),
-                                horizontalArrangement =
-                                    Arrangement.spacedBy(
-                                        7.dp
-                                    )
-                            ) {
-                                SpecialStitchMode
-                                    .entries
-                                    .forEach {
-                                            option ->
-                                        ChoiceButton(
-                                            text =
-                                                when (
-                                                    option
-                                                ) {
-                                                    SpecialStitchMode.BEAN ->
-                                                        "Feijão"
-
-                                                    SpecialStitchMode.TRIPLE_RUNNING ->
-                                                        "Corrido triplo"
-
-                                                    SpecialStitchMode.PROGRAMMED_MOTIF ->
-                                                        "Motivo"
-                                                },
-                                            selected =
-                                                specialStitchMode ==
-                                                    option,
-                                            onClick = {
-                                                specialStitchMode =
-                                                    if (
-                                                        specialStitchMode ==
-                                                            option
-                                                    ) {
-                                                        null
-                                                    } else {
-                                                        option
-                                                    }
-
-                                                if (
-                                                    specialStitchMode !=
-                                                        null
-                                                ) {
-                                                    stitchStyle =
-                                                        TextStitchStyle.RUNNING
-                                                }
-                                            }
-                                        )
-                                    }
-                            }
-
-                            specialStitchMode
-                                ?.let {
-                                        selected ->
-                                    Text(
-                                        selected.displayName,
-                                        color =
-                                            FioGold,
-                                        fontWeight =
-                                            FontWeight.SemiBold,
-                                        fontSize =
-                                            11.sp
-                                    )
-
-                                    Text(
-                                        selected.description,
-                                        color =
-                                            FioTextMuted,
-                                        fontSize =
-                                            10.sp
-                                    )
-                                }
                         }
                     }
                 }
