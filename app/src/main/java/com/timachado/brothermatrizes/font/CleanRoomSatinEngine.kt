@@ -235,7 +235,139 @@ internal object CleanRoomSatinEngine {
             endBatch()
             previous = route.lastOrNull()
         }
+        // Disconnected dot components of imported fonts can collapse to a
+        // single skeleton pixel. Such a pixel creates only one Satin bar and
+        // turns the dot into a thin dash. Refill only these small, *detached*
+        // upper accents, keeping all other glyph paths and needle routing.
+        val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm)
+        if (restoredDots.isNotEmpty()) {
+            result.removeAll { path ->
+                val middle = path.firstOrNull()?.firstOrNull()?.middle
+                middle != null && restoredDots.any { dot ->
+                    middle.x in dot.left..dot.right &&
+                        middle.y in dot.top..dot.bottom
+                }
+            }
+            result.addAll(restoredDots.map { it.rails })
+        }
         return PlannedGlyph(result, routes.sumOf { it.size }, duplicates)
+    }
+
+    private data class DotRails(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+        val rails: List<Rail>
+    )
+
+    private data class FilledIsland(
+        val minX: Int,
+        val minY: Int,
+        val maxX: Int,
+        val maxY: Int,
+        val pixelCount: Int
+    )
+
+    /**
+     * Restore tiny, detached upper marks (e.g. the dot above i or j) using
+     * real horizontal Satin rails sampled from their existing font outlines.
+     * It does not draw a synthetic circle or interfere with the main glyph.
+     */
+    private fun buildDetachedDotRails(
+        raster: Raster,
+        densityMm: Float,
+        pullMm: Float
+    ): List<DotRails> {
+        val visited = BooleanArray(raster.mask.size)
+        val islands = mutableListOf<FilledIsland>()
+        for (seed in raster.mask.indices) {
+            if (!raster.mask[seed] || visited[seed]) continue
+            val queue = java.util.ArrayDeque<Int>()
+            queue.add(seed)
+            visited[seed] = true
+            var count = 0
+            var minX = raster.width
+            var minY = raster.height
+            var maxX = 0
+            var maxY = 0
+            while (!queue.isEmpty()) {
+                val pixel = queue.removeFirst()
+                val x = pixel % raster.width
+                val y = pixel / raster.width
+                count++
+                minX = minOf(minX, x)
+                maxX = maxOf(maxX, x)
+                minY = minOf(minY, y)
+                maxY = maxOf(maxY, y)
+                for (dy in -1..1) for (dx in -1..1) {
+                    if (dx == 0 && dy == 0) continue
+                    val nx = x + dx
+                    val ny = y + dy
+                    if (nx !in 0 until raster.width ||
+                        ny !in 0 until raster.height) continue
+                    val next = raster.index(nx, ny)
+                    if (raster.mask[next] && !visited[next]) {
+                        visited[next] = true
+                        queue.add(next)
+                    }
+                }
+            }
+            islands += FilledIsland(minX, minY, maxX, maxY, count)
+        }
+        val body = islands.maxByOrNull { it.pixelCount } ?: return emptyList()
+        val bodyHeight = (body.maxY - body.minY + 1) * raster.step
+        if (bodyHeight < 10f) return emptyList()
+        val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
+        return islands.asSequence()
+            .filter { island ->
+                if (island === body || island.maxY >= body.minY) return@filter false
+                val w = (island.maxX - island.minX + 1) * raster.step
+                val h = (island.maxY - island.minY + 1) * raster.step
+                val ratio = w / h
+                w <= minOf(55f, bodyHeight * 0.48f) &&
+                    h <= minOf(55f, bodyHeight * 0.48f) &&
+                    ratio in 0.45f..2.2f &&
+                    island.pixelCount * 4 < body.pixelCount
+            }
+            .sortedBy { it.minX }
+            .mapNotNull { island ->
+                val filledRows = (island.minY..island.maxY).filter { y ->
+                    (island.minX..island.maxX).any { x -> raster.inside(x, y) }
+                }
+                if (filledRows.isEmpty()) return@mapNotNull null
+                val selected = filledRows.filterIndexed { index, _ ->
+                    index % rowPitch == 0
+                }.toMutableSet()
+                if (selected.size < 3 && filledRows.size >= 3) {
+                    selected += filledRows.first()
+                    selected += filledRows[filledRows.size / 2]
+                    selected += filledRows.last()
+                }
+                val pullUnits = pullMm * 10f
+                val rails = selected.sorted().mapNotNull { y ->
+                    val occupied = (island.minX..island.maxX)
+                        .filter { x -> raster.inside(x, y) }
+                    if (occupied.isEmpty()) return@mapNotNull null
+                    // Every bar follows the original mask width at this row.
+                    val left = raster.left + occupied.first() * raster.step
+                    val right = raster.left + occupied.last() * raster.step
+                    val atY = raster.top + y * raster.step
+                    Rail(
+                        V(left - raster.step * 0.45f - pullUnits, atY),
+                        V(right + raster.step * 0.45f + pullUnits, atY)
+                    )
+                }
+                if (rails.isEmpty()) return@mapNotNull null
+                DotRails(
+                    raster.left + (island.minX - 1) * raster.step,
+                    raster.top + (island.minY - 1) * raster.step,
+                    raster.left + (island.maxX + 1) * raster.step,
+                    raster.top + (island.maxY + 1) * raster.step,
+                    rails
+                )
+            }
+            .toList()
     }
 
     private fun rasterize(contours: List<List<V>>, densityMm: Float): Raster {
