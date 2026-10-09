@@ -181,7 +181,11 @@ data class AccountSnapshot(
         emptyList(),
     val subscriptionHistory:
         List<AccountSubscriptionEvent> =
-        emptyList()
+        emptyList(),
+    val trialStatus: String = "unknown",
+    val trialRemainingSeconds: Long = 0L,
+    val quotaRemaining: Map<String, Int> = emptyMap(),
+    val commercialConfigured: Boolean = false
 ) {
     val currentPlan: AccountPlanOption?
         get() =
@@ -292,13 +296,13 @@ object AccountPresentation {
             "pro_monthly" ->
                 "Brother Matrizes Pro Mensal"
 
-            "pro_annual" ->
+            "pro_annual", "pro_yearly" ->
                 "Brother Matrizes Pro Anual"
 
-            "lifetime" ->
+            "lifetime", "pro_lifetime" ->
                 "Brother Matrizes Vitalício"
 
-            "lifetime_launch" ->
+            "lifetime_launch", "pro_lifetime_launch" ->
                 "Brother Matrizes Vitalício • Lançamento"
 
             else ->
