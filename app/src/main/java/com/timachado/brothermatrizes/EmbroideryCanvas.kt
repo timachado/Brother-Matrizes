@@ -15,6 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -27,6 +29,31 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryPreviewOptimizer
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.ui.theme.FioGold
+
+/**
+ * Percurso estático em unidades de bordado, independente da tela.
+ * Reutiliza a mesma sequencia STITCH/JUMP do simulador progressivo.
+ * Somente STITCH gera segmentos desenháveis; por cor.
+ */
+private data class StaticEmbroideryPath(
+    val colorIndex: Int,
+    val path: Path
+)
+
+private fun buildStaticEmbroideryPaths(
+    points: List<EmbroideryPoint>
+): List<StaticEmbroideryPath> {
+    val byColor = linkedMapOf<Int, Path>()
+    visitRenderedStitchSegments(points) { from, to ->
+        byColor.getOrPut(to.colorIndex) { Path() }.apply {
+            moveTo(from.xUnits.toFloat(), from.yUnits.toFloat())
+            lineTo(to.xUnits.toFloat(), to.yUnits.toFloat())
+        }
+    }
+    return byColor.map { (colorIndex, path) ->
+        StaticEmbroideryPath(colorIndex = colorIndex, path = path)
+    }
+}
 
 private val fallbackPalette = listOf(
     Color(0xFFE6BE70),
@@ -103,6 +130,18 @@ fun EmbroideryCanvas(
             }
         }
 
+    val staticSolidPaths = remember(renderPoints, displayMode, showConnections) {
+        if (
+            displayMode == EmbroideryDisplayMode.SOLID &&
+            !showConnections &&
+            renderPoints.none { it.command == StitchCommand.SEQUIN }
+        ) {
+            buildStaticEmbroideryPaths(renderPoints)
+        } else {
+            null
+        }
+    }
+
     val gestures = if (interactive) {
         Modifier.pointerInput(
             design.fileName,
@@ -164,6 +203,7 @@ fun EmbroideryCanvas(
             drawDesign(
                 design = design,
                 points = renderPoints,
+                solidPaths = staticSolidPaths,
                 lightweight =
                     optimizePreview,
                 userScale = zoom,
@@ -563,6 +603,7 @@ internal fun shouldPreserveHoopPosition(
 private fun DrawScope.drawDesign(
     design: EmbroideryDesign,
     points: List<EmbroideryPoint>,
+    solidPaths: List<StaticEmbroideryPath>?,
     lightweight: Boolean,
     userScale: Float,
     userOffset: Offset,
@@ -707,6 +748,34 @@ private fun DrawScope.drawDesign(
             centerXUnits *
                 scale +
             userOffset.x
+
+    // Path estático já foi processado fora do Canvas via remember().
+    // As matrizes PES/JEF importadas usam sourceYAxisDown=true, mas
+    // matrizes de outros sistemas podem exigir orientação oposta.
+    // Não forçar scaleY negativo para todos os formatos.
+    if (solidPaths != null) {
+        val direction = if (design.sourceYAxisDown) 1f else -1f
+        val originY = size.height / 2f -
+            centerYUnits * scale * direction + userOffset.y
+        withTransform({
+            translate(left = originX, top = originY)
+            scale(scaleX = scale, scaleY = scale * direction, pivot = Offset.Zero)
+        }) {
+            solidPaths.forEach { stitched ->
+                drawPath(
+                    path = stitched.path,
+                    color = threadColor(design, stitched.colorIndex),
+                    style = Stroke(
+                        // Compensar a escala do design para manter
+                        // a espessura visual em dp, como no modo anterior.
+                        width = 1.35.dp.toPx() / scale,
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
+        }
+        return
+    }
 
     var previous: Offset? =
         null
