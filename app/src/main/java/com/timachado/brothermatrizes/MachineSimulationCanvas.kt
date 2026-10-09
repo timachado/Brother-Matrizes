@@ -290,87 +290,17 @@ private fun buildGhostStitchPaths(
     design: EmbroideryDesign,
     transform: SimulationTransform
 ): List<GhostStitchPath> {
-    val paths =
-        linkedMapOf<
-            Int,
-            Path
-        >()
-
-    var previous:
-        EmbroideryPoint? =
-        null
-
-    design.points
-        .forEach {
-                point ->
-            when (
-                point.command
-            ) {
-                StitchCommand.COLOR_CHANGE,
-                StitchCommand.JUMP,
-                StitchCommand.TRIM,
-                StitchCommand.END -> {
-                    previous =
-                        null
-                }
-
-                StitchCommand.STOP,
-                StitchCommand.SEQUIN -> {
-                    previous =
-                        point
-                }
-
-                StitchCommand.STITCH -> {
-                    val before =
-                        previous
-
-                    if (
-                        before !=
-                            null
-                    ) {
-                        val start =
-                            transform.point(
-                                before
-                            )
-
-                        val end =
-                            transform.point(
-                                point
-                            )
-
-                        paths
-                            .getOrPut(
-                                point.colorIndex
-                            ) {
-                                Path()
-                            }
-                            .apply {
-                                moveTo(
-                                    start.x,
-                                    start.y
-                                )
-
-                                lineTo(
-                                    end.x,
-                                    end.y
-                                )
-                            }
-                    }
-
-                    previous =
-                        point
-                }
-            }
+    val paths = linkedMapOf<Int, Path>()
+    visitRenderedStitchSegments(design.points) { from, to ->
+        val start = transform.point(from)
+        val end = transform.point(to)
+        paths.getOrPut(to.colorIndex) { Path() }.apply {
+            moveTo(start.x, start.y)
+            lineTo(end.x, end.y)
         }
-
-    return paths.map {
-            entry ->
-        GhostStitchPath(
-            colorIndex =
-                entry.key,
-            path =
-                entry.value
-        )
+    }
+    return paths.map { (colorIndex, path) ->
+        GhostStitchPath(colorIndex, path)
     }
 }
 
@@ -1268,8 +1198,7 @@ private fun DrawScope.drawStitches(
             StitchCommand.TRIM,
             StitchCommand.STOP,
             StitchCommand.END -> {
-                previous =
-                    null
+                previous = if (point.command == StitchCommand.END) null else point
             }
 
             StitchCommand.JUMP -> {
@@ -1597,8 +1526,9 @@ private fun DrawScope.drawReferenceCompletedStitches(
             StitchCommand.COLOR_CHANGE,
             StitchCommand.TRIM,
             StitchCommand.END -> {
-                previous =
-                    null
+                // O cursor tem uma posicao conhecida depois da troca de
+                // cor/corte. A costura seguinte parte DESTE ponto.
+                previous = if (point.command == StitchCommand.END) null else point
             }
 
             StitchCommand.JUMP -> {
@@ -1647,7 +1577,7 @@ private fun DrawScope.drawReferenceCompletedStitches(
                 }
 
                 previous =
-                    null
+                    point
             }
 
             StitchCommand.STOP,
@@ -1973,113 +1903,23 @@ private fun DrawScope.drawSolidStitchPaths(
     transform: SimulationTransform,
     pointLimit: Int
 ) {
-    val paths =
-        linkedMapOf<
-            Int,
-            Path
-        >()
-
-    var previous:
-        EmbroideryPoint? =
-        null
-
-    val limit =
-        pointLimit
-            .coerceIn(
-                0,
-                design.points.size
-            )
-
-    for (
-        index in
-            0 until
-                limit
-    ) {
-        val point =
-            design.points[
-                index
-            ]
-
-        when (
-            point.command
-        ) {
-            StitchCommand.COLOR_CHANGE,
-            StitchCommand.TRIM,
-            StitchCommand.STOP,
-            StitchCommand.END -> {
-                previous =
-                    null
-            }
-
-            StitchCommand.JUMP,
-            StitchCommand.SEQUIN -> {
-                previous =
-                    point
-            }
-
-            StitchCommand.STITCH -> {
-                val before =
-                    previous
-
-                if (
-                    before !=
-                        null
-                ) {
-                    val start =
-                        transform.point(
-                            before
-                        )
-
-                    val end =
-                        transform.point(
-                            point
-                        )
-
-                    paths
-                        .getOrPut(
-                            point.colorIndex
-                        ) {
-                            Path()
-                        }
-                        .apply {
-                            moveTo(
-                                start.x,
-                                start.y
-                            )
-
-                            lineTo(
-                                end.x,
-                                end.y
-                            )
-                        }
-                }
-
-                previous =
-                    point
-            }
+    val paths = linkedMapOf<Int, Path>()
+    visitRenderedStitchSegments(design.points, pointLimit) { from, to ->
+        val start = transform.point(from)
+        val end = transform.point(to)
+        paths.getOrPut(to.colorIndex) { Path() }.apply {
+            moveTo(start.x, start.y)
+            lineTo(end.x, end.y)
         }
     }
-
-    paths.forEach {
-            entry ->
+    paths.forEach { (colorIndex, path) ->
         drawPath(
-            path =
-                entry.value,
-            color =
-                threadColor(
-                    design,
-                    entry.key
-                ).copy(
-                    alpha =
-                        0.98f
-                ),
-            style =
-                Stroke(
-                    width =
-                        1.35.dp.toPx(),
-                    cap =
-                        StrokeCap.Round
-                )
+            path = path,
+            color = threadColor(design, colorIndex).copy(alpha = 0.98f),
+            style = Stroke(
+                width = 1.35.dp.toPx(),
+                cap = StrokeCap.Round
+            )
         )
     }
 }
