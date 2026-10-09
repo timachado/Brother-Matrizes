@@ -150,6 +150,58 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun subpixelThinStemPreservesSatinCoverageAtSmallHoopSize() {
+        // A letra cursiva reduzida pode ter regiões abaixo de 0,2 mm.
+        // O contorno é real, mas não intercepta todos os centros do raster.
+        val planned = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(3.15f, 0f, 0.85f, 82f)),
+            densityMm = 0.4f,
+            pullMm = 0.2f
+        )
+        val rails = planned.rails.flatten()
+        assertTrue("Não descartar haste fina da TTF/OTF.", rails.size >= 10)
+        assertTrue("A haste fina precisa atingir a região inferior.",
+            rails.any { it.middle.y > 65f })
+        assertTrue("A haste fina precisa atingir a região superior.",
+            rails.any { it.middle.y < 16f })
+    }
+
+    @Test
+    fun diagonalHairlineRetainsBothEndsWithoutGaps() {
+        // Faixa diagonal mais fina que um pixel de raster, semelhante aos
+        // arremates de M, a e r em fontes ornamentais reduzidas.
+        val diagonal = listOf(
+            CleanRoomSatinEngine.V(0f, 0f),
+            CleanRoomSatinEngine.V(1.2f, 0f),
+            CleanRoomSatinEngine.V(61.2f, 60f),
+            CleanRoomSatinEngine.V(60f, 60f)
+        )
+        val planned = CleanRoomSatinEngine.planContours(
+            listOf(diagonal), densityMm = 0.4f, pullMm = 0.2f
+        )
+        val rails = planned.rails.flatten()
+        assertTrue("A faixa diagonal fina deve produzir pontadas Satin.",
+            rails.size >= 8)
+        assertTrue("Preservar o início da diagonal.",
+            rails.any { it.middle.y < 12f })
+        assertTrue("Preservar o fim da diagonal.",
+            rails.any { it.middle.y > 48f })
+    }
+
+    @Test
+    fun smallFontFidelityDoesNotReorderApprovedStrokeTraversal() {
+        val planned = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 20f, 100f)),
+            densityMm = 0.4f
+        )
+        val stitched = CleanRoomSatinEngine.stitchPlannedGlyphForTest(planned)
+        assertTrue("O preenchimento Satin continua presente.",
+            stitched.count { it.command == StitchCommand.STITCH } >= 15)
+        assertEquals("A preservação da fonte não altera o tipo de comandos.",
+            0, stitched.count { it.command == StitchCommand.TRIM })
+    }
+
+    @Test
     fun underlayAddsOneRunNotMultipleFullWidthLayers() {
         val glyph = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 20f, 160f)), densityMm = 0.4f
