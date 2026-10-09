@@ -213,13 +213,25 @@ internal object CleanRoomSatinEngine {
                 if (batch.isNotEmpty()) result += batch
                 batch = mutableListOf()
             }
-            interpolated.forEachIndexed { i, c ->
+            val rawRails = interpolated.mapIndexed { i, c ->
                 val prev = interpolated[(i - 1).coerceAtLeast(0)]
                 val next = interpolated[(i + 1).coerceAtMost(interpolated.lastIndex)]
                 val tangent = normalized(V(next.x - prev.x, next.y - prev.y))
-                if (tangent == null) return@forEachIndexed
-                val row = crossSection(raster, c, V(-tangent.y, tangent.x), pullMm * 10f)
-                if (row == null || length(row.a, row.b) < 1.5f) {
+                tangent?.let {
+                    crossSection(raster, c, V(-it.y, it.x), pullMm * 10f)
+                }?.takeIf { length(it.a, it.b) >= 1.5f }
+            }
+            // Missing one or two columns in an otherwise continuous glyph
+            // must not turn the font into a dashed line. Interpolation is
+            // allowed ONLY where the original filled font mask remains solid.
+            val filledRails = repairShortRailGaps(rawRails, interpolated, raster.step) {
+                v -> raster.inside(
+                    ((v.x - raster.left) / raster.step).roundToInt(),
+                    ((v.y - raster.top) / raster.step).roundToInt()
+                )
+            }
+            filledRails.forEach { row ->
+                if (row == null) {
                     endBatch()
                 } else if (seen(row)) {
                     duplicates++
@@ -248,6 +260,57 @@ internal object CleanRoomSatinEngine {
             result.addAll(0, restoredDots.map { it.rails })
         }
         return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
+    }
+
+    /**
+     * Fill at most two missing Satin rails along one existing skeleton route.
+     * Never synthesize a connection through empty font pixels, between routes
+     * or between glyphs; the simulation's stitching order stays unchanged.
+     */
+    internal fun repairShortRailGaps(
+        rows: List<Rail?>,
+        route: List<V>,
+        gridStep: Float,
+        insideOriginalOutline: (V) -> Boolean
+    ): List<Rail?> {
+        if (rows.size != route.size || rows.size < 3) return rows
+        val repaired = rows.toMutableList()
+        var i = 1
+        while (i < rows.lastIndex) {
+            if (rows[i] != null) { i++; continue }
+            val start = i
+            while (i < rows.lastIndex && rows[i] == null) i++
+            val gapLength = i - start
+            if (gapLength !in 1..2 || i >= rows.size) continue
+            val before = rows[start - 1] ?: continue
+            val after = rows[i] ?: continue
+            if (length(before.middle, after.middle) >
+                (gapLength + 1) * gridStep * 7.5f) continue
+
+            // Do not bridge across real holes/counters in the letter:
+            // both the missing medial positions and the intermediate
+            // straight segments must fall inside the existing font shape.
+            val covered = (start..i).all { n ->
+                if (!insideOriginalOutline(route[n])) false
+                else {
+                    val a = route[n - 1]
+                    val b = route[n]
+                    insideOriginalOutline(
+                        V((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f)
+                    )
+                }
+            }
+            if (!covered) continue
+            for (j in 0 until gapLength) {
+                val factor = (j + 1f) / (gapLength + 1f)
+                fun mix(a: V, b: V) = V(
+                    a.x + (b.x - a.x) * factor,
+                    a.y + (b.y - a.y) * factor
+                )
+                repaired[start + j] = Rail(mix(before.a, after.a), mix(before.b, after.b))
+            }
+        }
+        return repaired
     }
 
     internal fun orderSkeletonRoutes(
