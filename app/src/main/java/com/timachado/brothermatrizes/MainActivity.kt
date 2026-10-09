@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +52,7 @@ import com.timachado.brothermatrizes.core.storage.DurablePendingDocument
 import com.timachado.brothermatrizes.core.storage.PendingDocumentStore
 import com.timachado.brothermatrizes.core.storage.SafeInputReader
 import com.timachado.brothermatrizes.core.settings.UiPreferencesStore
+import com.timachado.brothermatrizes.core.settings.AppColorMode
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
@@ -132,9 +134,17 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
+            var colorMode by remember {
+                mutableStateOf(UiPreferencesStore.colorMode(this@MainActivity))
+            }
+            val darkTheme = when (colorMode) {
+                AppColorMode.DARK -> true
+                AppColorMode.LIGHT -> false
+                AppColorMode.SYSTEM -> isSystemInDarkTheme()
+            }
             BrotherMatrizesTheme(
-                textScaleMultiplier =
-                    textScale
+                textScaleMultiplier = textScale,
+                darkTheme = darkTheme
             ) {
                 BrotherMatrizesApp(
                     openAccountRequest =
@@ -153,6 +163,12 @@ class MainActivity : ComponentActivity() {
                     },
                     textScale =
                         textScale,
+                    colorMode = colorMode,
+                    onColorModeChange = { requested ->
+                        colorMode = UiPreferencesStore.setColorMode(
+                            this@MainActivity, requested
+                        )
+                    },
                     onTextScaleChange = {
                             requested ->
                         textScale =
@@ -289,7 +305,9 @@ private fun BrotherMatrizesApp(
     externalOpenUri: Uri? = null,
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
-    onTextScaleChange: (Float) -> Unit
+    onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit
 ) {
     val context =
         LocalContext.current
@@ -1754,7 +1772,9 @@ private fun BrotherMatrizesApp(
                         textScale =
                             textScale,
                         onTextScaleChange =
-                            onTextScaleChange
+                            onTextScaleChange,
+                        colorMode = colorMode,
+                        onColorModeChange = onColorModeChange
                     )
                 }
 
