@@ -109,8 +109,9 @@ internal object AndroidSkiaOutlineExtractor {
         val rawGlyphs =
             mutableListOf<RawGlyph>()
 
-        var penX =
-            0f
+        // O deslocamento deve considerar kerning e shaping do texto completo,
+        // em vez de somar larguras isoladas (que separa fontes cursivas).
+        var textOffset = 0
 
         val codePoints =
             text
@@ -144,6 +145,17 @@ internal object AndroidSkiaOutlineExtractor {
                         "."
                 }
 
+                val shapedX = paint.getRunAdvance(
+                    text,
+                    0,
+                    text.length,
+                    0,
+                    text.length,
+                    false,
+                    textOffset
+                )
+                val glyphX = shapedX + index * spacingUnits
+
                 val path =
                     Path()
 
@@ -151,7 +163,7 @@ internal object AndroidSkiaOutlineExtractor {
                     glyphText,
                     0,
                     glyphText.length,
-                    penX,
+                    glyphX,
                     0f,
                     path
                 )
@@ -191,18 +203,7 @@ internal object AndroidSkiaOutlineExtractor {
                     }
                 }
 
-                penX +=
-                    paint.measureText(
-                        glyphText
-                    )
-
-                if (
-                    index <
-                        codePoints.lastIndex
-                ) {
-                    penX +=
-                        spacingUnits
-                }
+                textOffset += glyphText.length
             }
 
         require(
