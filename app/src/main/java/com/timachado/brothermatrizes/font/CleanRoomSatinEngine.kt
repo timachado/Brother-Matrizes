@@ -162,7 +162,6 @@ internal object CleanRoomSatinEngine {
         val raster = rasterize(contours, densityMm)
         val skeleton = thin(raster)
         val skeletonPixels = skeleton.count { it }
-        if (skeletonPixels < 1) return PlannedGlyph(emptyList(), 0, 0)
         // A máscara de uma linha diagonal de 1–2 pixels pode sofrer
         // erosão quase completa no thinning Zhang-Suen. Reconstruir a
         // linha central SOMENTE nesse caso; glifos complexos, curvas
@@ -170,6 +169,9 @@ internal object CleanRoomSatinEngine {
         val restoredHairline = if (contours.size == 1) {
             recoverCollapsedThinStroke(raster, skeletonPixels)
         } else null
+        if (skeletonPixels < 1 && restoredHairline == null) {
+            return PlannedGlyph(emptyList(), 0, 0)
+        }
         val routes = if (restoredHairline != null) {
             listOf(restoredHairline)
         } else traceEdges(raster, skeleton)
