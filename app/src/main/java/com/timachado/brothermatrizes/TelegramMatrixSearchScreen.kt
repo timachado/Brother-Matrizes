@@ -1,7 +1,5 @@
 package com.timachado.brothermatrizes
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -86,24 +84,23 @@ fun TelegramMatrixSearchScreen(
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = {
-                // Official Telegram global-search deep link opens the user's
-                // own authorized client. The protocol does not transmit q.
-                if (query.isNotBlank()) {
-                    val clipboard = context.getSystemService(
-                        Context.CLIPBOARD_SERVICE
-                    ) as ClipboardManager
-                    clipboard.setPrimaryClip(
-                        ClipData.newPlainText("Buscar matriz", query.trim())
-                    )
-                }
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("tg://chats/search"))
+                // Telegram Android supports tg://search?query= (official
+                // app's shortcuts.xml). No clipboard or extra manual paste.
+                val term = query.trim()
+                val uri = Uri.parse(
+                    if (term.isBlank()) "tg://search"
+                    else "tg://search?query=${Uri.encode(term)}"
+                )
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
                 val opened = runCatching {
                     context.startActivity(intent)
                 }.isSuccess
                 status = if (opened) {
-                    "Telegram aberto. Cole a palavra-chave na busca e compartilhe o arquivo com Brother Matrizes."
+                    if (term.isBlank()) "Pesquisa do Telegram aberta."
+                    else "Pesquisa '$term' enviada ao Telegram. Selecione uma matriz e compartilhe com Brother Matrizes."
                 } else {
-                    "Telegram não está disponível. Instale/abra o Telegram e tente novamente."
+                    "Não foi possível abrir o Telegram. Verifique se o aplicativo está instalado e atualizado."
                 }
             },
             modifier = Modifier.fillMaxWidth()
