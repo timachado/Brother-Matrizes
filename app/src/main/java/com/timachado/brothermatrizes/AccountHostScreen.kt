@@ -1,5 +1,7 @@
 package com.timachado.brothermatrizes
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -595,6 +597,52 @@ fun AccountHostScreen(
         }
     }
 
+    fun activateFreeTrial() {
+        if (!checkOnline()) return
+        scope.launch {
+            loading = true
+            val result = BrotherMatrizesAccountService.activateTrial()
+            loading = false
+            result.fold(
+                onSuccess = {
+                    account = withDevices(it)
+                    accountVerified = true
+                    snackbar.showSnackbar("Seu teste Pro de 7 dias foi ativado.")
+                },
+                onFailure = {
+                    snackbar.showSnackbar(AccountErrorMessage.forUser(
+                        it, "Não foi possível ativar o teste."
+                    ))
+                }
+            )
+        }
+    }
+
+    fun openCommercialCheckout(planCode: String) {
+        if (!checkOnline()) return
+        scope.launch {
+            loading = true
+            val result = BrotherMatrizesAccountService.openCheckout(planCode)
+            loading = false
+            result.fold(
+                onSuccess = { checkoutUrl ->
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(checkoutUrl))
+                        )
+                    }.onFailure {
+                        snackbar.showSnackbar("Não foi possível abrir o checkout seguro.")
+                    }
+                },
+                onFailure = {
+                    snackbar.showSnackbar(AccountErrorMessage.forUser(
+                        it, "Não foi possível preparar o checkout WooCommerce."
+                    ))
+                }
+            )
+        }
+    }
+
     Box(
         Modifier.fillMaxSize()
     ) {
@@ -642,6 +690,8 @@ fun AccountHostScreen(
             onRefresh = {
                 refreshAccount()
             },
+            onActivateTrial = { activateFreeTrial() },
+            onCheckout = { planCode -> openCommercialCheckout(planCode) },
             onSignOut = {
                 signOut()
             }
