@@ -14,6 +14,19 @@ import java.util.UUID
  * Never embed Efí credentials, WooCommerce secrets or commercial decisions.
  */
 internal object WordPressLicensingClient {
+    // Small in-memory grace window only (not SharedPreferences). It cannot
+    // resurrect entitlements across app reinstall, device clock edits or reboot.
+    // Full persistent offline Pro requires a server-signed license lease.
+    private var lastAccount: AccountSnapshot? = null
+    private var lastVerifiedElapsed: Long = 0L
+
+    fun recentlyVerified(sub: String): AccountSnapshot? {
+        val result = lastAccount ?: return null
+        val age = android.os.SystemClock.elapsedRealtime() - lastVerifiedElapsed
+        if (age < 0 || age > 10 * 60 * 1000L || result.userId != sub) return null
+        return if (result.planCode == "free" || result.hasProAccess) result else null
+    }
+
     private fun baseUrl(): String {
         val base = BuildConfig.WORDPRESS_URL.trim().trimEnd('/')
         require(base.startsWith("https://") && base.length > 10 &&
@@ -128,7 +141,7 @@ internal object WordPressLicensingClient {
                 if (!action.isNull("remaining")) put(key, action.optInt("remaining"))
             }
         }
-        AccountSnapshot(
+        val snapshot = AccountSnapshot(
             userId = sub,
             email = data.optString("email", authEmail),
             displayName = data.optString("display_name").ifBlank {
@@ -148,6 +161,9 @@ internal object WordPressLicensingClient {
             quotaRemaining = quota,
             commercialConfigured = true
         )
+        lastAccount = snapshot
+        lastVerifiedElapsed = android.os.SystemClock.elapsedRealtime()
+        snapshot
     }
 
     suspend fun updateProfile(token: String, name: String) = withContext(Dispatchers.IO) {
