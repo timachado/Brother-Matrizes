@@ -33,6 +33,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -55,6 +60,8 @@ fun DaFontBrowserScreen(
     onImported: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val downloadManager = remember {
         context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -120,27 +127,40 @@ fun DaFontBrowserScreen(
         }
     }
 
+    fun searchFont() {
+        val term = query.trim()
+        keyboard?.hide()
+        focusManager.clearFocus()
+        // DaFont search.php is the query endpoint, not /pt/?q=.
+        val url = if (term.isNotEmpty()) {
+            "https://www.dafont.com/search.php?q=${Uri.encode(term)}"
+        } else {
+            "https://www.dafont.com/pt/"
+        }
+        browser?.loadUrl(url)
+        message = if (term.isNotEmpty()) {
+            "Resultados para: $term. Confira a licença antes de baixar."
+        } else {
+            "Explore categorias ou digite o nome da fonte."
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+        OutlinedButton(onClick = ::goBack) { Text("‹ Voltar") }
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedButton(onClick = ::goBack) { Text("‹ Voltar") }
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it.take(90) },
-                label = { Text("Buscar fonte") },
+                label = { Text("Buscar fonte no DaFont") },
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { searchFont() })
             )
-            Button(onClick = {
-                val q = query.trim()
-                if (q.isNotEmpty()) {
-                    browser?.loadUrl("https://www.dafont.com/pt/?q=${Uri.encode(q)}")
-                } else {
-                    browser?.loadUrl("https://www.dafont.com/pt/")
-                }
-            }) { Text("Buscar") }
+            Button(onClick = ::searchFont) { Text("Buscar") }
         }
         Text(
             "DaFont • Prévia e categorias no site. Licenças pertencem aos autores.",
@@ -153,6 +173,9 @@ fun DaFontBrowserScreen(
                 WebView(ctx).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    setInitialScale(0)
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.javaScriptCanOpenWindowsAutomatically = false
