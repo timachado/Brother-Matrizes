@@ -7,7 +7,8 @@ import org.junit.Test
 class FeatureAccessTest {
     private fun account(
         planCode: String,
-        status: String
+        status: String,
+        expires: String? = null
     ): AccountSnapshot =
         AccountSnapshot(
             userId =
@@ -23,7 +24,7 @@ class FeatureAccessTest {
             subscriptionStatus =
                 status,
             currentPeriodEnd =
-                null
+                expires
         )
 
     @Test
@@ -52,7 +53,8 @@ class FeatureAccessTest {
         assertTrue(
             account(
                 "pro_monthly",
-                "active"
+                "active",
+                "2099-12-31T23:59:59Z"
             ).canUse(
                 BrotherMatrizesFeature.PRO_ONLY
             )
@@ -65,6 +67,18 @@ class FeatureAccessTest {
             ).canUse(
                 BrotherMatrizesFeature.PRO_ONLY
             )
+        )
+
+        assertFalse(
+            account("pro_monthly", "active").canUse(BrotherMatrizesFeature.PRO_ONLY)
+        )
+        assertFalse(
+            account("pro_monthly", "active", "2020-01-01T00:00:00Z")
+                .canUse(BrotherMatrizesFeature.PRO_ONLY)
+        )
+        assertFalse(
+            account("pro_annual", "active", "invalid")
+                .canUse(BrotherMatrizesFeature.PRO_ONLY)
         )
 
         assertTrue(
