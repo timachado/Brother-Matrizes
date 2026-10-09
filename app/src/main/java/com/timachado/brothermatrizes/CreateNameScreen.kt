@@ -46,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
-import com.timachado.brothermatrizes.core.embroidery.GuidedSatinRoute
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
@@ -187,22 +186,6 @@ fun CreateNameScreen(
 
     var text by remember {
         mutableStateOf("Maria")
-    }
-
-    // A referencia marcada pelo usuario e aplicada automaticamente a Maria
-    // em fonte importada + Satin. Outras palavras continuam no motor normal.
-    // A chave manual permite desativar para fontes nao correspondentes.
-    var useTracedMariaRoute by remember {
-        mutableStateOf(true)
-    }
-
-    val tracedMariaRoute = remember(context) {
-        runCatching {
-            context.assets.open("embroidery_routes/maria-reference.route.json")
-                .bufferedReader(Charsets.UTF_8).use { reader ->
-                    GuidedSatinRoute.parse(reader.readText())
-                }
-        }.getOrNull()
     }
 
     var heightMm by remember {
@@ -418,18 +401,7 @@ fun CreateNameScreen(
                         fabricProfile,
                     rotationDegrees =
                         rotationDegrees,
-                    guidedSatinRoute =
-                        if (
-                            useTracedMariaRoute &&
-                            importedFont != null &&
-                            text.trim().equals("Maria", ignoreCase = true) &&
-                            stitchStyle == TextStitchStyle.SATIN &&
-                            layoutMode == TextLayoutMode.STRAIGHT
-                        ) {
-                            tracedMariaRoute
-                        } else {
-                            null
-                        }
+                    guidedSatinRoute = null
                 ),
             layoutMode =
                 layoutMode,
@@ -483,7 +455,6 @@ fun CreateNameScreen(
         satinPullCompensationMm,
         satinShortStitches,
         satinUnderlayMode,
-        useTracedMariaRoute,
         specialStitchMode,
         color,
         font,
@@ -988,28 +959,6 @@ fun CreateNameScreen(
                                 singleLine =
                                     true
                             )
-
-                            if (
-                                importedFont != null &&
-                                text.trim().equals("Maria", ignoreCase = true) &&
-                                stitchStyle == TextStitchStyle.SATIN
-                            ) {
-                                Text(
-                                    if (tracedMariaRoute == null) {
-                                        "Percurso marcado indisponível — verifique a referência."
-                                    } else if (useTracedMariaRoute &&
-                                        layoutMode == TextLayoutMode.STRAIGHT) {
-                                        "Satin guiado ATIVO: iniciar na marca e preencher cada letra por completo."
-                                    } else {
-                                        "Satin guiado DESATIVADO — percurso automatico."
-                                    },
-                                    color = if (tracedMariaRoute != null && useTracedMariaRoute &&
-                                        layoutMode == TextLayoutMode.STRAIGHT) FioGold else FioTextMuted,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
 
                             Spacer(
                                 Modifier.height(
@@ -1861,35 +1810,6 @@ fun CreateNameScreen(
                                             outputFormat =
                                                 format
                                         }
-                                    )
-                                }
-                            }
-
-                            if (
-                                importedFont != null &&
-                                text.trim().equals("Maria", ignoreCase = true) &&
-                                stitchStyle == TextStitchStyle.SATIN
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "Costura Satin guiada por letra",
-                                            color = FioText,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            "Seguir cada traco marcado com underlay e cobertura Satin, concluindo uma letra antes da proxima. Sem saltos artificiais entre etapas.",
-                                            color = FioTextMuted,
-                                            fontSize = 10.sp
-                                        )
-                                    }
-                                    Switch(
-                                        checked = useTracedMariaRoute,
-                                        enabled = tracedMariaRoute != null && layoutMode == TextLayoutMode.STRAIGHT,
-                                        onCheckedChange = { useTracedMariaRoute = it }
                                     )
                                 }
                             }
