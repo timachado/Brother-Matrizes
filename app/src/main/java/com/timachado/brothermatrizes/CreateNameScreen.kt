@@ -51,6 +51,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
+import com.timachado.brothermatrizes.core.embroidery.SatinDensityAnalyzer
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
 import com.timachado.brothermatrizes.core.embroidery.SpecialStitchMode
 import com.timachado.brothermatrizes.core.embroidery.TextGlyphProvider
@@ -657,6 +658,20 @@ fun CreateNameScreen(
     val preview =
         result
             ?.getOrNull()
+
+    // Analise a matriz real ANTES de simular/exportar. Nao esconder
+    // nem eliminar pontos curtos legitimamente usados no Satin.
+    val satinDensityReport = remember(
+        preview?.points,
+        importedFontId,
+        stitchStyle
+    ) {
+        if (importedFont != null && stitchStyle == TextStitchStyle.SATIN) {
+            preview?.points?.let { SatinDensityAnalyzer.analyze(it) }
+        } else {
+            null
+        }
+    }
 
     val hoopFit =
         preview?.let {
@@ -2151,6 +2166,60 @@ fun CreateNameScreen(
                         fontSize =
                             10.sp
                     )
+                }
+
+                // Informacoes de densidade sao diagnosticas. Alertas nao
+                // alteram a lista original enviada ao PES nem ao simulador.
+                satinDensityReport?.let { report ->
+                    val isWarning =
+                        report.status != SatinDensityAnalyzer.Status.NORMAL
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isWarning) {
+                                Color(0xFF483222)
+                            } else {
+                                FioSurfaceAlt
+                            }
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(
+                                text = when (report.status) {
+                                    SatinDensityAnalyzer.Status.NORMAL ->
+                                        "Análise Satin: nenhuma repetição excessiva detectada"
+                                    SatinDensityAnalyzer.Status.ATENCAO ->
+                                        "Atenção: revisar densidade Satin"
+                                    SatinDensityAnalyzer.Status.SOBREPOSICAO_ELEVADA ->
+                                        "Alerta: passadas Satin sobrepostas"
+                                },
+                                color = if (isWarning) Color(0xFFFFD79E) else FioText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Pontos: ${report.originalPointCount} • " +
+                                    "Comprimento médio: ${mm(report.meanStitchLengthMm)} mm • " +
+                                    "Trechos repetidos: ${report.repeatedSegmentCount} " +
+                                    "(${String.format(Locale.US, "%.1f", report.repeatedPercent)}%) • " +
+                                    "Microtrechos: ${report.shortSegmentCount}",
+                                color = FioTextMuted,
+                                fontSize = 10.sp
+                            )
+                            if (isWarning) {
+                                Text(
+                                    "A matriz mantém todas as pontadas originais. " +
+                                        "Revise o percurso e o underlay antes de bordar; " +
+                                        "a análise não remove pontos automaticamente.",
+                                    color = FioTextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
