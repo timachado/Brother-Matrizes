@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
@@ -15,35 +17,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val FioBackground = Color(0xFF08131D)
-val FioSurface = Color(0xFF101D28)
-val FioSurfaceAlt = Color(0xFF172632)
-val FioSurfaceHigh = Color(0xFF20313E)
-val FioGold = Color(0xFFE6BE70)
-val FioGoldSoft = Color(0xFFF6E7C4)
-val FioGoldContainer = Color(0xFF4A3A1D)
-val FioText = Color(0xFFF7F4EE)
-val FioTextMuted = Color(0xFFA9B3BC)
-val FioDanger = Color(0xFFFF8A80)
+// Reactive brand palette: existing screens read Fio* colors during Compose,
+// so switching modes updates their existing styles without a UI redesign.
+private object BrotherPalette {
+    var dark = mutableStateOf(true)
+}
 
-private val colors = darkColorScheme(
-    primary = FioGold,
+val FioBackground: Color get() = if (BrotherPalette.dark.value) Color(0xFF08131D) else Color(0xFFF7F5F0)
+val FioSurface: Color get() = if (BrotherPalette.dark.value) Color(0xFF101D28) else Color(0xFFFFFFFF)
+val FioSurfaceAlt: Color get() = if (BrotherPalette.dark.value) Color(0xFF172632) else Color(0xFFEAEFF0)
+val FioSurfaceHigh: Color get() = if (BrotherPalette.dark.value) Color(0xFF20313E) else Color(0xFFDFE8EA)
+val FioGold: Color get() = if (BrotherPalette.dark.value) Color(0xFFE6BE70) else Color(0xFF936616)
+val FioGoldSoft: Color get() = if (BrotherPalette.dark.value) Color(0xFFF6E7C4) else Color(0xFF675018)
+val FioGoldContainer: Color get() = if (BrotherPalette.dark.value) Color(0xFF4A3A1D) else Color(0xFFF5E6C5)
+val FioText: Color get() = if (BrotherPalette.dark.value) Color(0xFFF7F4EE) else Color(0xFF17242F)
+val FioTextMuted: Color get() = if (BrotherPalette.dark.value) Color(0xFFA9B3BC) else Color(0xFF546471)
+val FioDanger: Color get() = if (BrotherPalette.dark.value) Color(0xFFFF8A80) else Color(0xFFB43546)
+
+private val darkColors = darkColorScheme(
+    primary = Color(0xFFE6BE70),
     onPrimary = Color(0xFF241704),
-    primaryContainer = FioGoldContainer,
-    onPrimaryContainer = FioGoldSoft,
-    secondary = FioGoldSoft,
+    primaryContainer = Color(0xFF4A3A1D),
+    onPrimaryContainer = Color(0xFFF6E7C4),
+    secondary = Color(0xFFF6E7C4),
     onSecondary = Color(0xFF2A210F),
     secondaryContainer = Color(0xFF273541),
-    onSecondaryContainer = FioText,
-    background = FioBackground,
-    onBackground = FioText,
-    surface = FioSurface,
-    onSurface = FioText,
-    surfaceVariant = FioSurfaceAlt,
-    onSurfaceVariant = FioTextMuted,
-    surfaceContainer = FioSurface,
-    surfaceContainerHigh = FioSurfaceHigh,
-    error = FioDanger
+    onSecondaryContainer = Color(0xFFF7F4EE),
+    background = Color(0xFF08131D),
+    onBackground = Color(0xFFF7F4EE),
+    surface = Color(0xFF101D28),
+    onSurface = Color(0xFFF7F4EE),
+    surfaceVariant = Color(0xFF172632),
+    onSurfaceVariant = Color(0xFFA9B3BC),
+    surfaceContainer = Color(0xFF101D28),
+    surfaceContainerHigh = Color(0xFF20313E),
+    error = Color(0xFFFF8A80)
+)
+
+private val lightColors = lightColorScheme(
+    primary = Color(0xFF936616),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF5E6C5),
+    onPrimaryContainer = Color(0xFF46300C),
+    secondary = Color(0xFF675018),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE7E5DD),
+    onSecondaryContainer = Color(0xFF17242F),
+    background = Color(0xFFF7F5F0),
+    onBackground = Color(0xFF17242F),
+    surface = Color.White,
+    onSurface = Color(0xFF17242F),
+    surfaceVariant = Color(0xFFEAEFF0),
+    onSurfaceVariant = Color(0xFF546471),
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color(0xFFDFE8EA),
+    error = Color(0xFFB43546)
 )
 
 private val shapes = Shapes(
@@ -90,8 +118,14 @@ private val typography = Typography(
 @Composable
 fun BrotherMatrizesTheme(
     textScaleMultiplier: Float = 1f,
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    // Apply before rendering children; snapshot reads of Fio* values
+    // schedule recomposition for all surfaces when the mode changes.
+    if (BrotherPalette.dark.value != darkTheme) {
+        BrotherPalette.dark.value = darkTheme
+    }
     val currentDensity =
         LocalDensity.current
 
@@ -113,7 +147,7 @@ fun BrotherMatrizesTheme(
             )
     ) {
         MaterialTheme(
-            colorScheme = colors,
+            colorScheme = if (darkTheme) darkColors else lightColors,
             typography = typography,
             shapes = shapes,
             content = content
