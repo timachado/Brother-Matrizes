@@ -519,6 +519,28 @@ class PeDesignImportedFontEngineTest {
 
 
     @Test
+    fun backtrackingOverSameMStrokeDoesNotCauseAnotherSatinLayer() {
+        val (original, preserved, parts) =
+            PeDesignImportedFontEngine.debugRevisitedSatinLeg()
+        assertEquals("Trajeto sintetico de ida + volta + outro traco.", 75, original)
+        assertEquals(
+            "Costurar uma perna uma vez, sem perder a faixa separada.", 50, preserved
+        )
+        assertEquals("A faixa original e o outro traco devem permanecer.", 2, parts)
+    }
+
+    @Test
+    fun connectedGuidedSegmentsNeedFewerTieStitchesThanIndependentlyLockedColumns() {
+        val (independent, guided) =
+            PeDesignImportedFontEngine.debugRepeatedTieStitchesOnConnectedColumns()
+        assertTrue("As duas regioes devem continuar tendo costura.", guided > 15)
+        assertTrue(
+            "Arremates entre fragmentos do mesmo traco nao podem dobrar a densidade.",
+            guided < independent
+        )
+    }
+
+    @Test
     fun duplicateSkeletonRailsMustNotHardenFirstLegOfM() {
         val (original, deduplicated, distinct) =
             PeDesignImportedFontEngine.debugOverlappingSatinRails()
