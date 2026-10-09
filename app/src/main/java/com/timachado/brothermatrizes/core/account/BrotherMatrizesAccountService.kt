@@ -11,8 +11,6 @@ import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -51,9 +49,6 @@ object BrotherMatrizesAccountService {
                     AUTH_REDIRECT_URL
             }
 
-            install(
-                Postgrest
-            )
         }
     }
 
@@ -288,59 +283,15 @@ object BrotherMatrizesAccountService {
             }
         }
 
-    suspend fun updateDisplayName(
-        displayName: String
-    ): Result<AccountSnapshot> =
+    suspend fun updateDisplayName(displayName: String): Result<AccountSnapshot> =
         runCatching {
-            val name =
-                displayName
-                    .trim()
-
-            require(
-                name.length in
-                    2..80
-            ) {
-                "Informe um nome de 2 a 80 caracteres."
-            }
-
-            val session =
-                client.auth
-                    .currentSessionOrNull()
-                    ?: error(
-                        "Entre na sua conta primeiro."
-                    )
-
-            val user =
-                session.user
-                    ?: error(
-                        "Usuário não encontrado."
-                    )
-
-            client.from(
-                "brother_matrizes_profiles"
-            ).update(
-                {
-                    set(
-                        "display_name",
-                        name
-                    )
-                }
-            ) {
-                filter {
-                    eq(
-                        "user_id",
-                        user.id
-                    )
-                }
-            }
-
-            accountFor(
-                userId =
-                    user.id,
-                email =
-                    user.email
-                        ?: ""
-            )
+            val name = displayName.trim()
+            require(name.length in 2..80) { "Informe um nome de 2 a 80 caracteres." }
+            val token = client.auth.currentSessionOrNull()?.accessToken
+                ?: error("Entre na sua conta primeiro.")
+            WordPressLicensingClient.updateProfile(token, name)
+            currentAccount().getOrThrow()
+                ?: error("Conta autenticada não encontrada.")
         }
 
     suspend fun signOut():
@@ -350,154 +301,25 @@ object BrotherMatrizesAccountService {
                 .signOut()
         }
 
-    suspend fun syncDevices(
-        localDevice:
-            LocalDeviceIdentity
-    ): Result<List<AccountDevice>> =
+    suspend fun syncDevices(localDevice: LocalDeviceIdentity): Result<List<AccountDevice>> =
         runCatching {
-            val session =
-                client.auth
-                    .currentSessionOrNull()
-                    ?: error(
-                        "Entre na sua conta primeiro."
-                    )
-
-            val user =
-                session.user
-                    ?: error(
-                        "Usuário não encontrado."
-                    )
-
-            val now =
-                Instant
-                    .now()
-                    .toString()
-
-            val existing =
-                client.from(
-                    "brother_matrizes_devices"
-                ).select {
-                    filter {
-                        eq(
-                            "user_id",
-                            user.id
-                        )
-
-                        eq(
-                            "device_id",
-                            localDevice
-                                .deviceId
-                        )
-                    }
-                }
-                    .decodeList<
-                        BrotherMatrizesDeviceRow
-                    >()
-                    .firstOrNull()
-
-            if (
-                existing ==
-                    null
-            ) {
-                client.from(
-                    "brother_matrizes_devices"
-                ).insert(
-                    BrotherMatrizesDeviceUpsert(
-                        userId =
-                            user.id,
-                        deviceId =
-                            localDevice
-                                .deviceId,
-                        deviceName =
-                            localDevice
-                                .deviceName,
-                        platform =
-                            "android",
-                        appVersion =
-                            BuildConfig
-                                .VERSION_NAME,
-                        lastSeenAt =
-                            now
-                    )
-                )
-            } else {
-                client.from(
-                    "brother_matrizes_devices"
-                ).update(
-                    {
-                        set(
-                            "device_name",
-                            localDevice
-                                .deviceName
-                        )
-
-                        set(
-                            "platform",
-                            "android"
-                        )
-
-                        set(
-                            "app_version",
-                            BuildConfig
-                                .VERSION_NAME
-                        )
-
-                        set(
-                            "last_seen_at",
-                            now
-                        )
-                    }
-                ) {
-                    filter {
-                        eq(
-                            "user_id",
-                            user.id
-                        )
-
-                        eq(
-                            "device_id",
-                            localDevice
-                                .deviceId
-                        )
-                    }
-                }
-            }
-
-            client.from(
-                "brother_matrizes_devices"
-            ).select {
-                filter {
-                    eq(
-                        "user_id",
-                        user.id
-                    )
-                }
-            }
-                .decodeList<
-                    BrotherMatrizesDeviceRow
-                >()
-                .sortedByDescending {
-                    it.lastSeenAt
-                }
-                .map {
-                    AccountDevice(
-                        deviceId =
-                            it.deviceId,
-                        deviceName =
-                            it.deviceName,
-                        platform =
-                            it.platform,
-                        appVersion =
-                            it.appVersion,
-                        lastSeenAt =
-                            it.lastSeenAt,
-                        isCurrent =
-                            it.deviceId ==
-                                localDevice
-                                    .deviceId
-                    )
-                }
+            val token = client.auth.currentSessionOrNull()?.accessToken
+                ?: error("Entre na sua conta primeiro.")
+            WordPressLicensingClient.syncDevices(token, localDevice)
         }
+
+    suspend fun activateTrial(): Result<AccountSnapshot> = runCatching {
+        val token = client.auth.currentSessionOrNull()?.accessToken
+            ?: error("Entre na sua conta primeiro.")
+        WordPressLicensingClient.trial(token)
+        currentAccount().getOrThrow() ?: error("Conta não encontrada.")
+    }
+
+    suspend fun openCheckout(planCode: String): Result<String> = runCatching {
+        val token = client.auth.currentSessionOrNull()?.accessToken
+            ?: error("Entre na sua conta primeiro.")
+        WordPressLicensingClient.checkout(token, planCode)
+    }
 
     private suspend fun accountFor(
         userId: String,
@@ -505,256 +327,13 @@ object BrotherMatrizesAccountService {
         authDisplayName: String? = null,
         authAvatarUrl: String? = null
     ): AccountSnapshot {
-        val profile =
-            client.from(
-                "brother_matrizes_profiles"
-            ).select {
-                filter {
-                    eq(
-                        "user_id",
-                        userId
-                    )
-                }
-            }
-                .decodeList<
-                    BrotherMatrizesProfileRow
-                >()
-                .firstOrNull()
-                ?: run {
-                    val fallbackName =
-                        authDisplayName
-                            ?.trim()
-                            ?.takeIf {
-                                it.length in
-                                    2..80
-                            }
-                            ?: email
-                                .substringBefore(
-                                    '@'
-                                )
-                                .take(
-                                    80
-                                )
-                                .ifBlank {
-                                    "Usuário Brother Matrizes"
-                                }
-
-                    client.from(
-                        "brother_matrizes_profiles"
-                    ).insert(
-                        BrotherMatrizesProfileUpsert(
-                            userId =
-                                userId,
-                            displayName =
-                                fallbackName,
-                            avatarUrl =
-                                authAvatarUrl
-                        )
-                    )
-
-                    client.from(
-                        "brother_matrizes_profiles"
-                    ).select {
-                        filter {
-                            eq(
-                                "user_id",
-                                userId
-                            )
-                        }
-                    }
-                        .decodeList<
-                            BrotherMatrizesProfileRow
-                        >()
-                        .firstOrNull()
-                        ?: error(
-                            "Não foi possível criar o perfil."
-                        )
-                }
-
-        val effectiveProfile =
-            if (
-                profile.avatarUrl
-                    .isNullOrBlank() &&
-                !authAvatarUrl
-                    .isNullOrBlank()
-            ) {
-                runCatching {
-                    client.from(
-                        "brother_matrizes_profiles"
-                    ).update(
-                        {
-                            set(
-                                "avatar_url",
-                                authAvatarUrl
-                            )
-                        }
-                    ) {
-                        filter {
-                            eq(
-                                "user_id",
-                                userId
-                            )
-                        }
-                    }
-
-                    profile.copy(
-                        avatarUrl =
-                            authAvatarUrl
-                    )
-                }.getOrDefault(
-                    profile
-                )
-            } else {
-                profile
-            }
-
-        val subscription =
-            client.from(
-                "brother_matrizes_subscriptions"
-            ).select {
-                filter {
-                    eq(
-                        "user_id",
-                        userId
-                    )
-                }
-            }
-                .decodeList<
-                    BrotherMatrizesSubscriptionRow
-                >()
-                .firstOrNull()
-
-        val plans =
-            runCatching {
-                client.from(
-                    "brother_matrizes_plans"
-                ).select()
-                    .decodeList<
-                        BrotherMatrizesPlanRow
-                    >()
-                    .sortedBy {
-                        it.displayOrder
-                    }
-                    .map {
-                        AccountPlanOption(
-                            code =
-                                it.code,
-                            name =
-                                it.name,
-                            billingType =
-                                it.billingType,
-                            isPaid =
-                                it.isPaid,
-                            isLifetime =
-                                it.isLifetime,
-                            isPromotional =
-                                it.isPromotional,
-                            description =
-                                it.description,
-                            priceCents =
-                                it.priceCents,
-                            currency =
-                                it.currency,
-                            active =
-                                it.active,
-                            availableFrom =
-                                it.availableFrom,
-                            availableUntil =
-                                it.availableUntil,
-                            displayOrder =
-                                it.displayOrder
-                        )
-                    }
-            }.getOrElse {
-                emptyList()
-            }
-
-        val history =
-            runCatching {
-                client.from(
-                    "brother_matrizes_subscription_history"
-                ).select {
-                    filter {
-                        eq(
-                            "user_id",
-                            userId
-                        )
-                    }
-                }
-                    .decodeList<
-                        BrotherMatrizesSubscriptionHistoryRow
-                    >()
-                    .sortedByDescending {
-                        it.occurredAt
-                    }
-                    .take(
-                        20
-                    )
-                    .map {
-                        AccountSubscriptionEvent(
-                            planCode =
-                                it.planCode,
-                            eventType =
-                                it.eventType,
-                            status =
-                                it.status,
-                            amountCents =
-                                it.amountCents,
-                            currency =
-                                it.currency,
-                            provider =
-                                it.provider,
-                            occurredAt =
-                                it.occurredAt
-                        )
-                    }
-            }.getOrElse {
-                emptyList()
-            }
-
-        return AccountSnapshot(
-            userId =
-                userId,
-            email =
-                email,
-            displayName =
-                effectiveProfile
-                    .displayName,
-            avatarUrl =
-                effectiveProfile
-                    .avatarUrl,
-            planCode =
-                subscription
-                    ?.planCode
-                    ?: "free",
-            subscriptionStatus =
-                subscription
-                    ?.status
-                    ?: "active",
-            currentPeriodEnd =
-                subscription
-                    ?.currentPeriodEnd,
-            purchasedAt =
-                subscription
-                    ?.purchasedAt,
-            purchasePriceCents =
-                subscription
-                    ?.purchasePriceCents,
-            currency =
-                subscription
-                    ?.currency
-                    ?: "BRL",
-            provider =
-                subscription
-                    ?.provider,
-            manageUrl =
-                subscription
-                    ?.manageUrl,
-            availablePlans =
-                plans,
-            subscriptionHistory =
-                history
-        )
+        val token = client.auth.currentSessionOrNull()?.accessToken
+            ?: error("Sessão Google indisponível.")
+        // WordPress is the only commercial source; never query the legacy
+        // Supabase subscription, profile, device or pricing tables.
+        return WordPressLicensingClient.account(
+            userId, email, token, authDisplayName, authAvatarUrl
+        ).let { it }
     }
 
     const val AUTH_SCHEME =
