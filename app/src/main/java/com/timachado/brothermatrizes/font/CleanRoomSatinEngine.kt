@@ -188,29 +188,11 @@ internal object CleanRoomSatinEngine {
         }
         val result = mutableListOf<List<Rail>>()
         var duplicates = 0
-        var previous: V? = null
-        val remaining = routes.map { it.toMutableList() }.toMutableList()
-        while (remaining.isNotEmpty()) {
-            val start = previous
-            val routeIndex = if (start == null) {
-                remaining.indices.minByOrNull { i ->
-                    // Begin at the lower/leftmost physical beginning of the first glyph.
-                    val p = remaining[i].first()
-                    p.x * 0.6f - p.y * 0.4f
-                } ?: 0
-            } else {
-                remaining.indices.minByOrNull { i ->
-                    minOf(
-                        length(start, remaining[i].first()),
-                        length(start, remaining[i].last())
-                    )
-                } ?: 0
-            }
-            val route = remaining.removeAt(routeIndex)
-            if (start != null &&
-                length(start, route.last()) < length(start, route.first())) {
-                route.reverse()
-            }
+        // Planejamento determinístico por continuidade do traço e não por
+        // distância isolada: termina a ramificação corrente antes de trocar
+        // para uma área distante que exigiria retorno visual.
+        val orderedRoutes = orderSkeletonRoutes(routes, raster.step)
+        orderedRoutes.forEach { route ->
             val interpolated = resample(route, pitch)
             var batch = mutableListOf<Rail>()
             fun endBatch() {
@@ -233,7 +215,6 @@ internal object CleanRoomSatinEngine {
                 }
             }
             endBatch()
-            previous = route.lastOrNull()
         }
         // Disconnected dot components of imported fonts can collapse to a
         // single skeleton pixel. Such a pixel creates only one Satin bar and
@@ -248,9 +229,72 @@ internal object CleanRoomSatinEngine {
                         middle.y in dot.top..dot.bottom
                 }
             }
-            result.addAll(restoredDots.map { it.rails })
+            // Um pingo superior é finalizado ANTES de descer a haste:
+            // nunca voltar para o topo depois de concluir a letra.
+            result.addAll(0, restoredDots.map { it.rails })
         }
-        return PlannedGlyph(result, routes.sumOf { it.size }, duplicates)
+        return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
+    }
+
+    internal fun orderSkeletonRoutes(
+        routes: List<List<V>>,
+        gridStep: Float
+    ): List<List<V>> {
+        val pending = routes.filter { it.size >= 2 }.toMutableList()
+        if (pending.isEmpty()) return emptyList()
+        val ordered = mutableListOf<List<V>>()
+        var previousEnd: V? = null
+        var previousDirection: V? = null
+        val joinTolerance = max(2f, gridStep * 1.8f)
+
+        while (pending.isNotEmpty()) {
+            var bestIndex = 0
+            var bestReversed = false
+            var bestScore = Float.POSITIVE_INFINITY
+            for (i in pending.indices) {
+                val segment = pending[i]
+                for (reversed in listOf(false, true)) {
+                    val entry = if (reversed) segment.last() else segment.first()
+                    val exit = if (reversed) segment.first() else segment.last()
+                    val score = if (previousEnd == null) {
+                        // Começar pela extremidade esquerda mais baixa.
+                        entry.x * 3f - entry.y * 0.08f
+                    } else {
+                        val gap = length(previousEnd, entry)
+                        if (gap <= joinTolerance) {
+                            val next = if (reversed) segment[segment.lastIndex - 1]
+                                else segment[1]
+                            val direction = normalized(V(next.x - entry.x, next.y - entry.y))
+                            val alignment = if (previousDirection != null &&
+                                direction != null) {
+                                (previousDirection.x * direction.x +
+                                    previousDirection.y * direction.y).coerceIn(-1f, 1f)
+                            } else 0f
+                            // Preferir seguir reto no mesmo ramo do esqueleto.
+                            gap * 2f + (1f - alignment) * joinTolerance * 3f
+                        } else {
+                            // Um salto separa ramos desconectados. Visitar
+                            // primeiro o que resta à esquerda, sem costurar
+                            // linhas de ligação ou regressos longos.
+                            val back = max(0f, previousEnd.x - entry.x)
+                            10000f + entry.x * 2f + gap * 0.5f + back * 3f
+                        }
+                    }
+                    if (score < bestScore) {
+                        bestScore = score
+                        bestIndex = i
+                        bestReversed = reversed
+                    }
+                }
+            }
+            val selected = pending.removeAt(bestIndex)
+            val oriented = if (bestReversed) selected.asReversed() else selected
+            ordered += oriented
+            previousEnd = oriented.last()
+            val last = oriented[oriented.lastIndex - 1]
+            previousDirection = normalized(V(previousEnd.x - last.x, previousEnd.y - last.y))
+        }
+        return ordered
     }
 
     private data class DotRails(
@@ -377,7 +421,9 @@ internal object CleanRoomSatinEngine {
         val maxX = points.maxOf { it.x }
         val minY = points.minOf { it.y }
         val maxY = points.maxOf { it.y }
-        var step = max(1.5f, densityMm * 10f * 0.55f)
+        // No bastidor pequeno os detalhes cursivos podem ter menos de
+        // 0,25 mm: evitar que a amostragem grosseira quebre o contorno.
+        var step = max(0.85f, densityMm * 10f * 0.34f)
         var width = ceil((maxX - minX) / step).toInt() + 5
         var height = ceil((maxY - minY) / step).toInt() + 5
         while (width.toLong() * height.toLong() > 350_000) {
@@ -563,14 +609,31 @@ internal object CleanRoomSatinEngine {
             val yi = ((y - mask.top) / mask.step).roundToInt()
             return mask.inside(xi, yi)
         }
-        if (!insideAt(center.x, center.y)) return null
+        val effectiveCenter = if (insideAt(center.x, center.y)) {
+            center
+        } else {
+            // Chord interpolation at a sharp bend can fall just outside a
+            // narrow glyph. Snap at most one mask pixel, never bridge holes.
+            val cx = ((center.x - mask.left) / mask.step).roundToInt()
+            val cy = ((center.y - mask.top) / mask.step).roundToInt()
+            val nearest = (-1..1).flatMap { dy ->
+                (-1..1).map { dx -> cx + dx to cy + dy }
+            }.filter { (x, y) -> mask.inside(x, y) }
+                .minByOrNull { (x, y) ->
+                    val px = mask.left + x * mask.step
+                    val py = mask.top + y * mask.step
+                    length(center, V(px, py))
+                } ?: return null
+            V(mask.left + nearest.first * mask.step,
+                mask.top + nearest.second * mask.step)
+        }
         val maxExtent = 35f // 7 mm full satin width limit
         fun edge(sign: Float): Float {
             var d = 0f
             while (d <= maxExtent &&
                 insideAt(
-                    center.x + normal.x * d * sign,
-                    center.y + normal.y * d * sign
+                    effectiveCenter.x + normal.x * d * sign,
+                    effectiveCenter.y + normal.y * d * sign
                 )) d += sampling
             return (d - sampling).coerceAtLeast(0f)
         }
@@ -578,10 +641,10 @@ internal object CleanRoomSatinEngine {
         val b = edge(1f)
         if (a + b < 3f) return null
         return Rail(
-            V(center.x - normal.x * (a + pullUnits),
-                center.y - normal.y * (a + pullUnits)),
-            V(center.x + normal.x * (b + pullUnits),
-                center.y + normal.y * (b + pullUnits))
+            V(effectiveCenter.x - normal.x * (a + pullUnits),
+                effectiveCenter.y - normal.y * (a + pullUnits)),
+            V(effectiveCenter.x + normal.x * (b + pullUnits),
+                effectiveCenter.y + normal.y * (b + pullUnits))
         )
     }
 
@@ -628,15 +691,10 @@ internal object CleanRoomSatinEngine {
         }
         fun sewGlyph(paths: List<List<Rail>>, underlay: SatinUnderlayMode) {
             var anchored = false
-            var previous: V? = needle
-            paths.forEach { original ->
-                if (original.isEmpty()) return@forEach
-                val first = original.first().middle
-                val last = original.last().middle
-                val rows = if (previous != null &&
-                    length(previous!!, last) < length(previous!!, first)) {
-                    original.asReversed()
-                } else original
+            paths.forEach { rows ->
+                if (rows.isEmpty()) return@forEach
+                // Orientação já calculada pelo planejador de traços.
+                // Não inverter um ramo novamente por proximidade física.
                 val begin = rows.first().middle
                 val doUnderlay = underlay != SatinUnderlayMode.NONE && rows.size >= 6
                 if (doUnderlay) {
@@ -649,7 +707,7 @@ internal object CleanRoomSatinEngine {
                 val cover = if (doUnderlay) rows.asReversed() else rows
                 val entry = cover.first().a
                 val lastPos = needle
-                if (lastPos == null || length(lastPos, entry) > 16f) jump(entry)
+                if (lastPos == null || length(lastPos, entry) > 4f) jump(entry)
                 else sew(entry)
                 if (!anchored) {
                     // One short tie-in for this glyph, not every medial branch.
@@ -664,7 +722,6 @@ internal object CleanRoomSatinEngine {
                     sew(rail.a)
                     sew(rail.b)
                 }
-                previous = needle
             }
             // There are deliberately NO per-path tie-off round trips.
             // The machine-facing finishing policy handles last tie/trim.
