@@ -370,6 +370,18 @@ internal object CleanRoomSatinEngine {
                 if (Edge.of(node, next) !in used) walk(node, next)
             }
         }
+        // Pontos e ilhas pequenos (como o pingo do i) afinam ate
+        // um unico pixel e nao possuem arestas. Eles tambem precisam
+        // gerar preenchimento, sem serem descartados.
+        nodes.filter { neighbors(it).isEmpty() }.forEach { lone ->
+            val p = raster.point(lone)
+            val half = raster.step * 0.60f
+            paths += listOf(
+                V(p.x, p.y - half),
+                p,
+                V(p.x, p.y + half)
+            )
+        }
         return paths
     }
 
