@@ -74,7 +74,7 @@ object ImportedFontMatrixGenerator {
             options.specialStitchMode ==
                 null
         ) {
-            PeDesignImportedFontEngine
+            CleanRoomSatinEngine
                 .generate(
                     font =
                         font,
