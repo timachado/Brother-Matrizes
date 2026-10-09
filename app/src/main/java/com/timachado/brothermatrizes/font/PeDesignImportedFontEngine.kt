@@ -8067,6 +8067,29 @@ internal object PeDesignImportedFontEngine {
         )?.x
     }
 
+    internal fun debugOverlappingSatinRails(): Triple<Int, Int, Int> {
+        fun column(offset: Float, yOffset: Float = 0f): SatinColumn =
+            SatinColumn(
+                (0..24).map { step ->
+                    val x = step * 4f + offset
+                    SatinRow(
+                        FPoint(x, yOffset),
+                        FPoint(x, yOffset + 20f)
+                    )
+                }.toMutableList()
+            )
+        val duplicates = listOf(column(0f), column(0.7f))
+        val unique = suppressOverlappingSatinColumns(duplicates, 0.4f)
+        val neighbor = suppressOverlappingSatinColumns(
+            listOf(column(0f), column(0f, 33f)), 0.4f
+        )
+        return Triple(
+            duplicates.sumOf { it.rows.size },
+            unique.sumOf { it.rows.size },
+            neighbor.sumOf { it.rows.size }
+        )
+    }
+
     internal fun debugIncompleteHandTraceStillSewsWholeStroke(): List<EmbroideryPoint> {
         val glyph = Polygon(listOf(
             FPoint(0f, 0f), FPoint(120f, 0f),
