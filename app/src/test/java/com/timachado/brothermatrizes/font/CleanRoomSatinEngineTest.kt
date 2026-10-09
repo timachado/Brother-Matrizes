@@ -57,6 +57,20 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun isolatedDotOfLetterIIsNotOmitted() {
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(0f, 0f, 20f, 75f),
+                rectangle(5f, -33f, 10f, 10f)
+            ), densityMm = 0.4f
+        )
+        val rails = glyph.rails.flatten()
+        assertTrue("Haste do i mantida.", rails.any { it.middle.y > 0f })
+        assertTrue("Pingo isolado do i precisa ser preenchido.",
+            rails.any { it.middle.y < -22f })
+    }
+
+    @Test
     fun underlayAddsOneRunNotMultipleFullWidthLayers() {
         val glyph = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 20f, 160f)), densityMm = 0.4f
