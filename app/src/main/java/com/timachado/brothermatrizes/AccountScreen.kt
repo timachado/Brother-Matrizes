@@ -96,6 +96,8 @@ fun AccountScreen(
         displayName: String
     ) -> Unit,
     onRefresh: () -> Unit,
+    onActivateTrial: () -> Unit,
+    onCheckout: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     Column(
@@ -280,10 +282,10 @@ fun AccountScreen(
                     account,
                 onSaveName =
                     onSaveName,
-                onRefresh =
-                    onRefresh,
-                onSignOut =
-                    onSignOut
+                onRefresh = onRefresh,
+                onActivateTrial = onActivateTrial,
+                onCheckout = onCheckout,
+                onSignOut = onSignOut
             )
         }
         }
@@ -805,6 +807,8 @@ private fun SignedInAccount(
         displayName: String
     ) -> Unit,
     onRefresh: () -> Unit,
+    onActivateTrial: () -> Unit,
+    onCheckout: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     val context =
@@ -981,6 +985,61 @@ private fun SignedInAccount(
                         10.dp
                     )
                 )
+
+                if (!account.commercialConfigured) {
+                    Text(
+                        "Seu login Google está conectado. A consulta comercial WordPress " +
+                            "não está disponível neste momento; nenhum plano foi cancelado.",
+                        color = FioTextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                } else {
+                    when (account.trialStatus) {
+                        "eligible" -> {
+                            Button(
+                                onClick = onActivateTrial,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Ativar 7 dias grátis Pro — sem cartão") }
+                            Spacer(Modifier.height(10.dp))
+                        }
+                        "active" -> {
+                            Text(
+                                "Teste Pro ativo • " +
+                                    ((account.trialRemainingSeconds + 86399L) / 86400L) +
+                                    " dia(s) restante(s)",
+                                color = FioGold,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
+                        "expired" -> {
+                            Text(
+                                "SEU TESTE GRATUITO TERMINOU. Seus projetos e fontes " +
+                                    "permanecem salvos. Assine o Pro ou continue gratuitamente.",
+                                color = FioTextMuted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+                        }
+                    }
+                    if (account.quotaRemaining.isNotEmpty()) {
+                        val titles = mapOf(
+                            "create_name" to "Criar nomes",
+                            "export_matrix" to "Exportar matrizes",
+                            "import_font" to "Importar fontes",
+                            "import_matrix" to "Importar matrizes"
+                        )
+                        Text("Cotas gratuitas restantes", color = FioText,
+                            fontWeight = FontWeight.SemiBold)
+                        account.quotaRemaining.forEach { (key, remaining) ->
+                            Text("${titles[key] ?: key}: $remaining",
+                                color = FioTextMuted, fontSize = 11.sp)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                }
 
                 val currentPlan =
                     account.currentPlan
@@ -1352,11 +1411,9 @@ private fun SignedInAccount(
                                 index,
                                 plan ->
                             PlanSummary(
-                                plan =
-                                    plan,
-                                current =
-                                    plan.code ==
-                                        account.planCode
+                                plan = plan,
+                                current = plan.code == account.planCode,
+                                onCheckout = onCheckout
                             )
 
                             if (
@@ -1851,7 +1908,8 @@ private fun AboutBrotherMatrizesCard() {
 @Composable
 private fun PlanSummary(
     plan: AccountPlanOption,
-    current: Boolean
+    current: Boolean,
+    onCheckout: (String) -> Unit
 ) {
     Column(
         Modifier
@@ -1987,6 +2045,19 @@ private fun PlanSummary(
                 fontSize =
                     10.sp
             )
+        }
+        if (plan.isPaid && plan.active && !current) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { onCheckout(plan.code) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (plan.isLifetime) "Comprar licença vitalícia"
+                    else "Assinar Pro / Renovar",
+                    color = FioGold
+                )
+            }
         }
     }
 }
