@@ -85,7 +85,9 @@ internal object CleanRoomSatinEngine {
             "Formato de matriz não suportado."
         }
         val heightUnits = options.heightMm * 10f
-        val spacing = heightUnits * 0.04f + options.spacingMm * 10f
+        // Não inserir espaçamento automático: fontes cursivas dependem
+        // de encaixe e kerning para manter suas ligações entre letras.
+        val spacing = options.spacingMm * 10f
         val outlines = AndroidSkiaOutlineExtractor.extract(
             font = font,
             text = text,
@@ -256,7 +258,10 @@ internal object CleanRoomSatinEngine {
         val mask = BooleanArray(width * height)
         for (y in 1 until height - 1) {
             val rowY = top + y * step
-            val intersections = mutableListOf<Float>()
+            // Contornos TrueType usam preenchimento WINDING (não paridade).
+            // EVEN_ODD pode apagar trechos onde hastes de uma fonte cursiva
+            // se sobrepõem, produzindo letras visivelmente "quebradas".
+            val intersections = mutableListOf<Pair<Float, Int>>()
             contours.forEach { polygon ->
                 if (polygon.size < 3) return@forEach
                 polygon.indices.forEach { i ->
@@ -264,16 +269,21 @@ internal object CleanRoomSatinEngine {
                     val b = polygon[(i + 1) % polygon.size]
                     if ((a.y <= rowY && b.y > rowY) ||
                         (b.y <= rowY && a.y > rowY)) {
-                        intersections += a.x +
+                        val x = a.x +
                             (rowY - a.y) * (b.x - a.x) / (b.y - a.y)
+                        val direction = if (b.y > a.y) 1 else -1
+                        intersections += x to direction
                     }
                 }
             }
-            intersections.sort()
-            for (i in 0 until intersections.size - 1 step 2) {
-                val from = max(1, ceil((intersections[i] - left) / step).toInt())
+            intersections.sortBy { it.first }
+            var winding = 0
+            for (i in 0 until intersections.lastIndex) {
+                winding += intersections[i].second
+                if (winding == 0) continue
+                val from = max(1, ceil((intersections[i].first - left) / step).toInt())
                 val to = minOf(width - 2,
-                    floor((intersections[i + 1] - left) / step).toInt())
+                    floor((intersections[i + 1].first - left) / step).toInt())
                 for (x in from..to) mask[y * width + x] = true
             }
         }
