@@ -431,6 +431,15 @@ internal object CleanRoomSatinEngine {
         )
     }
 
+    internal fun stitchPlannedGlyphForTest(
+        planned: PlannedGlyph,
+        underlay: SatinUnderlayMode = SatinUnderlayMode.NONE
+    ): List<EmbroideryPoint> {
+        val points = mutableListOf<EmbroideryPoint>()
+        Stitcher(points).sewGlyph(planned.rails, underlay)
+        return points
+    }
+
     private class Stitcher(val points: MutableList<EmbroideryPoint>) {
         private var needle: V? = null
         private fun command(p: V, cmd: StitchCommand) {
