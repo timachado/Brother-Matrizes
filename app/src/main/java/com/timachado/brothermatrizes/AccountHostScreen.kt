@@ -1,12 +1,19 @@
 package com.timachado.brothermatrizes
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,6 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.timachado.brothermatrizes.core.account.AccountErrorMessage
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.DeviceIdentity
@@ -23,6 +33,7 @@ import com.timachado.brothermatrizes.core.account.SignUpOutcome
 import com.timachado.brothermatrizes.core.settings.AppColorMode
 import com.timachado.brothermatrizes.core.network.NetworkStatus
 import com.timachado.brothermatrizes.ui.theme.FioGold
+import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +49,19 @@ fun AccountHostScreen(
 ) {
     val context =
         LocalContext.current
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumeRevision by remember { mutableStateOf(0) }
+
+    // Re-read restored Google session when returning from browser/background.
+    // Supabase temporarily reports Initializing while Android resumes.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeRevision++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val scope =
         rememberCoroutineScope()
@@ -56,6 +80,10 @@ fun AccountHostScreen(
     var loading by remember {
         mutableStateOf(true)
     }
+
+    // Null account is not necessarily logout until Supabase finishes loading
+    // from encrypted/persisted platform storage.
+    var accountVerified by remember { mutableStateOf(false) }
 
     var offline by remember {
         mutableStateOf(
@@ -125,7 +153,8 @@ fun AccountHostScreen(
     }
 
     LaunchedEffect(
-        refreshRequest
+        refreshRequest,
+        resumeRevision
     ) {
         val online =
             NetworkStatus
@@ -141,6 +170,7 @@ fun AccountHostScreen(
         ) {
             loading =
                 false
+            accountVerified = account != null
 
             snackbar.showSnackbar(
                 "Sem conexão com a internet. Sua sessão permanece no aparelho e será carregada quando a rede voltar."
@@ -170,6 +200,7 @@ fun AccountHostScreen(
                     withDevices(
                         current
                     )
+                accountVerified = true
             },
             onFailure = {
                     error ->
@@ -178,6 +209,7 @@ fun AccountHostScreen(
                         .isOnline(
                             context
                         )
+                accountVerified = account != null
 
                 snackbar
                     .showSnackbar(
@@ -223,6 +255,7 @@ fun AccountHostScreen(
                         withDevices(
                             current
                         )
+                    accountVerified = true
 
                     snackbar
                         .showSnackbar(
@@ -334,6 +367,7 @@ fun AccountHostScreen(
                         withDevices(
                             signedIn
                         )
+                    accountVerified = true
 
                     snackbar
                         .showSnackbar(
@@ -406,6 +440,7 @@ fun AccountHostScreen(
                                 withDevices(
                                     outcome.account
                                 )
+                            accountVerified = true
 
                             snackbar
                                 .showSnackbar(
@@ -420,6 +455,7 @@ fun AccountHostScreen(
 
                             account =
                                 null
+                            accountVerified = true
 
                             snackbar
                                 .showSnackbar(
@@ -537,6 +573,7 @@ fun AccountHostScreen(
 
                     account =
                         null
+                    accountVerified = true
 
                     snackbar
                         .showSnackbar(
@@ -561,6 +598,7 @@ fun AccountHostScreen(
     Box(
         Modifier.fillMaxSize()
     ) {
+        if (accountVerified || account != null) {
         AccountScreen(
             account =
                 account,
@@ -608,6 +646,26 @@ fun AccountHostScreen(
                 signOut()
             }
         )
+        } else {
+            // Never suggest the user has signed out on an initialization
+            // race or a temporary network / refresh failure.
+            Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    if (loading) "Restaurando sua conta Google…"
+                    else "Não foi possível confirmar sua sessão. Sua conta não foi desconectada.",
+                    color = FioTextMuted
+                )
+                if (!loading) {
+                    OutlinedButton(onClick = { refreshAccount() }) {
+                        Text("Tentar novamente", color = FioGold)
+                    }
+                }
+            }
+        }
 
         SnackbarHost(
             hostState =
