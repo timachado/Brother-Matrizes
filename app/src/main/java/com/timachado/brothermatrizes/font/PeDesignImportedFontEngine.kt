@@ -5767,6 +5767,27 @@ internal object PeDesignImportedFontEngine {
                     )
                 }
 
+                val nextGuidedColumn = if (guidedOrder) {
+                    remaining.getOrNull(1)
+                } else null
+                // Evitar arremate no meio do mesmo traco. O final de
+                // cada glifo ou componente desconectado continua sendo
+                // travado antes de cortar ou deslocar a linha.
+                val finishRow = if (includeUnderlay) {
+                    column.rows.first()
+                } else {
+                    column.rows.last()
+                }
+                val joinsNext = nextGuidedColumn != null && listOf(
+                    finishRow.a, finishRow.b
+                ).any { finish ->
+                    columnConnectsToAnchor(
+                        column = nextGuidedColumn,
+                        anchor = finish,
+                        polygons = polygons
+                    )
+                }
+
                 emitReferenceColumn(
                     column =
                         column,
@@ -5774,6 +5795,9 @@ internal object PeDesignImportedFontEngine {
                         includeUnderlay,
                     densityMm =
                         densityMm,
+                    emitStartLock = !guidedOrder || firstColumn ||
+                        !continuesCurrentObject,
+                    emitEndLock = !guidedOrder || !joinsNext,
                     insetFirstUnderlay =
                         insetFirstUnderlay,
                     visualAnchor =
@@ -6146,6 +6170,8 @@ internal object PeDesignImportedFontEngine {
             column: SatinColumn,
             includeUnderlay: Boolean,
             densityMm: Float,
+            emitStartLock: Boolean = true,
+            emitEndLock: Boolean = true,
             insetFirstUnderlay: Boolean =
                 false,
             visualAnchor: FPoint? =
@@ -6188,9 +6214,9 @@ internal object PeDesignImportedFontEngine {
                     rows
                 }
 
-            emitLock(
-                coverageRows.first()
-            )
+            if (emitStartLock) {
+                emitLock(coverageRows.first())
+            }
 
             coverageRows.forEach {
                     row ->
@@ -6203,9 +6229,9 @@ internal object PeDesignImportedFontEngine {
                 )
             }
 
-            emitLock(
-                coverageRows.last()
-            )
+            if (emitEndLock) {
+                emitLock(coverageRows.last())
+            }
         }
 
         private fun centerRunUnderlayPoints(
