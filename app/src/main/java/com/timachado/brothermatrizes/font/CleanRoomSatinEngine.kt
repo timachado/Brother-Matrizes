@@ -653,7 +653,10 @@ internal object CleanRoomSatinEngine {
                     effectiveCenter.x + normal.x * d * sign,
                     effectiveCenter.y + normal.y * d * sign
                 )) d += sampling
-            return (d - sampling).coerceAtLeast(0f)
+            // A última célula ocupada representa uma área finita, não
+            // um ponto sem largura. Metade da célula evita perder a
+            // cobertura em hastes cursivas de um único pixel.
+            return (d - sampling).coerceAtLeast(mask.step * 0.5f)
         }
         val a = edge(-1f)
         val b = edge(1f)
