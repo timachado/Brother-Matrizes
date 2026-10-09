@@ -2071,6 +2071,81 @@ internal object PeDesignImportedFontEngine {
     }
 
     /**
+     * Colunas oriundas de ramos diferentes do skeleton podem representar
+     * o MESMO tracado da fonte. O antigo emissor costurava ambas integralmente,
+     * endurecendo especialmente a primeira perna do M cursivo.
+     *
+     * Reserva cada linha transversal ja coberta e remove apenas os trechos
+     * quase coincidentes de colunas POSTERIORES. Nunca reduz a densidade
+     * longitudinal da primeira coluna nem altera a largura da pontada.
+     * Blocos nao redundantes de uma coluna parcial sao preservados.
+     */
+    private fun suppressOverlappingSatinColumns(
+        columns: List<SatinColumn>,
+        densityMm: Float
+    ): List<SatinColumn> {
+        if (columns.size < 2) return columns
+        val pitch = (densityMm * 10f).coerceAtLeast(2.5f)
+        val cell = pitch * 1.1f
+        data class ReservedRow(val point: FPoint, val dx: Float, val dy: Float, val width: Float)
+        val seen = HashMap<Pair<Int, Int>, MutableList<ReservedRow>>()
+        fun cellOf(p: FPoint): Pair<Int, Int> =
+            kotlin.math.floor(p.x / cell).toInt() to
+                kotlin.math.floor(p.y / cell).toInt()
+
+        fun direction(row: SatinRow): ReservedRow {
+            val dx = row.b.x - row.a.x
+            val dy = row.b.y - row.a.y
+            val length = hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(0.001f)
+            return ReservedRow(center(row), dx / length, dy / length, length)
+        }
+        fun hasPreviousCover(row: ReservedRow): Boolean {
+            val (x, y) = cellOf(row.point)
+            for (xx in x - 1..x + 1) {
+                for (yy in y - 1..y + 1) {
+                    for (prior in seen[xx to yy].orEmpty()) {
+                        val dot = kotlin.math.abs(
+                            row.dx * prior.dx + row.dy * prior.dy
+                        )
+                        val widthDifference = kotlin.math.abs(row.width - prior.width)
+                        if (
+                            dot >= 0.87f &&
+                            widthDifference <= maxOf(3f, row.width * 0.35f) &&
+                            distance(row.point, prior.point) <= pitch * 1.1f
+                        ) return true
+                    }
+                }
+            }
+            return false
+        }
+        val distinct = mutableListOf<SatinColumn>()
+        columns.forEach { column ->
+            val keptForReservation = mutableListOf<ReservedRow>()
+            var segment = mutableListOf<SatinRow>()
+            fun finish() {
+                if (segment.size >= 2) distinct += SatinColumn(segment)
+                segment = mutableListOf()
+            }
+            column.rows.forEach { row ->
+                val reserved = direction(row)
+                if (hasPreviousCover(reserved)) {
+                    finish()
+                } else {
+                    segment += row
+                    keptForReservation += reserved
+                }
+            }
+            finish()
+            // Commit so uma vez por coluna: rows adjacentes da MESMA coluna
+            // devem manter pitch normal, mesmo que estejam proximas.
+            keptForReservation.forEach { reserved ->
+                seen.getOrPut(cellOf(reserved.point)) { mutableListOf() }.add(reserved)
+            }
+        }
+        return distinct
+    }
+
+    /**
      * A forma da fonte e a unica autoridade para COBERTURA Satin. Os caminhos
      * anotados pelo usuario controlam apenas a sequencia dos tracos.
      *
@@ -2163,10 +2238,18 @@ internal object PeDesignImportedFontEngine {
                     .thenBy { it.third }
             ).map { it.first }.toMutableList()
 
-            if (firstGlyph && ordered.isNotEmpty()) {
+            val nonOverlapping = suppressOverlappingSatinColumns(
+                ordered,
+                densityMm
+            ).toMutableList()
+            require(nonOverlapping.isNotEmpty()) {
+                "Nao restaram colunas Satin validas na letra " + (glyphIndex + 1)
+            }
+
+            if (firstGlyph && nonOverlapping.isNotEmpty()) {
                 // A primeira regiao parte do inicio marcado, nao de um
                 // segmento aleatorio do esqueleto.
-                val chosen = ordered.minBy { column ->
+                val chosen = nonOverlapping.minBy { column ->
                     column.rows.minOf { row ->
                         minOf(
                             distance(start, center(row)),
@@ -2175,8 +2258,8 @@ internal object PeDesignImportedFontEngine {
                         )
                     }
                 }
-                ordered.remove(chosen)
-                ordered.add(0, chosen)
+                nonOverlapping.remove(chosen)
+                nonOverlapping.add(0, chosen)
             }
 
             if (firstGlyph) {
@@ -2185,7 +2268,7 @@ internal object PeDesignImportedFontEngine {
                 val firstNeedle = if (pointInsidePolygons(start, polygons)) {
                     start
                 } else {
-                    ordered.first().rows.minBy { distance(start, center(it)) }
+                    nonOverlapping.first().rows.minBy { distance(start, center(it)) }
                         .let(::center)
                 }
                 emitter.guidedFirstStitch(firstNeedle)
@@ -2193,7 +2276,7 @@ internal object PeDesignImportedFontEngine {
             }
 
             emitter.emitGlyph(
-                columns = ordered,
+                columns = nonOverlapping,
                 polygons = polygons,
                 startHint = if (glyphIndex == 0) start else null,
                 underlayMode = underlayMode,
@@ -5511,8 +5594,14 @@ internal object PeDesignImportedFontEngine {
                     selected.rows.size >=
                         4 &&
                     (
-                        guidedOrder && firstColumn ||
-                        !continuesCurrentObject
+                        if (guidedOrder) {
+                            // O centro do glifo deve receber underlay UMA vez.
+                            // Ramos adicionais do skeleton nao podem voltar
+                            // a adensar o mesmo tecido com outra passada.
+                            firstColumn
+                        } else {
+                            !continuesCurrentObject
+                        }
                     )
 
                 val anchor =
