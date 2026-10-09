@@ -90,4 +90,28 @@ class FeatureAccessTest {
             )
         )
     }
+    @Test
+    fun wordpressTrialIsTimeBoundAndNotPurchased() {
+        val activeTrial = account("trial", "active", "2099-12-31T23:59:59Z")
+        assertTrue(activeTrial.canUse(BrotherMatrizesFeature.PRO_ONLY))
+        assertFalse(activeTrial.isPaid)
+        assertFalse(
+            account("trial", "active", "2020-01-01T00:00:00Z")
+                .canUse(BrotherMatrizesFeature.PRO_ONLY)
+        )
+    }
+
+    @Test
+    fun wordpressLifetimeDoesNotNeedRecurringExpiry() {
+        val lifetime = account("pro_lifetime", "active")
+        assertTrue(lifetime.isLifetime)
+        assertTrue(lifetime.canUse(BrotherMatrizesFeature.PRO_ONLY))
+        assertTrue(account("pro_lifetime_launch", "active").isLaunchLifetime)
+    }
+
+    @Test
+    fun unknownWordpressLicenseDoesNotGrantPro() {
+        assertFalse(account("free", "unavailable").canUse(BrotherMatrizesFeature.PRO_ONLY))
+    }
+
 }
