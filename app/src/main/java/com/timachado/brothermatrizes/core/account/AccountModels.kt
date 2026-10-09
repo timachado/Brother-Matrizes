@@ -197,13 +197,9 @@ data class AccountSnapshot(
 
     val isPaid: Boolean
         get() =
-            currentPlan
-                ?.isPaid ==
-                true ||
-                planCode
-                    .trim()
-                    .lowercase() !=
-                    "free"
+            planCode.trim().lowercase() != "trial" &&
+                (currentPlan?.isPaid == true ||
+                    planCode.trim().lowercase() != "free")
 
     val isLifetime: Boolean
         get() =
@@ -215,7 +211,9 @@ data class AccountSnapshot(
                     .lowercase() in
                     setOf(
                         "lifetime",
-                        "lifetime_launch"
+                        "lifetime_launch",
+                        "pro_lifetime",
+                        "pro_lifetime_launch"
                     )
 
     val isLaunchLifetime: Boolean
@@ -225,7 +223,7 @@ data class AccountSnapshot(
                 true ||
                 planCode
                     .equals(
-                        "lifetime_launch",
+                        "pro_lifetime_launch",
                         ignoreCase =
                             true
                     )
@@ -243,12 +241,15 @@ data class AccountSnapshot(
     // button, price display or a user-editable profile field.
     val hasProAccess: Boolean
         get() {
-            if (!isPaid || !isSubscriptionUsable) return false
-            if (isLifetime) return true
+            if (!isSubscriptionUsable) return false
             val expiry = currentPeriodEnd
                 ?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                ?: return false
-            return expiry.isAfter(Instant.now())
+            if (planCode.trim().lowercase() == "trial") {
+                return expiry?.isAfter(Instant.now()) == true
+            }
+            if (!isPaid) return false
+            if (isLifetime) return true
+            return expiry?.isAfter(Instant.now()) == true
         }
 
     fun canUse(
