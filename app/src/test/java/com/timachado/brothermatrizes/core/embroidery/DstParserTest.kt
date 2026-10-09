@@ -55,7 +55,7 @@ class DstParserTest {
     @Test
     fun decodesAllBalancedTernaryWeightsWithoutMisclassifyingStitches() {
         val header = ByteArray(512) { 0x20 }
-        "LA:DST_BITS\\r".toByteArray(Charsets.US_ASCII).copyInto(header)
+        "LA:DST_BITS\r".toByteArray(Charsets.US_ASCII).copyInto(header)
         val body = byteArrayOf(
             0xA0.toByte(), 0xA0.toByte(), 0x23, // Y +1+9+3+27+81 => -121 (Y interno)
             0x50, 0x50, 0x13, // Y -1-9-3-27-81 => +121
@@ -82,7 +82,7 @@ class DstParserTest {
     @Test
     fun dstControlFlagsDistinguishJumpColorChangeSequinAndEnd() {
         val header = ByteArray(512) { 0x20 }
-        "LA:CONTROL\\r".toByteArray(Charsets.US_ASCII).copyInto(header)
+        "LA:CONTROL\r".toByteArray(Charsets.US_ASCII).copyInto(header)
         val body = byteArrayOf(
             0x01, 0x00, 0x03, // Stitch x=+1
             0x01, 0x00, 0x83.toByte(), // Jump x=+1
