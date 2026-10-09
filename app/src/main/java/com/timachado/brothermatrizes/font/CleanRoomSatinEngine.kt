@@ -242,7 +242,7 @@ internal object CleanRoomSatinEngine {
         val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm)
         if (restoredDots.isNotEmpty()) {
             result.removeAll { path ->
-                val middle = path.firstOrNull()?.firstOrNull()?.middle
+                val middle = path.firstOrNull()?.middle
                 middle != null && restoredDots.any { dot ->
                     middle.x in dot.left..dot.right &&
                         middle.y in dot.top..dot.bottom
