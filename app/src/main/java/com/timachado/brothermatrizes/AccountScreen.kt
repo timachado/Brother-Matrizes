@@ -158,6 +158,16 @@ fun AccountScreen(
             }
         }
 
+        // Scroll all account content together so the preference card cannot
+        // consume a fixed-height strip while subscriptions scroll beneath it.
+        // The title/back row stays visible, but settings and account cards are
+        // now part of one uninterrupted viewport and scrolling container.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
         if (
             offline
         ) {
@@ -275,6 +285,7 @@ fun AccountScreen(
                 onSignOut =
                     onSignOut
             )
+        }
         }
     }
 }
@@ -478,10 +489,7 @@ private fun SignedOutAccount(
 
     Column(
         Modifier
-            .fillMaxSize()
-            .verticalScroll(
-                rememberScrollState()
-            )
+            .fillMaxWidth()
             .padding(
                 top =
                     18.dp,
@@ -813,10 +821,7 @@ private fun SignedInAccount(
 
     Column(
         Modifier
-            .fillMaxSize()
-            .verticalScroll(
-                rememberScrollState()
-            )
+            .fillMaxWidth()
             .padding(
                 top =
                     18.dp,
