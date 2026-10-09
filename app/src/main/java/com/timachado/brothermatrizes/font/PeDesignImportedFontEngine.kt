@@ -8094,6 +8094,60 @@ internal object PeDesignImportedFontEngine {
         )?.x
     }
 
+    internal fun debugRevisitedSatinLeg(): Triple<Int, Int, Int> {
+        val rails = (0..24).map { index ->
+            val x = index * 4f
+            SatinRow(FPoint(x, 0f), FPoint(x, 24f))
+        }
+        val repeatedBackward = rails.asReversed().map { row ->
+            SatinRow(
+                FPoint(row.b.x + 0.6f, row.b.y),
+                FPoint(row.a.x + 0.6f, row.a.y)
+            )
+        }
+        val legitimateParallel = rails.map { row ->
+            SatinRow(
+                FPoint(row.a.x, row.a.y + 32f),
+                FPoint(row.b.x, row.b.y + 32f)
+            )
+        }
+        val inputs = listOf(
+            SatinColumn((rails + repeatedBackward).toMutableList()),
+            SatinColumn(legitimateParallel.toMutableList())
+        )
+        val deduped = suppressOverlappingSatinColumns(inputs, 0.4f)
+        return Triple(
+            inputs.sumOf { it.rows.size },
+            deduped.sumOf { it.rows.size },
+            deduped.size
+        )
+    }
+
+    internal fun debugRepeatedTieStitchesOnConnectedColumns(): Pair<Int, Int> {
+        val polygons = listOf(Polygon(listOf(
+            FPoint(-6f, -5f), FPoint(30f, -5f),
+            FPoint(30f, 26f), FPoint(-6f, 26f)
+        )))
+        fun satinColumn(offsetX: Float): SatinColumn =
+            SatinColumn((0..3).map { row ->
+                val x = offsetX + row * 4f
+                SatinRow(FPoint(x, 0f), FPoint(x, 20f))
+            }.toMutableList())
+        fun emitted(guided: Boolean): Int {
+            val output = mutableListOf<EmbroideryPoint>()
+            SatinEmitter(output).emitGlyph(
+                columns = listOf(satinColumn(0f), satinColumn(16f)),
+                polygons = polygons,
+                startHint = null,
+                underlayMode = SatinUnderlayMode.NONE,
+                densityMm = 0.4f,
+                guidedOrder = guided
+            )
+            return output.count { it.command == StitchCommand.STITCH }
+        }
+        return emitted(false) to emitted(true)
+    }
+
     internal fun debugOverlappingSatinRails(): Triple<Int, Int, Int> {
         fun column(offset: Float, yOffset: Float = 0f): SatinColumn =
             SatinColumn(
