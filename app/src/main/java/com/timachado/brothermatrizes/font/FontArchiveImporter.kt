@@ -40,23 +40,27 @@ object FontArchiveImporter {
                     scanned++
                     require(scanned <= MAX_ENTRIES) { "ZIP com arquivos demais." }
                     val filename = if (entry.isDirectory) null else permittedEntryName(entry.name)
-                    if (filename != null) {
-                        val temp = File(cache, filename)
-                        var bytes = 0L
-                        temp.outputStream().buffered().use { output ->
-                            val buffer = ByteArray(16 * 1024)
-                            while (true) {
-                                val read = zip.read(buffer)
-                                if (read < 0) break
-                                bytes += read
-                                total += read
-                                require(bytes <= MAX_ENTRY_BYTES && total <= MAX_TOTAL_BYTES) {
-                                    "Fonte ou arquivo ZIP excede o limite seguro."
-                                }
-                                output.write(buffer, 0, read)
+                    val temp = filename?.let { File(cache, it) }
+                    var bytes = 0L
+                    // Bound decompression of *every* entry including skipped
+                    // content: closeEntry() alone could consume a ZIP bomb.
+                    temp?.outputStream()?.buffered().use { output ->
+                        val buffer = ByteArray(16 * 1024)
+                        while (true) {
+                            val read = zip.read(buffer)
+                            if (read < 0) break
+                            bytes += read
+                            total += read
+                            require(total <= MAX_TOTAL_BYTES &&
+                                (temp == null || bytes <= MAX_ENTRY_BYTES)) {
+                                "O arquivo ZIP ultrapassou o limite seguro."
                             }
+                            output?.write(buffer, 0, read)
                         }
-                        // Validation and deduplication are performed by ImportedFontStore.
+                    }
+                    if (temp != null) {
+                        // The existing importer checks the font signature,
+                        // Typeface parser, maximum size and SHA-256 hash.
                         val imported = ImportedFontStore.importFont(context, Uri.fromFile(temp))
                         imported.getOrNull()?.let { font ->
                             if (fonts.none { it.id == font.id }) fonts += font
