@@ -112,6 +112,44 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun branchesContinueForwardBeforeVisitingOtherPartsOfTheLetter() {
+        val ordered = CleanRoomSatinEngine.orderSkeletonRoutes(
+            listOf(
+                listOf(CleanRoomSatinEngine.V(0f, 0f), CleanRoomSatinEngine.V(30f, 0f)),
+                listOf(CleanRoomSatinEngine.V(30f, 0f), CleanRoomSatinEngine.V(60f, 0f)),
+                listOf(CleanRoomSatinEngine.V(60f, 0f), CleanRoomSatinEngine.V(90f, 0f)),
+                listOf(CleanRoomSatinEngine.V(30f, 0f), CleanRoomSatinEngine.V(30f, -30f))
+            ),
+            gridStep = 1.2f
+        )
+        assertEquals(4, ordered.size)
+        assertEquals(0f, ordered.first().first().x)
+        // Continue no mesmo segmento do traço (x=30 -> x=60), em vez
+        // de subir pelo ramo lateral logo após alcançar o entroncamento.
+        assertEquals(60f, ordered[1].last().x)
+        assertEquals(90f, ordered[2].last().x)
+    }
+
+    @Test
+    fun disconnectedBranchesUseJumpWithoutSewingLooseConnectors() {
+        val railA = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(0f, 0f), CleanRoomSatinEngine.V(6f, 0f)
+        )
+        val railB = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(17f, 0f), CleanRoomSatinEngine.V(23f, 0f)
+        )
+        val design = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+            CleanRoomSatinEngine.PlannedGlyph(
+                rails = listOf(listOf(railA), listOf(railB)),
+                sampledEdges = 2,
+                duplicateRailsDiscarded = 0
+            )
+        )
+        assertTrue("O motor deve saltar até o segundo ramo sem costurar ligação.",
+            design.any { it.command == StitchCommand.JUMP && it.xUnits == 17 })
+    }
+
+    @Test
     fun underlayAddsOneRunNotMultipleFullWidthLayers() {
         val glyph = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 20f, 160f)), densityMm = 0.4f
