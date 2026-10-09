@@ -400,8 +400,7 @@ fun CreateNameScreen(
                     fabricProfile =
                         fabricProfile,
                     rotationDegrees =
-                        rotationDegrees,
-                    guidedSatinRoute = null
+                        rotationDegrees
                 ),
             layoutMode =
                 layoutMode,
