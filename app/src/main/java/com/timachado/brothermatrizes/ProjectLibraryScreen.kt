@@ -76,7 +76,8 @@ fun ProjectLibraryScreen(
     onClearSent: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
-    onFonts: () -> Unit
+    onFonts: () -> Unit,
+    onSearchMatrices: () -> Unit
 ) {
     var section by remember {
         mutableStateOf(
@@ -283,6 +284,13 @@ fun ProjectLibraryScreen(
                     "Restaurar"
                 )
             }
+        }
+
+        OutlinedButton(
+            onClick = onSearchMatrices,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Buscar Matrizes no Telegram", color = FioGold)
         }
 
         Text(
