@@ -2084,65 +2084,66 @@ internal object PeDesignImportedFontEngine {
         columns: List<SatinColumn>,
         densityMm: Float
     ): List<SatinColumn> {
-        if (columns.size < 2) return columns
-        val pitch = (densityMm * 10f).coerceAtLeast(2.5f)
-        val cell = pitch * 1.1f
-        data class ReservedRow(val point: FPoint, val dx: Float, val dy: Float, val width: Float)
-        val seen = HashMap<Pair<Int, Int>, MutableList<ReservedRow>>()
-        fun cellOf(p: FPoint): Pair<Int, Int> =
-            kotlin.math.floor(p.x / cell).toInt() to
-                kotlin.math.floor(p.y / cell).toInt()
+        if (columns.isEmpty()) return emptyList()
 
-        fun direction(row: SatinRow): ReservedRow {
-            val dx = row.b.x - row.a.x
-            val dy = row.b.y - row.a.y
-            val length = hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(0.001f)
-            return ReservedRow(center(row), dx / length, dy / length, length)
-        }
-        fun hasPreviousCover(row: ReservedRow): Boolean {
-            val (x, y) = cellOf(row.point)
-            for (xx in x - 1..x + 1) {
-                for (yy in y - 1..y + 1) {
-                    for (prior in seen[xx to yy].orEmpty()) {
-                        val dot = kotlin.math.abs(
-                            row.dx * prior.dx + row.dy * prior.dy
-                        )
-                        val widthDifference = kotlin.math.abs(row.width - prior.width)
-                        if (
-                            dot >= 0.87f &&
-                            widthDifference <= maxOf(3f, row.width * 0.35f) &&
-                            distance(row.point, prior.point) <= pitch * 1.1f
-                        ) return true
-                    }
+        // Uma linha Satin e identificada pelas DUAS margens da letra,
+        // independentemente de sentido A/B. Proximidade so do centro
+        // nao basta: colunas vizinhas com pitch de 0,4 mm sao legitimas.
+        val pitch = (densityMm * 10f).coerceAtLeast(1.5f)
+        val tolerance = (pitch * 0.46f).coerceIn(0.9f, 1.9f)
+        val cellSize = (tolerance * 2.5f).coerceAtLeast(2.5f)
+        data class Rail(
+            val a: FPoint,
+            val b: FPoint,
+            val midpoint: FPoint
+        )
+        val seen = HashMap<Pair<Int, Int>, MutableList<Rail>>()
+        fun cellFor(point: FPoint) =
+            kotlin.math.floor(point.x / cellSize).toInt() to
+                kotlin.math.floor(point.y / cellSize).toInt()
+
+        fun isCovered(row: SatinRow): Boolean {
+            val middle = center(row)
+            val (cx, cy) = cellFor(middle)
+            for (x in cx - 1..cx + 1) for (y in cy - 1..cy + 1) {
+                for (prior in seen[x to y].orEmpty()) {
+                    if (distance(middle, prior.midpoint) > tolerance) continue
+                    val forward =
+                        distance(row.a, prior.a) <= tolerance &&
+                            distance(row.b, prior.b) <= tolerance
+                    val reverse =
+                        distance(row.a, prior.b) <= tolerance &&
+                            distance(row.b, prior.a) <= tolerance
+                    if (forward || reverse) return true
                 }
             }
             return false
         }
-        val distinct = mutableListOf<SatinColumn>()
+
+        val result = mutableListOf<SatinColumn>()
         columns.forEach { column ->
-            val keptForReservation = mutableListOf<ReservedRow>()
             var segment = mutableListOf<SatinRow>()
             fun finish() {
-                if (segment.size >= 2) distinct += SatinColumn(segment)
+                if (segment.size >= 2) result += SatinColumn(segment)
                 segment = mutableListOf()
             }
             column.rows.forEach { row ->
-                val reserved = direction(row)
-                if (hasPreviousCover(reserved)) {
+                if (isCovered(row)) {
+                    // Inclusive retornos dentro do MESMO eixo. Antes apenas
+                    // colunas distintas eram comparadas e um mesmo ramo
+                    // podia ser bordado duas/mais vezes.
                     finish()
                 } else {
                     segment += row
-                    keptForReservation += reserved
+                    val midpoint = center(row)
+                    seen.getOrPut(cellFor(midpoint)) { mutableListOf() }.add(
+                        Rail(row.a, row.b, midpoint)
+                    )
                 }
             }
             finish()
-            // Commit so uma vez por coluna: rows adjacentes da MESMA coluna
-            // devem manter pitch normal, mesmo que estejam proximas.
-            keptForReservation.forEach { reserved ->
-                seen.getOrPut(cellOf(reserved.point)) { mutableListOf() }.add(reserved)
-            }
         }
-        return distinct
+        return result
     }
 
     /**
