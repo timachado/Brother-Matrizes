@@ -137,6 +137,46 @@ data class AccountPlanOption(
     val displayOrder: Int
 )
 
+/**
+ * Display-only placeholders preserve the approved plan section when WordPress
+ * has not been configured or a request fails. They are never entitlements,
+ * orders or prices: all offers are disabled until fetched from WooCommerce.
+ */
+object AccountPlanCatalog {
+    fun forDisplay(serverPlans: List<AccountPlanOption>): List<AccountPlanOption> {
+        if (serverPlans.isNotEmpty()) {
+            return serverPlans.distinctBy { it.code }.sortedBy { it.displayOrder }
+        }
+        return listOf(
+            placeholder("free", "Gratuito", "free", false, 0),
+            placeholder("pro_monthly", "Pro Mensal", "monthly", false, 1),
+            placeholder("pro_yearly", "Pro Anual", "yearly", false, 2),
+            placeholder("pro_lifetime", "Pro Vitalício", "one_time", true, 3),
+            placeholder("pro_lifetime_launch", "Vitalício Lançamento", "one_time", true, 4)
+        )
+    }
+
+    private fun placeholder(
+        code: String, name: String, billing: String,
+        lifetime: Boolean, index: Int
+    ): AccountPlanOption = AccountPlanOption(
+        code = code,
+        name = name,
+        billingType = billing,
+        isPaid = code != "free",
+        isLifetime = lifetime,
+        isPromotional = code == "pro_lifetime_launch",
+        description = if (code == "free") "Acesso gratuito permanente."
+        else "Disponível após configuração dos produtos no WooCommerce.",
+        priceCents = if (code == "free") 0 else null,
+        currency = "BRL",
+        active = false,
+        availableFrom = null,
+        availableUntil = null,
+        displayOrder = index
+    )
+}
+
 data class AccountDevice(
     val deviceId: String,
     val deviceName: String,
