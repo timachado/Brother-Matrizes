@@ -55,7 +55,8 @@ import java.util.Locale
 
 @Composable
 fun FontLibraryScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenArchive: (android.net.Uri) -> Unit
 ) {
     val context =
         LocalContext.current
@@ -81,20 +82,7 @@ fun FontLibraryScreen(
     val zipPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                FontArchiveImporter.importZip(context, uri)
-            }
-            result.fold(
-                onSuccess = { fonts ->
-                    importedFonts = ImportedFontStore.list(context)
-                    statusMessage = "${fonts.size} fonte(s) importada(s) do ZIP."
-                },
-                onFailure = {
-                    statusMessage = it.message ?: "Não foi possível importar o ZIP."
-                }
-            )
-        }
+        if (uri != null) onOpenArchive(uri)
     }
 
     if (browserOpen) {
@@ -103,9 +91,9 @@ fun FontLibraryScreen(
                 importedFonts = ImportedFontStore.list(context)
                 browserOpen = false
             },
-            onImported = { count ->
-                importedFonts = ImportedFontStore.list(context)
-                statusMessage = "${count} fonte(s) baixada(s) e salva(s)."
+            onArchiveReady = { uri ->
+                browserOpen = false
+                onOpenArchive(uri)
             }
         )
         return
