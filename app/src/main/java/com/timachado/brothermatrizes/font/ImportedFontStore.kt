@@ -37,12 +37,14 @@ object ImportedFontStore {
 
     fun importFont(
         context: Context,
-        uri: Uri
+        uri: Uri,
+        sourceDisplayName: String? = null
     ): Result<ImportedFont> =
         runCatching {
             val resolver = context.contentResolver
             val sourceName =
-                queryDisplayName(context, uri)
+                sourceDisplayName?.takeIf { it.isNotBlank() }
+                    ?: queryDisplayName(context, uri)
                     ?: uri.lastPathSegment
                     ?: "fonte"
 
