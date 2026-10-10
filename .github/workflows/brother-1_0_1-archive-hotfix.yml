@@ -1,0 +1,86 @@
+name: Brother Matrizes 1.0.1 Hotfix QA
+on:
+  push:
+    branches: ["release/brother-matrizes-1.0.1"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: brother-1-0-1-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate hotfix version and release quotas
+        run: |
+          grep -F 'versionName = "1.0.1"' app/build.gradle.kts
+          grep -F 'versionCode = 167' app/build.gradle.kts
+          grep -F 'buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")' app/build.gradle.kts
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Brand assets
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Source safety checks
+        run: bash scripts/pre_release_static_check.sh
+      - name: WooCommerce license issuer unit QA
+        run: |
+          php -l wordpress/app-commerce-core-integration/bm-signed-license-issuer.php
+          php wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+      - name: Kotlin unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Android lint
+        run: gradle :app:lintDebug --stacktrace
+      - name: Build debug QA and release APK
+        run: gradle :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest --stacktrace
+      - name: Zipalign unsigned APK
+        shell: bash
+        run: |
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -f -v 4 app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -c -v 4 Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED.apk
+          sha256sum Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED.apk > Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED-SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.0.1-aligned-unsigned
+          path: |
+            Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED.apk
+            Brother-Matrizes-1.0.1-ALIGNED-UNSIGNED-SHA256.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Regression test in Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ArchiveStageLifecycleTest'
+      - name: Upload emulator test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.0.1-archive-emulator-QA
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore

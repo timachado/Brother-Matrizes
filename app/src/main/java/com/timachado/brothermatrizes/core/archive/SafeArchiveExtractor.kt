@@ -233,6 +233,9 @@ object SafeArchiveExtractor {
         require(inventory.entries.any { it.index == item.index && it.path == item.path }) {
             "Entrada não pertence a este pacote."
         }
+        check(inventory.sourceFile.isFile) {
+            "O pacote temporário não está mais disponível. Abra o ZIP novamente."
+        }
         val destination = File(context.cacheDir,
             "brother-matrix-${UUID.randomUUID()}.${item.extension.lowercase()}")
         try {

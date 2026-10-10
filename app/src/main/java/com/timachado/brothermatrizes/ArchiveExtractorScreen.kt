@@ -77,8 +77,12 @@ fun ArchiveExtractorScreen(
     var report by remember { mutableStateOf("") }
     var importedItems by remember { mutableStateOf(emptySet<Int>()) }
     BackHandler(enabled = !importing) { onBack() }
-    DisposableEffect(inventory) {
-        onDispose { inventory?.sourceFile?.delete() }
+    // Capture the exact file owned by this effect. Reading the mutable
+    // 'inventory' state in onDispose() can delete the freshly staged ZIP
+    // when Compose replaces the previous effect after a successful scan.
+    val stagedSourceFile = inventory?.sourceFile
+    DisposableEffect(stagedSourceFile) {
+        onDispose { stagedSourceFile?.delete() }
     }
     LaunchedEffect(archiveUri, retryVersion) {
         scanning = true
