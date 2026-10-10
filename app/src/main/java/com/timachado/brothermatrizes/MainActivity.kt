@@ -256,7 +256,10 @@ private sealed interface Screen {
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
-    data class ArchiveImport(val uri: Uri) : Screen
+    data class ArchiveImport(
+        val uri: Uri,
+        val returnTo: Screen = ProjectLibrary
+    ) : Screen
     data object Account : Screen
 
     data class Transfer(
@@ -642,7 +645,7 @@ private fun BrotherMatrizesApp(
                 Screen.CreateDrawing ->
                     Screen.Home
 
-                is Screen.ArchiveImport -> Screen.ProjectLibrary
+                is Screen.ArchiveImport -> current.returnTo
 
                 is Screen.Transfer ->
                     Screen.Viewer(
@@ -712,8 +715,10 @@ private fun BrotherMatrizesApp(
             }
 
             if (SafeArchiveExtractor.isArchive(context, uri)) {
+                val origin = if (telegramImportPending) Screen.TelegramSearch
+                    else Screen.ProjectLibrary
                 telegramImportPending = false
-                screen = Screen.ArchiveImport(uri)
+                screen = Screen.ArchiveImport(uri, origin)
                 return@rememberLauncherForActivityResult
             }
 
@@ -1944,7 +1949,7 @@ private fun BrotherMatrizesApp(
                     FontLibraryScreen(
                         onBack = { goBack() },
                         onOpenArchive = { uri ->
-                            screen = Screen.ArchiveImport(uri)
+                            screen = Screen.ArchiveImport(uri, Screen.FontLibrary)
                         }
                     )
                 }
