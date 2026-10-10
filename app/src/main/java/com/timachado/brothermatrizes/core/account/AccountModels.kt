@@ -441,7 +441,7 @@ object AccountPresentation {
                 "Renovação"
 
             "upgraded" ->
-                "Upgrade"
+                "Mudança para plano superior"
 
             "downgraded" ->
                 "Alteração de plano"
@@ -462,6 +462,6 @@ object AccountPresentation {
                 "Compra vitalícia"
 
             else ->
-                eventType
+                "Atualização da assinatura"
         }
 }
