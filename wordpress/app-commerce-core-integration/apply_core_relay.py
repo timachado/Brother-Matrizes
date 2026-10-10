@@ -126,8 +126,11 @@ def patch(original: Path, output: Path, module: Path):
             try:
                 with ZipFile(temp_path, "w") as dest:
                     for item in entries:
-                        data = updated if item.filename == main_path else source.read(item)
-                        dest.writestr(item, data)
+                        data = updated if item.filename == main_path else source.read(item.filename)
+                        # ZipFile.writestr mutates ZipInfo offsets; never reuse the
+                        # source archive's ZipInfo object for the output.
+                        import copy
+                        dest.writestr(copy.copy(item), data)
                     new = ZipInfo(filename=target)
                     new.compress_type = 8  # deflate
                     new.external_attr = (0o100644 << 16)
