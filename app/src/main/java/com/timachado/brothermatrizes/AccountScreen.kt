@@ -1223,7 +1223,7 @@ private fun SignedInAccount(
                             "O Brother Matrizes acompanha aqui o plano, status e renovação vinculados à sua conta."
 
                         else ->
-                            "Quando uma contratação for confirmada, o plano será vinculado à sua conta automaticamente."
+                            "A compra pelo site não ativa o Pro automaticamente neste APK. A licença depende de validação segura no WordPress."
                     },
                     color =
                         FioTextMuted,
@@ -1245,7 +1245,7 @@ private fun SignedInAccount(
                             .fillMaxWidth()
                 ) {
                     Text(
-                        "↻ Restaurar / atualizar assinatura",
+                        "↻ Verificar licença",
                         color =
                             FioGold,
                         fontWeight =
