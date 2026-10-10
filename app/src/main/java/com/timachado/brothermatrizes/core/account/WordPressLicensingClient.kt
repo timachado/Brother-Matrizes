@@ -88,7 +88,7 @@ internal object WordPressLicensingClient {
     suspend fun catalog(): List<AccountPlanOption> = withContext(Dispatchers.IO) {
         val serverPlans = json("/wp-json/brother-matrizes/v1/plans", null)
             .optJSONArray("plans")
-        return buildList {
+        buildList {
             if (serverPlans != null) for (index in 0 until serverPlans.length()) {
                 val p = serverPlans.optJSONObject(index) ?: continue
                 val code = p.optString("code")
