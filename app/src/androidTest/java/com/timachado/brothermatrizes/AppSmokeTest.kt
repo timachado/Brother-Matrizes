@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -30,6 +31,12 @@ class AppSmokeTest {
             .assertIsDisplayed()
             .performClick()
 
+        // AccountHostScreen first restores the persisted Supabase session.
+        // Navigation is async; do not assert the account title immediately.
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            composeRule.onAllNodesWithText("Minha Conta")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule
             .onNodeWithText(
                 "Minha Conta"
