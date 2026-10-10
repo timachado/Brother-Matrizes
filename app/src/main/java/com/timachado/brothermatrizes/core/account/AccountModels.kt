@@ -167,7 +167,7 @@ object AccountPlanCatalog {
         isLifetime = lifetime,
         isPromotional = code == "pro_lifetime_launch",
         description = if (code == "free") "Acesso gratuito permanente."
-        else "Disponível após configuração dos produtos no WooCommerce.",
+        else "Plano em preparação. Confira a disponibilidade em breve.",
         priceCents = if (code == "free") 0 else null,
         currency = "BRL",
         active = false,
@@ -374,14 +374,14 @@ object AccountPresentation {
             "monthly" ->
                 "Mensal"
 
-            "annual" ->
+            "annual", "yearly" ->
                 "Anual"
 
-            "lifetime" ->
-                "Acesso permanente"
+            "lifetime", "one_time" ->
+                "Pagamento único"
 
             else ->
-                billingType
+                "Não informado"
         }
 
     fun statusLabel(
@@ -407,18 +407,20 @@ object AccountPresentation {
             "expired" ->
                 "Expirada"
 
+            "unavailable", "unknown" ->
+                "Aguardando confirmação"
+
+            "free" ->
+                "Gratuito"
+
+            "pending" ->
+                "Aguardando pagamento"
+
+            "on_hold" ->
+                "Aguardando regularização"
+
             else ->
-                status
-                    .trim()
-                    .replaceFirstChar {
-                        if (
-                            it.isLowerCase()
-                        ) {
-                            it.titlecase()
-                        } else {
-                            it.toString()
-                        }
-                    }
+                "Situação não informada"
         }
 
     fun eventLabel(
