@@ -178,14 +178,17 @@ object SafeArchiveExtractor {
 
     private class LimitedOutput(
         private val delegate: OutputStream,
-        private val cap: Long
+        private val cap: Long,
+        private val cancelled: () -> Boolean
     ) : OutputStream() {
         private var count = 0L
         override fun write(b: Int) {
+            check(!cancelled()) { "Operação cancelada." }
             if (++count > cap) error("Extração excedeu limite seguro.")
             delegate.write(b)
         }
         override fun write(b: ByteArray, off: Int, len: Int) {
+            check(!cancelled()) { "Operação cancelada." }
             count += len
             require(count <= cap) { "Extração excedeu 24 MB." }
             delegate.write(b, off, len)
@@ -193,9 +196,11 @@ object SafeArchiveExtractor {
         override fun flush() = delegate.flush()
     }
 
-    private fun copyLimited(input: InputStream, output: OutputStream) {
+    private fun copyLimited(input: InputStream, output: OutputStream,
+                            cancelled: () -> Boolean) {
         val buffer = ByteArray(16384)
         while (true) {
+            check(!cancelled()) { "Operação cancelada." }
             val len = input.read(buffer)
             if (len < 0) break
             output.write(buffer, 0, len)
@@ -207,7 +212,8 @@ object SafeArchiveExtractor {
      * Caller must delete the returned file in finally after validation/import.
      */
     fun extract(context: Context, inventory: ArchiveInventory,
-                item: ArchiveItem, password: CharArray? = null): File {
+                item: ArchiveItem, password: CharArray? = null,
+                cancelled: () -> Boolean = { false }): File {
         require(inventory.entries.any { it.index == item.index && it.path == item.path }) {
             "Entrada não pertence a este pacote."
         }
@@ -215,7 +221,7 @@ object SafeArchiveExtractor {
             "brother-matrix-${UUID.randomUUID()}.${item.extension.lowercase()}")
         try {
             destination.outputStream().use { stream ->
-                LimitedOutput(stream, MAX_ENTRY).use { limited ->
+                LimitedOutput(stream, MAX_ENTRY, cancelled).use { limited ->
                     when (inventory.format) {
                         ArchiveFormat.ZIP -> ZipFile(inventory.sourceFile).use { zip ->
                             val entries = zip.entries()
@@ -225,7 +231,7 @@ object SafeArchiveExtractor {
                                 val z = entries.nextElement()
                                 if (idx++ == item.index) {
                                     require(z.name == item.path)
-                                    zip.getInputStream(z).use { copyLimited(it, limited) }
+                                    zip.getInputStream(z).use { copyLimited(it, limited, cancelled) }
                                     found = true
                                     break
                                 }
