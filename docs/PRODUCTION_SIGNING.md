@@ -5,7 +5,7 @@
 ## Etapa zero: localizar a chave ORIGINAL e validar o certificado
 
 O workflow exige o certificado SHA-256 (sem dois-pontos):
-`663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403`.
+`fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`.
 
 Antes de cadastrar os secrets, procure a keystore original (`.jks` ou `.keystore`) em seu computador/cofre seguro. Em máquina local com JDK:
 
@@ -96,7 +96,7 @@ O workflow não imprime esses valores e cria a keystore somente no armazenamento
 
 Executar manualmente o workflow **Build Signed Brother Matrizes Production APK**.
 
-**Atenção à identidade de assinatura:** o workflow compara o SHA-256 do certificado com o fingerprint aprovado `663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403`. Uma nova keystore gera outro fingerprint e será rejeitada até que haja validação e aprovação explícitas da identidade de distribuição; não altere o valor de controle apenas para o workflow passar. Se existe uma keystore anteriormente usada para distribuir o app, use a mesma para garantir atualizações sem perda de dados.
+**Atenção à identidade de assinatura:** o workflow compara o SHA-256 do certificado com o fingerprint aprovado `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`. Uma nova keystore gera outro fingerprint e será rejeitada até que haja validação e aprovação explícitas da identidade de distribuição; não altere o valor de controle apenas para o workflow passar. Se existe uma keystore anteriormente usada para distribuir o app, use a mesma para garantir atualizações sem perda de dados.
 
 Se algum secret não estiver cadastrado, o workflow falha com mensagem de ausência; **não publique keystore nem senhas no chat ou repositório**.
 
@@ -132,3 +132,9 @@ Com a chave definitiva:
 6. somente depois definir o canal oficial de distribuição.
 
 A assinatura de produção não substitui os testes físicos em bordadeira real.
+
+## Assinatura verificada fora do GitHub — 10/10/2026
+
+Foi criada a primeira keystore candidata de produção sob autorização do usuário, fora do repositório. Seu certificado público SHA-256 é `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`. Uma APK release candidate `1.0.0-rc1` foi assinada e verificada **com o apksigner oficial do Android SDK 36**, usando v2 e v3; hash do APK: `97bec26cb16d5d9e2510e088ba27212fb6ff9b8a17472851de11597dfeaeeb8f`.
+
+A keystore e sua senha **não estão armazenadas no GitHub**. O usuário precisa guardar o arquivo privado e as credenciais de recuperação em dois lugares seguros. O workflow GitHub continuará falhando na validação de secrets até o proprietário cadastrar os 4 secrets diretamente no GitHub. Isto **não** significa que a candidata 1.0.0-rc1 foi homologada como estável: a assinatura e os testes unitários não cobrem compras reais, cota gratuita e preservação dos dados numa atualização de assinatura diferente.

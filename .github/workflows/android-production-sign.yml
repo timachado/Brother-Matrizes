@@ -119,7 +119,7 @@ jobs:
 
           CERT_SHA="$("$BUILD_TOOLS/apksigner" verify --print-certs "$SIGNED" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
           test -n "$CERT_SHA"
-          EXPECTED_CERT_SHA="663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403"
+          EXPECTED_CERT_SHA="fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a"
           test "$CERT_SHA" = "$EXPECTED_CERT_SHA"
 
           printf '%s\n' "$CERT_SHA" > "Brother-Matrizes-$VERSION_NAME-CERT-SHA256.txt"

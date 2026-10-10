@@ -30,3 +30,12 @@ Base imutável de QA: `c6b163011b5a07870632b307e0319ffc0212ef5f` (`0.50.7-rc4`).
 
 ## Próximo corte técnico
 Concluir os bloqueadores acima em branch dedicada. Quando aprovados, marcar `versionName=1.0.0`, aumentar `versionCode`, compilar, assinar e verificar o APK de produção. Registrar SHA-256 e certificado antes de distribuir.
+
+## Avanço da assinatura — 10/10/2026
+
+- [x] Primeira keystore candidata RSA-4096 criada e mantida fora do GitHub, com credenciais privadas destinadas à custódia do titular.
+- [x] Compilação Android de `1.0.0-rc1` na branch isolada: GitHub Actions `38076036907`, testes unitários, Android Lint e release unsigned aprovados.
+- [x] APK `1.0.0-rc1` assinado fora do GitHub usando Android SDK 36 oficial; assinatura v2 e v3 verificadas, certificado `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`, APK SHA-256 `97bec26cb16d5d9e2510e088ba27212fb6ff9b8a17472851de11597dfeaeeb8f`.
+- [ ] Titular deve guardar keystore e credenciais em dois backups seguros e cadastrar secrets no GitHub; o CI de assinatura ainda não está configurado com a chave.
+- [ ] Validar assinatura e funcionamento em aparelho de teste (não instalar por cima de APK debug com chave distinta). Não apagar dados locais.
+- [ ] Bloqueadores comerciais, quota gratuita local de beta, teste físico de bordado e renovação de pagamentos mantidos. A candidata não pode ser anunciada como estável.

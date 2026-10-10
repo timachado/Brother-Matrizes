@@ -24,3 +24,9 @@ Não existe prova, **dentro do histórico GitHub examinado**, de que uma chave d
 - Não recriar projeto e não mudar `applicationId`, identidade Brother, funcionalidades, licenças, Bíblia EBD, Supabase Auth/Trial, WooCommerce ou Efí.
 - Não executar geração de chaves efêmeras dentro do GitHub Actions sem processo controlado de custódia/backup.
 - Não declarar release 1.0.0 estável antes de assinatura, atualização segura, testes de bordado e pagamentos.
+
+## Adendo — criação da primeira keystore candidata
+
+Após a auditoria, em 10/10/2026, o usuário autorizou expressamente gerar e executar uma assinatura de produção sem Termux. A nova keystore de produção foi gerada fora do repositório, com certificado público SHA-256 `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a` e credenciais em arquivo privado que deverão ser entregues ao titular para custódia. O hash antigo `663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403` permanece apenas como referência histórica **não comprovada** e foi substituído como certificado esperado no workflow da branch de preparação.
+
+APK assinado de verificação: `Brother-Matrizes-1.0.0-rc1-ASSINADO-PRODUCAO-QA.apk`, hash SHA-256 `97bec26cb16d5d9e2510e088ba27212fb6ff9b8a17472851de11597dfeaeeb8f`. Resultado da ferramenta oficial: v2=true, v3=true, certificado RSA 4096 verificado. **Não é ainda a versão 1.0.0 estável nem foi publicada em GitHub Release.**
