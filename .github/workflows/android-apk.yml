@@ -69,37 +69,11 @@ jobs:
 
       # A release candidate must validate the actual APK on an Android runtime.
       # Unit tests and lint do not cover the document picker, navigation or OAuth callback.
-      - name: Enable KVM for Android emulator
-        shell: bash
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Android emulator smoke tests (API 35)
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          disable-animations: true
-          script: |
-            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest'
-
-      - name: Upload Android runtime test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Brother-Matrizes-android-runtime-api35
-          path: |
-            app/build/reports/androidTests/connected/
-            app/build/outputs/androidTest-results/connected/
-          if-no-files-found: ignore
-
-      - name: Build debug APK
+      # Artifact remains a diagnostic APK, never evidence that runtime QA passed.
+      - name: Build debug APK for QA
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Build unsigned release candidate
+      - name: Build unsigned release candidate (not distributed)
         run: gradle :app:assembleRelease --stacktrace
 
       - name: Validate APK alignment and signature
@@ -119,9 +93,61 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-0.50.1-beta4-downloads
+          name: Brother-Matrizes-0.50.1-beta4-QA-NOT-STABLE
           path: |
             Brother-Matrizes-0.50.1-beta4-debug.apk
             Brother-Matrizes-0.50.1-beta4-debug.zip
             Brother-Matrizes-0.50.1-beta4-SHA256.txt
           if-no-files-found: error
+
+      - name: Enable KVM for Android emulator
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android emulator smoke tests (API 35)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest'
+
+      - name: Explain Android emulator test failures
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = sorted(Path('app/build/outputs/androidTest-results/connected').rglob('*.xml'))
+          print('Android test result XML files:', len(files))
+          found = 0
+          for file in files:
+              try:
+                  root = ET.parse(file).getroot()
+              except ET.ParseError:
+                  continue
+              for test in root.iter('testcase'):
+                  for failure in [*test.findall('failure'), *test.findall('error')]:
+                      found += 1
+                      print('FAILED:', test.attrib.get('classname'), test.attrib.get('name'))
+                      print((failure.attrib.get('message') or failure.text or '')[:3500])
+          if not files or not found:
+              print('No failing testcase could be extracted from XML; inspect the uploaded Android runtime artifact.')
+          PY
+
+      - name: Upload Android runtime test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-android-runtime-api35
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+
