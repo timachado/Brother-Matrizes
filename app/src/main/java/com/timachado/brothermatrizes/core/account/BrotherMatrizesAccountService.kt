@@ -315,21 +315,38 @@ object BrotherMatrizesAccountService {
         currentAccount().getOrThrow() ?: error("Conta não encontrada.")
     }
 
+    // Do not confuse a persisted session being restored with a signed-out
+    // user. This is the same recovery logic already used by Minha Conta.
+    private suspend fun verifiedAccessToken(): String {
+        val auth = client.auth
+        auth.awaitInitialization()
+        val status = auth.sessionStatus.first {
+            it !is SessionStatus.Initializing
+        }
+        val session = when (status) {
+            is SessionStatus.Authenticated -> status.session
+            is SessionStatus.NotAuthenticated ->
+                error("Entre com Google na aba Minha Conta para validar as cotas.")
+            is SessionStatus.RefreshFailure ->
+                error("Não foi possível restaurar a sessão Google. Confira a conexão e tente novamente.")
+            else -> error("A autenticação está temporariamente indisponível.")
+        }
+        return session.accessToken
+    }
+
     suspend fun authorizeImport(isFont: Boolean): Result<String> = runCatching {
-        val session = client.auth.currentSessionOrNull()
-            ?: error("Faça login Google para importar e registrar suas cotas.")
+        val token = verifiedAccessToken()
         WordPressLicensingClient.authorizeUsage(
-            session.accessToken,
+            token,
             if (isFont) "import_font" else "import_matrix"
         )
     }
 
     suspend fun finalizeImport(isFont: Boolean, requestKey: String, success: Boolean):
         Result<Unit> = runCatching {
-        val session = client.auth.currentSessionOrNull()
-            ?: error("Faça login Google novamente para sincronizar sua cota.")
+        val token = verifiedAccessToken()
         WordPressLicensingClient.finalizeUsage(
-            session.accessToken,
+            token,
             if (isFont) "import_font" else "import_matrix",
             requestKey, success
         )
