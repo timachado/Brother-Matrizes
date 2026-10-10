@@ -1026,11 +1026,26 @@ private fun SignedInAccount(
                     )
                 } else {
                     when (account.trialStatus) {
+                        "unknown" -> {
+                            Text(
+                                "Teste Pro por 7 dias, sem cartão. A ativação depende de " +
+                                    "uma conexão segura com o WordPress, ainda não confirmada neste servidor.",
+                                color = FioTextMuted,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+                        }
                         "eligible" -> {
                             Button(
                                 onClick = onActivateTrial,
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text("Ativar 7 dias grátis Pro — sem cartão") }
+                            Text(
+                                "Começa ao ativar. Não haverá cobrança automática.",
+                                color = FioTextMuted,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
                             Spacer(Modifier.height(10.dp))
                         }
                         "active" -> {
