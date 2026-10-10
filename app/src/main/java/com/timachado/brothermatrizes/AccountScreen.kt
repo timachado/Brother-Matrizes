@@ -166,8 +166,15 @@ fun AccountScreen(
 
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
             Text(
-                "PLANO GRATUITO • 3 fontes e 5 matrizes por mês neste aparelho. " +
-                    "Conheça as opções Pro abaixo.",
+                when {
+                    account?.planCode == "trial" && account.hasProAccess ->
+                        "TESTE PRO ATIVO • Acesso completo durante os 7 dias gratuitos, sem cartão."
+                    account?.hasProAccess == true ->
+                        "BROTHER MATRIZES PRO • Licença validada. Consulte seu plano e renovação abaixo."
+                    else ->
+                        "PLANO GRATUITO • 3 fontes e 5 matrizes por mês neste aparelho. " +
+                            "Conheça as opções Pro abaixo."
+                },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 color = FioGold,
                 fontSize = 10.sp
@@ -1028,8 +1035,8 @@ private fun SignedInAccount(
                     when (account.trialStatus) {
                         "unknown" -> {
                             Text(
-                                "Teste Pro por 7 dias, sem cartão. A ativação depende de " +
-                                    "uma conexão segura com o WordPress, ainda não confirmada neste servidor.",
+                                "Teste Pro por 7 dias, sem cartão. A disponibilidade " +
+                                    "ainda não foi confirmada pelo servidor. Confira sua conexão.",
                                 color = FioTextMuted,
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(bottom = 10.dp)
