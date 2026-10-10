@@ -22,4 +22,25 @@ internal object WordPressWebStore {
         ) { "Site WordPress não autorizado." }
         return "https://timachado.ifree.page/minha-conta/meus-aplicativos/"
     }
+    /**
+     * Opens the existing WordPress/WooCommerce purchase flow in an external browser.
+     * No Efí or WooCommerce credential is sent from the APK. Store is authoritative
+     * for amount, availability, stock and confirmation of payment.
+     */
+    fun planUrl(siteUrl: String, code: String): String {
+        accountUrl(siteUrl) // Strict origin check before constructing any purchase link.
+        return when (code) {
+            "pro_monthly" ->
+                "https://timachado.ifree.page/minha-conta/?tiac_auth=confirm&tiac_resume_app=307&tiac_resume_plan=monthly"
+            "pro_yearly" ->
+                "https://timachado.ifree.page/minha-conta/?tiac_auth=confirm&tiac_resume_app=307&tiac_resume_plan=yearly"
+            "pro_lifetime" ->
+                "https://timachado.ifree.page/minha-conta/?tiac_auth=confirm&tiac_resume_app=307&tiac_resume_plan=lifetime"
+            // Promotional product #308 is independent from the standard lifetime offer.
+            // View its WooCommerce product page rather than silently buying the wrong plan.
+            "pro_lifetime_launch" ->
+                "https://timachado.ifree.page/?post_type=product&p=308"
+            else -> throw IllegalArgumentException("Plano de compra não autorizado.")
+        }
+    }
 }
