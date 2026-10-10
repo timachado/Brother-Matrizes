@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.core.account
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AccountPlanCatalogTest {
@@ -13,7 +14,9 @@ class AccountPlanCatalogTest {
         ), plans.map { it.code })
         assertFalse(plans.any { it.active })
         assertEquals(0, plans.first().priceCents)
-        assertEquals(listOf(1990, 15990, 39990, 24990), plans.drop(1).map { it.priceCents })
+        plans.drop(1).forEach { assertNull(it.priceCents) }
+        assertEquals(listOf(1990, 15990, 39990, 24990),
+            plans.drop(1).map { BrotherLaunchPriceDisplay.priceCents(it.code) })
     }
 
     @Test fun serverProductsRemainVisibleEvenWhileInactive() {
@@ -31,7 +34,7 @@ class AccountPlanCatalogTest {
         )
         val display = AccountPlanCatalog.forDisplay(listOf(launch, annual))
         assertEquals(listOf("pro_yearly", "pro_lifetime_launch"), display.map { it.code })
-        assertEquals(listOf(15990, 24990), display.map { it.priceCents })
+        display.forEach { assertNull(it.priceCents) }
         assertFalse(display.any { it.active })
     }
 }

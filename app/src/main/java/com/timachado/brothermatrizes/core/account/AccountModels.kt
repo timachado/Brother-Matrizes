@@ -143,22 +143,9 @@ data class AccountPlanOption(
  * orders or prices: all offers are disabled until fetched from WooCommerce.
  */
 object AccountPlanCatalog {
-    // Prices approved for the Brother Matrizes launch; the WooCommerce checkout
-    // remains authoritative. These labels never grant access or initiate payment.
-    private val launchPriceCents = mapOf(
-        "pro_monthly" to 1990,
-        "pro_yearly" to 15990,
-        "pro_lifetime" to 39990,
-        "pro_lifetime_launch" to 24990
-    )
-
     fun forDisplay(serverPlans: List<AccountPlanOption>): List<AccountPlanOption> {
         if (serverPlans.isNotEmpty()) {
             return serverPlans.distinctBy { it.code }.sortedBy { it.displayOrder }
-                .map { plan ->
-                    val approved = launchPriceCents[plan.code]
-                    if (approved != null) plan.copy(priceCents = approved) else plan
-                }
         }
         return listOf(
             placeholder("free", "Gratuito", "free", false, 0),
@@ -181,13 +168,27 @@ object AccountPlanCatalog {
         isPromotional = code == "pro_lifetime_launch",
         description = if (code == "free") "Acesso gratuito permanente."
         else "Confira preço final e disponibilidade na loja T.I. Machado.",
-        priceCents = if (code == "free") 0 else launchPriceCents[code],
+        priceCents = if (code == "free") 0 else null,
         currency = "BRL",
         active = false,
         availableFrom = null,
         availableUntil = null,
         displayOrder = index
     )
+}
+
+/**
+ * Approved prices for visual marketing only. Checkout amount and product status
+ * come exclusively from WooCommerce. Never use this in entitlement decisions.
+ */
+object BrotherLaunchPriceDisplay {
+    fun priceCents(planCode: String): Int? = when (planCode) {
+        "pro_monthly" -> 1990
+        "pro_yearly" -> 15990
+        "pro_lifetime" -> 39990
+        "pro_lifetime_launch" -> 24990
+        else -> null
+    }
 }
 
 data class AccountDevice(

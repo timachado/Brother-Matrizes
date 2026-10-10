@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.account.AccountPlanOption
 import com.timachado.brothermatrizes.core.account.AccountPlanCatalog
+import com.timachado.brothermatrizes.core.account.BrotherLaunchPriceDisplay
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.AccountSubscriptionEvent
@@ -1993,10 +1994,11 @@ private fun PlanSummary(
                     !plan.isPaid ->
                         "Grátis"
 
-                    plan.priceCents !=
-                        null ->
+                    plan.priceCents != null ||
+                        BrotherLaunchPriceDisplay.priceCents(plan.code) != null ->
                         formattedMoney(
-                            plan.priceCents,
+                            plan.priceCents
+                                ?: BrotherLaunchPriceDisplay.priceCents(plan.code)!!,
                             plan.currency
                         )
 
@@ -2043,6 +2045,16 @@ private fun PlanSummary(
                 fontSize = 10.sp
             )
         }
+        if (plan.isPaid && !plan.active &&
+            BrotherLaunchPriceDisplay.priceCents(plan.code) != null
+        ) {
+            Text(
+                "Valor de vitrine; confirmação e disponibilidade no checkout.",
+                modifier = Modifier.padding(top = 5.dp),
+                color = FioTextMuted,
+                fontSize = 9.sp
+            )
+        }
         if (plan.isPromotional) {
             Text(
                 "Oferta limitada a 50 licenças de lançamento, conforme estoque.",
@@ -2051,7 +2063,10 @@ private fun PlanSummary(
                 fontSize = 10.sp
             )
         }
-        if (plan.isPaid && plan.priceCents != null && !current) {
+        if (plan.isPaid &&
+            (plan.priceCents != null || BrotherLaunchPriceDisplay.priceCents(plan.code) != null) &&
+            !current
+        ) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = { onOpenPlan(plan.code) },
