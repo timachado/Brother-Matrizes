@@ -89,7 +89,7 @@ fun FontLibraryScreen(
     ) { uri ->
         if (uri != null) scope.launch {
             val permit = com.timachado.brothermatrizes.core.account
-                .BrotherMatrizesAccountService.authorizeImport(isFont = true)
+                .BrotherMatrizesAccountService.authorizeImport(context = context, isFont = true)
             if (permit.isFailure) {
                 statusMessage = permit.exceptionOrNull()?.message
                     ?: "Não foi possível confirmar sua cota de fontes."
@@ -113,11 +113,11 @@ fun FontLibraryScreen(
                 })
                 val finalized = com.timachado.brothermatrizes.core.account
                     .BrotherMatrizesAccountService.finalizeImport(
-                        isFont = true, requestKey = requestKey, success = added
+                        context = context, isFont = true, requestKey = requestKey, success = added
                     )
                 if (finalized.isFailure) {
-                    statusMessage = "Importação local concluída, mas não foi possível " +
-                        "confirmar a cota no servidor. Verifique a conexão."
+                    statusMessage = "Importação concluída, mas houve uma falha ao registrar a cota. " +
+                        "Verifique o armazenamento ou a conexão."
                 }
             }
         }
