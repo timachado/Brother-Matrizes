@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.account.AccountPlanOption
+import com.timachado.brothermatrizes.core.account.AccountPlanCatalog
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.AccountSubscriptionEvent
@@ -1048,20 +1049,17 @@ private fun SignedInAccount(
                     label =
                         "Plano",
                     value =
-                        currentPlan
-                            ?.name
-                            ?: AccountPresentation
-                                .planLabel(
-                                    account
-                                        .planCode
-                                )
+                        if (!account.commercialConfigured) "Não verificado"
+                        else currentPlan?.name ?: AccountPresentation
+                            .planLabel(account.planCode)
                 )
 
                 AccountLine(
                     label =
                         "Tipo",
                     value =
-                        currentPlan
+                        if (!account.commercialConfigured) "Aguardando WordPress"
+                        else currentPlan
                             ?.let {
                                 AccountPresentation
                                     .billingLabel(
@@ -1349,100 +1347,62 @@ private fun SignedInAccount(
             )
         )
 
-        if (
-            account.availablePlans
-                .isNotEmpty()
+        // Keep the plan section visible even during commercial API
+        // outages or before the WooCommerce product IDs are mapped.
+        // No cached/placeholder price is ever presented as an active offer.
+        val visiblePlans = AccountPlanCatalog.forDisplay(account.availablePlans)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = FioSurface),
+            shape = RoundedCornerShape(24.dp)
         ) {
-            Card(
-                modifier =
-                    Modifier
-                        .fillMaxWidth(),
-                colors =
-                    CardDefaults
-                        .cardColors(
-                            containerColor =
-                                FioSurface
-                        ),
-                shape =
-                    RoundedCornerShape(
-                        24.dp
+            Column(Modifier.padding(18.dp)) {
+                Text(
+                    "Planos Brother Matrizes",
+                    color = FioText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    if (account.availablePlans.isEmpty())
+                        "Não foi possível consultar o catálogo agora. " +
+                            "As opções estão visíveis, mas preços e contratação " +
+                            "ficam indisponíveis até o WooCommerce responder."
+                    else if (!account.commercialConfigured)
+                        "Planos carregados do WooCommerce. " +
+                            "Aguarde a validação da sua licença para contratar."
+                    else if (visiblePlans.any { it.isPaid && !it.active })
+                        "Alguns produtos ainda não estão ativos no WooCommerce. " +
+                            "A contratação será liberada após o mapeamento."
+                    else
+                        "Preços e disponibilidade consultados no WooCommerce.",
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                    color = FioTextMuted,
+                    fontSize = 10.sp
+                )
+                visiblePlans.forEachIndexed { index, plan ->
+                    PlanSummary(
+                        plan = plan,
+                        current = account.commercialConfigured &&
+                            plan.code == account.planCode,
+                        verified = account.commercialConfigured,
+                        onCheckout = onCheckout
                     )
-            ) {
-                Column(
-                    Modifier.padding(
-                        18.dp
-                    )
-                ) {
-                    Text(
-                        "Planos Brother Matrizes",
-                        color =
-                            FioText,
-                        fontWeight =
-                            FontWeight.Bold,
-                        fontSize =
-                            18.sp
-                    )
-
-                    Text(
-                        "O app consulta o plano vinculado à sua conta; alterações de assinatura não são liberadas pelo próprio APK.",
-                        modifier =
-                            Modifier.padding(
-                                top =
-                                    4.dp,
-                                bottom =
-                                    10.dp
-                            ),
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            10.sp
-                    )
-
-                    account.availablePlans
-                        .filter {
-                            it.active ||
-                                it.code ==
-                                    account.planCode
-                        }
-                        .sortedBy {
-                            it.displayOrder
-                        }
-                        .forEachIndexed {
-                                index,
-                                plan ->
-                            PlanSummary(
-                                plan = plan,
-                                current = plan.code == account.planCode,
-                                onCheckout = onCheckout
-                            )
-
-                            if (
-                                index <
-                                    account
-                                        .availablePlans
-                                        .filter {
-                                            it.active ||
-                                                it.code ==
-                                                    account.planCode
-                                        }
-                                        .lastIndex
-                            ) {
-                                Spacer(
-                                    Modifier.height(
-                                        10.dp
-                                    )
-                                )
-                            }
-                        }
+                    if (index < visiblePlans.lastIndex) {
+                        Spacer(Modifier.height(10.dp))
+                    }
+                }
+                if (account.availablePlans.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Atualizar planos", color = FioGold) }
                 }
             }
-
-            Spacer(
-                Modifier.height(
-                    14.dp
-                )
-            )
         }
+
+        Spacer(Modifier.height(14.dp))
 
         Card(
             modifier =
@@ -1909,6 +1869,7 @@ private fun AboutBrotherMatrizesCard() {
 private fun PlanSummary(
     plan: AccountPlanOption,
     current: Boolean,
+    verified: Boolean,
     onCheckout: (String) -> Unit
 ) {
     Column(
@@ -2012,7 +1973,7 @@ private fun PlanSummary(
                         )
 
                     else ->
-                        "Valor no checkout"
+                        "Preço pendente no WooCommerce"
                 },
             modifier =
                 Modifier.padding(
@@ -2046,7 +2007,17 @@ private fun PlanSummary(
                     10.sp
             )
         }
-        if (plan.isPaid && plan.active && !current) {
+        if (plan.isPaid && !plan.active) {
+            Text(
+                "Contratação indisponível — aguardando ativação do produto.",
+                modifier = Modifier.padding(top = 6.dp),
+                color = FioTextMuted,
+                fontSize = 10.sp
+            )
+        }
+        if (plan.isPaid && plan.active && verified &&
+            plan.priceCents != null && !current
+        ) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = { onCheckout(plan.code) },
