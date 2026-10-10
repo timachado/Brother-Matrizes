@@ -40,9 +40,20 @@ internal object BrotherEntitlementClient {
             check(code == 200 && (mime == "application/json" || mime.endsWith("+json"))) {
                 "Não foi possível confirmar sua assinatura (HTTP $code)."
             }
-            val bytes = conn.inputStream.use { it.readNBytes(65537) }
-            check(bytes.size <= 65536) { "Resposta da assinatura inválida." }
-            JSONObject(bytes.toString(Charsets.UTF_8))
+            val raw = conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                val buffer = CharArray(8192)
+                val content = StringBuilder()
+                while (true) {
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    check(content.length + count <= 65536) {
+                        "Resposta da assinatura muito grande."
+                    }
+                    content.append(buffer, 0, count)
+                }
+                content.toString()
+            }
+            JSONObject(raw)
         } finally {
             conn.disconnect()
         }
