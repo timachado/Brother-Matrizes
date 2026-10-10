@@ -1,0 +1,32 @@
+name: Brother APK Signing Tool QA
+on:
+  push:
+    branches: ["ci/brother-apksigner-tooling"]
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare Android SDK Build Tools 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "build-tools;36.0.0"
+      - name: Inspect official Android apksigner binary
+        shell: bash
+        run: |
+          mkdir -p public-signing-tools
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" public-signing-tools/apksigner.jar
+          sha256sum public-signing-tools/apksigner.jar > public-signing-tools/SHA256.txt
+          test -s public-signing-tools/apksigner.jar
+      - name: Upload official Android SDK signer tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-SDK-36-apksigner-tool
+          path: public-signing-tools/
+          if-no-files-found: error
+          retention-days: 2
