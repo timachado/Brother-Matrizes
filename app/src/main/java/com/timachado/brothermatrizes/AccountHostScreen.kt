@@ -260,10 +260,13 @@ fun AccountHostScreen(
                         )
                     accountVerified = true
 
-                    snackbar
-                        .showSnackbar(
-                            "Assinatura atualizada."
-                        )
+                    snackbar.showSnackbar(
+                        when {
+                            current == null -> "Nenhuma sessão Google confirmada."
+                            current.commercialConfigured -> "Licença verificada no WordPress."
+                            else -> "Conta Google conectada. Licença não verificável pela hospedagem atual."
+                        }
+                    )
                 },
                 onFailure = {
                         error ->
