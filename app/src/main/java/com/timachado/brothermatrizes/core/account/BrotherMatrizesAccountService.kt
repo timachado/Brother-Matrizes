@@ -352,25 +352,40 @@ object BrotherMatrizesAccountService {
             ?: error("Sessão Google indisponível.")
         // WordPress is the only commercial source; never query the legacy
         // Supabase subscription, profile, device or pricing tables.
-        return runCatching {
+        val verified = runCatching {
             WordPressLicensingClient.account(
                 userId, email, token, authDisplayName, authAvatarUrl
             )
-        }.getOrElse {
-            // A previously server-verified account is temporarily kept in
-            // process memory; no license is read from manipulable storage.
-            WordPressLicensingClient.recentlyVerified(userId) ?: AccountSnapshot(
-                userId = userId,
-                email = email,
-                displayName = authDisplayName
-                    ?: email.substringBefore('@').ifBlank { "Brother Matrizes" },
-                avatarUrl = authAvatarUrl,
-                planCode = "free",
-                subscriptionStatus = "unavailable",
-                currentPeriodEnd = null,
-                commercialConfigured = false
+        }.getOrNull()
+        if (verified != null) return verified
+
+        // Fetch the public WooCommerce catalog independently of the protected
+        // /me endpoint. A missing token validation configuration must not
+        // make the plan list vanish from the app.
+        val publicPlans = runCatching {
+            WordPressLicensingClient.catalog()
+        }.getOrDefault(emptyList())
+
+        val recent = WordPressLicensingClient.recentlyVerified(userId)
+        if (recent != null) {
+            return recent.copy(
+                availablePlans = publicPlans.ifEmpty { recent.availablePlans }
             )
         }
+        // Commercial rights remain UNVERIFIED. Never infer Pro, prices or
+        // checkout availability merely from the public catalog.
+        return AccountSnapshot(
+            userId = userId,
+            email = email,
+            displayName = authDisplayName
+                ?: email.substringBefore('@').ifBlank { "Brother Matrizes" },
+            avatarUrl = authAvatarUrl,
+            planCode = "free",
+            subscriptionStatus = "unavailable",
+            currentPeriodEnd = null,
+            availablePlans = publicPlans,
+            commercialConfigured = false
+        )
     }
 
     const val AUTH_SCHEME =
