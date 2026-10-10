@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.core.archive
 import android.content.Context
 import android.net.Uri
 import com.github.junrar.Archive
+import com.github.junrar.ArchiveOptions
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import java.io.File
 import java.io.InputStream
@@ -157,7 +158,9 @@ object SafeArchiveExtractor {
                             if (candidate == null) incompatible++ else items += candidate
                         }
                     }
-                ArchiveFormat.RAR -> Archive(file).use { rar ->
+                ArchiveFormat.RAR -> Archive(
+                    file, ArchiveOptions.builder().maxDictionarySize(32L * 1024 * 1024).build()
+                ).use { rar ->
                     for (entry in rar.fileHeaders) {
                         val index = seen++
                         require(seen <= MAX_ENTRIES) { "RAR contém arquivos demais." }
@@ -262,11 +265,12 @@ object SafeArchiveExtractor {
                             }
                         }
                         ArchiveFormat.RAR -> {
-                            val archive = if (password == null || password.isEmpty()) {
-                                Archive(inventory.sourceFile)
-                            } else {
-                                Archive(inventory.sourceFile, String(password))
+                            val options = ArchiveOptions.builder()
+                                .maxDictionarySize(32L * 1024 * 1024)
+                            if (password != null && password.isNotEmpty()) {
+                                options.password(password)
                             }
+                            val archive = Archive(inventory.sourceFile, options.build())
                             archive.use { rar ->
                                 val entry = rar.fileHeaders.getOrNull(item.index)
                                     ?: error("Entrada RAR não encontrada.")
