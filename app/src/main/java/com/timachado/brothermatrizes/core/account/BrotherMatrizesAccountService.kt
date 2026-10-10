@@ -329,8 +329,26 @@ object BrotherMatrizesAccountService {
     suspend fun activateTrial(): Result<AccountSnapshot> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Entre na sua conta primeiro.")
-        WordPressLicensingClient.trial(token)
-        currentAccount().getOrThrow() ?: error("Conta não encontrada.")
+        // Never claim that the free trial started without authoritative
+        // WordPress confirmation; a paid receipt mirror cannot issue trials.
+        val receipt = WordPressLicensingClient.trial(token)
+        check(receipt.optJSONObject("trial")?.optString("status") == "active") {
+            "Seu teste gratuito já foi utilizado ou expirou."
+        }
+        val session = client.auth.currentSessionOrNull()
+            ?: error("Sua sessão Google expirou.")
+        val user = session.user ?: error("Conta Google indisponível.")
+        val confirmed = WordPressLicensingClient.account(
+            user.id, user.email.orEmpty(), token, null, null
+        )
+        check(confirmed.planCode == "trial" &&
+            confirmed.trialStatus == "active" && confirmed.hasProAccess
+        ) {
+            "Não foi possível confirmar a ativação. Consulte sua licença novamente."
+        }
+        lastPaidAccount = confirmed
+        lastPaidVerifiedMs = android.os.SystemClock.elapsedRealtime()
+        confirmed
     }
 
     // Do not confuse a persisted session being restored with a signed-out
@@ -425,10 +443,15 @@ object BrotherMatrizesAccountService {
     ): AccountSnapshot {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Sessão Google indisponível.")
-        // WooCommerce + Efí own the purchase; Supabase only mirrors signed
-        // WooCommerce billing events and authenticates this Google session.
-        // No UserMetadata, locally entered license or checkout URL grants Pro.
+        // WordPress owns 7-day trial activation and paid entitlements.
+        // Its API independently authenticates the Google subject.
+        // Fail closed if hosting blocks REST; the Supabase payment-receipt
+        // mirror can never manufacture a free trial.
         val verified = runCatching {
+            WordPressLicensingClient.account(
+                userId, email, token, authDisplayName, authAvatarUrl
+            )
+        }.getOrNull() ?: runCatching {
             BrotherEntitlementClient.account(
                 userId, email, token, authDisplayName, authAvatarUrl
             )
