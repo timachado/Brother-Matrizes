@@ -989,8 +989,8 @@ private fun SignedInAccount(
 
                 if (!account.commercialConfigured) {
                     Text(
-                        "Seu login Google está conectado. A consulta comercial WordPress " +
-                            "não está disponível neste momento; nenhum plano foi cancelado.",
+                        "Seu login continua conectado. Não foi possível confirmar seu plano agora. " +
+                            "Seus dados e suas compras foram preservados.",
                         color = FioTextMuted,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(bottom = 10.dp)
@@ -1058,7 +1058,7 @@ private fun SignedInAccount(
                     label =
                         "Tipo",
                     value =
-                        if (!account.commercialConfigured) "Aguardando WordPress"
+                        if (!account.commercialConfigured) "Aguardando confirmação"
                         else currentPlan
                             ?.let {
                                 AccountPresentation
@@ -1325,7 +1325,7 @@ private fun SignedInAccount(
                             null
                     ) {
                         Text(
-                            "Os botões de renovação/cancelamento serão liberados automaticamente quando a compra WooCommerce estiver vinculada à conta.",
+                            "As opções de renovação e cancelamento ficarão disponíveis após a confirmação da sua compra.",
                             modifier =
                                 Modifier.padding(
                                     top =
@@ -1365,17 +1365,17 @@ private fun SignedInAccount(
                 )
                 Text(
                     if (account.availablePlans.isEmpty())
-                        "Não foi possível consultar o catálogo agora. " +
+                        "Não foi possível atualizar os planos agora. " +
                             "As opções estão visíveis, mas preços e contratação " +
-                            "ficam indisponíveis até o WooCommerce responder."
+                            "ficam indisponíveis até a conexão ser restabelecida."
                     else if (!account.commercialConfigured)
-                        "Planos carregados do WooCommerce. " +
+                        "Planos disponíveis para consulta. " +
                             "Aguarde a validação da sua licença para contratar."
                     else if (visiblePlans.any { it.isPaid && !it.active })
-                        "Alguns produtos ainda não estão ativos no WooCommerce. " +
-                            "A contratação será liberada após o mapeamento."
+                        "Alguns planos ainda estão em preparação. " +
+                            "A contratação será liberada quando estiverem disponíveis."
                     else
-                        "Preços e disponibilidade consultados no WooCommerce.",
+                        "Confira abaixo os preços e as opções disponíveis.",
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                     color = FioTextMuted,
                     fontSize = 10.sp
@@ -1973,7 +1973,7 @@ private fun PlanSummary(
                         )
 
                     else ->
-                        "Preço pendente no WooCommerce"
+                        "Valor em definição"
                 },
             modifier =
                 Modifier.padding(
@@ -2009,7 +2009,7 @@ private fun PlanSummary(
         }
         if (plan.isPaid && !plan.active) {
             Text(
-                "Contratação indisponível — aguardando ativação do produto.",
+                "Contratação disponível em breve.",
                 modifier = Modifier.padding(top = 6.dp),
                 color = FioTextMuted,
                 fontSize = 10.sp
