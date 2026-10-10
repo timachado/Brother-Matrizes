@@ -1411,9 +1411,9 @@ private fun SignedInAccount(
                     Text("Minhas compras e licenças no site", color = FioGold)
                 }
                 Text(
-                    "A contratação é feita no navegador WordPress/WooCommerce. " +
-                        "O login do site é independente do Google no app; " +
-                        "o pagamento não libera o Pro sem licença validada.",
+                    "Compre no site com o mesmo e-mail confirmado no Google deste aplicativo. " +
+                        "Depois volte e toque em Verificar licença. " +
+                        "Seu plano Pro só aparece após o WooCommerce confirmar o pagamento.",
                     modifier = Modifier.padding(bottom = 10.dp),
                     color = FioTextMuted,
                     fontSize = 10.sp
