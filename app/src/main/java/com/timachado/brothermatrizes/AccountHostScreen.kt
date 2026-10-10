@@ -263,7 +263,7 @@ fun AccountHostScreen(
                     snackbar.showSnackbar(
                         when {
                             current == null -> "Nenhuma sessão Google confirmada."
-                            current.commercialConfigured -> "Licença verificada no WordPress."
+                            current.commercialConfigured -> if (current.hasProAccess) "Licença Pro confirmada pelo WordPress." else "Conta consultada. Nenhuma licença Pro ativa."
                             else -> "Conta Google conectada. Licença não verificável pela hospedagem atual."
                         }
                     )
@@ -633,7 +633,7 @@ fun AccountHostScreen(
         }.onFailure {
             scope.launch {
                 snackbar.showSnackbar(
-                    "Não foi possível abrir o WordPress no navegador."
+                    "Não foi possível abrir o portal de licenças no navegador."
                 )
             }
         }
