@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.core.account
 
+import android.content.Context
 import android.content.Intent
 import com.timachado.brothermatrizes.BuildConfig
 import io.github.jan.supabase.SupabaseClient
@@ -334,22 +335,32 @@ object BrotherMatrizesAccountService {
         return session.accessToken
     }
 
-    suspend fun authorizeImport(isFont: Boolean): Result<String> = runCatching {
-        val token = verifiedAccessToken()
-        WordPressLicensingClient.authorizeUsage(
-            token,
-            if (isFont) "import_font" else "import_matrix"
-        )
+    suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
+        if (BuildConfig.BETA_LOCAL_IMPORTS) {
+            // Explicit free preview. Does NOT issue or check a Pro license.
+            LocalBetaImportQuota.authorize(context, isFont)
+        } else {
+            val token = verifiedAccessToken()
+            WordPressLicensingClient.authorizeUsage(
+                token,
+                if (isFont) "import_font" else "import_matrix"
+            )
+        }
     }
 
-    suspend fun finalizeImport(isFont: Boolean, requestKey: String, success: Boolean):
-        Result<Unit> = runCatching {
-        val token = verifiedAccessToken()
-        WordPressLicensingClient.finalizeUsage(
-            token,
-            if (isFont) "import_font" else "import_matrix",
-            requestKey, success
-        )
+    suspend fun finalizeImport(
+        context: Context, isFont: Boolean, requestKey: String, success: Boolean
+    ): Result<Unit> = runCatching {
+        if (BuildConfig.BETA_LOCAL_IMPORTS) {
+            LocalBetaImportQuota.finalize(context, isFont, requestKey, success)
+        } else {
+            val token = verifiedAccessToken()
+            WordPressLicensingClient.finalizeUsage(
+                token,
+                if (isFont) "import_font" else "import_matrix",
+                requestKey, success
+            )
+        }
         Unit
     }
 
