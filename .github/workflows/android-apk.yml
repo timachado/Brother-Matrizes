@@ -61,6 +61,13 @@ jobs:
       - name: Repository safety checks
         run: bash scripts/pre_release_static_check.sh
 
+      # Pure PHP issuer tests are safe: no WordPress boot, orders or live keys.
+      - name: WordPress offline license signature QA
+        run: |
+          php -l wordpress/app-commerce-core-integration/bm-signed-license-issuer.php
+          php -l wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+          php wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+
       - name: Unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
