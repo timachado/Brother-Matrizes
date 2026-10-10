@@ -123,6 +123,16 @@ object SafeArchiveExtractor {
                     }
                 }
             }
+            return inspect(file)
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        }
+    }
+
+    /** Metadata-only inspector for files staged in private storage. */
+    internal fun inspect(file: File): ArchiveInventory {
+        require(file.length() <= MAX_ARCHIVE) { "Pacote maior que 128 MB." }
             val header = file.inputStream().use { stream ->
                 val bytes = ByteArray(8)
                 val read = stream.read(bytes)
@@ -173,10 +183,6 @@ object SafeArchiveExtractor {
                 }
             }
             return ArchiveInventory(format, file, items, incompatible, seen)
-        } catch (e: Exception) {
-            file.delete()
-            throw e
-        }
     }
 
     private class LimitedOutput(
