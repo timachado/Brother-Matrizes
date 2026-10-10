@@ -55,8 +55,7 @@ import java.util.Locale
 
 @Composable
 fun FontLibraryScreen(
-    onBack: () -> Unit,
-    onOpenArchive: (android.net.Uri) -> Unit
+    onBack: () -> Unit
 ) {
     val context =
         LocalContext.current
@@ -78,11 +77,50 @@ fun FontLibraryScreen(
     }
 
     var browserOpen by remember { mutableStateOf(false) }
-
+    var fontZipUri by remember { mutableStateOf<android.net.Uri?>(null) }
     val zipPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) onOpenArchive(uri)
+        if (uri != null) fontZipUri = uri
+    }
+    // Original direct TTF/OTF importer remains in the Fonts tab.
+    val fontPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val permit = com.timachado.brothermatrizes.core.account
+                .BrotherMatrizesAccountService.authorizeImport(isFont = true)
+            if (permit.isFailure) {
+                statusMessage = permit.exceptionOrNull()?.message
+                    ?: "Não foi possível confirmar sua cota de fontes."
+            } else {
+                val requestKey = permit.getOrThrow()
+                val before = ImportedFontStore.list(context).map { it.id }.toSet()
+                val result = withContext(Dispatchers.IO) {
+                    ImportedFontStore.importFont(context, uri)
+                }
+                var added = false
+                result.fold(onSuccess = { font ->
+                    added = font.id !in before
+                    importedFonts = ImportedFontStore.list(context)
+                    statusMessage = if (added) {
+                        "${font.displayName} importada e salva neste aparelho."
+                    } else {
+                        "${font.displayName} já estava salva neste aparelho."
+                    }
+                }, onFailure = { problem ->
+                    statusMessage = problem.message ?: "Não foi possível importar esta fonte."
+                })
+                val finalized = com.timachado.brothermatrizes.core.account
+                    .BrotherMatrizesAccountService.finalizeImport(
+                        isFont = true, requestKey = requestKey, success = added
+                    )
+                if (finalized.isFailure) {
+                    statusMessage = "Importação local concluída, mas não foi possível " +
+                        "confirmar a cota no servidor. Verifique a conexão."
+                }
+            }
+        }
     }
 
     if (browserOpen) {
@@ -93,66 +131,25 @@ fun FontLibraryScreen(
             },
             onArchiveReady = { uri ->
                 browserOpen = false
-                onOpenArchive(uri)
+                fontZipUri = uri
             }
         )
         return
     }
-
-    val fontPicker =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts
-                .OpenDocument()
-        ) { uri ->
-            if (uri == null) {
-                return@rememberLauncherForActivityResult
+    val selectedZip = fontZipUri
+    if (selectedZip != null) {
+        FontZipImportScreen(
+            archiveUri = selectedZip,
+            onBack = {
+                importedFonts = ImportedFontStore.list(context)
+                fontZipUri = null
+            },
+            onLibraryChanged = {
+                importedFonts = ImportedFontStore.list(context)
             }
-
-            scope.launch {
-                val result =
-                    withContext(
-                        Dispatchers.IO
-                    ) {
-                        ImportedFontStore
-                            .importFont(
-                                context,
-                                uri
-                            )
-                    }
-
-                result.fold(
-                    onSuccess = {
-                            font ->
-                        val alreadySaved =
-                            importedFonts.any {
-                                it.id ==
-                                    font.id
-                            }
-
-                        importedFonts =
-                            ImportedFontStore
-                                .list(context)
-
-                        statusMessage =
-                            if (
-                                alreadySaved
-                            ) {
-                                font.displayName +
-                                    " já estava salva neste aparelho."
-                            } else {
-                                font.displayName +
-                                    " importada e salva neste aparelho."
-                            }
-                    },
-                    onFailure = {
-                            error ->
-                        statusMessage =
-                            error.message
-                                ?: "Não foi possível importar esta fonte."
-                    }
-                )
-            }
-        }
+        )
+        return
+    }
 
     Column(
         Modifier
