@@ -11,3 +11,6 @@ Mudanca segura para verificar disparo automatico do Cloudflare Workers Builds de
 - Endpoint esperado depois de sucesso: `https://brother-matrizes-api.servicospremiummachadoti.workers.dev/health` = JSON com `ready_for_sales: false`.
 - Se falhar, nao publicar licencas, pagamentos ou chaves e nao reconfigurar WooCommerce.
 - Esta mudanca e somente documentacao, nao altera codigo do aplicativo nem do Worker.
+
+## Verificação após ajuste do painel — 10/10/2026
+Nova tentativa solicitada pelo usuário após orientação de corrigir `Production branch` e limpar `Build command`. Esta modificação é apenas de documentação para acionar a compilação automática; não altera a API, dados, D1, pagamentos ou aplicativos.
