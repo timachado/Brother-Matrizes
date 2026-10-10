@@ -30,6 +30,23 @@ jobs:
         run: python3 -m unittest discover -s wordpress/app-commerce-core-integration -p 'test_apply_core_relay.py' -v
       - name: ZIP patcher syntax check
         run: python3 -m py_compile wordpress/app-commerce-core-integration/apply_core_relay.py
+      - name: Check Cloudflare runtime secret wiring (unsigned read-only diagnostic)
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://brother-matrizes-api.servicospremiummachadoti.workers.dev/internal/catalog-sync"
+          status=$(curl --silent --show-error --max-time 20 \
+            --request POST --header 'Content-Type: application/json' \
+            --data '{}' --output /tmp/catalog-sync-probe.json \
+            --write-out '%{http_code}' "$endpoint")
+          echo "Cloudflare unsigned sync probe: HTTP $status"
+          cat /tmp/catalog-sync-probe.json
+          echo
+          case "$status" in
+            401) echo "Cloudflare D1 binding and CATALOG_SYNC_SECRET are present; unsigned POST correctly rejected." ;;
+            503) echo "::warning::Cloudflare reports incomplete runtime configuration. Confirm D1 and CATALOG_SYNC_SECRET in Worker Settings (not Builds)." ;;
+            *) echo "::warning::Unexpected unsigned sync response ($status)." ;;
+          esac
       - name: Verify no actual WordPress deployment
         run: |
           echo "QA only: no WordPress installation, no secrets or payment activation."
