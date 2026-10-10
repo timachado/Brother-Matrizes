@@ -21,7 +21,8 @@ final class BM_Cloudflare_Catalog_Relay {
         return defined('BM_CATALOG_SYNC_SECRET')
             && is_string(BM_CATALOG_SYNC_SECRET)
             && strlen(BM_CATALOG_SYNC_SECRET) >= 32
-            && (!defined('BM_CATALOG_SYNC_ENABLED') || BM_CATALOG_SYNC_ENABLED === true);
+            && defined('BM_CATALOG_SYNC_ENABLED')
+            && BM_CATALOG_SYNC_ENABLED === true;
     }
 
     public static function boot(): void {
