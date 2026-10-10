@@ -150,7 +150,7 @@ fun FontZipImportScreen(
                             // Authorization is per font, before extraction; commit after
                             // successful new import. Never use the matrix operation.
                             val permit = BrotherMatrizesAccountService
-                                .authorizeImport(isFont = true)
+                                .authorizeImport(context = context, isFont = true)
                             if (permit.isFailure) {
                                 status = permit.exceptionOrNull()?.message
                                     ?: "Não foi possível validar a cota de fontes."
@@ -182,7 +182,7 @@ fun FontZipImportScreen(
                                 status = "${entry.name}: ${e.message ?: "fonte inválida"}"
                             } finally {
                                 val sync = BrotherMatrizesAccountService.finalizeImport(
-                                    isFont = true, requestKey = key, success = created
+                                    context = context, isFont = true, requestKey = key, success = created
                                 )
                                 if (sync.isFailure) {
                                     status = "Fonte processada, mas a cota não foi sincronizada. " +
