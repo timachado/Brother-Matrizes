@@ -52,6 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Only selected embroidery/font files are extracted, one at a time, after user consent. */
 @Composable
@@ -69,6 +70,7 @@ fun ArchiveExtractorScreen(
     var scanning by remember(archiveUri) { mutableStateOf(true) }
     var importing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0) }
+    val cancelRequested = remember(archiveUri) { AtomicBoolean(false) }
     var password by remember { mutableStateOf("") }
     val selected = remember(archiveUri) { mutableStateListOf<Int>() }
     var report by remember { mutableStateOf("") }
@@ -200,12 +202,17 @@ fun ArchiveExtractorScreen(
             if (importing) {
                 CircularProgressIndicator()
                 Text("Importando $progress de ${selected.size}…", color = FioGold)
+                OutlinedButton(
+                    onClick = { cancelRequested.set(true) },
+                    enabled = !cancelRequested.get()
+                ) { Text("Cancelar importação", color = FioGold) }
             }
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !importing && selected.isNotEmpty(),
                 onClick = {
                     importing = true
+                    cancelRequested.set(false)
                     report = ""
                     scope.launch {
                         val originals = selected.toList().filter { it !in importedItems }
@@ -214,6 +221,10 @@ fun ArchiveExtractorScreen(
                         var ok = 0
                         var failed = 0
                         for ((position, index) in originals.withIndex()) {
+                            if (cancelRequested.get()) {
+                                report = "Importação cancelada; itens já concluídos foram preservados."
+                                break
+                            }
                             progress = position + 1
                             val item = archive.entries.firstOrNull { it.index == index }
                                 ?: continue
@@ -234,7 +245,10 @@ fun ArchiveExtractorScreen(
                                 val result = withContext(Dispatchers.IO) {
                                     val secret = password.toCharArray()
                                     val temp = try {
-                                        SafeArchiveExtractor.extract(context, archive, item, secret)
+                                        SafeArchiveExtractor.extract(
+                                            context, archive, item, secret,
+                                            cancelled = { cancelRequested.get() }
+                                        )
                                     } finally {
                                         secret.fill('\u0000')
                                     }
