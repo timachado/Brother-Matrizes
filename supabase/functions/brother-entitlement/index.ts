@@ -93,6 +93,29 @@ Deno.serve(async req => {
       trialStatus: "unavailable", trialRemainingSeconds: 0 });
   }
 
+  // Non-financial owner-issued complimentary Pro Lifetime. These grants are
+  // bound to the verified Supabase auth user ID, never editable client metadata
+  // or WooCommerce orders. The table denies reads/writes to mobile roles.
+  const { data: ownerGrant, error: ownerGrantError } = await admin
+    .from("brother_matrizes_admin_grants")
+    .select("plan_code,status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (ownerGrantError) return json({
+    message: "Não foi possível verificar as concessões administrativas.",
+    commercialConfigured: false
+  }, 503);
+  if (ownerGrant?.plan_code === "pro_lifetime" && ownerGrant.status === "active") {
+    if (req.method === "POST")
+      return json({ message: "Esta conta já possui Pro Vitalício ativo." }, 409);
+    return json({
+      ...account, planCode: "pro_lifetime", status: "active",
+      source: "supabase_owner_complimentary_grant", pro: true,
+      currentPeriodEnd: null, purchasedAt: null, purchasePriceCents: null,
+      provider: null, trialStatus: "unavailable", trialRemainingSeconds: 0
+    });
+  }
+
   const emailHash = await sha256(email);
   const { data: events, error: eventsError } = await admin.from("brother_matrizes_billing_events")
     .select("site_id,order_ref,event_key,plan_code,status,provider,amount_cents,occurred_at,received_at,current_period_end")
