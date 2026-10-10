@@ -80,24 +80,15 @@ internal object WordPressLicensingClient {
         }
     }
 
-    suspend fun account(
-        sub: String,
-        authEmail: String,
-        token: String,
-        authName: String?,
-        authAvatar: String?
-    ): AccountSnapshot = withContext(Dispatchers.IO) {
-        val data = json("/wp-json/brother-matrizes/v1/me", token)
-        check(data.optString("subject") == sub) {
-            "Identidade comercial não corresponde ao login Google."
-        }
-        val license = data.optJSONObject("license") ?: JSONObject()
-        val trial = license.optJSONObject("trial") ?: JSONObject()
-        val level = license.optString("level", "free")
-        val expires = license.optString("expires_at").takeIf { it.isNotBlank() }
+
+    /** Public catalog independent of /me and /usage.
+     * No entitlements are inferred from this data. Prices and active state
+     * always come from WooCommerce through WordPress.
+     */
+    suspend fun catalog(): List<AccountPlanOption> = withContext(Dispatchers.IO) {
         val serverPlans = json("/wp-json/brother-matrizes/v1/plans", null)
             .optJSONArray("plans")
-        val plans = buildList {
+        return buildList {
             if (serverPlans != null) for (index in 0 until serverPlans.length()) {
                 val p = serverPlans.optJSONObject(index) ?: continue
                 val code = p.optString("code")
@@ -129,7 +120,29 @@ internal object WordPressLicensingClient {
                 ))
             }
         }
-        val quota = buildMap<String, Int> {
+    }
+
+    suspend fun account(
+        sub: String,
+        authEmail: String,
+        token: String,
+        authName: String?,
+        authAvatar: String?
+    ): AccountSnapshot = withContext(Dispatchers.IO) {
+        val data = json("/wp-json/brother-matrizes/v1/me", token)
+        check(data.optString("subject") == sub) {
+            "Identidade comercial não corresponde ao login Google."
+        }
+        val license = data.optJSONObject("license") ?: JSONObject()
+        val trial = license.optJSONObject("trial") ?: JSONObject()
+        val level = license.optString("level", "free")
+        val expires = license.optString("expires_at").takeIf { it.isNotBlank() }
+        // A temporary catalog error must not hide a verified account/license.
+        val plans = runCatching { catalog() }.getOrDefault(emptyList())
+        // Usage is optional presentation information. An unavailable /usage
+        // must not erase verified licensing and the independently loaded plans.
+        val quota = runCatching {
+            buildMap<String, Int> {
             // Usage comes from WordPress only. It is never authoritative
             // when the backend is unavailable.
             val usage = json("/wp-json/brother-matrizes/v1/usage", token)
@@ -141,6 +154,7 @@ internal object WordPressLicensingClient {
                 if (!action.isNull("remaining")) put(key, action.optInt("remaining"))
             }
         }
+        }.getOrDefault(emptyMap())
         val snapshot = AccountSnapshot(
             userId = sub,
             email = data.optString("email", authEmail),
