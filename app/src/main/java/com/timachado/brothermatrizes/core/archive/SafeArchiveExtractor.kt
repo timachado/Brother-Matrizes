@@ -103,7 +103,7 @@ object SafeArchiveExtractor {
         return listOf(".zip", ".rar", ".7z").any { name.lowercase().endsWith(it) }
     }
 
-    fun stage(context: Context, uri: Uri): ArchiveInventory {
+    fun stage(context: Context, uri: Uri, password: CharArray? = null): ArchiveInventory {
         val file = File(context.cacheDir, "archive-${UUID.randomUUID()}.bin")
         try {
             val stream = context.contentResolver.openInputStream(uri)
@@ -123,7 +123,7 @@ object SafeArchiveExtractor {
                     }
                 }
             }
-            return inspect(file)
+            return inspect(file, password)
         } catch (e: Exception) {
             file.delete()
             throw e
@@ -131,7 +131,7 @@ object SafeArchiveExtractor {
     }
 
     /** Metadata-only inspector for files staged in private storage. */
-    internal fun inspect(file: File): ArchiveInventory {
+    internal fun inspect(file: File, password: CharArray? = null): ArchiveInventory {
         require(file.length() <= MAX_ARCHIVE) { "Pacote maior que 128 MB." }
             val header = file.inputStream().use { stream ->
                 val bytes = ByteArray(8)
@@ -158,7 +158,10 @@ object SafeArchiveExtractor {
                     }
                 }
                 ArchiveFormat.SEVEN_Z -> SevenZFile.builder()
-                    .setFile(file).setMaxMemoryLimitKiB(32768).get().use { seven ->
+                    .setFile(file).setMaxMemoryLimitKiB(32768)
+                    .apply {
+                        if (password != null && password.isNotEmpty()) setPassword(password)
+                    }.get().use { seven ->
                         for (entry in seven.entries) {
                             val index = seen++
                             require(seen <= MAX_ENTRIES) { "7Z contém arquivos demais." }
@@ -169,7 +172,11 @@ object SafeArchiveExtractor {
                         }
                     }
                 ArchiveFormat.RAR -> Archive(
-                    file, ArchiveOptions.builder().maxDictionarySize(32L * 1024 * 1024).build()
+                    file, ArchiveOptions.builder()
+                        .maxDictionarySize(32L * 1024 * 1024)
+                        .apply {
+                            if (password != null && password.isNotEmpty()) password(password)
+                        }.build()
                 ).use { rar ->
                     for (entry in rar.fileHeaders) {
                         val index = seen++
