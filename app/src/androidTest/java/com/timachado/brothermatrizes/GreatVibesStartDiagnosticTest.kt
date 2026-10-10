@@ -421,11 +421,6 @@ class GreatVibesStartDiagnosticTest {
         Log.i("GreatVibesDiagnostic", "MARIA size=" + b.widthMm + "x" + b.heightMm + " pts=" + design.points.size)
         Log.i("GreatVibesDiagnostic", "MARIA first=" + first.command + " " + first.xUnits + "," + first.yUnits
              + " bounds=" + b.minXUnits + "," + b.minYUnits + ".." + b.maxXUnits + "," + b.maxYUnits)
-        Log.i("GreatVibesDiagnostic", "MARIA structural:\n" +
-            com.timachado.brothermatrizes.font.PeDesignImportedFontEngine.debugRealStartGeometry(
-                font = font, sourceText = "Maria", options = options
-            )
-        )
         design.points.take(35).forEachIndexed { index, p ->
             Log.i("GreatVibesDiagnostic", "MARIA_POINT " + index + " " + p.command + " " + p.xUnits + "," + p.yUnits)
         }
