@@ -7,11 +7,11 @@ import org.junit.Test
 class WordPressWebStoreTest {
     @Test fun opensOnlyOfficialWooCommerceAccount() {
         assertEquals(
-            "https://timachado.ifree.page/minha-conta/",
+            "https://timachado.ifree.page/minha-conta/meus-aplicativos/",
             WordPressWebStore.accountUrl("https://timachado.ifree.page")
         )
         assertEquals(
-            "https://timachado.ifree.page/minha-conta/",
+            "https://timachado.ifree.page/minha-conta/meus-aplicativos/",
             WordPressWebStore.accountUrl("https://timachado.ifree.page/")
         )
     }
