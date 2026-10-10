@@ -27,12 +27,14 @@ LOADER = r"""
  * The new module checks both BM_CATALOG_SYNC_SECRET and
  * BM_CATALOG_SYNC_ENABLED === true; otherwise it does nothing.
  */
-add_action('plugins_loaded', static function (): void {
-    $bm_catalog_relay = __DIR__ . '/includes/brother-matrizes/bm-cloudflare-catalog-relay.php';
-    if (is_readable($bm_catalog_relay)) {
-        require_once $bm_catalog_relay;
-    }
-}, PHP_INT_MAX);
+if (defined('ABSPATH') && function_exists('add_action')) {
+    add_action('plugins_loaded', static function (): void {
+        $bm_catalog_relay = __DIR__ . '/includes/brother-matrizes/bm-cloudflare-catalog-relay.php';
+        if (is_readable($bm_catalog_relay)) {
+            require_once $bm_catalog_relay;
+        }
+    }, PHP_INT_MAX);
+}
 
 """
 
