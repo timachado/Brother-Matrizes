@@ -1,5 +1,9 @@
 package com.timachado.brothermatrizes
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -82,6 +86,58 @@ fun ProjectLibraryScreen(
     var section by remember {
         mutableStateOf(
             LibrarySection.MATRICES
+        )
+    }
+    val context = LocalContext.current
+    var showRarOptions by remember { mutableStateOf(false) }
+    var rarMessage by remember { mutableStateOf<String?>(null) }
+    val rarArchivePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val preferred = RarExternalOpener.installed(context)
+            val result = RarExternalOpener.handoff(context, uri, preferred)
+            rarMessage = if (result.isSuccess) {
+                "Extraia o pacote no aplicativo escolhido e volte para abrir a matriz."
+            } else {
+                "Não foi possível abrir o pacote. Escolha um descompactador instalado."
+            }
+        }
+    }
+    if (showRarOptions) {
+        AlertDialog(
+            onDismissRequest = { showRarOptions = false },
+            title = { Text("Abrir com RAR (WinRAR)") },
+            text = { Text(
+                "Use um descompactador externo para ZIP, RAR ou 7Z. " +
+                    "Depois volte ao Brother Matrizes para importar PES, DST ou JEF."
+            ) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRarOptions = false
+                    if (RarExternalOpener.installed(context)) {
+                        val opened = RarExternalOpener.launch(context)
+                        if (opened.isFailure) rarMessage = "Não foi possível abrir o RAR."
+                    } else {
+                        RarExternalOpener.install(context)
+                    }
+                }) {
+                    Text(
+                        if (RarExternalOpener.installed(context)) "ABRIR RAR"
+                        else "INSTALAR RAR", color = FioGold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRarOptions = false
+                    rarArchivePicker.launch(arrayOf(
+                        "application/zip", "application/vnd.rar",
+                        "application/x-rar-compressed",
+                        "application/x-7z-compressed", "application/octet-stream"
+                    ))
+                }) { Text("ESCOLHER ARQUIVO", color = FioText) }
+            }
         )
     }
 
@@ -284,6 +340,33 @@ fun ProjectLibraryScreen(
                     "Restaurar"
                 )
             }
+        }
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { showRarOptions = true },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("ABRIR COM RAR (WINRAR)", color = FioGold, fontSize = 11.sp)
+            }
+            OutlinedButton(
+                onClick = {
+                    rarArchivePicker.launch(arrayOf(
+                        "application/zip", "application/vnd.rar",
+                        "application/x-rar-compressed",
+                        "application/x-7z-compressed", "application/octet-stream"
+                    ))
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Enviar pacote ao RAR", color = FioText, fontSize = 11.sp)
+            }
+        }
+        rarMessage?.let {
+            Text(it, color = FioTextMuted, fontSize = 11.sp)
         }
 
         OutlinedButton(
