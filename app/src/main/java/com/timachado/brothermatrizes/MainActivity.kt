@@ -44,6 +44,9 @@ import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
+import com.timachado.brothermatrizes.core.archive.ArchiveCategory
+import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
 import com.timachado.brothermatrizes.core.project.ActiveDesignStore
@@ -253,6 +256,7 @@ private sealed interface Screen {
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
+    data class ArchiveImport(val uri: Uri) : Screen
     data object Account : Screen
 
     data class Transfer(
@@ -540,6 +544,15 @@ private fun BrotherMatrizesApp(
         loading =
             true
 
+        val isArchive = withContext(Dispatchers.IO) {
+            SafeArchiveExtractor.isArchive(context, uri)
+        }
+        if (isArchive) {
+            loading = false
+            screen = Screen.ArchiveImport(uri)
+            onExternalOpenConsumed(uri)
+            return@LaunchedEffect
+        }
         val result =
             withContext(
                 Dispatchers.IO
@@ -629,6 +642,8 @@ private fun BrotherMatrizesApp(
                 Screen.CreateDrawing ->
                     Screen.Home
 
+                is Screen.ArchiveImport -> Screen.ProjectLibrary
+
                 is Screen.Transfer ->
                     Screen.Viewer(
                         current.design
@@ -694,6 +709,12 @@ private fun BrotherMatrizesApp(
                         uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
+            }
+
+            if (SafeArchiveExtractor.isArchive(context, uri)) {
+                telegramImportPending = false
+                screen = Screen.ArchiveImport(uri)
+                return@rememberLauncherForActivityResult
             }
 
             scope.launch {
@@ -1874,6 +1895,33 @@ private fun BrotherMatrizesApp(
                         },
                         onSearchMatrices = {
                             screen = Screen.TelegramSearch
+                        }
+                    )
+                }
+
+                is Screen.ArchiveImport -> {
+                    ArchiveExtractorScreen(
+                        archiveUri = current.uri,
+                        onBack = { goBack() },
+                        onImported = { items, first ->
+                            savedProjects = (items + savedProjects).distinctBy { it.id }
+                            // Keep the extractor visible to allow multiple batches.
+                            // Imported projects can be opened from Biblioteca.
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "${items.size} matriz(es) salvas na Biblioteca."
+                                )
+                            }
+                        },
+                        canImport = { category ->
+                            BrotherMatrizesAccountService.authorizeImport(
+                                category == ArchiveCategory.FONT
+                            ).getOrThrow()
+                        },
+                        onImportFinished = { category, key, success ->
+                            BrotherMatrizesAccountService.finalizeImport(
+                                category == ArchiveCategory.FONT, key, success
+                            ).getOrThrow()
                         }
                     )
                 }
