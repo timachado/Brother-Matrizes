@@ -315,6 +315,27 @@ object BrotherMatrizesAccountService {
         currentAccount().getOrThrow() ?: error("Conta não encontrada.")
     }
 
+    suspend fun authorizeImport(isFont: Boolean): Result<String> = runCatching {
+        val session = client.auth.currentSessionOrNull()
+            ?: error("Faça login Google para importar e registrar suas cotas.")
+        WordPressLicensingClient.authorizeUsage(
+            session.accessToken,
+            if (isFont) "import_font" else "import_matrix"
+        )
+    }
+
+    suspend fun finalizeImport(isFont: Boolean, requestKey: String, success: Boolean):
+        Result<Unit> = runCatching {
+        val session = client.auth.currentSessionOrNull()
+            ?: error("Faça login Google novamente para sincronizar sua cota.")
+        WordPressLicensingClient.finalizeUsage(
+            session.accessToken,
+            if (isFont) "import_font" else "import_matrix",
+            requestKey, success
+        )
+        Unit
+    }
+
     suspend fun openCheckout(planCode: String): Result<String> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Entre na sua conta primeiro.")
