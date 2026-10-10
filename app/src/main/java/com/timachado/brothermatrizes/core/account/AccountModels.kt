@@ -342,6 +342,9 @@ object AccountPresentation {
             "free" ->
                 "Gratuito"
 
+            "trial" ->
+                "Teste Pro • 7 dias"
+
             "pro" ->
                 "Brother Matrizes Pro"
 

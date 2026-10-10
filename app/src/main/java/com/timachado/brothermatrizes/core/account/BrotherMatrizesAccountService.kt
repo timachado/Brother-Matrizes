@@ -329,22 +329,19 @@ object BrotherMatrizesAccountService {
     suspend fun activateTrial(): Result<AccountSnapshot> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Entre na sua conta primeiro.")
-        // Never claim that the free trial started without authoritative
-        // WordPress confirmation; a paid receipt mirror cannot issue trials.
-        val receipt = WordPressLicensingClient.trial(token)
-        check(receipt.optJSONObject("trial")?.optString("status") == "active") {
-            "Seu teste gratuito já foi utilizado ou expirou."
-        }
+        // Seven-day non-financial trial: Supabase validates Google identity
+        // and stores the one-time claim. No WooCommerce/Efí charge is created.
         val session = client.auth.currentSessionOrNull()
             ?: error("Sua sessão Google expirou.")
         val user = session.user ?: error("Conta Google indisponível.")
-        val confirmed = WordPressLicensingClient.account(
-            user.id, user.email.orEmpty(), token, null, null
+        val confirmed = BrotherEntitlementClient.account(
+            user.id, user.email.orEmpty(), token, null, null,
+            activateTrial = true
         )
         check(confirmed.planCode == "trial" &&
             confirmed.trialStatus == "active" && confirmed.hasProAccess
         ) {
-            "Não foi possível confirmar a ativação. Consulte sua licença novamente."
+            "Não foi possível confirmar os 7 dias gratuitos."
         }
         lastPaidAccount = confirmed
         lastPaidVerifiedMs = android.os.SystemClock.elapsedRealtime()
@@ -443,16 +440,15 @@ object BrotherMatrizesAccountService {
     ): AccountSnapshot {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Sessão Google indisponível.")
-        // WordPress owns 7-day trial activation and paid entitlements.
-        // Its API independently authenticates the Google subject.
-        // Fail closed if hosting blocks REST; the Supabase payment-receipt
-        // mirror can never manufacture a free trial.
+        // The authenticated Supabase endpoint provides trial claims and
+        // WooCommerce-reconciled paid receipts. WordPress remains the payment
+        // authority; its REST endpoint is only a fallback on supported hosting.
         val verified = runCatching {
-            WordPressLicensingClient.account(
+            BrotherEntitlementClient.account(
                 userId, email, token, authDisplayName, authAvatarUrl
             )
         }.getOrNull() ?: runCatching {
-            BrotherEntitlementClient.account(
+            WordPressLicensingClient.account(
                 userId, email, token, authDisplayName, authAvatarUrl
             )
         }.getOrNull()

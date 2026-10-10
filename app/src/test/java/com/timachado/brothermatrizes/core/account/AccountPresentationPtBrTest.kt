@@ -13,6 +13,10 @@ class AccountPresentationPtBrTest {
         assertEquals("Não informado", AccountPresentation.billingLabel("unexpected_code"))
     }
 
+    @Test fun trialLabelExplainsThatItIsNotPaid() {
+        assertEquals("Teste Pro • 7 dias", AccountPresentation.planLabel("trial"))
+    }
+
     @Test fun unknownSubscriptionCodesNeverAppearOnScreen() {
         assertEquals("Aguardando confirmação", AccountPresentation.statusLabel("unavailable"))
         assertEquals("Aguardando pagamento", AccountPresentation.statusLabel("pending"))

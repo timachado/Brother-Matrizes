@@ -1112,7 +1112,9 @@ private fun SignedInAccount(
                                         it.billingType
                                     )
                             }
-                            ?: if (
+                            ?: if (account.planCode == "trial") {
+                                "Teste gratuito sem cartão"
+                            } else if (
                                 account.isLifetime
                             ) {
                                 "Acesso permanente"
@@ -1153,6 +1155,12 @@ private fun SignedInAccount(
                 }
 
                 when {
+                    account.planCode == "trial" -> {
+                        AccountLine(
+                            label = "Fim do teste",
+                            value = formattedDate(account.currentPeriodEnd)
+                        )
+                    }
                     account.isLifetime -> {
                         AccountLine(
                             label =
@@ -1250,6 +1258,10 @@ private fun SignedInAccount(
                     when {
                         account.isLifetime ->
                             "Este plano não possui renovação nem próxima cobrança."
+
+                        account.planCode == "trial" ->
+                            "Teste gratuito sem cartão e sem cobrança automática. " +
+                                "Ao terminar, o aplicativo volta para o plano Gratuito."
 
                         account.isPaid ->
                             "O Brother Matrizes acompanha aqui o plano, status e renovação vinculados à sua conta."

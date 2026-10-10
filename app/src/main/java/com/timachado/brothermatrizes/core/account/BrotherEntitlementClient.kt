@@ -18,14 +18,19 @@ internal object BrotherEntitlementClient {
         email: String,
         accessToken: String,
         displayName: String?,
-        avatar: String?
+        avatar: String?,
+        activateTrial: Boolean = false
     ): AccountSnapshot = withContext(Dispatchers.IO) {
         val root = URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/brother-entitlement")
         require(root.protocol == "https" &&
             root.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
             root.port == -1) { "Servidor de autenticação inesperado." }
         val conn = (root.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+            requestMethod = if (activateTrial) "POST" else "GET"
+            if (activateTrial) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
             connectTimeout = 12000
             readTimeout = 12000
             instanceFollowRedirects = false
@@ -35,6 +40,12 @@ internal object BrotherEntitlementClient {
             setRequestProperty("Authorization", "Bearer $accessToken")
         }
         val body = try {
+            if (activateTrial) {
+                conn.outputStream.use { stream ->
+                    stream.write(JSONObject().put("action", "activate_trial")
+                        .toString().toByteArray(Charsets.UTF_8))
+                }
+            }
             val code = conn.responseCode
             val mime = conn.contentType.orEmpty().substringBefore(';').lowercase().trim()
             check(code == 200 && (mime == "application/json" || mime.endsWith("+json"))) {
@@ -67,9 +78,13 @@ internal object BrotherEntitlementClient {
         val paidCodes = setOf(
             "pro_monthly", "pro_yearly", "pro_lifetime", "pro_lifetime_launch"
         )
-        val plan = if (expectedPlan in paidCodes && body.optBoolean("pro", false) &&
+        val serverPro = body.optBoolean("pro", false) &&
             body.optString("status") == "active"
-        ) expectedPlan else "free"
+        val plan = when {
+            expectedPlan in paidCodes && serverPro -> expectedPlan
+            expectedPlan == "trial" && serverPro -> "trial"
+            else -> "free"
+        }
         val expiry = body.optString("currentPeriodEnd").takeUnless {
             it.isBlank() || it == "null"
         }
@@ -111,7 +126,10 @@ internal object BrotherEntitlementClient {
             provider = body.optString("provider").takeUnless { it.isBlank() || it == "null" },
             manageUrl = WordPressWebStore.accountUrl(BuildConfig.WORDPRESS_URL),
             availablePlans = catalog,
-            commercialConfigured = body.optBoolean("commercialConfigured", false)
+            commercialConfigured = body.optBoolean("commercialConfigured", false),
+            trialStatus = body.optString("trialStatus", "unknown"),
+            trialRemainingSeconds = body.optLong("trialRemainingSeconds", 0L)
+                .coerceAtLeast(0L)
         )
     }
 }
