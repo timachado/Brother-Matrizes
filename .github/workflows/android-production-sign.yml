@@ -1,8 +1,12 @@
 name: Build Signed Brother Matrizes Production APK
 
+# Preparatory signature rehearsal only; never publishes a GitHub Release,
+# WooCommerce product, public download or changes a billing entitlement.
 on:
+  push:
+    branches: ["release/brother-matrizes-1.0.0-prep"]
   workflow_dispatch:
-  
+
 permissions:
   contents: read
 
