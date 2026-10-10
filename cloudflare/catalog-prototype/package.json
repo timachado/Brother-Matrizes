@@ -1,0 +1,11 @@
+{
+  "name": "brother-matrizes-catalog-relay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "deploy:cloudflare": "node deploy.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.102.0"
+  }
+}
