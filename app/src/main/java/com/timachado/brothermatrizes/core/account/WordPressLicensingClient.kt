@@ -108,7 +108,7 @@ internal object WordPressLicensingClient {
                     isPromotional = promo,
                     description = if (code == "free") "Recursos básicos."
                     else if (lifetime) "Pagamento único."
-                    else "Renovação manual até validação do gateway Efí.",
+                    else "Consulte as condições de renovação ao contratar.",
                     priceCents = p.optInt("price_cents").takeIf {
                         !p.isNull("price_cents")
                     },
