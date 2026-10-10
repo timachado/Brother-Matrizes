@@ -53,6 +53,9 @@ object BrotherMatrizesAccountService {
         }
     }
 
+    @Volatile private var lastPaidAccount: AccountSnapshot? = null
+    @Volatile private var lastPaidVerifiedMs: Long = 0L
+
     suspend fun currentAccount():
         Result<AccountSnapshot?> =
         runCatching {
@@ -300,6 +303,8 @@ object BrotherMatrizesAccountService {
         runCatching {
             client.auth
                 .signOut()
+            lastPaidAccount = null
+            lastPaidVerifiedMs = 0L
         }
 
     suspend fun syncDevices(localDevice: LocalDeviceIdentity): Result<List<AccountDevice>> =
@@ -337,8 +342,15 @@ object BrotherMatrizesAccountService {
 
     suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
-            // Explicit free preview. Does NOT issue or check a Pro license.
-            LocalBetaImportQuota.authorize(context, isFont)
+            // Paid access comes ONLY from recent signed-in entitlement lookup.
+            // Local free quota is never interpreted as paid subscription.
+            val checked = lastPaidAccount
+            val age = android.os.SystemClock.elapsedRealtime() - lastPaidVerifiedMs
+            if (checked != null && age in 0..(5 * 60 * 1000L) &&
+                checked.hasProAccess &&
+                client.auth.currentSessionOrNull()?.user?.id == checked.userId
+            ) "pro_" + java.util.UUID.randomUUID().toString()
+            else LocalBetaImportQuota.authorize(context, isFont)
         } else {
             val token = verifiedAccessToken()
             WordPressLicensingClient.authorizeUsage(
@@ -352,7 +364,12 @@ object BrotherMatrizesAccountService {
         context: Context, isFont: Boolean, requestKey: String, success: Boolean
     ): Result<Unit> = runCatching {
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
-            LocalBetaImportQuota.finalize(context, isFont, requestKey, success)
+            if (requestKey.startsWith("pro_")) {
+                require(requestKey.matches(
+                    Regex("pro_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                )) { "Reserva Pro inválida." }
+                // Verified Pro imports have no beta free quota debit.
+            } else LocalBetaImportQuota.finalize(context, isFont, requestKey, success)
         } else {
             val token = verifiedAccessToken()
             WordPressLicensingClient.finalizeUsage(
@@ -378,40 +395,30 @@ object BrotherMatrizesAccountService {
     ): AccountSnapshot {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Sessão Google indisponível.")
-        // WordPress is the only commercial source; never query the legacy
-        // Supabase subscription, profile, device or pricing tables.
+        // WooCommerce + Efí own the purchase; Supabase only mirrors signed
+        // WooCommerce billing events and authenticates this Google session.
+        // No UserMetadata, locally entered license or checkout URL grants Pro.
         val verified = runCatching {
-            WordPressLicensingClient.account(
+            BrotherEntitlementClient.account(
                 userId, email, token, authDisplayName, authAvatarUrl
             )
         }.getOrNull()
-        if (verified != null) return verified
-
-        // Fetch the public WooCommerce catalog independently of the protected
-        // /me endpoint. A missing token validation configuration must not
-        // make the plan list vanish from the app.
-        val publicPlans = runCatching {
-            WordPressLicensingClient.catalog()
-        }.getOrDefault(emptyList())
-
-        val recent = WordPressLicensingClient.recentlyVerified(userId)
-        if (recent != null) {
-            return recent.copy(
-                availablePlans = publicPlans.ifEmpty { recent.availablePlans }
-            )
+        if (verified != null) {
+            lastPaidAccount = verified.takeIf { it.hasProAccess }
+            lastPaidVerifiedMs = android.os.SystemClock.elapsedRealtime()
+            return verified
         }
-        // Commercial rights remain UNVERIFIED. Never infer Pro, prices or
-        // checkout availability merely from the public catalog.
+        lastPaidAccount = null
+        // Fail closed on network/verification errors; never consult editable
+        // profile or old WooCommerce API blocked by InfinityFree for Pro.
         return AccountSnapshot(
-            userId = userId,
-            email = email,
+            userId = userId, email = email,
             displayName = authDisplayName
                 ?: email.substringBefore('@').ifBlank { "Brother Matrizes" },
             avatarUrl = authAvatarUrl,
-            planCode = "free",
-            subscriptionStatus = "unavailable",
+            planCode = "free", subscriptionStatus = "unavailable",
             currentPeriodEnd = null,
-            availablePlans = publicPlans,
+            availablePlans = AccountPlanCatalog.forDisplay(emptyList()),
             commercialConfigured = false
         )
     }
