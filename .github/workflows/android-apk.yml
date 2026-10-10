@@ -122,7 +122,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest'
+            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest,com.timachado.brothermatrizes.core.account.LocalBetaImportQuotaInstrumentedTest'
 
       - name: Explain Android emulator test failures
         if: failure()
