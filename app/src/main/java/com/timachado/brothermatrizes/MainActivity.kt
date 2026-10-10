@@ -1946,12 +1946,7 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.FontLibrary -> {
-                    FontLibraryScreen(
-                        onBack = { goBack() },
-                        onOpenArchive = { uri ->
-                            screen = Screen.ArchiveImport(uri, Screen.FontLibrary)
-                        }
-                    )
+                    FontLibraryScreen(onBack = { goBack() })
                 }
 
                 Screen.CreateName -> {
