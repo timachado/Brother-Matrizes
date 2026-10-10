@@ -263,7 +263,10 @@ fun AccountHostScreen(
                     snackbar.showSnackbar(
                         when {
                             current == null -> "Nenhuma sessão Google confirmada."
-                            current.commercialConfigured -> if (current.hasProAccess) "Licença Pro confirmada pelo WordPress." else "Conta consultada. Nenhuma licença Pro ativa."
+                            current.commercialConfigured && current.planCode == "trial" &&
+                                current.hasProAccess -> "Teste Pro de 7 dias confirmado pelo WordPress."
+                            current.commercialConfigured -> if (current.hasProAccess)
+                                "Licença Pro confirmada pelo servidor." else "Conta consultada. Nenhuma licença Pro ativa."
                             else -> "Conta Google conectada. Licença não verificável pela hospedagem atual."
                         }
                     )
