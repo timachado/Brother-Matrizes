@@ -23,7 +23,7 @@ Linux/macOS:
 bash scripts/create_production_keystore.sh
 ```
 
-Os scripts também criam uma representação Base64 local para facilitar o cadastro do secret `BROTHER_RELEASE_KEYSTORE_BASE64`. Essa cópia continua sendo sensível.
+Os scripts também criam uma representação Base64 local para facilitar o cadastro do secret `BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64`. Essa cópia continua sendo sensível.
 
 ## 1. Criar a keystore fora do repositório
 
@@ -62,16 +62,20 @@ O arquivo Base64 continua sendo material secreto e deve ser protegido como a pr�
 
 Configurar no repositório:
 
-- `BROTHER_RELEASE_KEYSTORE_BASE64` — conteúdo Base64 completo da keystore.
-- `BROTHER_RELEASE_STORE_PASSWORD` — senha da keystore.
-- `BROTHER_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `brother-matrizes-production`.
-- `BROTHER_RELEASE_KEY_PASSWORD` — senha da chave.
+- `BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64` — conteúdo Base64 completo da keystore.
+- `BROTHER_MATRIZES_RELEASE_STORE_PASSWORD` — senha da keystore.
+- `BROTHER_MATRIZES_RELEASE_KEY_ALIAS` — alias da chave, por exemplo `brother-matrizes-production`.
+- `BROTHER_MATRIZES_RELEASE_KEY_PASSWORD` — senha da chave.
 
 O workflow não imprime esses valores e cria a keystore somente no armazenamento temporário do runner.
 
 ## 4. Executar a assinatura
 
-Executar manualmente o workflow **Build Signed Production APK**.
+Executar manualmente o workflow **Build Signed Brother Matrizes Production APK**.
+
+**Atenção à identidade de assinatura:** o workflow compara o SHA-256 do certificado com o fingerprint aprovado `663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403`. Uma nova keystore gera outro fingerprint e será rejeitada até que haja validação e aprovação explícitas da identidade de distribuição; não altere o valor de controle apenas para o workflow passar. Se existe uma keystore anteriormente usada para distribuir o app, use a mesma para garantir atualizações sem perda de dados.
+
+Se algum secret não estiver cadastrado, o workflow falha com mensagem de ausência; **não publique keystore nem senhas no chat ou repositório**.
 
 Antes de assinar, ele roda:
 
