@@ -791,7 +791,7 @@ private fun SignedOutAccount(
             onClick = onOpenWebAccount,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Abrir Minha Conta no site", color = FioGold)
+            Text("Minhas compras e licenças no site", color = FioGold)
         }
         Text(
             "A loja utiliza uma sessão separada no navegador. Fazer login no site não ativa uma licença Pro neste aplicativo.",
@@ -1408,7 +1408,7 @@ private fun SignedInAccount(
                     onClick = onOpenWebAccount,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Abrir Minha Conta no site", color = FioGold)
+                    Text("Minhas compras e licenças no site", color = FioGold)
                 }
                 Text(
                     "A contratação é feita no navegador WordPress/WooCommerce. " +
