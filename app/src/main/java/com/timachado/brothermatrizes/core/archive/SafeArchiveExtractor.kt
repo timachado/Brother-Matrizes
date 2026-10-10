@@ -122,7 +122,11 @@ object SafeArchiveExtractor {
                     }
                 }
             }
-            val header = file.inputStream().use { it.readNBytes(8) }
+            val header = file.inputStream().use { stream ->
+                val bytes = ByteArray(8)
+                val read = stream.read(bytes)
+                if (read < 0) ByteArray(0) else bytes.copyOf(read)
+            }
             val format = identify(header)
             val items = mutableListOf<ArchiveItem>()
             var incompatible = 0
