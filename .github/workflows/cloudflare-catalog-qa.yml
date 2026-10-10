@@ -26,6 +26,10 @@ jobs:
         working-directory: cloudflare/catalog-prototype
       - name: PHP syntax check (integration source only)
         run: php -l wordpress/app-commerce-core-integration/bm-cloudflare-catalog-relay.php
+      - name: Version-lock ZIP patcher regression tests
+        run: python3 -m unittest discover -s wordpress/app-commerce-core-integration -p 'test_apply_core_relay.py' -v
+      - name: ZIP patcher syntax check
+        run: python3 -m py_compile wordpress/app-commerce-core-integration/apply_core_relay.py
       - name: Verify no actual WordPress deployment
         run: |
           echo "QA only: no WordPress installation, no secrets or payment activation."
