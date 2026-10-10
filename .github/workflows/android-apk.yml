@@ -93,18 +93,18 @@ jobs:
       - name: Prepare downloadable files
         shell: bash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.50.5-rc2-debug.apk
-          zip -9 Brother-Matrizes-0.50.5-rc2-debug.zip Brother-Matrizes-0.50.5-rc2-debug.apk
-          sha256sum Brother-Matrizes-0.50.5-rc2-debug.apk Brother-Matrizes-0.50.5-rc2-debug.zip > Brother-Matrizes-0.50.5-rc2-SHA256.txt
+          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.50.6-rc3-debug.apk
+          zip -9 Brother-Matrizes-0.50.6-rc3-debug.zip Brother-Matrizes-0.50.6-rc3-debug.apk
+          sha256sum Brother-Matrizes-0.50.6-rc3-debug.apk Brother-Matrizes-0.50.6-rc3-debug.zip > Brother-Matrizes-0.50.6-rc3-SHA256.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-0.50.5-rc2-QA-NOT-STABLE
+          name: Brother-Matrizes-0.50.6-rc3-QA-NOT-STABLE
           path: |
-            Brother-Matrizes-0.50.5-rc2-debug.apk
-            Brother-Matrizes-0.50.5-rc2-debug.zip
-            Brother-Matrizes-0.50.5-rc2-SHA256.txt
+            Brother-Matrizes-0.50.6-rc3-debug.apk
+            Brother-Matrizes-0.50.6-rc3-debug.zip
+            Brother-Matrizes-0.50.6-rc3-SHA256.txt
           if-no-files-found: error
 
       - name: Enable KVM for Android emulator
