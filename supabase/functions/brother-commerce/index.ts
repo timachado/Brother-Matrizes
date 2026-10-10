@@ -39,6 +39,10 @@ Deno.serve(async req => {
     .select("id,active,site_url").eq("token_hash", tokenHash).eq("active", true).maybeSingle();
   if (siteError) return json({ error: "site_lookup_unavailable" }, 503);
   if (!site) return json({ error: "unauthorized" }, 401);
+  // Admin-only connection probe via the same high-entropy site credential.
+  // Does not create a purchase, subscription or any billing event.
+  if (clean(input.action, 40) === "ping")
+    return json({ ok: true, service: "brother-commerce", siteConfigured: true });
 
   if (clean(input.action, 40) !== "order_event" || clean(input.appSlug, 80) !== "brother-matrizes")
     return json({ error: "invalid_app" }, 400);
