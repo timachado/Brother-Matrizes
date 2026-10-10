@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,6 +100,7 @@ fun AccountScreen(
     onRefresh: () -> Unit,
     onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
+    onOpenPlan: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     Column(
@@ -163,8 +165,8 @@ fun AccountScreen(
 
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
             Text(
-                "VERSÃO BETA GRATUITA • Importação local: 3 fontes e 5 matrizes por mês neste aparelho. " +
-                    "Planos pagos e licenciamento Pro ainda não estão disponíveis.",
+                "PLANO GRATUITO • 3 fontes e 5 matrizes por mês neste aparelho. " +
+                    "Conheça as opções Pro abaixo.",
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 color = FioGold,
                 fontSize = 10.sp
@@ -297,6 +299,7 @@ fun AccountScreen(
                 onRefresh = onRefresh,
                 onActivateTrial = onActivateTrial,
                 onOpenWebAccount = onOpenWebAccount,
+                onOpenPlan = onOpenPlan,
                 onSignOut = onSignOut
             )
         }
@@ -834,6 +837,7 @@ private fun SignedInAccount(
     onRefresh: () -> Unit,
     onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
+    onOpenPlan: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     val context =
@@ -1233,7 +1237,7 @@ private fun SignedInAccount(
                             "O Brother Matrizes acompanha aqui o plano, status e renovação vinculados à sua conta."
 
                         else ->
-                            "A compra pelo site não ativa o Pro automaticamente neste APK. A licença depende de validação segura no WordPress."
+                            "Após o pagamento, toque em Verificar licença. O Pro só será liberado depois da confirmação segura no servidor."
                     },
                     color =
                         FioTextMuted,
@@ -1397,7 +1401,7 @@ private fun SignedInAccount(
                             "Aguarde a validação da sua licença para contratar."
                     else if (visiblePlans.any { it.isPaid && !it.active })
                         "Alguns planos ainda estão em preparação. " +
-                            "A contratação será liberada quando estiverem disponíveis."
+                            "Valores de lançamento. Confira o preço final e a disponibilidade no checkout da T.I. Machado."
                     else
                         "Confira abaixo os preços e as opções disponíveis.",
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
@@ -1423,8 +1427,7 @@ private fun SignedInAccount(
                         plan = plan,
                         current = account.commercialConfigured &&
                             plan.code == account.planCode,
-                        verified = account.commercialConfigured,
-                        onOpenWebAccount = onOpenWebAccount
+                        onOpenPlan = onOpenPlan
                     )
                     if (index < visiblePlans.lastIndex) {
                         Spacer(Modifier.height(10.dp))
@@ -1907,33 +1910,20 @@ private fun AboutBrotherMatrizesCard() {
 private fun PlanSummary(
     plan: AccountPlanOption,
     current: Boolean,
-    verified: Boolean,
-    onOpenWebAccount: () -> Unit
+    onOpenPlan: (String) -> Unit
 ) {
     Column(
         Modifier
             .fillMaxWidth()
             .background(
-                if (
-                    current
-                ) {
-                    FioGold.copy(
-                        alpha =
-                            .10f
-                    )
-                } else {
-                    FioBackground.copy(
-                        alpha =
-                            .34f
-                    )
-                },
-                RoundedCornerShape(
-                    16.dp
-                )
+                if (current) FioGold.copy(alpha = .10f)
+                else FioBackground.copy(alpha = .34f),
+                RoundedCornerShape(16.dp)
             )
-            .padding(
-                12.dp
-            )
+            .clickable(enabled = plan.isPaid && !current) {
+                onOpenPlan(plan.code)
+            }
+            .padding(12.dp)
     ) {
         Row(
             modifier =
@@ -2047,22 +2037,32 @@ private fun PlanSummary(
         }
         if (plan.isPaid && !plan.active) {
             Text(
-                "Contratação disponível em breve.",
+                "Consulte a disponibilidade e as condições no site.",
                 modifier = Modifier.padding(top = 6.dp),
                 color = FioTextMuted,
                 fontSize = 10.sp
             )
         }
-        if (plan.isPaid && plan.active && verified &&
-            plan.priceCents != null && !current
-        ) {
+        if (plan.isPromotional) {
+            Text(
+                "Oferta limitada a 50 licenças de lançamento, conforme estoque.",
+                modifier = Modifier.padding(top = 5.dp),
+                color = FioGold,
+                fontSize = 10.sp
+            )
+        }
+        if (plan.isPaid && plan.priceCents != null && !current) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
-                onClick = onOpenWebAccount,
+                onClick = { onOpenPlan(plan.code) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Consultar contratação no site",
+                    if (plan.active) {
+                        if (plan.isLifetime) "Comprar vitalício no site" else "Assinar no site"
+                    } else {
+                        "Ver plano no site"
+                    },
                     color = FioGold
                 )
             }
