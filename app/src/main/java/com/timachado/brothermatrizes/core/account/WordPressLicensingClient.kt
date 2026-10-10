@@ -67,14 +67,47 @@ internal object WordPressLicensingClient {
                 it.write(body.toString().toByteArray(Charsets.UTF_8))
             }
             val status = connection.responseCode
-            val raw = (if (status in 200..299) connection.inputStream
-                       else connection.errorStream)?.bufferedReader()
-                ?.use { it.readText().take(1024 * 1024) } ?: ""
-            require(status in 200..299) {
-                JSONObject(raw.ifBlank { "{}" }).optString("message")
-                    .ifBlank { "Servidor comercial indisponível (HTTP $status)." }
+            val contentType = connection.contentType.orEmpty()
+            val mimeType = contentType.substringBefore(';').trim().lowercase()
+            // Never try to parse an HTML login page / WAF / hosting error as JSON.
+            // Do not expose bearer tokens, HTML or server responses to the UI.
+            val origin = connection.url.host
+            val diagnostic = "HTTP $status, tipo ${contentType.ifBlank { "não informado" }}, origem $origin"
+            if (mimeType != "application/json" && !mimeType.endsWith("+json")) {
+                throw IllegalStateException(
+                    "Não foi possível validar a cota. Resposta inválida do servidor ($diagnostic). " +
+                        "Nenhuma cota foi consumida."
+                )
             }
-            return JSONObject(raw)
+            val raw = (if (status in 200..299) connection.inputStream
+                       else connection.errorStream)?.bufferedReader()?.use { reader ->
+                val buffer = CharArray(8192)
+                val data = StringBuilder()
+                while (true) {
+                    val n = reader.read(buffer)
+                    if (n < 0) break
+                    require(data.length + n <= 1024 * 1024) {
+                        "Resposta comercial muito grande ($diagnostic)."
+                    }
+                    data.append(buffer, 0, n)
+                }
+                data.toString()
+            }.orEmpty()
+            val parsed = try {
+                JSONObject(raw)
+            } catch (_: org.json.JSONException) {
+                throw IllegalStateException(
+                    "Resposta comercial inválida ($diagnostic). " +
+                        "Nenhuma cota foi consumida."
+                )
+            }
+            if (status !in 200..299) {
+                val message = parsed.optString("message")
+                    .takeIf { it.isNotBlank() && !it.contains('<') }
+                    ?: "Não foi possível consultar o licenciamento."
+                throw IllegalStateException("$message ($diagnostic).")
+            }
+            return parsed
         } finally {
             connection.disconnect()
         }
