@@ -32,6 +32,7 @@ import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.DeviceIdentity
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.account.SignUpOutcome
+import com.timachado.brothermatrizes.core.account.WordPressWebStore
 import com.timachado.brothermatrizes.core.settings.AppColorMode
 import com.timachado.brothermatrizes.core.network.NetworkStatus
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -618,28 +619,20 @@ fun AccountHostScreen(
         }
     }
 
-    fun openCommercialCheckout(planCode: String) {
+    fun openWordPressAccount() {
         if (!checkOnline()) return
-        scope.launch {
-            loading = true
-            val result = BrotherMatrizesAccountService.openCheckout(planCode)
-            loading = false
-            result.fold(
-                onSuccess = { checkoutUrl ->
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(checkoutUrl))
-                        )
-                    }.onFailure {
-                        snackbar.showSnackbar("Não foi possível abrir o checkout seguro.")
-                    }
-                },
-                onFailure = {
-                    snackbar.showSnackbar(AccountErrorMessage.forUser(
-                        it, "Não foi possível preparar o checkout WooCommerce."
-                    ))
-                }
+        runCatching {
+            val address = WordPressWebStore.accountUrl(BuildConfig.WORDPRESS_URL)
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
             )
+        }.onFailure {
+            scope.launch {
+                snackbar.showSnackbar(
+                    "Não foi possível abrir o WordPress no navegador."
+                )
+            }
         }
     }
 
@@ -691,7 +684,7 @@ fun AccountHostScreen(
                 refreshAccount()
             },
             onActivateTrial = { activateFreeTrial() },
-            onCheckout = { planCode -> openCommercialCheckout(planCode) },
+            onOpenWebAccount = { openWordPressAccount() },
             onSignOut = {
                 signOut()
             }
