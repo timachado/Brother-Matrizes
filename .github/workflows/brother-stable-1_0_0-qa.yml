@@ -1,0 +1,59 @@
+name: Brother Matrizes v1.0.0 Final APK Build
+on:
+  push:
+    branches: ["release/brother-matrizes-1.0.0"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version
+        run: |
+          grep -F 'versionName = "1.0.0"' app/build.gradle.kts
+          grep -F 'versionCode = 166' app/build.gradle.kts
+          grep -F 'buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")' app/build.gradle.kts
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Prepare brand assets
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Repository checks
+        run: bash scripts/pre_release_static_check.sh
+      - name: Verify offline WordPress licensing
+        run: |
+          php -l wordpress/app-commerce-core-integration/bm-signed-license-issuer.php
+          php wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Android lint
+        run: gradle :app:lintDebug --stacktrace
+      - name: Build release
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Zipalign and hash
+        shell: bash
+        run: |
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -f -v 4 app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.0-ALIGNED-UNSIGNED.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -c -v 4 Brother-Matrizes-1.0.0-ALIGNED-UNSIGNED.apk
+          sha256sum Brother-Matrizes-1.0.0-ALIGNED-UNSIGNED.apk > Brother-Matrizes-1.0.0-UNSIGNED-SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.0.0-aligned-unsigned
+          path: |
+            Brother-Matrizes-1.0.0-ALIGNED-UNSIGNED.apk
+            Brother-Matrizes-1.0.0-UNSIGNED-SHA256.txt
+          retention-days: 14
+          if-no-files-found: error
