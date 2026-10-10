@@ -291,9 +291,13 @@ object BrotherMatrizesAccountService {
         runCatching {
             val name = displayName.trim()
             require(name.length in 2..80) { "Informe um nome de 2 a 80 caracteres." }
-            val token = client.auth.currentSessionOrNull()?.accessToken
-                ?: error("Entre na sua conta primeiro.")
-            WordPressLicensingClient.updateProfile(token, name)
+            check(client.auth.currentSessionOrNull() != null) {
+                "Entre na sua conta primeiro."
+            }
+            // Editing display name belongs to Supabase Auth, not the billing backend.
+            client.auth.updateUser {
+                data { put("display_name", name) }
+            }
             currentAccount().getOrThrow()
                 ?: error("Conta autenticada não encontrada.")
         }
@@ -309,9 +313,17 @@ object BrotherMatrizesAccountService {
 
     suspend fun syncDevices(localDevice: LocalDeviceIdentity): Result<List<AccountDevice>> =
         runCatching {
-            val token = client.auth.currentSessionOrNull()?.accessToken
-                ?: error("Entre na sua conta primeiro.")
-            WordPressLicensingClient.syncDevices(token, localDevice)
+            // Free InfinityFree does not support direct Android API calls.
+            // Expose the current device locally until server-side device
+            // registration is added to the isolated entitlement function.
+            listOf(AccountDevice(
+                deviceId = localDevice.deviceId,
+                deviceName = localDevice.deviceName,
+                platform = "android",
+                appVersion = BuildConfig.VERSION_NAME,
+                lastSeenAt = Instant.now().toString(),
+                isCurrent = true
+            ))
         }
 
     suspend fun activateTrial(): Result<AccountSnapshot> = runCatching {
@@ -346,7 +358,7 @@ object BrotherMatrizesAccountService {
             // Local free quota is never interpreted as paid subscription.
             val checked = lastPaidAccount
             val age = android.os.SystemClock.elapsedRealtime() - lastPaidVerifiedMs
-            if (checked != null && age in 0..(5 * 60 * 1000L) &&
+            if (checked != null && age >= 0L && age <= 5 * 60 * 1000L &&
                 checked.hasProAccess &&
                 client.auth.currentSessionOrNull()?.user?.id == checked.userId
             ) "pro_" + java.util.UUID.randomUUID().toString()
