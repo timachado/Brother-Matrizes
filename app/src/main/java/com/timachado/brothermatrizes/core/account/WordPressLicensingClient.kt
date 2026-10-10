@@ -189,6 +189,24 @@ internal object WordPressLicensingClient {
             address
         }
 
+    suspend fun authorizeUsage(token: String, operation: String): String =
+        withContext(Dispatchers.IO) {
+            val key = UUID.randomUUID().toString()
+            val response = json("/wp-json/brother-matrizes/v1/usage/authorize", token,
+                JSONObject().put("operation", operation).put("request_key", key))
+            check(response.optBoolean("authorized", false)) {
+                "Seu limite mensal de importações foi atingido."
+            }
+            key
+        }
+
+    suspend fun finalizeUsage(token: String, operation: String, key: String, success: Boolean) =
+        withContext(Dispatchers.IO) {
+            json("/wp-json/brother-matrizes/v1/usage/" +
+                if (success) "consume" else "release", token,
+                JSONObject().put("operation", operation).put("request_key", key))
+        }
+
     suspend fun syncDevices(token: String, current: LocalDeviceIdentity):
         List<AccountDevice> = withContext(Dispatchers.IO) {
         val r = json("/wp-json/brother-matrizes/v1/devices", token,
