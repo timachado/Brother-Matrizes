@@ -639,6 +639,21 @@ fun AccountHostScreen(
         }
     }
 
+    fun openBrotherPlan(planCode: String) {
+        if (!checkOnline()) return
+        runCatching {
+            val address = WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+            )
+        }.onFailure {
+            scope.launch {
+                snackbar.showSnackbar("Não foi possível abrir o plano no site T.I. Machado.")
+            }
+        }
+    }
+
     Box(
         Modifier.fillMaxSize()
     ) {
@@ -688,6 +703,7 @@ fun AccountHostScreen(
             },
             onActivateTrial = { activateFreeTrial() },
             onOpenWebAccount = { openWordPressAccount() },
+            onOpenPlan = { code -> openBrotherPlan(code) },
             onSignOut = {
                 signOut()
             }
