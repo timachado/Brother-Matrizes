@@ -62,7 +62,7 @@ $Bytes = [IO.File]::ReadAllBytes($Keystore)
 Write-Host ""
 Write-Host "Cópia Base64 criada em:"
 Write-Host "  $Base64File"
-Write-Host "Use-a apenas para cadastrar BROTHER_RELEASE_KEYSTORE_BASE64 no GitHub."
+Write-Host "Use-a apenas para cadastrar BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 no GitHub."
 Write-Host "Depois de cadastrar o secret, mantenha-a protegida ou apague-a."
 Write-Host ""
 Write-Host "Alias:"

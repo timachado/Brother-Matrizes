@@ -13,7 +13,7 @@ Base imutável de QA: `c6b163011b5a07870632b307e0319ffc0212ef5f` (`0.50.7-rc4`).
 - [x] WordPress/WooCommerce e Efí continuam fonte financeira autoritativa; Bíblia EBD não deve sofrer mudanças.
 
 ## Bloqueadores para declarar 1.0.0 estável
-- [ ] Criar e verificar APK **release assinado** pela chave de produção esperada (workflow `.github/workflows/android-production-sign.yml`), com validação do certificado e SHA-256. Nenhuma execução de assinatura de produção foi identificada nas últimas 100 execuções consultadas.
+- [ ] Criar e verificar APK **release assinado** pela chave de produção esperada (workflow `.github/workflows/android-production-sign.yml`), com validação do certificado e SHA-256. Ensaio #38073302039 executado: unit tests e Lint aprovados, mas bloqueado pelo secret `BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64` ausente. Conferir a chave original antes de cadastrar os quatro secrets no GitHub. Não gerar nova identidade automaticamente.
 - [ ] Testar instalação e atualização de versão assinada num aparelho com dados reais, preservando fontes, matrizes, projetos e sessão.
 - [ ] Confirmar assinatura mensal/anual paga, renovação, suspensão, cancelamento e reembolso Efí/WooCommerce → espelhamento → conta Google → Pro no APK. Na checagem de 2026-10-10, a tabela de eventos do Brother continha somente ocorrências `cancelled` e `failed` para `pro_lifetime_launch`; não havia evento `active` de pagamento.
 - [ ] Rever a segurança das cotas gratuitas de importação: `BETA_LOCAL_IMPORTS=true` e `LocalBetaImportQuota` usam contador por aparelho (não por conta), reinicializável por limpeza de dados/reinstalação. A política comercial final precisa ser resistente a fraude sem quebrar arquivos existentes nem o teste Pro.

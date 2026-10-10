@@ -1,10 +1,9 @@
 name: Build Signed Brother Matrizes Production APK
 
-# Preparatory signature rehearsal only; never publishes a GitHub Release,
-# WooCommerce product, public download or changes a billing entitlement.
+# Production signing is MANUAL because secrets are owner-managed and
+# certificates must be explicitly checked before attempting distribution.
+# Never auto-publish a signed APK or change commercial entitlements.
 on:
-  push:
-    branches: ["release/brother-matrizes-1.0.0-prep"]
   workflow_dispatch:
 
 permissions:

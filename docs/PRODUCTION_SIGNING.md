@@ -1,10 +1,33 @@
 # Brother Matrizes — assinatura de produção
 
+> **Situação em 10/10/2026:** ensaio `#38073302039` aprovado em testes unitários e Android Lint, mas interrompido por `Missing Brother release keystore`. Nenhum APK de produção foi assinado. O segredo necessário só pode ser incluído pelo titular autorizado no GitHub; **não compartilhe chaves ou senhas no ChatGPT.**
+
+## Etapa zero: localizar a chave ORIGINAL e validar o certificado
+
+O workflow exige o certificado SHA-256 (sem dois-pontos):
+`663d4338f085730a87efbf7a2bd3b0ccb91d7dc3696e625afa9c35a0e47c0403`.
+
+Antes de cadastrar os secrets, procure a keystore original (`.jks` ou `.keystore`) em seu computador/cofre seguro. Em máquina local com JDK:
+
+```bash
+keytool -list -v -keystore /caminho/para/chave-original.jks
+```
+
+Confira no resultado `SHA256` e o `Alias name`. O certificado precisa ser **exatamente** o esperado no workflow (desconsiderando `:` e maiúsculas), não basta o arquivo existir. Se o fingerprint for diferente, **não renomeie, substitua, crie outra chave nem altere o fingerprint fixado** para forçar a compilação; é preciso investigar a identidade de distribuição anterior. Use o alias que `keytool` indicar, não um valor inventado.
+
+Se você nunca criou uma chave e não existe identidade de produção já adotada, os geradores abaixo podem criar a **primeira** keystore, mas isso produzirá outro fingerprint e exigirá decisão explícita sobre a identidade oficial antes de alterar o workflow. APKs debug instalados anteriormente não são atualizáveis em linha para um APK assinado por outra chave. Faça backup/exportação dos arquivos do Brother Matrizes antes de trocar de canal.
+
+## Cadastro seguro no GitHub
+
+Abra https://github.com/timachado/Brother-Matrizes/settings/secrets/actions, entre em **Repository secrets → New repository secret** e cadastre os quatro nomes exatos indicados abaixo. GitHub armazena os valores cifrados; eles não devem ser escritos no repositório ou em mensagens do chat. Para a keystore, converta o arquivo **localmente** para Base64 e cole o conteúdo integral no secret próprio.
+
+Depois de cadastrar, execute manualmente **Actions → Build Signed Brother Matrizes Production APK → Run workflow**, selecionando a branch `release/brother-matrizes-1.0.0-prep`. O workflow validará o certificado automaticamente e manterá o APK assinado apenas como artefato privado de QA — não haverá publicação na loja/site.
+
 A chave definitiva de produção **não deve ser adicionada ao repositório**. O Brother Matrizes possui um workflow manual separado em `.github/workflows/android-production-sign.yml`, que só funciona quando os secrets de assinatura estiverem configurados.
 
 ## Geradores locais prontos
 
-O repositório inclui dois scripts que **não armazenam senha** e criam a chave fora da pasta do projeto:
+O repositório inclui dois scripts que **não armazenam senha** e criam uma **nova identidade**, fora da pasta do projeto. **Não os execute se já existe uma keystore original de produção:**
 
 - Windows PowerShell: `scripts/create_production_keystore.ps1`
 - Linux/macOS: `scripts/create_production_keystore.sh`
