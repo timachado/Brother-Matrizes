@@ -354,15 +354,33 @@ object BrotherMatrizesAccountService {
 
     suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
-            // Paid access comes ONLY from recent signed-in entitlement lookup.
-            // Local free quota is never interpreted as paid subscription.
-            val checked = lastPaidAccount
+            // Resolve paid access from WooCommerce-confirmed Supabase mirror.
+            // Refresh a stale lease before importing; free preview works offline.
+            val session = client.auth.currentSessionOrNull()
+            val user = session?.user
             val age = android.os.SystemClock.elapsedRealtime() - lastPaidVerifiedMs
-            if (checked != null && age >= 0L && age <= 5 * 60 * 1000L &&
-                checked.hasProAccess &&
-                client.auth.currentSessionOrNull()?.user?.id == checked.userId
-            ) "pro_" + java.util.UUID.randomUUID().toString()
-            else LocalBetaImportQuota.authorize(context, isFont)
+            var checked = lastPaidAccount?.takeIf {
+                age >= 0L && age <= 2 * 60 * 1000L &&
+                    user?.id == it.userId && it.hasProAccess
+            }
+            if (checked == null && session != null && user != null &&
+                user.email != null &&
+                com.timachado.brothermatrizes.core.network.NetworkStatus.isOnline(context)
+            ) {
+                val updated = runCatching {
+                    BrotherEntitlementClient.account(
+                        user.id, user.email!!, session.accessToken, null, null
+                    )
+                }.getOrNull()
+                checked = updated?.takeIf { it.hasProAccess }
+                lastPaidAccount = checked
+                lastPaidVerifiedMs = android.os.SystemClock.elapsedRealtime()
+            }
+            if (checked?.hasProAccess == true) {
+                "pro_" + java.util.UUID.randomUUID().toString()
+            } else {
+                LocalBetaImportQuota.authorize(context, isFont)
+            }
         } else {
             val token = verifiedAccessToken()
             WordPressLicensingClient.authorizeUsage(
