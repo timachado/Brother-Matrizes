@@ -20,6 +20,6 @@ internal object WordPressWebStore {
             base.rawFragment == null &&
             base.rawPath.trim('/').isEmpty()
         ) { "Site WordPress não autorizado." }
-        return "https://timachado.ifree.page/minha-conta/"
+        return "https://timachado.ifree.page/minha-conta/meus-aplicativos/"
     }
 }
