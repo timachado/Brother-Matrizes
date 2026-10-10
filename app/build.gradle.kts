@@ -25,6 +25,9 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"sb_publishable_K7JQ8O5fNgZjhEGSQsoZdQ_W4TLRHY4\""
         )
+        // Local beta preview quota for imports only. No purchase or Pro unlock.
+        // Disable and migrate quotas before launching commercial sales.
+        buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "true")
         // Public WordPress store URL only. No WooCommerce or Efí secrets.
         buildConfigField(
             "String", "WORDPRESS_URL", "\"https://timachado.ifree.page\""
