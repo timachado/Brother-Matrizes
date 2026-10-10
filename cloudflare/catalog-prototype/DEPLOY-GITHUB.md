@@ -1,42 +1,45 @@
-# Brother Matrizes — Publicar pelo GitHub, sem editar código no celular
+# Brother Matrizes — Publicacao pelo GitHub
 
-Este diretório é **somente o Worker Cloudflare**. Não mexe no APK Android, WordPress ou Bíblia EBD.
+Worker **existente**: `brother-matrizes-api`; **nao criar outro**.
+Conta Cloudflare Free; WordPress, WooCommerce, Efí Bank e Biblia EBD permanecem intactos.
 
-## Preparação já feita
-- Worker existente: `brother-matrizes-api`
-- D1 criado: `brother-matrizes-catalog-teste`
-- Binding do Worker: `DB`
-- Código: `worker.js` (catálogo somente, nenhum acesso Pro nem pagamentos habilitados)
-- O código ainda precisa ser implantado; adicionar arquivos ao GitHub **não publica** o Worker.
+## Erro confirmado no log de 2026-10-10
+O Cloudflare Builds estava executando `npx wrangler preview`, e falhou com
+`Your Wrangler configuration is missing a previews block`.
 
-## Conectar o Worker existente ao GitHub (uma única vez)
-No painel Cloudflare, selecione **Workers & Pages → brother-matrizes-api → Settings → Builds → Connect**.
-Use o repositório `timachado/Brother-Matrizes` e confira todos estes campos:
+**Diagnostico:** a branch de trabalho provavelmente foi classificada como **nao producao**.
+Cloudflare distingue deploy de producao (`wrangler deploy`) de previews (`wrangler preview`).
+Nao adicionar banco D1 de producao em `previews` so para silenciar o erro.
 
-| Campo | Valor |
-| --- | --- |
-| Production branch | `refactor/brother-matrizes-clean-0469` (**não main**) |
-| Root directory | `cloudflare/catalog-prototype` |
-| Build command | deixar vazio |
-| Deploy command | `npm run deploy:cloudflare` |
+## Correcao obrigatoria no painel Cloudflare (sem copiar o codigo)
+1. Workers & Pages -> `brother-matrizes-api` -> **Settings -> Builds -> Branch control**.
+2. Configure **Production branch** = `refactor/brother-matrizes-clean-0469` (nao `main`).
+3. Deixe **Preview builds** desativados por enquanto: nao precisamos de previsualizacoes de licenca nem usar banco real em preview.
+4. Em **Build configuration** confira:
+   - Root directory = `cloudflare/catalog-prototype`;
+   - Build command = vazio;
+   - **Production deploy command** = `npm run deploy:cloudflare`;
+   - Nao usar `npx wrangler preview` como comando de producao.
+5. Salve e execute novamente o build. O log de **produçao** deve mostrar `Executing user deploy command: npm run deploy:cloudflare`. Se continuar mostrando `npx wrangler preview`, a branch ainda esta classificada como preview.
+6. Se falhar, nao recriar Worker nem D1: revisar erro do log e ajustar somente o necessario.
 
-Autorize apenas a integração GitHub necessária. Não crie outro Worker e não utilize a opção Pages.
-O Cloudflare Builds poderá exigir uma confirmação para instalar a integração GitHub.
+## Codigo versionado
+- `worker.js`: somente catalogo de teste, sem autorizacao comercial, sem pagamentos.
+- `wrangler.jsonc`: nome Worker e binding D1 `DB` ao banco `brother-matrizes-catalog-teste`.
+- `deploy.mjs`: verifica destino, D1 e ausencia de autorizacao comercial, depois executa `wrangler deploy --keep-vars --strict`, preservando variaveis e impedindo substituicoes arriscadas.
+- `CATALOG_SYNC_SECRET` **NAO** deve ser publicado em GitHub, no APK ou chat. Sem o segredo, sincronizacao continua bloqueada.
 
-## Proteções de publicação
-O script `deploy.mjs` lê via API as configurações **do Worker existente**, verifica que existe exatamente um binding D1 `DB`, e obtém o identificador do banco. Não é preciso colar UUID nem credenciais em chat, arquivo ou repositório.
-Se a Cloudflare não fornecer ao build a autorização necessária para consultar as configurações do Worker ou se houver bindings inesperados, o script **falha sem fazer deploy**.
-O Wrangler recebe arquivo transitório `wrangler.generated.json` com o DB correto e usa `--keep-vars` para preservar as variáveis existentes; segredos são preservados pelo Wrangler.
-Não coloque segredo `CATALOG_SYNC_SECRET` em GitHub nem na interface do chat; nesta etapa ele permanece ausente, bloqueando qualquer sincronização de planos.
+## Pos-publicacao
+`GET https://brother-matrizes-api.servicospremiummachadoti.workers.dev/health` => JSON com
+`status: prototype` e `ready_for_sales: false`.
 
-Quando salvar a conexão, se não houver uma execução automática, um novo commit neste diretório disparará o build.
-Verificar resultado em **Settings → Builds**.
-Um build com falha **não** significa que o Worker foi publicado.
+GET `/wp-json/brother-matrizes/v1/plans` => 503 enquanto catalogo nao foi enviado pelo WordPress.
 
-## Testes de verificação, após build bem-sucedido
-1. `GET https://brother-matrizes-api.servicospremiummachadoti.workers.dev/health` deve retornar JSON com `status: prototype`, `ready_for_sales: false`.
-2. `GET .../wp-json/brother-matrizes/v1/plans` deve retornar HTTP 503 `catalog_not_synchronized`, pois ainda não há catálogo enviado pelo WordPress.
-3. `GET .../wp-json/brother-matrizes/v1/me` deve retornar HTTP 503 `commercial_api_not_enabled`.
-4. Essa fase **não** corrige importação de ZIP no APK nem ativa cobranças. Licenciamento e comunicação com WordPress permanecem a homologar.
+GET `/wp-json/brother-matrizes/v1/me` => 503; licencas/assinaturas ainda nao estao implementadas.
 
-Referência: https://developers.cloudflare.com/workers/ci-cd/builds/
+O problema de importacao TTF/ZIP do APK ainda depende do licenciamento remoto e **nao e resolvido** nesta fase.
+
+Referencias:
+- https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/
+- https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
+- https://developers.cloudflare.com/workers/wrangler/commands/workers/
