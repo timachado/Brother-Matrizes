@@ -1,0 +1,31 @@
+name: QA Brother Matrizes Cloudflare Catalog (isolated)
+on:
+  push:
+    branches: [refactor/brother-matrizes-clean-0469]
+    paths:
+      - 'cloudflare/catalog-prototype/**'
+      - 'wordpress/app-commerce-core-integration/**'
+      - '.github/workflows/cloudflare-catalog-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  catalog-relay-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: 12 Cloudflare Worker regression tests
+        run: node --test worker.test.mjs
+        working-directory: cloudflare/catalog-prototype
+      - name: PHP syntax check (integration source only)
+        run: php -l wordpress/app-commerce-core-integration/bm-cloudflare-catalog-relay.php
+      - name: Verify no actual WordPress deployment
+        run: |
+          echo "QA only: no WordPress installation, no secrets or payment activation."
