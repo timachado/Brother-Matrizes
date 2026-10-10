@@ -67,11 +67,34 @@ jobs:
       - name: Android lint
         run: gradle :app:lintDebug --stacktrace
 
-      - name: Runtime validation note
+      # A release candidate must validate the actual APK on an Android runtime.
+      # Unit tests and lint do not cover the document picker, navigation or OAuth callback.
+      - name: Enable KVM for Android emulator
         shell: bash
         run: |
-          echo "Runtime emulator smoke test already passed on the immediately preceding clean-identity build."
-          echo "This final delta only removes legacy identity compatibility strings; unit tests and lint remain blocking."
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android emulator smoke tests (API 35)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest'
+
+      - name: Upload Android runtime test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-android-runtime-api35
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
