@@ -1942,8 +1942,9 @@ private fun BrotherMatrizesApp(
 
                 Screen.FontLibrary -> {
                     FontLibraryScreen(
-                        onBack = {
-                            goBack()
+                        onBack = { goBack() },
+                        onOpenArchive = { uri ->
+                            screen = Screen.ArchiveImport(uri)
                         }
                     )
                 }
