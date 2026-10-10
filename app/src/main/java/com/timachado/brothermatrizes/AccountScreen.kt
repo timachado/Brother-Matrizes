@@ -161,6 +161,16 @@ fun AccountScreen(
             }
         }
 
+        if (BuildConfig.BETA_LOCAL_IMPORTS) {
+            Text(
+                "VERSÃO BETA GRATUITA • Importação local: 3 fontes e 5 matrizes por mês neste aparelho. " +
+                    "Planos pagos e licenciamento Pro ainda não estão disponíveis.",
+                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                color = FioGold,
+                fontSize = 10.sp
+            )
+        }
+
         // Scroll all account content together so the preference card cannot
         // consume a fixed-height strip while subscriptions scroll beneath it.
         // The title/back row stays visible, but settings and account cards are
