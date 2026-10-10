@@ -261,7 +261,7 @@ object SafeArchiveExtractor {
                                     if (idx++ == item.index) {
                                         check(entry.name == item.path)
                                         seven.getInputStream(entry).use {
-                                            copyLimited(it, limited)
+                                            copyLimited(it, limited, cancelled)
                                         }
                                         found = true
                                         break
