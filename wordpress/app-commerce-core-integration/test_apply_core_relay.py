@@ -26,7 +26,7 @@ echo "original";
 """
         content={
             "ti-machado-app-commerce/"+MAIN_NAME:header.encode(),
-            "ti-machado-app-commerce/includes/efi-bank/checkout.php":b"<?php // preserve Efí",
+            "ti-machado-app-commerce/includes/efi-bank/checkout.php":b"<?php // preserve Efi",
             "ti-machado-app-commerce/assets/frontend.js":b"existing UI",
             "ti-machado-app-commerce/includes/biblia-ebd/license.php":b"<?php // keep EBD",
         }
