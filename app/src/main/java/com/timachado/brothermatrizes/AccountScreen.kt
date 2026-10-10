@@ -98,7 +98,7 @@ fun AccountScreen(
     ) -> Unit,
     onRefresh: () -> Unit,
     onActivateTrial: () -> Unit,
-    onCheckout: (String) -> Unit,
+    onOpenWebAccount: () -> Unit,
     onSignOut: () -> Unit
 ) {
     Column(
@@ -275,7 +275,8 @@ fun AccountScreen(
                 onSignIn =
                     onSignIn,
                 onSignUp =
-                    onSignUp
+                    onSignUp,
+                onOpenWebAccount = onOpenWebAccount
             )
         } else {
             SignedInAccount(
@@ -285,7 +286,7 @@ fun AccountScreen(
                     onSaveName,
                 onRefresh = onRefresh,
                 onActivateTrial = onActivateTrial,
-                onCheckout = onCheckout,
+                onOpenWebAccount = onOpenWebAccount,
                 onSignOut = onSignOut
             )
         }
@@ -462,6 +463,7 @@ private fun TextScalePreferenceCard(
 @Composable
 private fun SignedOutAccount(
     onGoogleSignIn: () -> Unit,
+    onOpenWebAccount: () -> Unit,
     onSignIn: (
         email: String,
         password: String
@@ -775,6 +777,18 @@ private fun SignedOutAccount(
             )
         )
 
+        OutlinedButton(
+            onClick = onOpenWebAccount,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Abrir Minha Conta no site", color = FioGold)
+        }
+        Text(
+            "A loja utiliza uma sessão separada no navegador. Fazer login no site não ativa uma licença Pro neste aplicativo.",
+            color = FioTextMuted,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
         Text(
             "Suas matrizes continuam salvas localmente no celular. Entrar na conta não envia automaticamente seus projetos para a nuvem.",
             color =
@@ -809,7 +823,7 @@ private fun SignedInAccount(
     ) -> Unit,
     onRefresh: () -> Unit,
     onActivateTrial: () -> Unit,
-    onCheckout: (String) -> Unit,
+    onOpenWebAccount: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context =
@@ -1380,13 +1394,27 @@ private fun SignedInAccount(
                     color = FioTextMuted,
                     fontSize = 10.sp
                 )
+                OutlinedButton(
+                    onClick = onOpenWebAccount,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Abrir Minha Conta no site", color = FioGold)
+                }
+                Text(
+                    "A contratação é feita no navegador WordPress/WooCommerce. " +
+                        "O login do site é independente do Google no app; " +
+                        "o pagamento não libera o Pro sem licença validada.",
+                    modifier = Modifier.padding(bottom = 10.dp),
+                    color = FioTextMuted,
+                    fontSize = 10.sp
+                )
                 visiblePlans.forEachIndexed { index, plan ->
                     PlanSummary(
                         plan = plan,
                         current = account.commercialConfigured &&
                             plan.code == account.planCode,
                         verified = account.commercialConfigured,
-                        onCheckout = onCheckout
+                        onOpenWebAccount = onOpenWebAccount
                     )
                     if (index < visiblePlans.lastIndex) {
                         Spacer(Modifier.height(10.dp))
@@ -1870,7 +1898,7 @@ private fun PlanSummary(
     plan: AccountPlanOption,
     current: Boolean,
     verified: Boolean,
-    onCheckout: (String) -> Unit
+    onOpenWebAccount: () -> Unit
 ) {
     Column(
         Modifier
@@ -1973,7 +2001,7 @@ private fun PlanSummary(
                         )
 
                     else ->
-                        "Valor em definição"
+                        "Preço ainda não publicado"
                 },
             modifier =
                 Modifier.padding(
@@ -2020,12 +2048,11 @@ private fun PlanSummary(
         ) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
-                onClick = { onCheckout(plan.code) },
+                onClick = onOpenWebAccount,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (plan.isLifetime) "Comprar licença vitalícia"
-                    else "Assinar Pro / Renovar",
+                    "Consultar contratação no site",
                     color = FioGold
                 )
             }
