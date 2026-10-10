@@ -1,0 +1,8 @@
+{
+  // GitHub / Cloudflare Builds: worker existente, nunca criar um segundo.
+  // Deploy autenticado e binding DB preservado via 'npm run deploy:cloudflare'.
+  "name": "brother-matrizes-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": true
+}
