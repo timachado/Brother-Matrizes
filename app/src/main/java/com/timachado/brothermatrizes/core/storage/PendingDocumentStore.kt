@@ -25,7 +25,7 @@ object PendingDocumentCodec {
         1
 
     private const val MAX_BYTES =
-        128 * 1024 * 1024
+        192 * 1024 * 1024
 
     fun encode(
         document: DurablePendingDocument

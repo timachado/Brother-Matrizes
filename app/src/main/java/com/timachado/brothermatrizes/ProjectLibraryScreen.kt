@@ -308,15 +308,14 @@ fun ProjectLibraryScreen(
             OutlinedButton(
                 onClick =
                     onBackup,
-                enabled =
-                    projects.isNotEmpty(),
                 modifier =
                     Modifier.weight(
                         1f
                     )
             ) {
                 Text(
-                    "Backup"
+                    "Backup completo",
+                    fontSize = 10.sp
                 )
             }
 

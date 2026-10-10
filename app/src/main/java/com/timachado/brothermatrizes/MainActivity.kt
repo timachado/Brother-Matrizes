@@ -50,7 +50,7 @@ import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
 import com.timachado.brothermatrizes.core.project.ActiveDesignStore
-import com.timachado.brothermatrizes.core.project.ProjectBackupStore
+import com.timachado.brothermatrizes.core.project.CompleteLibraryBackupStore
 import com.timachado.brothermatrizes.core.project.ProjectStore
 import com.timachado.brothermatrizes.core.project.SavedProjectSummary
 import com.timachado.brothermatrizes.core.storage.DurablePendingDocument
@@ -971,7 +971,7 @@ private fun BrotherMatrizesApp(
                                                 input =
                                                     it,
                                                 maxBytes =
-                                                    128 *
+                                                    192 *
                                                         1024 *
                                                         1024
                                             )
@@ -981,7 +981,7 @@ private fun BrotherMatrizesApp(
                                     )
 
                             val count =
-                                ProjectBackupStore
+                                CompleteLibraryBackupStore
                                     .restoreBackup(
                                         context,
                                         bytes
@@ -1011,9 +1011,10 @@ private fun BrotherMatrizesApp(
                             restored.second
 
                         snackbar.showSnackbar(
-                            restored.first
-                                .toString() +
-                                " matriz(es) restaurada(s)."
+                            restored.first.projects.toString() +
+                                " matriz(es) e " +
+                                restored.first.fonts.toString() +
+                                " fonte(s) restaurada(s)."
                         )
                     },
                     onFailure = {
@@ -1315,7 +1316,7 @@ private fun BrotherMatrizesApp(
                 withContext(
                     Dispatchers.IO
                 ) {
-                    ProjectBackupStore
+                    CompleteLibraryBackupStore
                         .exportBackup(
                             context
                         )
@@ -1327,7 +1328,7 @@ private fun BrotherMatrizesApp(
                 onSuccess = {
                         bytes ->
                     val fileName =
-                        "Brother-Matrizes-backup.brother_matrizes-backup"
+                        "Brother-Matrizes-backup-completo.brother_matrizes-fullbackup"
 
                     stageDocumentSave(
                         DurablePendingDocument(
@@ -1336,7 +1337,7 @@ private fun BrotherMatrizesApp(
                             bytes =
                                 bytes,
                             successMessage =
-                                "Backup de Minhas Matrizes salvo com sucesso."
+                                "Backup completo de matrizes e fontes salvo com sucesso."
                         )
                     )
                 },
