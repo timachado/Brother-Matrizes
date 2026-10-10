@@ -1,18 +1,14 @@
-name: QA Brother Matrizes Cloudflare Catalog (isolated)
+# Archived manual-only test suite. Brother Matrizes uses WordPress/WooCommerce
+# as its commercial source. This workflow does not contact Cloudflare or deploy.
+name: Archived Cloudflare catalog prototype tests (manual only)
 on:
-  push:
-    branches: [refactor/brother-matrizes-clean-0469]
-    paths:
-      - 'cloudflare/catalog-prototype/**'
-      - 'wordpress/app-commerce-core-integration/**'
-      - '.github/workflows/cloudflare-catalog-qa.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  catalog-relay-qa:
+  archived-prototype-local-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,32 +17,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: 12 Cloudflare Worker regression tests
+      - name: Local worker regression tests only
         run: node --test worker.test.mjs
         working-directory: cloudflare/catalog-prototype
-      - name: PHP syntax check (integration source only)
+      - name: PHP syntax check of archived relay source
         run: php -l wordpress/app-commerce-core-integration/bm-cloudflare-catalog-relay.php
-      - name: Version-lock ZIP patcher regression tests
+      - name: Archived patcher regression tests
         run: python3 -m unittest discover -s wordpress/app-commerce-core-integration -p 'test_apply_core_relay.py' -v
-      - name: ZIP patcher syntax check
-        run: python3 -m py_compile wordpress/app-commerce-core-integration/apply_core_relay.py
-      - name: Check Cloudflare runtime secret wiring (unsigned read-only diagnostic)
-        shell: bash
-        run: |
-          set -euo pipefail
-          endpoint="https://brother-matrizes-api.servicospremiummachadoti.workers.dev/internal/catalog-sync"
-          status=$(curl --silent --show-error --max-time 20 \
-            --request POST --header 'Content-Type: application/json' \
-            --data '{}' --output /tmp/catalog-sync-probe.json \
-            --write-out '%{http_code}' "$endpoint")
-          echo "Cloudflare unsigned sync probe: HTTP $status"
-          cat /tmp/catalog-sync-probe.json
-          echo
-          case "$status" in
-            401) echo "Cloudflare D1 binding and CATALOG_SYNC_SECRET are present; unsigned POST correctly rejected." ;;
-            503) echo "::warning::Cloudflare reports incomplete runtime configuration. Confirm D1 and CATALOG_SYNC_SECRET in Worker Settings (not Builds)." ;;
-            *) echo "::warning::Unexpected unsigned sync response ($status)." ;;
-          esac
-      - name: Verify no actual WordPress deployment
-        run: |
-          echo "QA only: no WordPress installation, no secrets or payment activation."
