@@ -12,8 +12,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 152
-        versionName = "0.50.0-rc1"
+        versionCode = 153
+        versionName = "0.50.1-beta1"
 
         buildConfigField(
             "String",
@@ -82,6 +82,13 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
+
+    // Archive readers only. RAR license restricts writing a compatible archiver.
+    implementation("com.github.junrar:junrar:8.1.1")
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("org.tukaani:xz:1.10")
+    implementation("commons-io:commons-io:2.20.0")
+    implementation("org.apache.commons:commons-lang3:3.18.0")
 
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.3"))
     implementation("io.github.jan-tennert.supabase:auth-kt")
