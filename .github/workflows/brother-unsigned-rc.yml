@@ -43,18 +43,26 @@ jobs:
         run: gradle :app:lintDebug --stacktrace
       - name: Assemble unsigned release
         run: gradle :app:assembleRelease --stacktrace
-      - name: Prepare unsigned candidate and checksum
+      - name: Align unsigned release with official zipalign
         shell: bash
         run: |
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk
-          sha256sum Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk > Brother-Matrizes-1.0.0-rc2-UNSIGNED-SHA256.txt
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -f -v 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            Brother-Matrizes-1.0.0-rc2-ALIGNED-UNSIGNED.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -c -v 4 \
+            Brother-Matrizes-1.0.0-rc2-ALIGNED-UNSIGNED.apk
+      - name: Prepare unsigned candidate and checksum
+        shell: bash
+        run: |
+          test -s Brother-Matrizes-1.0.0-rc2-ALIGNED-UNSIGNED.apk
+          sha256sum Brother-Matrizes-1.0.0-rc2-ALIGNED-UNSIGNED.apk > Brother-Matrizes-1.0.0-rc2-UNSIGNED-SHA256.txt
       - name: Upload unsigned release QA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Brother-Matrizes-1.0.0-rc2-unsigned-not-for-installation
           path: |
-            Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk
+            Brother-Matrizes-1.0.0-rc2-ALIGNED-UNSIGNED.apk
             Brother-Matrizes-1.0.0-rc2-UNSIGNED-SHA256.txt
           if-no-files-found: error
           retention-days: 7

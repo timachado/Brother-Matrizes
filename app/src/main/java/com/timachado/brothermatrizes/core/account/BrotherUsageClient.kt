@@ -10,7 +10,7 @@ import org.json.JSONObject
 /**
  * Authenticated monthly import quota for production.
  * Financial entitlements remain WooCommerce/Efí, verified by Brother's
- * isolated server service. No secret/service-role key is shipped in Android.
+ * isolated server service. Android contains only a public API key.
  */
 internal object BrotherUsageClient {
     private val reservationPattern =
