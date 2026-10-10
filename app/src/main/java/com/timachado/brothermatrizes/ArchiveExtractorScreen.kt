@@ -68,6 +68,7 @@ fun ArchiveExtractorScreen(
     var inventory by remember(archiveUri) { mutableStateOf<ArchiveInventory?>(null) }
     var error by remember(archiveUri) { mutableStateOf<String?>(null) }
     var scanning by remember(archiveUri) { mutableStateOf(true) }
+    var retryVersion by remember(archiveUri) { mutableStateOf(0) }
     var importing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0) }
     val cancelRequested = remember(archiveUri) { AtomicBoolean(false) }
@@ -79,11 +80,16 @@ fun ArchiveExtractorScreen(
     DisposableEffect(inventory) {
         onDispose { inventory?.sourceFile?.delete() }
     }
-    LaunchedEffect(archiveUri) {
+    LaunchedEffect(archiveUri, retryVersion) {
         scanning = true
         error = null
+        val secret = password.toCharArray()
         val result = withContext(Dispatchers.IO) {
-            runCatching { SafeArchiveExtractor.stage(context, archiveUri) }
+            try {
+                runCatching { SafeArchiveExtractor.stage(context, archiveUri, secret) }
+            } finally {
+                secret.fill('\u0000')
+            }
         }
         result.fold(
             onSuccess = { staged ->
@@ -128,6 +134,20 @@ fun ArchiveExtractorScreen(
         }
         error?.let { msg ->
             Text(msg, color = FioTextMuted)
+            Text("O pacote pode estar protegido por senha. Se conhecer a senha, " +
+                "informe abaixo e tente novamente.", color = FioTextMuted)
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it.take(128) },
+                label = { Text("Senha para RAR/7Z criptografado") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true
+            )
+            OutlinedButton(
+                onClick = { retryVersion++ },
+                enabled = !scanning && password.isNotBlank()
+            ) { Text("Tentar abrir com senha", color = FioGold) }
             Text("Não foi possível extrair este arquivo internamente. " +
                 "Deseja tentar abrir com outro aplicativo?", color = FioText)
             // Only show RAR button if installed and resolvable.
