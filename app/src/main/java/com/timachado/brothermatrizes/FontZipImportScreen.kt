@@ -60,7 +60,7 @@ fun FontZipImportScreen(
     var progress by remember { mutableStateOf(0) }
     val selected = remember(archiveUri) { mutableStateListOf<Int>() }
     val completed = remember(archiveUri) { mutableStateListOf<Int>() }
-    BackHandler(enabled = !working) { onBack() }
+    BackHandler { if (!working) onBack() }
     DisposableEffect(inventory) {
         val staged = inventory?.sourceFile
         onDispose { staged?.delete() }
@@ -165,7 +165,8 @@ fun FontZipImportScreen(
                                     val temp = SafeArchiveExtractor.extract(context, staged, entry)
                                     try {
                                         val imported = ImportedFontStore.importFont(
-                                            context, Uri.fromFile(temp)
+                                            context, Uri.fromFile(temp),
+                                            sourceDisplayName = entry.name
                                         ).getOrThrow()
                                         imported.id !in before
                                     } finally { temp.delete() }
