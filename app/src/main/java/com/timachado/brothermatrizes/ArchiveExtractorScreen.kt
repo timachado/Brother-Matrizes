@@ -219,12 +219,16 @@ fun ArchiveExtractorScreen(
                                 ?: continue
                             // Authorize one individual import before processing; no
                             // charge occurs merely for browsing/extracting the ZIP.
-                            val reservation = runCatching { canImport(item.category) }
-                                .getOrElse {
-                                    report = it.message ?: "Licenciamento indisponível."
-                                    failed++
-                                    break
-                                }
+                            val authorization = runCatching {
+                                canImport(item.category)
+                            }
+                            if (authorization.isFailure) {
+                                report = authorization.exceptionOrNull()?.message
+                                    ?: "Licenciamento indisponível."
+                                failed++
+                                break
+                            }
+                            val reservation = authorization.getOrNull()
                             var success = false
                             try {
                                 val result = withContext(Dispatchers.IO) {
