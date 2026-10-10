@@ -57,7 +57,7 @@ import java.util.Locale
 @Composable
 fun DaFontBrowserScreen(
     onBack: () -> Unit,
-    onImported: (Int) -> Unit
+    onArchiveReady: (Uri) -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -90,26 +90,22 @@ fun DaFontBrowserScreen(
                             val cursor = downloadManager.query(
                                 DownloadManager.Query().setFilterById(id)
                             )
-                            val successful = cursor.use { c ->
+                            val valid = cursor.use { c ->
                                 c.moveToFirst() &&
                                     c.getInt(c.getColumnIndexOrThrow(
                                         DownloadManager.COLUMN_STATUS
                                     )) == DownloadManager.STATUS_SUCCESSFUL
                             }
-                            check(successful) {
-                                "O download não foi concluído. Tente novamente."
-                            }
-                            val uri = downloadManager.getUriForDownloadedFile(id)
-                                ?: error("Arquivo baixado indisponível.")
-                            FontArchiveImporter.importZip(context, uri).getOrThrow()
+                            check(valid) { "Falha ao baixar a fonte." }
+                            downloadManager.getUriForDownloadedFile(id)
+                                ?: error("ZIP baixado indisponível.")
                         }
                     }
                     result.fold(
-                        onSuccess = {
-                            message = "${it.size} fonte(s) importada(s) com sucesso para Criar Nome."
-                            onImported(it.size)
-                        },
-                        onFailure = { message = it.message ?: "Falha ao importar fontes do ZIP." }
+                        onSuccess = { onArchiveReady(it) },
+                        onFailure = {
+                            message = it.message ?: "Não foi possível abrir o ZIP baixado."
+                        }
                     )
                 }
             }
