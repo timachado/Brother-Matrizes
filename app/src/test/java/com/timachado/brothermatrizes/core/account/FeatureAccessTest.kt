@@ -95,6 +95,10 @@ class FeatureAccessTest {
         val activeTrial = account("trial", "active", "2099-12-31T23:59:59Z")
         assertTrue(activeTrial.canUse(BrotherMatrizesFeature.PRO_ONLY))
         assertFalse(activeTrial.isPaid)
+        // A trial is not a paid subscription and never extends itself.
+        assertFalse(account("trial", "active").hasProAccess)
+        assertFalse(account("trial", "pending", "2099-12-31T23:59:59Z").hasProAccess)
+        assertFalse(account("trial", "active", "not-a-date").hasProAccess)
         assertFalse(
             account("trial", "active", "2020-01-01T00:00:00Z")
                 .canUse(BrotherMatrizesFeature.PRO_ONLY)
