@@ -398,10 +398,9 @@ object BrotherMatrizesAccountService {
             }
         } else {
             val token = verifiedAccessToken()
-            WordPressLicensingClient.authorizeUsage(
-                token,
-                if (isFont) "import_font" else "import_matrix"
-            )
+            // Production imports are server-metered by verified Google identity.
+            // InfinityFree blocks direct Android/WordPress REST usage calls.
+            BrotherUsageClient.reserve(token, isFont)
         }
     }
 
@@ -417,11 +416,7 @@ object BrotherMatrizesAccountService {
             } else LocalBetaImportQuota.finalize(context, isFont, requestKey, success)
         } else {
             val token = verifiedAccessToken()
-            WordPressLicensingClient.finalizeUsage(
-                token,
-                if (isFont) "import_font" else "import_matrix",
-                requestKey, success
-            )
+            BrotherUsageClient.finalize(token, isFont, requestKey, success)
         }
         Unit
     }

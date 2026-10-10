@@ -12,8 +12,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 163
-        versionName = "1.0.0-rc1"
+        versionCode = 164
+        versionName = "1.0.0-rc2"
 
         buildConfigField(
             "String",
@@ -50,6 +50,8 @@ android {
         }
 
         release {
+            // Commercial release must NEVER use the resettable per-device beta counters.
+            buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

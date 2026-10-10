@@ -47,14 +47,14 @@ jobs:
         shell: bash
         run: |
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk
-          sha256sum Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk > Brother-Matrizes-1.0.0-rc1-UNSIGNED-SHA256.txt
+          cp app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk
+          sha256sum Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk > Brother-Matrizes-1.0.0-rc2-UNSIGNED-SHA256.txt
       - name: Upload unsigned release QA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-1.0.0-rc1-unsigned-not-for-installation
+          name: Brother-Matrizes-1.0.0-rc2-unsigned-not-for-installation
           path: |
-            Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk
-            Brother-Matrizes-1.0.0-rc1-UNSIGNED-SHA256.txt
+            Brother-Matrizes-1.0.0-rc2-UNSIGNED.apk
+            Brother-Matrizes-1.0.0-rc2-UNSIGNED-SHA256.txt
           if-no-files-found: error
           retention-days: 7
