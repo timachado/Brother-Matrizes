@@ -1,0 +1,60 @@
+name: Brother Matrizes Unsigned Release QA
+on:
+  push:
+    branches: ["release/brother-matrizes-1.0.0-prep"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: brother-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Prepare Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Setup Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Prepare Brother brand assets
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Static safety checks
+        run: bash scripts/pre_release_static_check.sh
+      - name: WordPress offline license issuer QA
+        run: |
+          php -l wordpress/app-commerce-core-integration/bm-signed-license-issuer.php
+          php wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Android Lint
+        run: gradle :app:lintDebug --stacktrace
+      - name: Assemble unsigned release
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Prepare unsigned candidate and checksum
+        shell: bash
+        run: |
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk
+          sha256sum Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk > Brother-Matrizes-1.0.0-rc1-UNSIGNED-SHA256.txt
+      - name: Upload unsigned release QA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.0.0-rc1-unsigned-not-for-installation
+          path: |
+            Brother-Matrizes-1.0.0-rc1-UNSIGNED.apk
+            Brother-Matrizes-1.0.0-rc1-UNSIGNED-SHA256.txt
+          if-no-files-found: error
+          retention-days: 7
