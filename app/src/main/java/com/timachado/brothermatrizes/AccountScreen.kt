@@ -1036,6 +1036,7 @@ private fun SignedInAccount(
                             )
                         }
                         "eligible" -> {
+                            if (!account.hasProAccess) {
                             Button(
                                 onClick = onActivateTrial,
                                 modifier = Modifier.fillMaxWidth()
@@ -1047,6 +1048,7 @@ private fun SignedInAccount(
                                 modifier = Modifier.padding(top = 5.dp)
                             )
                             Spacer(Modifier.height(10.dp))
+                            }
                         }
                         "active" -> {
                             Text(
