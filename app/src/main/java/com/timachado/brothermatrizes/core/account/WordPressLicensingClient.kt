@@ -218,7 +218,9 @@ internal object WordPressLicensingClient {
             JSONObject().put("display_name", name))
     }
 
-    suspend fun trial(token: String) = withContext(Dispatchers.IO) {
+    suspend fun trial(token: String): JSONObject = withContext(Dispatchers.IO) {
+        // WordPress enforces one trial per authenticated Google subject.
+        // This endpoint does not register a payment method or create charges.
         json("/wp-json/brother-matrizes/v1/trial/activate", token, JSONObject())
     }
 
