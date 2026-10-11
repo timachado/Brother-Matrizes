@@ -69,6 +69,15 @@ class BrotherUpdateClient(private val endpoint: String) {
                 return@withContext if (code == "tim_no_release") Result.NotPublished
                     else Result.Error("Servidor de atualizações não encontrado (HTTP 404).")
             }
+            if (status == 403 && endpoint.startsWith("https://timachado.ifree.page/")) {
+                // Hospedagem InfinityFree bloqueia consultas Android à API REST,
+                // mesmo quando o plugin responde corretamente no navegador.
+                // O espelho publico (somente metadados) fica fora desse firewall.
+                connection.disconnect()
+                return@withContext BrotherUpdateClient(
+                    "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"
+                ).check(context)
+            }
             if (status != 200) {
                 return@withContext Result.Error("Não foi possível consultar as atualizações (HTTP $status).")
             }
