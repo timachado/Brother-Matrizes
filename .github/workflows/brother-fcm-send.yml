@@ -1,0 +1,51 @@
+name: Brother Matrizes - Enviar avisos Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Código da versão comercial publicada
+        type: string
+        required: true
+      version_name:
+        description: Versão comercial publicada
+        type: string
+        required: true
+      title:
+        description: Título da notificação
+        type: string
+        required: true
+      body:
+        description: Mensagem da notificação
+        type: string
+        required: true
+      dry_run:
+        description: Validar sem enviar
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-fcm-${{ inputs.version_code }}
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    name: Publicação FCM controlada
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar Firebase Admin
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund firebase-admin@13.6.0
+      - name: Enviar aviso após validar manifesto público
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node .github/scripts/send-brother-fcm.mjs
