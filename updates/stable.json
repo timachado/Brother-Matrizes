@@ -1,11 +1,11 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.0.1",
-  "versionCode": 167,
+  "versionName": "1.0.5",
+  "versionCode": 171,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://timachado.ifree.page/",
-  "sha256": "7dbb15e8dedc21a3c7435c3af7bb6d7a9c9e3ef8491626b36962de78136f00b3",
-  "releaseNotes": "Versão 1.0.1 comercial. A nova versão será anunciada após a publicação do APK assinado.",
-  "publishedAt": "2026-10-10T00:00:00Z"
+  "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
+  "sha256": "ef0e2c2eacf19e683087249d43d64fea90fa1b6f48432e5026af975891fc7635",
+  "releaseNotes": "Brother Matrizes 1.0.5: melhorias na pesquisa e importação de fontes DaFont, avisos de atualização no Android e correções de estabilidade. Acesse a página oficial para baixar e instalar.",
+  "publishedAt": "2026-10-11"
 }
