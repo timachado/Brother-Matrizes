@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -120,7 +122,7 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     inputs.file(source)
     outputs.files(drawable, mipmap)
     doLast {
-        val data = java.util.Base64.getMimeDecoder().decode(source.readText())
+        val data = Base64.getMimeDecoder().decode(source.readText())
         check(data.size >= 3000 && data[0] == 0xff.toByte() && data[1] == 0xd8.toByte()) {
             "Imagem oficial Brother Matrizes ausente ou invalida"
         }
