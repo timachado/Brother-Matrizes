@@ -106,3 +106,34 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+
+/**
+ * A arte oficial fica em branding/brother_matrizes_brand_logo.base64.
+ * Gera sempre os recursos de ícone antes do processamento Android.
+ * Evita voltar a empacotar o recurso legado FioLab por acidente.
+ */
+val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
+    val source = rootProject.file("branding/brother_matrizes_brand_logo.base64")
+    val drawable = project.file("src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg")
+    val mipmap = project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
+    inputs.file(source)
+    outputs.files(drawable, mipmap)
+    doLast {
+        val data = java.util.Base64.getMimeDecoder().decode(source.readText())
+        check(data.size >= 3000 && data[0] == 0xff.toByte() && data[1] == 0xd8.toByte()) {
+            "Imagem oficial Brother Matrizes ausente ou invalida"
+        }
+        drawable.parentFile.mkdirs()
+        mipmap.parentFile.mkdirs()
+        drawable.writeBytes(data)
+        mipmap.writeBytes(data)
+    }
+}
+tasks.configureEach {
+    if (name == "preBuild" || 
+        (name.startsWith("merge") && name.endsWith("Resources")) ||
+        (name.startsWith("process") && name.endsWith("Resources"))) {
+        dependsOn(prepareBrotherBrandAssets)
+    }
+}
