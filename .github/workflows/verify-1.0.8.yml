@@ -1,0 +1,105 @@
+name: Brother Matrizes 1.0.8 – validação sem assinatura
+
+on:
+  push:
+    branches:
+      - fix/brother-matrizes-1.0.8-simulation-stability
+  pull_request:
+    branches:
+      - feature/brother-matrizes-1.0.6-fcm-push
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout da branch de validação
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar SDK 36 usando Android SDK do runner
+        shell: bash
+        run: |
+          echo "Android SDK: ${ANDROID_HOME}"
+          SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then echo "sdkmanager não encontrado"; exit 1; fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle 9.6 (AGP 9.4)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Compilar APK debug para testar o código (NÃO É RELEASE)
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Verificar arquivo Firebase registrado para pacote comercial
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          d=json.load(open("app/google-services.json"))
+          assert d["client"][0]["client_info"]["android_client_info"]["package_name"]=="com.timachado.brothermatrizes"
+          assert d["project_info"]["project_id"]=="brother-matrizes---ti-machado"
+          assert not d["client"][0].get("oauth_client")
+          print("Firebase config Android conferida, sem Firebase Auth")
+          PY
+
+      - name: Testes unitários da build debug
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Verificar arquivo oficial de marca gerado (sem FioLab)
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED="$(base64 --decode branding/brother_matrizes_brand_logo.base64 | sha256sum | awk '{print $1}')"
+          DRAWABLE="$(sha256sum app/src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg | awk '{print $1}')"
+          MIPMAP="$(sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg | awk '{print $1}')"
+          test "$EXPECTED" = "$DRAWABLE"
+          test "$EXPECTED" = "$MIPMAP"
+          echo "Recurso original Brother Matrizes restaurado."
+
+      - name: Verificar espelho de atualização publico
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --max-time 15 "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["applicationId"] == "com.timachado.brothermatrizes"; assert int(d["versionCode"]) > 0; print("Espelho publico OK:", d["versionName"])'
+
+      - name: Compilar release não assinado (somente auditoria)
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Validar versão, pacote e ausência de assinatura comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$RELEASE"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          BADGING="$("$AAPT" dump badging "$RELEASE" | head -n 1)"
+          echo "$BADGING"
+          [[ "$BADGING" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$BADGING" == *"versionCode='174'"* ]]
+          [[ "$BADGING" == *"versionName='1.0.8'"* ]]
+          if "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$RELEASE"; then
+            echo "ERRO: era esperado um APK NÃO ASSINADO nesta rotina."
+            exit 1
+          fi
+          sha256sum "$RELEASE"
+
+      - name: Arquivar build unsigned (NÃO INSTALAR, NÃO DISTRIBUIR)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-v1.0.8-UNSIGNED-SOMENTE-AUDITORIA
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7
