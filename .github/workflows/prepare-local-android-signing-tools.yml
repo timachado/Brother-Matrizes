@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/brother-matrizes-1.0.2-updates
+  pull_request:
+    branches:
+      - release/brother-matrizes-1.0.1
 
 permissions:
   contents: read
