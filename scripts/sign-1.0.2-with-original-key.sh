@@ -6,10 +6,10 @@ set -euo pipefail
 umask 077
 
 test -n "$ANDROID_HOME" || { echo "ANDROID_HOME ausente"; exit 1; }
-test -n "$BROTHER_RELEASE_KEYSTORE_BASE64" || { echo "Keystore original ausente"; exit 1; }
-test -n "$BROTHER_RELEASE_STORE_PASSWORD" || { echo "Senha do keystore ausente"; exit 1; }
-test -n "$BROTHER_RELEASE_KEY_ALIAS" || { echo "Alias ausente"; exit 1; }
-test -n "$BROTHER_RELEASE_KEY_PASSWORD" || { echo "Senha da chave ausente"; exit 1; }
+test -n "$BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64" || { echo "Keystore original ausente"; exit 1; }
+test -n "$BROTHER_MATRIZES_RELEASE_STORE_PASSWORD" || { echo "Senha do keystore ausente"; exit 1; }
+test -n "$BROTHER_MATRIZES_RELEASE_KEY_ALIAS" || { echo "Alias ausente"; exit 1; }
+test -n "$BROTHER_MATRIZES_RELEASE_KEY_PASSWORD" || { echo "Senha da chave ausente"; exit 1; }
 
 TOOLS="$ANDROID_HOME/build-tools/36.0.0"
 UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
@@ -21,14 +21,14 @@ test -s "$UNSIGNED"
 mkdir -p "$OUTPUT_DIR"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
-printf '%s' "$BROTHER_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$WORK_DIR/release.jks"
+printf '%s' "$BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$WORK_DIR/release.jks"
 "$TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$WORK_DIR/aligned.apk"
 
 "$TOOLS/apksigner" sign \
   --ks "$WORK_DIR/release.jks" \
-  --ks-pass env:BROTHER_RELEASE_STORE_PASSWORD \
-  --ks-key-alias "$BROTHER_RELEASE_KEY_ALIAS" \
-  --key-pass env:BROTHER_RELEASE_KEY_PASSWORD \
+  --ks-pass env:BROTHER_MATRIZES_RELEASE_STORE_PASSWORD \
+  --ks-key-alias "$BROTHER_MATRIZES_RELEASE_KEY_ALIAS" \
+  --key-pass env:BROTHER_MATRIZES_RELEASE_KEY_PASSWORD \
   --out "$SIGNED" "$WORK_DIR/aligned.apk"
 
 VERIFY_OUTPUT="$("$TOOLS/apksigner" verify --verbose --print-certs "$SIGNED")"
