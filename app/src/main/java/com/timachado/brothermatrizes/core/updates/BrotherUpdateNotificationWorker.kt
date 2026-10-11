@@ -55,7 +55,7 @@ class BrotherUpdateNotificationWorker(
                 }
                 Result.success()
             }
-            is BrotherUpdateClient.Result.Error -> Result.retry()
+            is BrotherUpdateClient.Result.Error -> Result.success()
             else -> Result.success()
         }
     }
