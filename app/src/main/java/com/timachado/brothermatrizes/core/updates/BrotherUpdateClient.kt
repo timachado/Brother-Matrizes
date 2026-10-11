@@ -82,7 +82,13 @@ class BrotherUpdateClient(private val endpoint: String) {
                 return@withContext Result.Error("Não foi possível consultar as atualizações (HTTP $status).")
             }
             val mediaType = connection.contentType.orEmpty().substringBefore(';').trim().lowercase()
-            if (mediaType != "application/json") {
+            // GitHub Raw pode servir .json como text/plain, embora o conteúdo
+            // seja JSON válido. Só permitir no endereço exato do espelho oficial.
+            val trustedMirror = url.host == "raw.githubusercontent.com" &&
+                url.path == "/timachado/Brother-Matrizes/main/updates/stable.json"
+            val acceptedType = mediaType == "application/json" ||
+                (trustedMirror && mediaType == "text/plain")
+            if (!acceptedType) {
                 return@withContext Result.Error("O servidor não retornou os dados de atualização esperados.")
             }
             val bytes = connection.inputStream.use { input ->
