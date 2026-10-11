@@ -103,25 +103,25 @@ fun SimulatorScreen(
         }
 
     var index by remember(
-        design.fileName
+        design
     ) {
         mutableIntStateOf(0)
     }
 
     var playing by remember(
-        design.fileName
+        design
     ) {
         mutableStateOf(false)
     }
 
     var speed by remember(
-        design.fileName
+        design
     ) {
         mutableFloatStateOf(1f)
     }
 
     var stoppedForStop by remember(
-        design.fileName
+        design
     ) {
         mutableStateOf(false)
     }
@@ -129,7 +129,7 @@ fun SimulatorScreen(
     LaunchedEffect(
         playing,
         speed,
-        design.fileName
+        design
     ) {
         while (
             playing &&
@@ -181,6 +181,8 @@ fun SimulatorScreen(
         }
     }
 
+    val actualStitchCount = stitchPrefix.last()
+
     val completedStitches =
         stitchPrefix[
             index.coerceIn(
@@ -191,14 +193,14 @@ fun SimulatorScreen(
 
     val progress =
         if (
-            design.stitchCount <=
+            actualStitchCount <=
                 0
         ) {
             0f
         } else {
             (
                 completedStitches.toFloat() /
-                    design.stitchCount
+                    actualStitchCount
                 ).coerceIn(
                 0f,
                 1f
@@ -206,14 +208,7 @@ fun SimulatorScreen(
         }
 
     val currentPoint =
-        points.getOrNull(
-            (
-                index -
-                    1
-                ).coerceAtLeast(
-                    0
-                )
-        )
+        SimulationCursor.needlePoint(points, index)
 
     val block =
         (
@@ -225,7 +220,7 @@ fun SimulatorScreen(
 
     val remainingStitches =
         (
-            design.stitchCount -
+            actualStitchCount -
                 completedStitches
             ).coerceAtLeast(
                 0
@@ -480,7 +475,7 @@ fun SimulatorScreen(
                         completedStitches
                             .toString() +
                             "/" +
-                            design.stitchCount +
+                            actualStitchCount +
                             " pts",
                         color =
                             FioTextMuted,
@@ -552,11 +547,11 @@ fun SimulatorScreen(
                         val targetStitches =
                             (
                                 it *
-                                    design.stitchCount
+                                    actualStitchCount
                                 ).toInt()
                                 .coerceIn(
                                     0,
-                                    design.stitchCount
+                                    actualStitchCount
                                 )
 
                         index =
@@ -839,50 +834,7 @@ private fun mm(
 private fun pointIndexForStitchCount(
     prefix: IntArray,
     targetStitches: Int
-): Int {
-    if (
-        prefix.isEmpty() ||
-        targetStitches <=
-            0
-    ) {
-        return 0
-    }
-
-    var low =
-        0
-
-    var high =
-        prefix.lastIndex
-
-    while (
-        low <
-            high
-    ) {
-        val middle =
-            (
-                low +
-                    high
-                ) /
-                2
-
-        if (
-            prefix[middle] <
-                targetStitches
-        ) {
-            low =
-                middle +
-                    1
-        } else {
-            high =
-                middle
-        }
-    }
-
-    return low.coerceIn(
-        0,
-        prefix.lastIndex
-    )
-}
+): Int = SimulationCursor.pointIndexForStitchCount(prefix, targetStitches)
 
 private fun formatTime(
     seconds: Int
