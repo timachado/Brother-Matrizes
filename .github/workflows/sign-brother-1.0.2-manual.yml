@@ -1,0 +1,62 @@
+name: Brother Matrizes 1.0.2 - assinatura comercial manual
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-commercial-candidate:
+    name: Assinar 1.0.2 somente com a chave original
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 40
+    steps:
+      - name: Recuperar fonte validado da 1.0.2
+        uses: actions/checkout@v4
+        with:
+          ref: 4b835fad9a057ac1c827ff5cf0ca11ddf7b3467e
+          persist-credentials: false
+
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Preparar Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Compilar release sem assinar
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Assinar com a chave privada da 1.0.1 e conferir o certificado
+        shell: bash
+        env:
+          BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          BROTHER_MATRIZES_RELEASE_STORE_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          BROTHER_MATRIZES_RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          BROTHER_MATRIZES_RELEASE_KEY_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: bash scripts/sign-1.0.2-with-original-key.sh
+
+      - name: Guardar candidato comercial para QA - nao publicar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-v1.0.2-CANDIDATO-ASSINADO-TESTES
+          path: |
+            app/build/outputs/apk/brother-release/Brother-Matrizes-v1.0.2-ESTAVEL-ASSINADO.apk
+            app/build/outputs/apk/brother-release/Brother-Matrizes-v1.0.2-ESTAVEL-ASSINADO.sha256
+          retention-days: 7
+          if-no-files-found: error
