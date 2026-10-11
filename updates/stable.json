@@ -1,0 +1,11 @@
+{
+  "applicationId": "com.timachado.brothermatrizes",
+  "channel": "stable",
+  "versionName": "1.0.1",
+  "versionCode": 167,
+  "minSupportedVersionCode": 0,
+  "downloadUrl": "https://timachado.ifree.page/",
+  "sha256": "7dbb15e8dedc21a3c7435c3af7bb6d7a9c9e3ef8491626b36962de78136f00b3",
+  "releaseNotes": "Versão 1.0.1 comercial. A nova versão será anunciada após a publicação do APK assinado.",
+  "publishedAt": "2026-10-10T00:00:00Z"
+}
