@@ -1,0 +1,31 @@
+name: Brother Matrizes - Teste FCM sem enviar
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/brother-fcm-dryrun-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Obter fonte confiável da branch principal
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Preparar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar SDK Firebase Admin sem scripts
+        run: npm install --prefix .github/scripts --no-save --ignore-scripts --no-audit --no-fund firebase-admin@14.5.0
+      - name: Validar conexão FCM (dryRun — sem envio)
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node .github/scripts/verify-brother-fcm.mjs
