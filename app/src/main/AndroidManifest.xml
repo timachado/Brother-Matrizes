@@ -23,6 +23,22 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BrotherMatrizes">
 
+        <!-- Consentimento obrigatório antes da inscrição no tópico FCM. -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+
+        <service
+            android:name=".core.updates.BrotherFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".AuthCallbackActivity"
             android:exported="true">
