@@ -64,7 +64,7 @@ class BrotherUpdateNotificationWorker(
         context: Context,
         available: BrotherUpdateClient.Result.Available
     ): Boolean = runCatching {
-        if (!notificationsAllowed(context)) return false
+        if (!notificationsAllowed(context)) return@runCatching false
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
             NotificationChannel(
@@ -88,11 +88,11 @@ class BrotherUpdateNotificationWorker(
             .setSmallIcon(R.drawable.ic_launcher_brother_matrizes)
             .setContentTitle("Brother Matrizes: atualização disponível")
             .setContentText(
-                "Versão \${available.release.versionName} disponível. Toque para atualizar."
+                "Versão ${available.release.versionName} disponível. Toque para atualizar."
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "A versão \${available.release.versionName} do Brother Matrizes está disponível. " +
+                    "A versão ${available.release.versionName} do Brother Matrizes está disponível. " +
                         "Abra o aplicativo para ver as novidades e atualizar com segurança."
                 )
             )
