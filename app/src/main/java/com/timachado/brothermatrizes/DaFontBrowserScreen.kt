@@ -14,6 +14,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,9 +81,22 @@ fun DaFontBrowserScreen(
     var pageLoading by remember { mutableStateOf(false) }
     var displayedPage by remember { mutableStateOf(DaFontNavigationRules.HOME) }
     var failedPage by remember { mutableStateOf(false) }
+    var canAdvance by remember { mutableStateOf(false) }
     fun goBack() {
         val web = browser
         if (web != null && web.canGoBack()) web.goBack() else onBack()
+    }
+    fun goHome() {
+        query = ""
+        browser?.loadUrl(DaFontNavigationRules.HOME)
+        message = "Explore todo o catálogo oficial DaFont dentro do aplicativo."
+    }
+    fun openExternalBrowser() {
+        val target = displayedPage.takeIf(DaFontNavigationRules::isOfficialPage)
+            ?: DaFontNavigationRules.HOME
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+        }
     }
     BackHandler { goBack() }
 
@@ -170,37 +184,77 @@ fun DaFontBrowserScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = ::goBack) { Text("‹ Voltar") }
-            TextButton(onClick = {
-                browser?.loadUrl(DaFontNavigationRules.HOME)
-                query = ""
-                message = "Navegando pelo catálogo oficial DaFont."
-            }) { Text("Categorias") }
-            TextButton(onClick = {
-                val target = displayedPage.takeIf(DaFontNavigationRules::isOfficialPage)
-                    ?: DaFontNavigationRules.HOME
-                runCatching {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
-                }
-            }) { Text("Abrir no navegador") }
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compact = maxWidth < 480.dp
+        val narrowSearch = maxWidth < 340.dp
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = if (compact) 7.dp else 12.dp)
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it.take(90) },
-                label = { Text("Buscar fonte no DaFont") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { searchFont() })
-            )
-            Button(onClick = ::searchFont) { Text("Buscar") }
-        }
+            if (compact) {
+                // Distribui os controles sem recortar o site em aparelhos pequenos.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TextButton(onClick = ::goBack) { Text("‹ Voltar") }
+                    TextButton(onClick = ::goHome) { Text("Categorias") }
+                    TextButton(onClick = { browser?.reload() }) { Text("Recarregar") }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TextButton(
+                        onClick = { browser?.goForward() },
+                        enabled = canAdvance
+                    ) { Text("Avançar ›") }
+                    TextButton(onClick = ::openExternalBrowser) {
+                        Text("Abrir no navegador")
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = ::goBack) { Text("‹ Voltar") }
+                    TextButton(onClick = ::goHome) { Text("Categorias") }
+                    TextButton(onClick = { browser?.reload() }) { Text("Recarregar") }
+                    TextButton(
+                        onClick = { browser?.goForward() },
+                        enabled = canAdvance
+                    ) { Text("Avançar ›") }
+                    TextButton(onClick = ::openExternalBrowser) {
+                        Text("Abrir no navegador")
+                    }
+                }
+            }
+            if (narrowSearch) {
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it.take(90) },
+                        label = { Text("Buscar fonte no DaFont") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { searchFont() })
+                    )
+                    Button(onClick = ::searchFont, modifier = Modifier.fillMaxWidth()) {
+                        Text("Pesquisar no DaFont")
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it.take(90) },
+                        label = { Text("Buscar fonte no DaFont") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { searchFont() })
+                    )
+                    Button(onClick = ::searchFont) { Text("Buscar") }
+                }
+            }
         Text(
             "DaFont • Prévia e categorias no site. Licenças pertencem aos autores.",
             color = FioTextMuted,
@@ -237,6 +291,7 @@ fun DaFontBrowserScreen(
 
                         override fun onPageFinished(view: WebView?, url: String?) {
                             pageLoading = false
+                            canAdvance = view?.canGoForward() == true
                             if (!failedPage && url != null &&
                                 DaFontNavigationRules.isOfficialPage(url)) {
                                 displayedPage = url
@@ -342,5 +397,6 @@ fun DaFontBrowserScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(message, color = FioGold, modifier = Modifier.padding(bottom = 8.dp))
+        }
     }
 }
