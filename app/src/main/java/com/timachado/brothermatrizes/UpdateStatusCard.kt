@@ -2,6 +2,8 @@ package com.timachado.brothermatrizes
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
+import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -132,6 +135,35 @@ fun UpdateStatusCard() {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Verificar novamente")
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Avisos no celular",
+                color = FioText,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+            val allowed = BrotherUpdateNotificationWorker.notificationsAllowed(context)
+            Text(
+                if (allowed)
+                    "Permitidos. O Android verifica novas versões periodicamente."
+                else
+                    "Desativados neste aparelho. Permita notificações para receber alertas de novas versões.",
+                color = FioTextMuted,
+                fontSize = 11.sp
+            )
+            if (!allowed) {
+                OutlinedButton(
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= 26) {
+                            val settings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            runCatching { context.startActivity(settings) }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Configurar notificações") }
             }
         }
     }
