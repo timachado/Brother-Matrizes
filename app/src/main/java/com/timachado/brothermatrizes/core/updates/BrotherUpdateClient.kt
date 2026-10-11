@@ -47,7 +47,28 @@ class BrotherUpdateClient(private val endpoint: String) {
                 instanceFollowRedirects = false
             }
             val status = connection.responseCode
-            if (status == 404) return@withContext Result.NotPublished
+            if (status == 404) {
+                // 404 do WordPress pode ser ausência de publicação ou endpoint inexistente.
+                // Aceitar somente o código explícito produzido pelo nosso plugin.
+                val errorType = connection.contentType.orEmpty()
+                    .substringBefore(';').trim().lowercase()
+                val response = connection.errorStream?.use { stream ->
+                    val out = ByteArrayOutputStream()
+                    val buffer = ByteArray(512)
+                    while (true) {
+                        val n = stream.read(buffer)
+                        if (n == -1) break
+                        if (out.size() + n > 4096) break
+                        out.write(buffer, 0, n)
+                    }
+                    out.toString(Charsets.UTF_8.name())
+                }.orEmpty()
+                val code = if (errorType == "application/json") {
+                    runCatching { JSONObject(response).optString("code") }.getOrNull()
+                } else null
+                return@withContext if (code == "tim_no_release") Result.NotPublished
+                    else Result.Error("Servidor de atualizações não encontrado (HTTP 404).")
+            }
             if (status != 200) {
                 return@withContext Result.Error("Não foi possível consultar as atualizações (HTTP $status).")
             }
