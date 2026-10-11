@@ -44,3 +44,36 @@ Com o app 1.0.6 instalado (172), somente `type=update` com `versionCode > 172` r
 - Ainda requer instalação real de 1.0.6 em um Android com Google Play Services, consentimento do usuário, conexão real com Firebase e envio end-to-end por um remetente autenticado.
 - Um novo plugin/ajuste backend WordPress para disparar mensagens exige credenciais de conta de serviço Firebase armazenadas **no servidor**, com proteção contra CSRF, capacidade restrita e auditoria. Na InfinityFree, disponibilidade de chamadas para `fcm.googleapis.com` precisa ser testada; uma Cloud Function pode resolver esse limite.
 - Notificações push não garantem entrega imediata em todos os aparelhos.
+
+## Fluxo de envio seguro para a proxima release
+
+O codigo da branch 1.0.6 prepara a Action `.github/workflows/brother-fcm-release.yml` e
+o emissor `.github/scripts/send-brother-fcm-release.mjs`. **Ainda nao ha publicacao
+automatica nem botao WordPress conectado.** Uma Action com `workflow_dispatch`
+precisa estar na branch padrao `main` para ser disparada pela API do GitHub;
+nao mesclar ou publicar sem o QA Android.
+
+Precondicoes para envio: instalar primeiro a 1.0.6 (clientes da 1.0.5 ainda nao
+tem inscricao no FCM), publicar o proximo APK assinado no site e atualizar
+`updates/stable.json` na `main` com `versionCode`, `versionName` e SHA-256
+exatos. A Action compara essas informacoes com os inputs e recusa inconsistencias.
+
+Inputs obrigatorios da Action: `version_code`, `version_name`,
+`release_sha256`. O input `dry_run` e **true** por padrao, sem entrega real.
+Para enviar a um topico de clientes exige `dry_run=false` e confirmacao
+literal `ENVIAR <versionCode>`. O emissor usa apenas o GitHub Secret
+`BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON`, nunca uma conta de servico no APK
+ou na interface WordPress.
+
+Quando o plugin WordPress estiver pronto, seu botao restrito a administrador
+devera usar `current_user_can('manage_options')`, nonce anti-CSRF, validacao
+do manifesto e `TIM_BROTHER_GH_ACTIONS_TOKEN` guardado no servidor, sem
+registrar o token em logs. O servidor envia um POST autenticado para:
+`https://api.github.com/repos/timachado/Brother-Matrizes/actions/workflows/brother-fcm-release.yml/dispatches`
+com `ref=main` e `inputs` citados acima. Conferir permissao minima
+`Actions: write` do token fino e testar a comunicacao InfinityFree -> GitHub
+em modo `dry_run` antes de habilitar envio real.
+
+Nem uma resposta 204 do GitHub nem um aceite da API Firebase garantem que o
+aviso apareceu no aparelho; validar entrega em Android, consentimento e
+restricoes de bateria/rede separadamente.
