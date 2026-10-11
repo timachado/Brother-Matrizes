@@ -46,6 +46,7 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
+import com.timachado.brothermatrizes.ui.updates.BrotherUpdateReminder
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
@@ -158,6 +159,10 @@ class MainActivity : ComponentActivity() {
                 textScaleMultiplier = textScale,
                 darkTheme = darkTheme
             ) {
+                BrotherUpdateReminder(
+                    endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
+                        "/wp-json/tim-brother-updates/v1/latest?channel=stable"
+                )
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
