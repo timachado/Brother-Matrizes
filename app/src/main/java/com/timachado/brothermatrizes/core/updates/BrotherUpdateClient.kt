@@ -97,7 +97,9 @@ class BrotherUpdateClient(private val endpoint: String) {
                 return@withContext Result.Error("Versão publicada inválida.")
             }
             val installedCode = installedVersionCode(context)
-            if (code <= installedCode) return@withContext Result.UpToDate
+            if (!UpdateVersionRules.isUpdateAvailable(installedCode, code)) {
+                return@withContext Result.UpToDate
+            }
 
             val download = manifest.getString("downloadUrl")
             val target = URL(download)
@@ -122,7 +124,7 @@ class BrotherUpdateClient(private val endpoint: String) {
                     releaseNotes = manifest.optString("releaseNotes").take(4000),
                     publishedAt = manifest.optString("publishedAt")
                 ),
-                critical = minCode > 0L && installedCode < minCode
+                critical = UpdateVersionRules.isCritical(installedCode, minCode)
             )
         } catch (_: Exception) {
             Result.Error("Não foi possível verificar agora. Verifique a conexão e tente novamente.")
