@@ -15,7 +15,8 @@ async function main() {
   const title=String(input.title||'').trim();
   const body=String(input.body||'').trim();
   const dryRun=String(input.dry_run)==='true';
-  if(!Number.isSafeInteger(code)||code<1||!/^\\d+\\.\\d+\\.\\d+$/.test(version))throw Error('Versão inválida');
+  if(!dryRun && code<=172)throw Error('Push real disponível somente para versões futuras 1.0.7 (código 173) ou superiores');
+  if(!Number.isSafeInteger(code)||code<1||!/^[0-9]+[.][0-9]+[.][0-9]+$/.test(version))throw Error('Versão inválida');
   if(!title||title.length>90||!body||body.length>240)throw Error('Mensagem fora do limite');
   const response=await fetch(manifestURL,{signal:AbortSignal.timeout(15000)});
   if(!response.ok)throw Error('Manifesto indisponível');
