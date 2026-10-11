@@ -29,6 +29,13 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
         if (!BrotherFirebasePush.isEnabled(this) ||
             !BrotherUpdateNotificationWorker.notificationsAllowed(this)) return
         val data = message.data
+        if (BrotherPushPayloadRules.isDiagnostic(data)) {
+            showUpdateNotification(
+                "Brother Matrizes — teste de notificação",
+                "Firebase Push recebido neste celular. Nenhuma atualização foi anunciada."
+            )
+            return
+        }
         val prefs = getSharedPreferences(
             BrotherUpdateNotificationWorker.PREFS, Context.MODE_PRIVATE
         )
