@@ -47,6 +47,8 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
 import com.timachado.brothermatrizes.ui.updates.BrotherUpdateReminder
+import com.timachado.brothermatrizes.ui.updates.BrotherUpdateNotificationOptIn
+import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
@@ -113,6 +115,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // A verificação periódica continua após o aplicativo ser fechado.
+        // Não usa FCM/Supabase nem consulta assinaturas comerciais.
+        runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+
         DebugTelemetry.setup(
             applicationContext
         )
@@ -125,7 +131,7 @@ class MainActivity : ComponentActivity() {
             intent.getBooleanExtra(
                 EXTRA_OPEN_ACCOUNT_FROM_AUTH,
                 false
-            )
+            ) || intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES"
         ) {
             accountOpenRequest++
         }
@@ -159,6 +165,7 @@ class MainActivity : ComponentActivity() {
                 textScaleMultiplier = textScale,
                 darkTheme = darkTheme
             ) {
+                BrotherUpdateNotificationOptIn()
                 BrotherUpdateReminder(
                     endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
                         "/wp-json/tim-brother-updates/v1/latest?channel=stable"
@@ -218,7 +225,7 @@ class MainActivity : ComponentActivity() {
             intent.getBooleanExtra(
                 EXTRA_OPEN_ACCOUNT_FROM_AUTH,
                 false
-            )
+            ) || intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES"
         ) {
             accountOpenRequest++
         }
