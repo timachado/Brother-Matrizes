@@ -1,6 +1,9 @@
 package com.timachado.brothermatrizes
 
 import android.content.Intent
+import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
+import com.google.firebase.messaging.FirebaseMessaging
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -154,6 +158,7 @@ fun UpdateStatusCard() {
                 fontSize = 11.sp
             )
             var pushEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
+            var diagnosticStatus by remember { mutableStateOf("") }
             Spacer(Modifier.height(8.dp))
             Text(
                 if (pushEnabled && allowed)
@@ -173,6 +178,51 @@ fun UpdateStatusCard() {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (pushEnabled) "Desativar notificações push" else "Ativar notificações push")
+                }
+            }
+            if (allowed && pushEnabled) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Diagnóstico individual Firebase",
+                    color = FioText,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
+                )
+                Text(
+                    "Copie o identificador de teste deste aparelho e salve-o somente no " +
+                        "GitHub Actions Secret BROTHER_FCM_TEST_DEVICE_TOKEN. " +
+                        "Não publique nem envie esse código pelo chat.",
+                    color = FioTextMuted,
+                    fontSize = 11.sp
+                )
+                OutlinedButton(
+                    onClick = {
+                        diagnosticStatus = "Obtendo identificador seguro do Firebase..."
+                        FirebaseMessaging.getInstance().token
+                            .addOnSuccessListener { token ->
+                                if (token.isNotBlank()) {
+                                    val clipboard = context.getSystemService(
+                                        Context.CLIPBOARD_SERVICE
+                                    ) as ClipboardManager
+                                    clipboard.setPrimaryClip(
+                                        ClipData.newPlainText("FCM do meu celular", token)
+                                    )
+                                    diagnosticStatus =
+                                        "Identificador copiado. Cole-o diretamente no segredo " +
+                                            "BROTHER_FCM_TEST_DEVICE_TOKEN no GitHub e não o compartilhe."
+                                } else {
+                                    diagnosticStatus = "Firebase ainda não gerou identificador. " +
+                                        "Verifique a conexão e tente novamente."
+                                }
+                            }
+                            .addOnFailureListener {
+                                diagnosticStatus = "Não foi possível obter o identificador de teste."
+                            }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Copiar identificador de teste") }
+                if (diagnosticStatus.isNotBlank()) {
+                    Text(diagnosticStatus, color = FioTextMuted, fontSize = 11.sp)
                 }
             }
             if (!allowed) {
