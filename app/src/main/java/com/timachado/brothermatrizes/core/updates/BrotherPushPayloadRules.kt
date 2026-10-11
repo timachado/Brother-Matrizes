@@ -2,6 +2,10 @@ package com.timachado.brothermatrizes.core.updates
 
 /** Mensagens FCM devem ser específicas da versão e sem repetição. */
 internal object BrotherPushPayloadRules {
+    /** Apenas para teste individual; nunca registra uma atualização publicada. */
+    fun isDiagnostic(data: Map<String, String>): Boolean =
+        data["type"] == "diagnostic" && data["testId"] == "brother-push-qa-v1"
+
     fun shouldPost(data: Map<String, String>, installedCode: Long, lastNotifiedCode: Long): Boolean {
         if (data["type"] != "update") return false
         val published = data["versionCode"]?.toLongOrNull() ?: return false
