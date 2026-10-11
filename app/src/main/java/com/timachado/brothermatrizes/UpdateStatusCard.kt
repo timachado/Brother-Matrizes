@@ -25,270 +25,113 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.timachado.brothermatrizes.core.update.AppUpdateChecker
-import com.timachado.brothermatrizes.core.update.AppUpdateInfo
+import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
+/**
+ * Preserva o cartão Minha Conta existente e substitui somente a origem da
+ * versão (GitHub antigo) pelo manifesto oficial do WordPress T.I. Machado.
+ */
 @Composable
 fun UpdateStatusCard() {
-    val context =
-        LocalContext.current
-
-    var refreshKey by remember {
-        mutableStateOf(
-            0
-        )
+    val context = LocalContext.current
+    val endpoint = remember {
+        BuildConfig.WORDPRESS_URL.trimEnd('/') +
+            "/wp-json/tim-brother-updates/v1/latest?channel=stable"
     }
+    val client = remember(endpoint) { BrotherUpdateClient(endpoint) }
+    var revision by remember { mutableStateOf(0) }
+    var state by remember { mutableStateOf<BrotherUpdateClient.Result?>(null) }
 
-    var loading by remember {
-        mutableStateOf(
-            true
-        )
-    }
-
-    var failed by remember {
-        mutableStateOf(
-            false
-        )
-    }
-
-    var update by remember {
-        mutableStateOf<
-            AppUpdateInfo?
-        >(
-            null
-        )
-    }
-
-    LaunchedEffect(
-        refreshKey
-    ) {
-        loading =
-            true
-        failed =
-            false
-
-        val result =
-            withContext(
-                Dispatchers.IO
-            ) {
-                AppUpdateChecker
-                    .check()
-            }
-
-        result.fold(
-            onSuccess = {
-                    info ->
-                update =
-                    info
-                loading =
-                    false
-            },
-            onFailure = {
-                update =
-                    null
-                failed =
-                    true
-                loading =
-                    false
-            }
-        )
+    LaunchedEffect(revision, endpoint) {
+        state = null
+        state = client.check(context.applicationContext)
     }
 
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth(),
-        colors =
-            CardDefaults
-                .cardColors(
-                    containerColor =
-                        FioSurface
-                ),
-        shape =
-            RoundedCornerShape(
-                24.dp
-            )
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = FioSurface),
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Column(
-            Modifier.padding(
-                18.dp
-            )
-        ) {
+        Column(Modifier.padding(18.dp)) {
             Text(
                 "Atualizações",
-                color =
-                    FioText,
-                fontWeight =
-                    FontWeight.Bold,
-                fontSize =
-                    18.sp
+                color = FioText,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
             )
-
             Text(
-                "Versão instalada: " +
-                    BuildConfig.VERSION_NAME,
-                modifier =
-                    Modifier.padding(
-                        top =
-                            4.dp
-                    ),
-                color =
-                    FioTextMuted,
-                fontSize =
-                    10.sp
+                "Versão instalada: " + BuildConfig.VERSION_NAME,
+                modifier = Modifier.padding(top = 4.dp),
+                color = FioTextMuted,
+                fontSize = 10.sp
             )
-
-            Spacer(
-                Modifier.height(
-                    10.dp
+            Spacer(Modifier.height(10.dp))
+            when (val result = state) {
+                null -> Text(
+                    "Verificando se existe uma nova versão...",
+                    color = FioTextMuted,
+                    fontSize = 11.sp
                 )
-            )
-
-            when {
-                loading -> {
+                is BrotherUpdateClient.Result.Available -> {
                     Text(
-                        "Verificando a versão mais recente...",
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            11.sp
+                        "Nova versão disponível: " + result.release.versionName,
+                        color = FioGold,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
-                }
-
-                failed -> {
-                    Text(
-                        "Não foi possível verificar agora. O Brother Matrizes continua funcionando normalmente.",
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            11.sp
-                    )
-
-                    Spacer(
-                        Modifier.height(
-                            10.dp
-                        )
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            refreshKey++
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                    ) {
+                    if (result.critical) {
                         Text(
-                            "Tentar novamente"
+                            "Atualização importante de segurança ou compatibilidade.",
+                            color = FioText,
+                            fontSize = 11.sp
                         )
                     }
-                }
-
-                update
-                    ?.updateAvailable ==
-                    true -> {
-                    val info =
-                        update
-                            ?: return@Column
-
-                    Text(
-                        "Nova versão disponível: " +
-                            info.latestVersion,
-                        color =
-                            FioGold,
-                        fontWeight =
-                            FontWeight.SemiBold,
-                        fontSize =
-                            12.sp
-                    )
-
-                    Text(
-                        "A instalação só acontece se você abrir a release e escolher atualizar.",
-                        modifier =
-                            Modifier.padding(
-                                top =
-                                    4.dp
-                            ),
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            10.sp
-                    )
-
-                    Spacer(
-                        Modifier.height(
-                            10.dp
-                        )
-                    )
-
+                    if (result.release.releaseNotes.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(result.release.releaseNotes, color = FioTextMuted, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.height(10.dp))
                     Button(
                         onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse(
-                                            info.releaseUrl
-                                        )
-                                    )
-                                )
-                            }
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse(result.release.downloadUrl)
+                            ).addCategory(Intent.CATEGORY_BROWSABLE)
+                            runCatching { context.startActivity(intent) }
                         },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
-                        colors =
-                            ButtonDefaults
-                                .buttonColors(
-                                    containerColor =
-                                        FioGold,
-                                    contentColor =
-                                        FioBackground
-                                )
-                    ) {
-                        Text(
-                            "Ver atualização",
-                            fontWeight =
-                                FontWeight.Bold
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold,
+                            contentColor = FioBackground
                         )
+                    ) {
+                        Text("Atualizar agora", fontWeight = FontWeight.Bold)
                     }
                 }
-
-                else -> {
-                    Text(
-                        "Você está usando a versão mais recente publicada.",
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            11.sp
-                    )
-
-                    Spacer(
-                        Modifier.height(
-                            10.dp
-                        )
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            refreshKey++
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                    ) {
-                        Text(
-                            "Verificar novamente"
-                        )
-                    }
-                }
+                BrotherUpdateClient.Result.UpToDate -> Text(
+                    "Seu Brother Matrizes está atualizado.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                BrotherUpdateClient.Result.NotPublished -> Text(
+                    "Nenhuma atualização foi publicada neste canal.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                is BrotherUpdateClient.Result.Error -> Text(
+                    result.message + " O aplicativo continua funcionando normalmente.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { revision++ },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Verificar novamente")
             }
         }
     }
