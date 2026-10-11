@@ -45,3 +45,32 @@ jobs:
 
       - name: Testes unitários da build debug
         run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Compilar release não assinado (somente auditoria)
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Validar versão, pacote e ausência de assinatura comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$RELEASE"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          BADGING="$("$AAPT" dump badging "$RELEASE" | head -n 1)"
+          echo "$BADGING"
+          [[ "$BADGING" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$BADGING" == *"versionCode='168'"* ]]
+          [[ "$BADGING" == *"versionName='1.0.2'"* ]]
+          if "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$RELEASE"; then
+            echo "ERRO: era esperado um APK NÃO ASSINADO nesta rotina."
+            exit 1
+          fi
+          sha256sum "$RELEASE"
+
+      - name: Arquivar build unsigned (NÃO INSTALAR, NÃO DISTRIBUIR)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-v1.0.2-UNSIGNED-SOMENTE-AUDITORIA
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7
