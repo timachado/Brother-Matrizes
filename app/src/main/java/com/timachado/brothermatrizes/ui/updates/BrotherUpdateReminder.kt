@@ -2,8 +2,6 @@ package com.timachado.brothermatrizes.ui.updates
 
 import android.content.Context
 import java.io.File
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,6 +73,13 @@ fun BrotherUpdateReminder(endpoint: String) {
                 if (result.release.releaseNotes.isNotBlank()) {
                     append("\n\n")
                     append(result.release.releaseNotes)
+                }
+                if (busy) {
+                    append("\n\n")
+                    append(if (progress != null) "Baixando e verificando APK: ${progress}%" else "Preparando download verificado…")
+                } else if (message != null) {
+                    append("\n\n")
+                    append(message)
                 }
             })
         },
