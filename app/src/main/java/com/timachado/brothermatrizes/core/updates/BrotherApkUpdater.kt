@@ -36,7 +36,8 @@ object BrotherApkUpdater {
 
     suspend fun download(
         context: Context,
-        release: BrotherUpdateClient.Release
+        release: BrotherUpdateClient.Release,
+        onProgress: (Int) -> Unit = {}
     ): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
             val trusted = readTrustedManifest()
@@ -53,6 +54,7 @@ object BrotherApkUpdater {
             val target = File(dir, "Brother-Matrizes-" + release.versionCode + ".apk")
             if (target.isFile && digestOf(target) == trusted.sha) {
                 validateApk(context, target, release.versionCode)
+                withContext(Dispatchers.Main) { onProgress(100) }
                 return@runCatching target
             }
             val pending = File(dir, "download.partial")
@@ -68,6 +70,8 @@ object BrotherApkUpdater {
                     }
                     val hasher = MessageDigest.getInstance("SHA-256")
                     var total = 0L
+                    val expectedSize = connection.contentLengthLong
+                    var lastProgress = -1
                     connection.inputStream.use { stream ->
                         pending.outputStream().use { output ->
                             val buffer = ByteArray(8192)
@@ -78,6 +82,13 @@ object BrotherApkUpdater {
                                 require(total <= MAX_APK_BYTES) { "O arquivo excede o limite permitido." }
                                 hasher.update(buffer, 0, count)
                                 output.write(buffer, 0, count)
+                                if (expectedSize > 0L) {
+                                    val percentage = ((total * 100L) / expectedSize).toInt().coerceIn(0, 99)
+                                    if (percentage >= lastProgress + 5) {
+                                        lastProgress = percentage
+                                        withContext(Dispatchers.Main) { onProgress(percentage) }
+                                    }
+                                }
                             }
                         }
                     }
@@ -89,6 +100,7 @@ object BrotherApkUpdater {
                     validateApk(context, pending, release.versionCode)
                     target.delete()
                     require(pending.renameTo(target)) { "Não foi possível salvar a atualização." }
+                    withContext(Dispatchers.Main) { onProgress(100) }
                     target
                 } finally {
                     connection.disconnect()
