@@ -48,6 +48,12 @@ def main():
             if args.get("ti_app_download") and args.get("_wpnonce"):
                 found.append(url)
     if not found:
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+        title = re.sub(r"\\s+", " ", html.unescape(title_match.group(1))).strip() if title_match else "(sem titulo)"
+        print("Diagnostico: titulo HTML=" + title[:150])
+        print("Diagnostico: tamanho HTML=" + str(len(page)))
+        print("Diagnostico: contem nonce=" + str("_wpnonce" in page))
+        print("Diagnostico: contem ti_app_download=" + str("ti_app_download" in page))
         print("BLOQUEIO: nao foi encontrado link de APK dinamico na pagina visivel a cliente Android.")
         return 1
     # Nao imprimir nonce/token temporario em logs; somente checar resposta.
