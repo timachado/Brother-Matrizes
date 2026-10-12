@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brother Matrizes — Atualizações Automáticas
  * Description: Espelha somente os metadados oficiais de atualização do Brother Matrizes no WordPress. Não altera WooCommerce, licenças, pedidos ou pagamentos.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: T.I. Machado
  * Text Domain: tim-brother-sync
  */
@@ -105,6 +105,8 @@ add_action('rest_api_init', function() {
 
 /** Ligação isolada do App Commerce Core, sem modificar o plugin comercial. */
 require_once __DIR__ . '/includes/app-commerce-core.php';
+// Comunidade independente: não modifica downloads, checkout ou assinaturas.
+require_once __DIR__ . '/includes/community.php';
 
 /**
  * Bloco opcional para a página do aplicativo.
