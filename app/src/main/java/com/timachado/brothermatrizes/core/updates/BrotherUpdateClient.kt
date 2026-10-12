@@ -113,6 +113,15 @@ class BrotherUpdateClient(private val endpoint: String) {
             }
             val installedCode = installedVersionCode(context)
             if (!UpdateVersionRules.isUpdateAvailable(installedCode, code)) {
+                // A loja WordPress ja ficou atrasada do manifesto GitHub em
+                // lancamentos anteriores. Nunca dizer "atualizado" apenas com
+                // os metadados antigos do WordPress; consultar o espelho oficial.
+                if (endpoint.startsWith("https://timachado.ifree.page/")) {
+                    val mirror = BrotherUpdateClient(
+                        "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"
+                    ).check(context)
+                    if (mirror is Result.Available) return@withContext mirror
+                }
                 return@withContext Result.UpToDate
             }
 
