@@ -284,6 +284,7 @@ private sealed interface Screen {
         val returnTo: Screen = ProjectLibrary
     ) : Screen
     data object Account : Screen
+    data object Community : Screen
 
     data class Transfer(
         val design: EmbroideryDesign
@@ -669,6 +670,7 @@ private fun BrotherMatrizesApp(
                     Screen.Home
 
                 Screen.Account,
+                Screen.Community,
                 Screen.ProjectLibrary,
                 Screen.TelegramSearch,
                 Screen.FontLibrary,
@@ -1837,6 +1839,7 @@ private fun BrotherMatrizesApp(
                         onClearRecent = {
                             clearRecentDesign()
                         },
+                        onCommunity = { screen = Screen.Community },
                         onUnavailable = {
                                 message ->
                             scope.launch {
@@ -1847,6 +1850,10 @@ private fun BrotherMatrizesApp(
                             }
                         }
                     )
+                }
+
+                Screen.Community -> {
+                    BrotherCommunityScreen(onBack = { goBack() })
                 }
 
                 Screen.Account -> {
