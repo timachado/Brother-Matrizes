@@ -91,14 +91,14 @@ class BrotherUpdateNotificationWorker(
             .setSmallIcon(R.drawable.ic_notification_brother)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.brother_matrizes_brand_logo))
             .setColor(Color.rgb(234, 192, 110))
-            .setContentTitle("Brother Matrizes: atualização disponível")
+            .setContentTitle("Brother Matrizes: uma nova versão chegou!")
             .setContentText(
-                "Versão ${available.release.versionName} disponível. Toque para atualizar."
+                "Novidades da versão ${available.release.versionName} já disponíveis."
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "A versão ${available.release.versionName} do Brother Matrizes está disponível. " +
-                        "Abra o aplicativo para ver as novidades e atualizar com segurança."
+                    "Brother Matrizes ${available.release.versionName} chegou! " +
+                        "Confira as melhorias e atualize direto pelo aplicativo."
                 )
             )
             .setContentIntent(openApp)
