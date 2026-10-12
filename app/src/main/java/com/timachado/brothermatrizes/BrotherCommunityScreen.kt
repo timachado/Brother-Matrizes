@@ -291,10 +291,6 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { openHttps(productPage) }
                 ) { Text("Abrir página do Brother Matrizes no site") }
-                Text(
-                    "O compartilhamento do feedback não é automático. O formulário online será disponibilizado após a atualização do WordPress.",
-                    color = FioTextMuted
-                )
             }
         }
         Card(
