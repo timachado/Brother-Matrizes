@@ -47,6 +47,7 @@ jobs:
           cat > /tmp/test-app-commerce-metadata.php <<'PHP'
           <?php
           define('ABSPATH', '/');
+          define('TIM_BROTHER_SYNC_APP_POST_ID', 307);
           $GLOBALS['manifest']=['versionName'=>'1.10.1','versionCode'=>177,'releaseNotes'=>'Atualização premium',
             'downloadApkUrl'=>'https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.1/Brother-Matrizes-v1.10.1-ASSINADO.apk'];
           $GLOBALS['access']='free';
