@@ -1,0 +1,6 @@
+{
+  "version_name": "1.10.3",
+  "version_code": 179,
+  "source_ref": "release/brother-matrizes-1.10.3",
+  "release_notes": "Atualização direta pelo aplicativo, sem abrir o site desnecessariamente; Progresso de download em porcentagem; Melhorias para evitar notificações duplicadas; Correções de estabilidade."
+}
