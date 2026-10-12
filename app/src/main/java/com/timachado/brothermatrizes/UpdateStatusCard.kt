@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
+import com.timachado.brothermatrizes.core.updates.UpdateInAppNoticeRules
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -105,7 +106,7 @@ fun UpdateStatusCard() {
                     }
                     if (result.release.releaseNotes.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
-                        Text(result.release.releaseNotes, color = FioTextMuted, fontSize = 11.sp)
+                        Text(UpdateInAppNoticeRules.notes(result.release.releaseNotes), color = FioTextMuted, fontSize = 11.sp)
                     }
                     Spacer(Modifier.height(10.dp))
                     Button(
@@ -205,7 +206,7 @@ fun UpdateStatusCard() {
                     color = FioTextMuted, fontSize = 11.sp
                 )
                 is BrotherUpdateClient.Result.Error -> Text(
-                    result.message + " O aplicativo continua funcionando normalmente.",
+                    "Não conseguimos verificar agora. Tente novamente em instantes.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
             }
