@@ -146,7 +146,7 @@ object BrotherApkUpdater {
                 val candidate = runCatching { URL(URL(SITE_PAGE), link) }.getOrNull() ?: continue
                 if (!safeOfficial(candidate)) continue
                 val uri = Uri.parse(candidate.toString())
-                if (uri.getQueryParameter("ti_app_download")?.toLongOrNull() ?: 0L > 0L &&
+                if ((uri.getQueryParameter("ti_app_download")?.toLongOrNull() ?: 0L) > 0L &&
                     !uri.getQueryParameter("_wpnonce").isNullOrBlank()) {
                     return candidate
                 }
@@ -190,7 +190,12 @@ object BrotherApkUpdater {
         require(version == code && version > BuildConfig.VERSION_CODE.toLong()) {
             "O APK não corresponde à versão disponível."
         }
-        val signers = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else null
+        @Suppress("DEPRECATION")
+        val signers = if (Build.VERSION.SDK_INT >= 28) {
+            info.signingInfo?.apkContentsSigners
+        } else {
+            pm.getPackageArchiveInfo(apk.absolutePath, PackageManager.GET_SIGNATURES)?.signatures
+        }
         require(!signers.isNullOrEmpty()) { "O APK não possui assinatura verificável." }
         val certificate = MessageDigest.getInstance("SHA-256").digest(signers[0].toByteArray()).toHex()
         require(certificate == EXPECTED_CERT) { "A assinatura não corresponde ao Brother Matrizes." }
