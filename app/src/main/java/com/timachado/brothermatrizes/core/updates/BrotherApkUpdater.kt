@@ -162,15 +162,35 @@ object BrotherApkUpdater {
             url.userInfo == null && (url.port == -1 || url.port == 443)
 
     private fun openOfficial(url: URL): HttpsURLConnection {
-        require(safeOfficial(url)) { "Download fora do domínio oficial da T.I. Machado." }
-        val connection = (url.openConnection() as HttpsURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            instanceFollowRedirects = false
-            setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
-            setRequestProperty("User-Agent", "BrotherMatrizes-Android-Updater/" + BuildConfig.VERSION_NAME)
+        var current = url
+        val cookies = linkedMapOf<String, String>()
+        repeat(5) {
+            require(safeOfficial(current)) { "Download fora do domínio oficial da T.I. Machado." }
+            val connection = (current.openConnection() as HttpsURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 30_000
+                instanceFollowRedirects = false
+                setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, text/html, */*")
+                setRequestProperty("User-Agent", "BrotherMatrizes-Android-Updater/" + BuildConfig.VERSION_NAME)
+                if (cookies.isNotEmpty()) {
+                    setRequestProperty("Cookie", cookies.values.joinToString("; "))
+                }
+            }
+            val status = connection.responseCode
+            if (status !in 300..399) return connection
+            val redirect = connection.getHeaderField("Location")
+            if (redirect.isNullOrBlank()) return connection
+            connection.headerFields["Set-Cookie"]?.forEach { raw ->
+                val pair = raw.substringBefore(';').trim()
+                val name = pair.substringBefore('=')
+                if (name.isNotBlank() && pair.contains('=')) cookies[name] = pair
+            }
+            val next = URL(current, redirect)
+            connection.disconnect()
+            require(safeOfficial(next)) { "O download redirecionou para um domínio não autorizado." }
+            current = next
         }
-        return connection
+        error("O site redirecionou o download muitas vezes.")
     }
 
     private fun validateApk(context: Context, apk: File, code: Long) {
