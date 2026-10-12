@@ -51,6 +51,7 @@ class BrotherUpdateNotificationWorker(
                 ) {
                     if (postUpdateNotification(context, response)) {
                         prefs.edit().putLong("last_notified_version_code", published).apply()
+                        BrotherInAppUpdateEvents.announce(context)
                     }
                 }
                 Result.success()
