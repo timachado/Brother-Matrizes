@@ -113,7 +113,7 @@ fun UpdateStatusCard() {
                             if (!downloadBusy) {
                                 scope.launch {
                                     downloadBusy = true
-                                    downloadStatus = "Baixando e verificando a atualização oficial..."
+                                    downloadStatus = "Preparando sua atualização…"
                                     val downloaded = BrotherApkUpdater.download(
                                         context.applicationContext, result.release
                                     )
@@ -124,18 +124,16 @@ fun UpdateStatusCard() {
                                                 BrotherApkUpdater.launchInstaller(context, file)
                                             }.onSuccess { launched ->
                                                 downloadStatus = if (launched) {
-                                                    "APK verificado. Confirme a instalação no Android."
+                                                    "Tudo pronto! Confirme a instalação no Android."
                                                 } else {
                                                     "Permita instalação por Brother Matrizes nas configurações e volte para continuar."
                                                 }
                                             }.onFailure { problem ->
-                                                downloadStatus = problem.message
-                                                    ?: "Não foi possível abrir o instalador."
+                                                downloadStatus = "Não foi possível iniciar a instalação. Tente novamente."
                                             }
                                         },
                                         onFailure = { problem ->
-                                            downloadStatus = problem.message
-                                                ?: "Falha no download. Tente novamente."
+                                            downloadStatus = "Não conseguimos baixar agora. Tente novamente."
                                         }
                                     )
                                     downloadBusy = false
@@ -176,7 +174,7 @@ fun UpdateStatusCard() {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Abrir download no site oficial") }
+                        ) { Text("Baixar pelo site oficial") }
                     }
                     val savedApk = stagedUpdate
                     if (savedApk != null && !downloadBusy) {
@@ -188,11 +186,10 @@ fun UpdateStatusCard() {
                                     downloadStatus = if (launched) {
                                         "APK verificado. Confirme a instalação no Android."
                                     } else {
-                                        "Habilite a instalação por Brother Matrizes e retorne ao app."
+                                        "Autorize esta instalação e retorne ao aplicativo."
                                     }
                                 }.onFailure { problem ->
-                                    downloadStatus = problem.message
-                                        ?: "Não foi possível abrir o instalador."
+                                    downloadStatus = "Não foi possível iniciar a instalação. Tente novamente."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
