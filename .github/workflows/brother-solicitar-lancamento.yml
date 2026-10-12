@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
 
       - name: Identificar um unico arquivo de pedido nesta alteracao
         id: request
