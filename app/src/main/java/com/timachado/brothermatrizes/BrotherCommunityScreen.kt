@@ -284,10 +284,11 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                             }
                         }
                     ) { Text("Enviar por e-mail") }
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { feedbackEditorOpen = false }
+                    ) { Text("Cancelar") }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { feedbackEditorOpen = false }) { Text("Cancelar") }
             }
         )
     }
