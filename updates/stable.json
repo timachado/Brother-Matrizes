@@ -1,11 +1,11 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.0.7",
-  "versionCode": 173,
+  "versionName": "1.0.8",
+  "versionCode": 174,
   "minSupportedVersionCode": 0,
   "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
-  "sha256": "17ebb3773f732ae7d8392bb3afb299c65b518e37020bdc1a3d87f41125d533bb",
-  "releaseNotes": "Brother Matrizes 1.0.7: corrigimos as denominações das sete fontes nativas para BM Linha, BM Compacta, BM Larga, BM Moderna, BM Itálica, BM Elegante e BM Ornamental. A amostra da biblioteca agora mostra BM. Inclui as notificações Firebase opt-in da versão 1.0.6 e preserva projetos, matrizes e fontes importadas.",
+  "sha256": "7f68e33611cc16925fddfebe4cad95618405aeb6203f6228370d51d640674ed3",
+  "releaseNotes": "Brother Matrizes 1.0.8: atualização do APK diretamente no aplicativo, com validação de integridade SHA-256, versão e assinatura comercial antes da instalação pelo Android. Melhorias no fluxo de atualização e na segurança; fontes BM e funcionalidades anteriores preservadas.",
   "publishedAt": "2026-10-11"
 }
