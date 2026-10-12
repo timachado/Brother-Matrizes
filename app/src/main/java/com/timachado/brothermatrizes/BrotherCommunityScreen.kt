@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -20,6 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
@@ -114,6 +117,9 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
     var updateEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
     var communityEnabled by remember { mutableStateOf(BrotherFirebasePush.isCommunityEnabled(context)) }
     var permissionDenied by remember { mutableStateOf(false) }
+    var feedbackEditorOpen by remember { mutableStateOf(false) }
+    var feedbackMessage by remember { mutableStateOf("") }
+    var feedbackCategory by remember { mutableStateOf("Sugestão") }
     var pendingKind by remember { mutableStateOf<String?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -155,13 +161,69 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: ActivityNotFoundException) {
-            // O usuário pode não ter navegador/WhatsApp instalado.
+            Toast.makeText(context, "Não há aplicativo disponível para abrir o link.", Toast.LENGTH_LONG).show()
         } catch (_: SecurityException) {
-            // Não altera o estado do aplicativo se a atividade externa for bloqueada.
+            Toast.makeText(context, "O Android bloqueou a abertura do link.", Toast.LENGTH_LONG).show()
         }
     }
 
     val productPage = BuildConfig.WORDPRESS_URL.trimEnd('/') + COMMUNITY_FALLBACK_PAGE
+
+    if (feedbackEditorOpen) {
+        AlertDialog(
+            onDismissRequest = { feedbackEditorOpen = false },
+            title = { Text("Seu feedback para o Brother Matrizes") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Escolha o tipo de mensagem e descreva o que aconteceu ou a melhoria desejada."
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            feedbackCategory = if (feedbackCategory == "Sugestão") "Problema" else "Sugestão"
+                        }
+                    ) { Text("Tipo: " + feedbackCategory + " (toque para alterar)") }
+                    OutlinedTextField(
+                        value = feedbackMessage,
+                        onValueChange = { feedbackMessage = it.take(2500) },
+                        label = { Text("Mensagem") },
+                        placeholder = { Text("Descreva o problema ou sua sugestão...") },
+                        minLines = 4,
+                        maxLines = 7,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Você escolherá o aplicativo e o destinatário. Nada será enviado sem sua confirmação."
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = feedbackMessage.trim().length >= 10,
+                    onClick = {
+                        val content = "Brother Matrizes " + BuildConfig.VERSION_NAME +
+                            " — " + feedbackCategory + "\n\n" + feedbackMessage.trim()
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "Feedback — Brother Matrizes")
+                            putExtra(Intent.EXTRA_TEXT, content)
+                        }
+                        try {
+                            context.startActivity(Intent.createChooser(share, "Compartilhar feedback"))
+                            feedbackEditorOpen = false
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(context, "Nenhum aplicativo de compartilhamento disponível.", Toast.LENGTH_LONG).show()
+                        } catch (_: SecurityException) {
+                            Toast.makeText(context, "Compartilhamento bloqueado no aparelho.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                ) { Text("Compartilhar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { feedbackEditorOpen = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -223,8 +285,12 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold, contentColor = FioBackground),
-                    onClick = { openHttps(productPage + "#brother-feedback") }
+                    onClick = { feedbackEditorOpen = true }
                 ) { Text("Enviar sugestão ou relatar problema") }
+                Text(
+                    "Escreva seu relato no aplicativo e escolha por onde compartilhar. O envio não é automático. O formulário do site será disponibilizado após a atualização do WordPress.",
+                    color = FioTextMuted
+                )
             }
         }
         Card(
