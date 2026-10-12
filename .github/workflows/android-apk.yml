@@ -8,6 +8,9 @@ on:
       - "FioLab.Engine.Smoke/**"
       - "FioLab.Maui/**"
       - ".github/workflows/maui-android.yml"
+      # Publicar o manifesto de atualizações não deve disparar o legado FioLab.
+      - "updates/stable.json"
+      - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
 permissions:
