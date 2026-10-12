@@ -31,20 +31,20 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
         if (!BrotherFirebasePush.isEnabled(this) ||
             !BrotherUpdateNotificationWorker.notificationsAllowed(this)) return
         val data = message.data
-        val prefs = getSharedPreferences(
-            BrotherUpdateNotificationWorker.PREFS, Context.MODE_PRIVATE
-        )
-        val lastCode = prefs.getLong("last_notified_version_code", 0L)
+        val versionCode = data["versionCode"]?.toLongOrNull() ?: return
         if (!BrotherPushPayloadRules.shouldPost(
-                data, BuildConfig.VERSION_CODE.toLong(), lastCode
+                data, BuildConfig.VERSION_CODE.toLong(), 0L
             )) return
 
-        val versionCode = data["versionCode"]?.toLongOrNull() ?: return
-        if (showUpdateNotification(
-                BrotherPushPayloadRules.notificationTitle(data),
-                BrotherPushPayloadRules.notificationBody(data)
-            )) {
-            prefs.edit().putLong("last_notified_version_code", versionCode).apply()
+        if (BrotherUpdateNotificationGate.postOnce(
+                this, BuildConfig.VERSION_CODE.toLong(), versionCode
+            ) {
+                showUpdateNotification(
+                    BrotherPushPayloadRules.notificationTitle(data),
+                    BrotherPushPayloadRules.notificationBody(data)
+                )
+            }
+        ) {
             BrotherInAppUpdateEvents.announce(applicationContext)
         }
     }
