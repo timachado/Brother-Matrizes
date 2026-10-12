@@ -175,27 +175,41 @@ jobs:
           TAG="v$VERSION_NAME"
           APK="Brother-Matrizes-v$VERSION_NAME-ASSINADO.apk"
           SHA="$(cat dist/apk-sha256.txt)"
-          if gh release view "$TAG" --json isDraft >/tmp/release.json 2>/dev/null; then
-            test "$(jq -r '.isDraft' /tmp/release.json)" = "true" || { echo 'Release ja publico; nenhuma substituicao automatica'; exit 1; }
+          # O endpoint releases/tags/ devolve 404 para drafts. Consultar a
+          # lista autenticada, onde rascunhos sao visiveis pelo ID.
+          RELEASE_ID="$(gh api "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
+          if [[ -n "$RELEASE_ID" ]]; then
+            DETAIL="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
+            test "$(jq -r '.draft' <<< "$DETAIL")" = "true" || {
+              echo 'Release ja publico; proibido substituir o APK comercial'; exit 1;
+            }
           else
-            printf '%s\n' "$RELEASE_NOTES" > /tmp/brother-notes.txt
+            printf '%s\\n' "$RELEASE_NOTES" > /tmp/brother-notes.txt
             SOURCE_SHA="$(git -C android rev-parse HEAD)"
             gh release create "$TAG" --draft --target "$SOURCE_SHA" \
               --title "Brother Matrizes $VERSION_NAME" --notes-file /tmp/brother-notes.txt
+            RELEASE_ID="$(gh api "repos/$GH_REPO/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
           fi
-          EXISTING="$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '.assets | length')"
-          test "$EXISTING" = "0" || { echo 'Asset ja anexado; proibido substituir binario do release'; exit 1; }
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo 'Rascunho nao encontrado na API'; exit 1; }
+          EXISTING="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets" --jq 'length')"
+          test "$EXISTING" = "0" || { echo 'Rascunho ja possui APK; nao substituir binario'; exit 1; }
           gh release upload "$TAG" "dist/$APK"
-          ASSET_SHA="$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '.assets[0].digest' | sed 's/^sha256://')"
+          ASSET_SHA="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets" \
+            --jq '.[0].digest' | sed 's/^sha256://')"
           test "$SHA" = "$ASSET_SHA" || { echo 'Digest nao corresponde ao APK comercial'; exit 1; }
-          echo "Asset aprovado por SHA-256 calculado pelo GitHub."
+          echo "APK comercial anexado ao rascunho e certificado pelo GitHub."
 
       - name: Publicar APK no GitHub e verificar download SEM LOGIN
         shell: bash
         run: |
           set -euo pipefail
           TAG="v$VERSION_NAME"
-          gh api -X PATCH "repos/$GH_REPO/releases/$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq .id)" \
+          RELEASE_ID="$(gh api "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)"
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || exit 1
+          gh api -X PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
             -F draft=false -F prerelease=false >/dev/null
           URL="https://github.com/$GH_REPO/releases/download/$TAG/Brother-Matrizes-v$VERSION_NAME-ASSINADO.apk"
           curl -fsSL --retry 3 --max-time 180 -A "BrotherMatrizes-Android-Updater/$VERSION_NAME" \
