@@ -23,6 +23,18 @@ on:
         description: "Notificar usuarios via Firebase SOMENTE apos publicar e validar"
         type: boolean
         default: false
+      title:
+        description: "Titulo da notificacao Firebase, se announce=true"
+        type: string
+        default: "Brother Matrizes: uma nova versao chegou!"
+      body:
+        description: "Texto da notificacao Firebase, se announce=true"
+        type: string
+        default: "Novidades disponiveis! Abra o Brother Matrizes para atualizar com seguranca."
+      dry_run:
+        description: "Enviar push real? false faz envio; true apenas simula"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
