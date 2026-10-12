@@ -1,7 +1,13 @@
 package com.timachado.brothermatrizes
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
+import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -103,6 +111,40 @@ private suspend fun getOfficialGroup(): String? = withContext(Dispatchers.IO) {
 fun BrotherCommunityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var groupUrl by remember { mutableStateOf<String?>(null) }
+    var updateEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
+    var communityEnabled by remember { mutableStateOf(BrotherFirebasePush.isCommunityEnabled(context)) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    var pendingKind by remember { mutableStateOf<String?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            when (pendingKind) {
+                "update" -> { BrotherFirebasePush.enable(context); updateEnabled = true }
+                "community" -> { BrotherFirebasePush.enableCommunity(context); communityEnabled = true }
+            }
+            permissionDenied = false
+        } else {
+            permissionDenied = true
+        }
+        pendingKind = null
+    }
+
+    fun activate(kind: String) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingKind = kind
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            when (kind) {
+                "update" -> { BrotherFirebasePush.enable(context); updateEnabled = true }
+                "community" -> { BrotherFirebasePush.enableCommunity(context); communityEnabled = true }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         groupUrl = getOfficialGroup()
@@ -183,6 +225,45 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold, contentColor = FioBackground),
                     onClick = { openHttps(productPage + "#brother-feedback") }
                 ) { Text("Enviar sugestão ou relatar problema") }
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = FioSurface)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Notificações", color = FioText, fontWeight = FontWeight.Bold)
+                Text(
+                    "Escolha quais avisos deseja receber. As notificações são opcionais e podem ser desativadas a qualquer momento.",
+                    color = FioTextMuted
+                )
+                Text("Novas versões: " + if (updateEnabled) "Ativadas" else "Desativadas", color = FioText)
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (updateEnabled) {
+                            BrotherFirebasePush.disable(context)
+                            updateEnabled = false
+                        } else activate("update")
+                    }
+                ) { Text(if (updateEnabled) "Desativar avisos de versões" else "Ativar avisos de versões") }
+                Text("Novidades da comunidade: " + if (communityEnabled) "Ativadas" else "Desativadas", color = FioText)
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (communityEnabled) {
+                            BrotherFirebasePush.disableCommunity(context)
+                            communityEnabled = false
+                        } else activate("community")
+                    }
+                ) { Text(if (communityEnabled) "Desativar avisos da comunidade" else "Ativar avisos da comunidade") }
+                if (permissionDenied || !BrotherUpdateNotificationWorker.notificationsAllowed(context)) {
+                    Text("O Android bloqueou as notificações. Para recebê-las, permita avisos nas configurações do aplicativo.", color = FioTextMuted)
+                }
+                Text(
+                    "Avisos dependem da conexão, das configurações do Android e da publicação oficial. Nenhuma licença ou projeto é enviado.",
+                    color = FioTextMuted
+                )
             }
         }
         Spacer(Modifier.height(4.dp))
