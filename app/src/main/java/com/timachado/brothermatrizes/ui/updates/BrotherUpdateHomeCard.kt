@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.ui.updates
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.Intent
+import android.net.Uri
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
@@ -202,6 +203,21 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                 }
                 if (status != null) {
                     Text(status.orEmpty(), color = FioTextMuted, fontSize = 12.sp)
+                }
+                if (status != null && downloadedApk == null && !busy &&
+                    !status.orEmpty().startsWith("Baixando")) {
+                    OutlinedButton(
+                        onClick = {
+                            val url = release.downloadUrl
+                            if (url.startsWith("https://timachado.ifree.page/")) {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        .addCategory(Intent.CATEGORY_BROWSABLE))
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Abrir download no site oficial") }
                 }
                 if (downloadedApk != null && !busy) {
                     OutlinedButton(onClick = {

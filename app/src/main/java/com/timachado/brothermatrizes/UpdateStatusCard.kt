@@ -158,6 +158,26 @@ fun UpdateStatusCard() {
                         Spacer(Modifier.height(8.dp))
                         Text(downloadStatus.orEmpty(), color = FioTextMuted, fontSize = 11.sp)
                     }
+                    // A hospedagem pode exibir desafio anti-bot para clientes HTTPS nativos.
+                    // Nunca burlar o Play Protect: oferecer a rota oficial no navegador somente
+                    // quando o download interno falhar, preservando escolha do usuário.
+                    if (downloadStatus != null && stagedUpdate == null && !downloadBusy &&
+                        !downloadStatus.orEmpty().startsWith("Baixando")) {
+                        OutlinedButton(
+                            onClick = {
+                                val safeUrl = result.release.downloadUrl
+                                if (safeUrl.startsWith("https://timachado.ifree.page/")) {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl))
+                                                .addCategory(Intent.CATEGORY_BROWSABLE)
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Abrir download no site oficial") }
+                    }
                     val savedApk = stagedUpdate
                     if (savedApk != null && !downloadBusy) {
                         OutlinedButton(
