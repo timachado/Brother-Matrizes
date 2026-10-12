@@ -1,0 +1,78 @@
+name: Brother Matrizes - Verificar assinatura comercial
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/brother-verificar-assinatura.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Verificar chave sem publicar ou divulgar segredos
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    environment: brother-release-signing
+    steps:
+      - name: Preparar Java para analisar o JKS
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Conferir quatro segredos e certificado original
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Um ou mais dos quatro segredos comerciais nao foram cadastrados."
+              exit 1
+            fi
+          done
+          temp="$(mktemp -d)"
+          trap 'rm -rf "$temp"' EXIT
+          if ! printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$temp/comercial.jks"; then
+            echo "::error::O segredo JKS em Base64 nao corresponde a um arquivo valido."
+            exit 1
+          fi
+          [[ -s "$temp/comercial.jks" ]] || exit 1
+          export BROTHER_KEYSTORE_STORE_PASS="$STORE_PASSWORD"
+          if ! keytool -exportcert -keystore "$temp/comercial.jks" \
+                -storepass:env BROTHER_KEYSTORE_STORE_PASS \
+                -alias "$KEY_ALIAS" -file "$temp/cert.der" >/dev/null 2>&1; then
+            echo "::error::O arquivo JKS, a senha do armazenamento ou o alias estao incorretos."
+            exit 1
+          fi
+          digest="$(openssl x509 -inform DER -in "$temp/cert.der" \
+                    -noout -fingerprint -sha256 | cut -d= -f2 \
+                    | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          expected="fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a"
+          if [[ "$digest" != "$expected" ]]; then
+            echo "::error::Certificado diferente do comercial original; publicacao bloqueada."
+            exit 1
+          fi
+          export BROTHER_KEYSTORE_KEY_PASS="$KEY_PASSWORD"
+          export BROTHER_TEMP_DEST_PASS="$(openssl rand -hex 24)"
+          if ! keytool -importkeystore -noprompt \
+                -srckeystore "$temp/comercial.jks" -srcstoretype JKS \
+                -srcstorepass:env BROTHER_KEYSTORE_STORE_PASS \
+                -srcalias "$KEY_ALIAS" \
+                -srckeypass:env BROTHER_KEYSTORE_KEY_PASS \
+                -destkeystore "$temp/teste-temporario.p12" -deststoretype PKCS12 \
+                -deststorepass:env BROTHER_TEMP_DEST_PASS \
+                -destkeypass:env BROTHER_TEMP_DEST_PASS >/dev/null 2>&1; then
+            echo "::error::A senha da chave comercial nao confere."
+            exit 1
+          fi
+          [[ -s "$temp/teste-temporario.p12" ]] || exit 1
+          echo "APROVADO: quatro segredos validos e certificado comercial original confirmado."
+          echo "Nenhum APK foi compilado, assinado ou publicado neste teste."
