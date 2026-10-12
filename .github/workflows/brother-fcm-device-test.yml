@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Validar a autenticação sem enviar mensagem
+        description: Validar a autenticacao e o token sem entregar notificacao
         type: boolean
         required: true
         default: true
+      confirm:
+        description: Digite TESTAR-UM-APARELHO para autorizar o teste individual
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -20,6 +24,7 @@ jobs:
   test-single-device:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    environment: brother-release-signing
     steps:
       - uses: actions/checkout@v4
         with:
