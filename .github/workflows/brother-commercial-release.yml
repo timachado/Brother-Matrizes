@@ -79,7 +79,7 @@ jobs:
       - name: Checkout do codigo Android aprovado
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ inputs.source_ref || 'release/brother-matrizes-1.10.4' }}
           persist-credentials: false
           path: android
 
