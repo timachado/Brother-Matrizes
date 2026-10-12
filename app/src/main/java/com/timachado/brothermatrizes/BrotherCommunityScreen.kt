@@ -287,8 +287,12 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold, contentColor = FioBackground),
                     onClick = { feedbackEditorOpen = true }
                 ) { Text("Enviar sugestão ou relatar problema") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { openHttps(productPage) }
+                ) { Text("Abrir página do Brother Matrizes no site") }
                 Text(
-                    "Escreva seu relato no aplicativo e escolha por onde compartilhar. O envio não é automático. O formulário do site será disponibilizado após a atualização do WordPress.",
+                    "O compartilhamento do feedback não é automático. O formulário online será disponibilizado após a atualização do WordPress.",
                     color = FioTextMuted
                 )
             }
