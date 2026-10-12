@@ -32,6 +32,7 @@ object BrotherApkUpdater {
     private const val SITE_PAGE = "https://timachado.ifree.page/aplicativos/brother-matrizes/"
     private const val EXPECTED_CERT = "fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a"
     private const val MAX_APK_BYTES = 150L * 1024L * 1024L
+    private data class TrustedRelease(val code: Long, val sha: String, val name: String, val directApkUrl: URL?)
 
     suspend fun download(
         context: Context,
@@ -39,16 +40,18 @@ object BrotherApkUpdater {
     ): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
             val trusted = readTrustedManifest()
-            require(trusted.first == release.versionCode && trusted.third == release.versionName) {
+            require(trusted.code == release.versionCode && trusted.name == release.versionName) {
                 "A versão do site ainda não está sincronizada com o canal oficial. Tente novamente."
             }
-            require(trusted.first > BuildConfig.VERSION_CODE.toLong()) {
+            require(trusted.code > BuildConfig.VERSION_CODE.toLong()) {
                 "Esta versão já está instalada."
             }
-            val url = resolveDownloadLink()
+            // O link de arquivo vem do manifesto oficial, nunca do HTML.
+            // Manter compatibilidade temporária para releases sem downloadApkUrl.
+            val url = trusted.directApkUrl ?: resolveDownloadLink()
             val dir = File(context.cacheDir, "verified_apk_updates").apply { mkdirs() }
             val target = File(dir, "Brother-Matrizes-" + release.versionCode + ".apk")
-            if (target.isFile && digestOf(target) == trusted.second) {
+            if (target.isFile && digestOf(target) == trusted.sha) {
                 validateApk(context, target, release.versionCode)
                 return@runCatching target
             }
@@ -80,7 +83,7 @@ object BrotherApkUpdater {
                     }
                     require(total > 10_000L) { "O site não retornou o APK completo." }
                     val actual = hasher.digest().toHex()
-                    require(actual.equals(trusted.second, ignoreCase = true)) {
+                    require(actual.equals(trusted.sha, ignoreCase = true)) {
                         "O arquivo baixado é diferente do APK oficial. Verifique o arquivo no site."
                     }
                     validateApk(context, pending, release.versionCode)
@@ -100,7 +103,7 @@ object BrotherApkUpdater {
      * O endpoint WordPress pode manter um SHA antigo mesmo com a versão certa.
      * Portanto, a fonte de verdade criptográfica é o manifesto da branch main.
      */
-    private fun readTrustedManifest(): Triple<Long, String, String> {
+    private fun readTrustedManifest(): TrustedRelease {
         val url = URL(MIRROR)
         val connection = (url.openConnection() as HttpsURLConnection).apply {
             connectTimeout = 12_000
@@ -119,7 +122,10 @@ object BrotherApkUpdater {
                 json.optString("channel") == "stable") { "Manifesto de outro aplicativo." }
             val hash = json.getString("sha256").lowercase(Locale.ROOT)
             require(Regex("[0-9a-f]{64}").matches(hash)) { "Hash oficial inválido." }
-            return Triple(json.getLong("versionCode"), hash, json.getString("versionName"))
+            val announced = json.optString("downloadApkUrl").trim()
+            val binary = BrotherDirectApkSource.binaryFromManifest(announced)
+            require(announced.isEmpty() || binary != null) { "A origem oficial do arquivo não foi validada." }
+            return TrustedRelease(json.getLong("versionCode"), hash, json.getString("versionName"), binary)
         } finally {
             connection.disconnect()
         }
@@ -152,7 +158,12 @@ object BrotherApkUpdater {
         var current = url
         val cookies = linkedMapOf<String, String>()
         repeat(5) {
-            require(safeOfficial(current)) { "Download fora do domínio oficial da T.I. Machado." }
+            val validEntry = safeOfficial(current) ||
+                BrotherDirectApkSource.binaryFromManifest(current.toString()) != null ||
+                current.host.equals("release-assets.githubusercontent.com", ignoreCase = true)
+            require(validEntry && BrotherDirectApkSource.secure(current)) {
+                "Download fora das origens permitidas."
+            }
             val connection = (current.openConnection() as HttpsURLConnection).apply {
                 connectTimeout = 15_000
                 readTimeout = 30_000
@@ -174,10 +185,13 @@ object BrotherApkUpdater {
             }
             val next = URL(current, redirect)
             connection.disconnect()
-            require(safeOfficial(next)) { "O download redirecionou para um domínio não autorizado." }
+            require(
+                safeOfficial(next) ||
+                    BrotherDirectApkSource.allowedRedirect(current, next)
+            ) { "O download redirecionou para origem não autorizada." }
             current = next
         }
-        error("O site redirecionou o download muitas vezes.")
+        error("O servidor redirecionou o download muitas vezes.")
     }
 
     private fun validateApk(context: Context, apk: File, code: Long) {
