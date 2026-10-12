@@ -193,14 +193,24 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
+                        if (feedbackMessage.isBlank()) "Digite uma mensagem para compartilhar."
+                        else "${feedbackMessage.length}/2500 caracteres • Pronto para compartilhar",
+                        color = FioTextMuted
+                    )
+                    Text(
                         "Você escolherá o aplicativo e o destinatário. Nada será enviado sem sua confirmação."
                     )
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = feedbackMessage.trim().length >= 10,
+                Button(
+                    enabled = feedbackMessage.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FioGold,
+                        contentColor = FioBackground
+                    ),
                     onClick = {
+                        if (feedbackMessage.isBlank()) return@Button
                         val content = "Brother Matrizes " + BuildConfig.VERSION_NAME +
                             " — " + feedbackCategory + "\n\n" + feedbackMessage.trim()
                         val share = Intent(Intent.ACTION_SEND).apply {
@@ -217,7 +227,7 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                             Toast.makeText(context, "Compartilhamento bloqueado no aparelho.", Toast.LENGTH_LONG).show()
                         }
                     }
-                ) { Text("Compartilhar") }
+                ) { Text("Compartilhar feedback") }
             },
             dismissButton = {
                 TextButton(onClick = { feedbackEditorOpen = false }) { Text("Cancelar") }
