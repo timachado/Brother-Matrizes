@@ -1,0 +1,56 @@
+name: Brother Matrizes - plugin WordPress de sincronizacao
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wordpress/tim-brother-sync/**'
+      - '.github/workflows/brother-package-wordpress-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Validar e empacotar plugin seguro
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validar sintaxe PHP
+        run: php -l wordpress/tim-brother-sync/tim-brother-sync.php
+      - name: Validar JavaScript embutido do shortcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          source=Path("wordpress/tim-brother-sync/tim-brother-sync.php").read_text()
+          match=re.search(r"<script>(.*?)</script>",source,flags=re.S)
+          assert match, "Script do shortcode nao encontrado"
+          script=match.group(1)
+          script=script.replace("<?php echo wp_json_encode($id); ?>",'"node-de-teste"')
+          script=script.replace("<?php echo wp_json_encode(TIM_BROTHER_SYNC_MANIFEST_URL); ?>",'"https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"')
+          Path("/tmp/brother-shortcode-test.js").write_text(script)
+          PY
+          node --check /tmp/brother-shortcode-test.js
+      - name: Criar ZIP de instalacao WordPress
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wordpress
+          zip -q -9 -r "$GITHUB_WORKSPACE/tim-brother-sync.zip" tim-brother-sync \
+            -x '*/.DS_Store'
+          unzip -t "$GITHUB_WORKSPACE/tim-brother-sync.zip"
+          test "$(unzip -Z1 "$GITHUB_WORKSPACE/tim-brother-sync.zip" | grep -Fc 'tim-brother-sync/tim-brother-sync.php')" -eq 1
+      - name: Disponibilizar plugin de instalacao unica
+        uses: actions/upload-artifact@v4
+        with:
+          name: tim-brother-sync-wordpress-instalar
+          path: tim-brother-sync.zip
+          if-no-files-found: error
+          retention-days: 30
