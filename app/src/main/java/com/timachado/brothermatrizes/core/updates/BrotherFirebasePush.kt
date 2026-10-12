@@ -4,17 +4,23 @@ import android.content.Context
 import com.google.firebase.messaging.FirebaseMessaging
 
 /**
- * Inscrição em notificações FCM sobre novas versões.
- * Nunca modifica login Google/Supabase, pagamentos nem licenças.
- * O consentimento é independente da permissão de avisos locais da 1.0.5.
+ * Consentimento opcional e separado para alertas de novas versões e avisos da comunidade.
+ * Não envia tokens para WordPress/Supabase e não altera autenticação ou licenças.
  */
 object BrotherFirebasePush {
     const val TOPIC = "brother_matrizes_updates_stable"
+    const val COMMUNITY_TOPIC = "brother_matrizes_community"
     private const val PREFS = "brother_fcm_push_consent"
+    private const val UPDATE_KEY = "enabled"
+    private const val COMMUNITY_KEY = "community_enabled"
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean("enabled", false)
+            .getBoolean(UPDATE_KEY, false)
+
+    fun isCommunityEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(COMMUNITY_KEY, false)
 
     fun wasAsked(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -23,7 +29,14 @@ object BrotherFirebasePush {
     fun enable(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("asked", true)
-            .putBoolean("enabled", true)
+            .putBoolean(UPDATE_KEY, true)
+            .apply()
+        sync(context)
+    }
+
+    fun enableCommunity(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(COMMUNITY_KEY, true)
             .apply()
         sync(context)
     }
@@ -31,31 +44,48 @@ object BrotherFirebasePush {
     fun disable(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("asked", true)
-            .putBoolean("enabled", false)
+            .putBoolean(UPDATE_KEY, false)
             .apply()
-        // Best effort: Firebase persiste cancelamento até reconectar.
-        runCatching {
-            FirebaseMessaging.getInstance().unsubscribeFromTopic(TOPIC)
-                .addOnCompleteListener { FirebaseMessaging.getInstance().isAutoInitEnabled = false }
-        }
+        unsubscribe(TOPIC, context)
+    }
+
+    fun disableCommunity(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(COMMUNITY_KEY, false)
+            .apply()
+        unsubscribe(COMMUNITY_TOPIC, context)
     }
 
     fun decline(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("asked", true)
-            .putBoolean("enabled", false)
+            .putBoolean(UPDATE_KEY, false)
             .apply()
-        runCatching { FirebaseMessaging.getInstance().isAutoInitEnabled = false }
+        unsubscribe(TOPIC, context)
+    }
+
+    private fun unsubscribe(topic: String, context: Context) {
+        runCatching {
+            val messaging = FirebaseMessaging.getInstance()
+            messaging.unsubscribeFromTopic(topic).addOnCompleteListener {
+                if (!isEnabled(context) && !isCommunityEnabled(context)) {
+                    messaging.isAutoInitEnabled = false
+                }
+            }
+        }
     }
 
     fun sync(context: Context) {
-        if (!isEnabled(context) ||
-            !BrotherUpdateNotificationWorker.notificationsAllowed(context)) return
+        if (!BrotherUpdateNotificationWorker.notificationsAllowed(context)) return
+        val updates = isEnabled(context)
+        val community = isCommunityEnabled(context)
+        if (!updates && !community) return
         runCatching {
             val messaging = FirebaseMessaging.getInstance()
             messaging.isAutoInitEnabled = true
-            messaging.subscribeToTopic(TOPIC)
-            // O SDK tenta novamente se a rede estiver indisponível.
+            if (updates) messaging.subscribeToTopic(TOPIC)
+            if (community) messaging.subscribeToTopic(COMMUNITY_TOPIC)
+            // O Firebase tenta restaurar a inscrição após desconexões.
         }
     }
 }

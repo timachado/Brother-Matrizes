@@ -54,7 +54,7 @@ fun BrotherFirebasePushOptIn() {
                 "Além da busca automática por atualizações, a T.I. Machado " +
                     "poderá enviar avisos pelo Firebase Cloud Messaging para este " +
                     "celular. Não envolve sua conta, matrizes ou pagamentos. " +
-                    "Você poderá desativar o recebimento em Minha Conta."
+                    "Você poderá desativar os avisos na tela Comunidade."
             )
         },
         confirmButton = {

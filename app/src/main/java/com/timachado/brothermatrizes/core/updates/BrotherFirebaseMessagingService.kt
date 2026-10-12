@@ -28,24 +28,39 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        if (!BrotherFirebasePush.isEnabled(this) ||
-            !BrotherUpdateNotificationWorker.notificationsAllowed(this)) return
+        if (!BrotherUpdateNotificationWorker.notificationsAllowed(this)) return
         val data = message.data
-        val versionCode = data["versionCode"]?.toLongOrNull() ?: return
-        if (!BrotherPushPayloadRules.shouldPost(
-                data, BuildConfig.VERSION_CODE.toLong(), 0L
-            )) return
-
-        if (BrotherUpdateNotificationGate.postOnce(
-                this, BuildConfig.VERSION_CODE.toLong(), versionCode
-            ) {
-                showUpdateNotification(
-                    BrotherPushPayloadRules.notificationTitle(data),
-                    BrotherPushPayloadRules.notificationBody(data)
-                )
+        when (data["type"]) {
+            "update" -> {
+                if (!BrotherFirebasePush.isEnabled(this)) return
+                val versionCode = data["versionCode"]?.toLongOrNull() ?: return
+                if (!BrotherPushPayloadRules.shouldPost(
+                        data, BuildConfig.VERSION_CODE.toLong(), 0L
+                    )) return
+                if (BrotherUpdateNotificationGate.postOnce(
+                        this, BuildConfig.VERSION_CODE.toLong(), versionCode
+                    ) {
+                        showUpdateNotification(
+                            BrotherPushPayloadRules.notificationTitle(data),
+                            BrotherPushPayloadRules.notificationBody(data)
+                        )
+                    }
+                ) {
+                    BrotherInAppUpdateEvents.announce(applicationContext)
+                }
             }
-        ) {
-            BrotherInAppUpdateEvents.announce(applicationContext)
+            "community" -> {
+                if (!BrotherFirebasePush.isCommunityEnabled(this) ||
+                    !BrotherCommunityPayloadRules.shouldPost(data)) return
+                val eventId = BrotherCommunityPayloadRules.eventId(data) ?: return
+                BrotherCommunityNotificationGate.postOnce(this, eventId) {
+                    showCommunityNotification(
+                        BrotherCommunityPayloadRules.title(data),
+                        BrotherCommunityPayloadRules.body(data)
+                    )
+                }
+            }
+            else -> return
         }
     }
 
@@ -89,4 +104,46 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
         )
         true
     }.getOrDefault(false)
+
+    private fun showCommunityNotification(title: String, body: String): Boolean = runCatching {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(
+            NotificationChannel(
+                COMMUNITY_CHANNEL_ID,
+                "Comunidade Brother Matrizes",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Novidades, tutoriais e informações do grupo oficial."
+            }
+        )
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = "com.timachado.brothermatrizes.OPEN_COMMUNITY"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 170, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, COMMUNITY_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_brother)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.brother_matrizes_brand_logo))
+            .setColor(Color.rgb(234, 192, 110))
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        NotificationManagerCompat.from(this).notify(COMMUNITY_NOTIFICATION_ID, notification)
+        true
+    }.getOrDefault(false)
+
+    companion object {
+        private const val COMMUNITY_CHANNEL_ID = "brother_community"
+        private const val COMMUNITY_NOTIFICATION_ID = 32002
+    }
 }
