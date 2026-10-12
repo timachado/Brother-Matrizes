@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'releases/brother-1.10.4-notification-approved.json'
+      - 'releases/brother-1.10.4-notification-approved-retry1.json'
 
 permissions:
   contents: read
@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
 
       - name: Exigir criacao unica do registro de aprovacao
         shell: bash
@@ -34,8 +35,8 @@ jobs:
           test "$GITHUB_REF_NAME" = "main"
           test "$GITHUB_RUN_ATTEMPT" = "1"
           git diff-tree --no-commit-id --name-only --diff-filter=A -r "$GITHUB_SHA" |
-            grep -Fx 'releases/brother-1.10.4-notification-approved.json'
-          test -s releases/brother-1.10.4-notification-approved.json
+            grep -Fx 'releases/brother-1.10.4-notification-approved-retry1.json'
+          test -s releases/brother-1.10.4-notification-approved-retry1.json
 
       - name: Node 22
         uses: actions/setup-node@v4
