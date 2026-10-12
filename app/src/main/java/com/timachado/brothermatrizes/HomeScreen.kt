@@ -60,6 +60,7 @@ fun HomeScreen(
     onConvert: () -> Unit,
     onClearRecent: () -> Unit,
     onUnavailable: (String) -> Unit,
+    onCommunity: () -> Unit,
     updateRefreshRequest: Int = 0
 ) {
     LazyVerticalGrid(
@@ -120,6 +121,24 @@ fun HomeScreen(
         // Independente do opt-in FCM: novidades visíveis ao abrir o aplicativo.
         item(span = { GridItemSpan(maxLineSpan) }) {
             BrotherUpdateHomeCard(refreshRequest = updateRefreshRequest)
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onCommunity,
+                colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceHigh),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+                    Text("Comunidade e feedbacks", color = FioText,
+                        style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(5.dp))
+                    Text("Novidades, enquetes, sugestões e melhorias do Brother Matrizes.",
+                        color = FioTextMuted,
+                        style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
 
         item(
