@@ -59,27 +59,47 @@ private fun isOfficialChannel(value: String): Boolean {
  * impactam matrizes, pagamentos, licenças nem as atualizações do Android.
  */
 private suspend fun getOfficialChannel(): String? = withContext(Dispatchers.IO) {
-    runCatching {
-        val base = BuildConfig.WORDPRESS_URL.trimEnd('/')
-        val url = URL(base + COMMUNITY_API_PATH)
-        require(url.protocol == "https" && url.host == "timachado.ifree.page")
-        val connection = url.openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.instanceFollowRedirects = false
-            connection.setRequestProperty("Accept", "application/json")
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
-            val value = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
-                JSONObject(it.readText().take(4096)).optString("channelUrl")
+    // GitHub Raw é a fonte principal. WordPress pode responder com HTML de
+    // verificação e não deve tornar o aplicativo dependente desse serviço.
+    val sources = listOf(
+        "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/community.json",
+        BuildConfig.WORDPRESS_URL.trimEnd('/') + COMMUNITY_API_PATH
+    )
+    for (source in sources) {
+        val value = runCatching {
+            val url = URL(source)
+            require(url.protocol == "https" && (
+                (url.host == "raw.githubusercontent.com" &&
+                    url.path == "/timachado/Brother-Matrizes/main/updates/community.json") ||
+                (url.host == "timachado.ifree.page" &&
+                    url.path == COMMUNITY_API_PATH)
+            ))
+            val connection = url.openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = 4500
+                connection.readTimeout = 4500
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("Accept", "application/json")
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) null
+                else {
+                    val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
+                        val buffer = CharArray(4096)
+                        val count = it.read(buffer)
+                        if (count > 0) String(buffer, 0, count) else ""
+                    }
+                    val json = JSONObject(body)
+                    val product = json.optString("product")
+                    if (url.host == "raw.githubusercontent.com" && product != "brother-matrizes") null
+                    else json.optString("channelUrl").takeIf(::isOfficialChannel)
+                }
+            } finally {
+                connection.disconnect()
             }
-            value.takeIf(::isOfficialChannel)
-        } finally {
-            connection.disconnect()
-        }
-    }.getOrNull()
+        }.getOrNull()
+        if (value != null) return@withContext value
+    }
+    null
 }
-
 @Composable
 fun BrotherCommunityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
