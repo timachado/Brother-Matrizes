@@ -43,13 +43,12 @@ import java.net.URL
 private const val COMMUNITY_API_PATH = "/wp-json/tim-brother-sync/v1/community"
 private const val COMMUNITY_FALLBACK_PAGE = "/aplicativos/brother-matrizes/"
 
-private fun isOfficialChannel(value: String): Boolean {
+private fun isOfficialGroup(value: String): Boolean {
     val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
     return uri.scheme == "https" &&
-        (uri.host == "whatsapp.com" || uri.host == "www.whatsapp.com") &&
-        uri.pathSegments.size == 2 &&
-        uri.pathSegments[0] == "channel" &&
-        uri.pathSegments[1].matches(Regex("[A-Za-z0-9]+")) &&
+        uri.host == "chat.whatsapp.com" &&
+        uri.pathSegments.size == 1 &&
+        uri.pathSegments[0].matches(Regex("[A-Za-z0-9]{16,32}")) &&
         uri.encodedQuery == null &&
         uri.fragment == null
 }
@@ -58,7 +57,7 @@ private fun isOfficialChannel(value: String): Boolean {
  * Consulta somente metadados públicos do WordPress. Falhas de rede não
  * impactam matrizes, pagamentos, licenças nem as atualizações do Android.
  */
-private suspend fun getOfficialChannel(): String? = withContext(Dispatchers.IO) {
+private suspend fun getOfficialGroup(): String? = withContext(Dispatchers.IO) {
     // GitHub Raw é a fonte principal. WordPress pode responder com HTML de
     // verificação e não deve tornar o aplicativo dependente desse serviço.
     val sources = listOf(
@@ -90,7 +89,7 @@ private suspend fun getOfficialChannel(): String? = withContext(Dispatchers.IO) 
                     val json = JSONObject(body)
                     val product = json.optString("product")
                     if (url.host == "raw.githubusercontent.com" && product != "brother-matrizes") null
-                    else json.optString("channelUrl").takeIf(::isOfficialChannel)
+                    else json.optString("groupUrl").takeIf(::isOfficialGroup)
                 }
             } finally {
                 connection.disconnect()
@@ -103,10 +102,10 @@ private suspend fun getOfficialChannel(): String? = withContext(Dispatchers.IO) 
 @Composable
 fun BrotherCommunityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var channelUrl by remember { mutableStateOf<String?>(null) }
+    var groupUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        channelUrl = getOfficialChannel()
+        groupUrl = getOfficialGroup()
     }
 
     fun openHttps(url: String) {
@@ -154,18 +153,19 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = FioSurface)
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Canal oficial no WhatsApp", color = FioText,
+                Text("Grupo oficial de feedbacks", color = FioText,
                     fontWeight = FontWeight.Bold)
-                Text("Receba anúncios, participe de enquetes e acompanhe funcionalidades em desenvolvimento.",
+                Text("Converse com outros usuários, relate erros e envie sugestões para as próximas versões.",
                     color = FioTextMuted)
-                if (channelUrl != null) {
+                Text("Atenção: membros do grupo podem visualizar seu número de telefone. Não envie dados pessoais, senhas ou arquivos sigilosos.", color = FioTextMuted)
+                if (groupUrl != null) {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = FioGold, contentColor = FioBackground),
-                        onClick = { channelUrl?.let(::openHttps) }
-                    ) { Text("Seguir canal oficial") }
+                        onClick = { groupUrl?.let(::openHttps) }
+                    ) { Text("Entrar no grupo") }
                 } else {
-                    Text("O canal será disponibilizado aqui quando estiver ativo. Você pode consultar a central no site.",
+                    Text("O grupo poderá ser acessado aqui assim que o convite estiver disponível. Consulte a central no site.",
                         color = FioTextMuted)
                 }
             }
