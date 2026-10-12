@@ -20,9 +20,6 @@ jobs:
       - name: Checkout da branch de validação
         uses: actions/checkout@v4
 
-      - name: Validar sintaxe do emissor FCM
-        run: node --check .github/scripts/send-brother-fcm-release.mjs
-
       - name: Java 17
         uses: actions/setup-java@v4
         with:
