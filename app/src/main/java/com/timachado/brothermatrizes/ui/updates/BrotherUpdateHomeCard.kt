@@ -7,6 +7,7 @@ import android.net.Uri
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -115,7 +117,13 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
             shape = RoundedCornerShape(26.dp)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+                modifier = Modifier
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(FioGold.copy(alpha = 0.11f), FioSurface, FioSurface)
+                        )
+                    )
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween,
@@ -130,7 +138,10 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                         "v" + release.versionName,
                         color = FioGold,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(FioGold.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
                     )
                 }
                 Text(
