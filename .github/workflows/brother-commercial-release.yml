@@ -185,7 +185,7 @@ jobs:
               echo 'Release ja publico; proibido substituir o APK comercial'; exit 1;
             }
           else
-            printf '%s\\n' "$RELEASE_NOTES" > /tmp/brother-notes.txt
+            printf '%s\n' "$RELEASE_NOTES" > /tmp/brother-notes.txt
             SOURCE_SHA="$(git -C android rev-parse HEAD)"
             gh release create "$TAG" --draft --target "$SOURCE_SHA" \
               --title "Brother Matrizes $VERSION_NAME" --notes-file /tmp/brother-notes.txt
