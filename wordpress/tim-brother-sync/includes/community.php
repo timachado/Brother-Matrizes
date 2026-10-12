@@ -6,24 +6,24 @@
  */
 if (!defined('ABSPATH')) { exit; }
 
-function tim_brother_community_channel_url() {
-    $url = trim((string) get_option('tim_brother_community_channel_url', ''));
-    return preg_match('~^https://(?:www\.)?whatsapp\.com/channel/[A-Za-z0-9]+/?$~D', $url)
+function tim_brother_community_group_url() {
+    $url = trim((string) get_option('tim_brother_community_group_url', 'https://chat.whatsapp.com/BXbLoaQXC9dFIJdEzwmwB2'));
+    return preg_match('~^https://chat\.whatsapp\.com/[A-Za-z0-9]{16,32}/?$~D', $url)
         ? $url : '';
 }
 
 add_action('admin_init', function() {
-    register_setting('tim_brother_community', 'tim_brother_community_channel_url', array(
+    register_setting('tim_brother_community', 'tim_brother_community_group_url', array(
         'type' => 'string',
-        'default' => '',
+        'default' => 'https://chat.whatsapp.com/BXbLoaQXC9dFIJdEzwmwB2',
         'sanitize_callback' => function($value) {
             $url = is_string($value) ? trim($value) : '';
-            if ($url === '' || preg_match('~^https://(?:www\.)?whatsapp\.com/channel/[A-Za-z0-9]+/?$~D', $url)) {
+            if ($url === '' || preg_match('~^https://chat\.whatsapp\.com/[A-Za-z0-9]{16,32}/?$~D', $url)) {
                 return $url;
             }
-            add_settings_error('tim_brother_community_channel_url', 'invalid_channel',
-                'Use apenas o link oficial https://whatsapp.com/channel/... .');
-            return (string) get_option('tim_brother_community_channel_url', '');
+            add_settings_error('tim_brother_community_group_url', 'invalid_group',
+                'Use apenas o link oficial de convite https://chat.whatsapp.com/... .');
+            return (string) get_option('tim_brother_community_group_url', 'https://chat.whatsapp.com/BXbLoaQXC9dFIJdEzwmwB2');
         },
     ));
 });
@@ -33,14 +33,14 @@ add_action('admin_menu', function() {
         'manage_options', 'tim-brother-community', function() {
             if (!current_user_can('manage_options')) { return; }
             echo '<div class="wrap"><h1>Brother Matrizes — Comunidade</h1>';
-            echo '<p>Depois de criar o canal no WhatsApp, cole o link oficial. Nenhum valor, pedido ou licença é modificado.</p>';
+            echo '<p>Configure aqui o convite oficial do grupo de feedbacks do WhatsApp. Nenhum valor, pedido ou licença é modificado.</p>';
             echo '<form method="post" action="' . esc_url(admin_url('options.php')) . '">';
             settings_fields('tim_brother_community');
-            echo '<table class="form-table"><tr><th scope="row"><label for="bm_channel">Link do canal</label></th><td>';
-            echo '<input type="url" id="bm_channel" class="regular-text" name="tim_brother_community_channel_url" value="'
-                . esc_attr(tim_brother_community_channel_url()) . '" placeholder="https://whatsapp.com/channel/..." />';
-            echo '<p class="description">Canal do WhatsApp público. Nunca informe links privados ou dados de pagamento.</p></td></tr></table>';
-            submit_button('Salvar canal oficial');
+            echo '<table class="form-table"><tr><th scope="row"><label for="bm_group">Link do grupo</label></th><td>';
+            echo '<input type="url" id="bm_group" class="regular-text" name="tim_brother_community_group_url" value="'
+                . esc_attr(tim_brother_community_group_url()) . '" placeholder="https://chat.whatsapp.com/..." />';
+            echo '<p class="description">Convite do grupo WhatsApp; os participantes podem visualizar números uns dos outros. Nunca compartilhe senhas ou dados de pagamento.</p></td></tr></table>';
+            submit_button('Salvar grupo oficial');
             echo '</form><p>Para mostrar a central na página do produto, adicione <code>[brother_matrizes_community]</code> uma única vez.</p>';
             echo '<p>As sugestões recebidas ficam na área <strong>Brother — Feedbacks</strong> deste painel, sem publicação automática.</p></div>';
         });
@@ -66,7 +66,7 @@ add_action('rest_api_init', function() {
         'permission_callback' => '__return_true',
         'callback' => function() {
             return rest_ensure_response(array(
-                'channelUrl' => tim_brother_community_channel_url(),
+                'groupUrl' => tim_brother_community_group_url(),
                 'communityUrl' => TIM_BROTHER_SYNC_RELEASE_PAGE . '#brother-community',
                 'feedbackUrl' => TIM_BROTHER_SYNC_RELEASE_PAGE . '#brother-feedback',
             ));
@@ -75,7 +75,7 @@ add_action('rest_api_init', function() {
 });
 
 add_shortcode('brother_matrizes_community', function() {
-    $url = tim_brother_community_channel_url();
+    $url = tim_brother_community_group_url();
     $release = tim_brother_sync_latest();
     $state = isset($_GET['bm_feedback']) && is_scalar($_GET['bm_feedback'])
         ? sanitize_key(wp_unslash($_GET['bm_feedback'])) : '';
@@ -97,26 +97,27 @@ add_shortcode('brother_matrizes_community', function() {
           <a href="<?php echo esc_url(TIM_BROTHER_SYNC_RELEASE_PAGE); ?>">Página do aplicativo</a>
         </div>
         <div class="bm-panel">
-          <h3>Canal oficial no WhatsApp</h3>
-          <p>Novas versões, tutoriais, enquetes e melhorias em desenvolvimento. A participação no canal é gratuita.</p>
+          <h3>Grupo oficial de feedbacks no WhatsApp</h3>
+          <p>Participe das conversas, relate erros e ajude a escolher melhorias. A entrada é gratuita e sujeita à moderação.</p>
+          <p>As mensagens ficam visíveis aos membros. Ao participar, seu número de telefone pode ser visto pelos demais participantes. Evite compartilhar dados pessoais, senhas e documentos.</p>
           <?php if ($url) : ?>
-            <a href="<?php echo esc_url($url); ?>" rel="noopener noreferrer" target="_blank">Seguir canal oficial</a>
+            <a href="<?php echo esc_url($url); ?>" rel="noopener noreferrer" target="_blank">Entrar no grupo de feedbacks</a>
           <?php else : ?>
-            <p data-bm-channel-pending><strong>Canal em preparação.</strong> O acesso será liberado nesta página quando estiver disponível.</p>
-            <a data-bm-channel-link hidden href="#" rel="noopener noreferrer" target="_blank">Seguir canal oficial</a>
+            <p data-bm-group-pending><strong>Grupo em preparação.</strong> O acesso será liberado nesta página quando estiver disponível.</p>
+            <a data-bm-group-link hidden href="#" rel="noopener noreferrer" target="_blank">Entrar no grupo de feedbacks</a>
             <script>
               (function(){
                 var root=document.getElementById('brother-community');
                 if(!root||!window.fetch)return;
-                var action=root.querySelector('[data-bm-channel-link]');
-                var pending=root.querySelector('[data-bm-channel-pending]');
+                var action=root.querySelector('[data-bm-group-link]');
+                var pending=root.querySelector('[data-bm-group-pending]');
                 if(!action||!pending)return;
                 fetch('https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/community.json',{cache:'no-store'})
                   .then(function(r){if(!r.ok)throw Error('offline');return r.json();})
                   .then(function(data){
-                    if(data.product!=='brother-matrizes'||typeof data.channelUrl!=='string')return;
-                    if(!/^https:\/\/(?:www\.)?whatsapp\.com\/channel\/[A-Za-z0-9]+\/?$/.test(data.channelUrl))return;
-                    action.href=data.channelUrl;
+                    if(data.product!=='brother-matrizes'||typeof data.groupUrl!=='string')return;
+                    if(!/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{16,32}\/?$/.test(data.groupUrl))return;
+                    action.href=data.groupUrl;
                     action.hidden=false;
                     pending.hidden=true;
                   }).catch(function(){/* mantém acesso indisponível, sem link falso */});
