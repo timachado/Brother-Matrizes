@@ -3,7 +3,7 @@ name: Brother Matrizes 1.0.7 – validação sem assinatura
 on:
   push:
     branches:
-      - feature/brother-matrizes-1.0.7-fcm-push
+      - feature/brother-matrizes-1.0.7-bm-fonts
   pull_request:
     branches:
       - feature/brother-matrizes-1.0.6-fcm-push
