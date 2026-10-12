@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes.core.updates
 
 import android.app.NotificationChannel
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -70,7 +72,9 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
         val notification = NotificationCompat.Builder(
             this, BrotherUpdateNotificationWorker.CHANNEL_ID
         )
-            .setSmallIcon(R.drawable.ic_launcher_brother_matrizes)
+            .setSmallIcon(R.drawable.ic_notification_brother)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.brother_matrizes_brand_logo))
+            .setColor(Color.rgb(234, 192, 110))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
