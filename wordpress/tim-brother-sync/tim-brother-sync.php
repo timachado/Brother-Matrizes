@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brother Matrizes — Atualizações Automáticas
  * Description: Espelha somente os metadados oficiais de atualização do Brother Matrizes no WordPress. Não altera WooCommerce, licenças, pedidos ou pagamentos.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: T.I. Machado
  * Text Domain: tim-brother-sync
  */
@@ -11,6 +11,8 @@ if (!defined('ABSPATH')) { exit; }
 
 define('TIM_BROTHER_SYNC_MANIFEST_URL', 'https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json');
 define('TIM_BROTHER_SYNC_RELEASE_PAGE', 'https://timachado.ifree.page/aplicativos/brother-matrizes/');
+// ID confirmado no cadastro do App Commerce Core. Nao afeta outros aplicativos.
+define('TIM_BROTHER_SYNC_APP_POST_ID', 307);
 
 /**
  * Verificar metadados no GitHub a cada 3 minutos; nunca seguir redirects nem
@@ -101,6 +103,9 @@ add_action('rest_api_init', function() {
     ));
 });
 
+/** Ligação isolada do App Commerce Core, sem modificar o plugin comercial. */
+require_once __DIR__ . '/includes/app-commerce-core.php';
+
 /**
  * Bloco opcional para a página do aplicativo.
  * Adicionar UMA vez [brother_matrizes_release] ao conteúdo da página.
@@ -181,6 +186,19 @@ add_action('admin_menu', function() {
                . ' (código ' . esc_html((string) $release['versionCode']) . ')</p>';
         } else {
             echo '<p><strong>Conectividade:</strong> Não foi possível consultar o GitHub pelo servidor. O endpoint anterior foi preservado.</p>';
+        }
+        $core_app = get_post(TIM_BROTHER_SYNC_APP_POST_ID);
+        if ($core_app instanceof WP_Post && $core_app->post_type === 'ti_app') {
+            echo '<h2>App Commerce Core — integração automática</h2>';
+            echo '<p>Cadastro identificado: Brother Matrizes (ID ' . esc_html((string) TIM_BROTHER_SYNC_APP_POST_ID) . '). Versão e notas sincronizadas sem alterar o banco de dados.</p>';
+            $download_access = get_post_meta(TIM_BROTHER_SYNC_APP_POST_ID, '_ti_app_download_access', true);
+            if ($release && $download_access === 'free' && !empty($release['downloadApkUrl'])) {
+                echo '<p><strong>APK:</strong> link oficial direto do GitHub ativo no Core (modo gratuito/público). O APK antigo continua armazenado para reversão.</p>';
+            } else {
+                echo '<p><strong>APK:</strong> Core mantém o download e as restrições originais. Para acesso licenciado o plugin nunca substitui o arquivo.</p>';
+            }
+        } else {
+            echo '<p><strong>App Commerce Core:</strong> cadastro 307 não encontrado. Integração de metadados desativada automaticamente.</p>';
         }
         echo '<p>Para exibir automaticamente as novidades na página do aplicativo, insira uma vez o shortcode: <code>[brother_matrizes_release]</code>.</p>';
         echo '<p>Esta integração não modifica produtos, licenças, pagamentos nem a página sem o shortcode.</p>';
