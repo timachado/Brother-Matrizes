@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
     // A tela Início verifica novidades ao retornar do background ou instalação.
     private var updateResumeRequest by mutableStateOf(0)
     private var openHomeUpdatesRequest by mutableStateOf(0)
+    private var openCommunityRequest by mutableStateOf(0)
 
     private var accountOpenRequest by
         mutableStateOf(
@@ -140,6 +141,10 @@ class MainActivity : ComponentActivity() {
             openHomeUpdatesRequest++
         }
 
+        if (intent.action == "com.timachado.brothermatrizes.OPEN_COMMUNITY") {
+            openCommunityRequest++
+        }
+
         setContent {
             var textScale by remember {
                 mutableStateOf(
@@ -178,6 +183,7 @@ class MainActivity : ComponentActivity() {
                     openAccountRequest =
                         accountOpenRequest,
                     openHomeUpdatesRequest = openHomeUpdatesRequest,
+                    openCommunityRequest = openCommunityRequest,
                     updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
@@ -234,6 +240,9 @@ class MainActivity : ComponentActivity() {
             getSharedPreferences("brother_update_home_cards", MODE_PRIVATE).edit()
                 .remove("dismissed_version_code").apply()
             openHomeUpdatesRequest++
+        }
+        if (intent.action == "com.timachado.brothermatrizes.OPEN_COMMUNITY") {
+            openCommunityRequest++
         }
     }
 
@@ -344,6 +353,7 @@ private sealed interface Screen {
 private fun BrotherMatrizesApp(
     openAccountRequest: Int = 0,
     openHomeUpdatesRequest: Int = 0,
+    openCommunityRequest: Int = 0,
     updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
     onExternalOpenConsumed: (Uri) -> Unit = {},
@@ -436,6 +446,12 @@ private fun BrotherMatrizesApp(
         if (openHomeUpdatesRequest > 0) {
             // Tocar na notificação abre o cartão de novidades na Home.
             screen = Screen.Home
+        }
+    }
+
+    LaunchedEffect(openCommunityRequest) {
+        if (openCommunityRequest > 0) {
+            screen = Screen.Community
         }
     }
 
