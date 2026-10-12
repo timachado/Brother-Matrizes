@@ -63,7 +63,7 @@ function tim_brother_sync_latest() {
         'minSupportedVersionCode' => max(0, min((int) ($data['minSupportedVersionCode'] ?? 0), (int) $code)),
         'downloadUrl' => TIM_BROTHER_SYNC_RELEASE_PAGE,
         'sha256' => $hash,
-        'releaseNotes' => mb_substr((string) ($data['releaseNotes'] ?? ''), 0, 3500),
+        'releaseNotes' => function_exists('mb_substr') ? mb_substr((string) ($data['releaseNotes'] ?? ''), 0, 3500) : substr((string) ($data['releaseNotes'] ?? ''), 0, 3500),
         'publishedAt' => (string) ($data['publishedAt'] ?? ''),
     );
     if ($apk !== '') { $result['downloadApkUrl'] = $apk; }
@@ -143,7 +143,7 @@ add_shortcode('brother_matrizes_release', function($atts) {
           .then(function(r){if(!r.ok)throw Error('offline');return r.json();})
           .then(function(d){
             if(d.applicationId!=='com.timachado.brothermatrizes'||d.channel!=='stable'
-              ||!(/^[0-9]+\\.[0-9]+\\.[0-9]+$/).test(d.versionName)||!Number.isInteger(d.versionCode))return;
+              ||!(/^[0-9]+\.[0-9]+\.[0-9]+$/).test(d.versionName)||!Number.isInteger(d.versionCode))return;
             var v=root.querySelector('[data-version]');
             var sum=root.querySelector('[data-summary]');
             var link=root.querySelector('[data-link]');
@@ -152,7 +152,7 @@ add_shortcode('brother_matrizes_release', function($atts) {
               sum.textContent=d.releaseNotes.slice(0,650);
             }
             if(root.getAttribute('data-direct')==='1' && typeof d.downloadApkUrl==='string'
-              && /^https:\\/\\/github\\.com\\/timachado\\/Brother-Matrizes\\/releases\\/download\\/v[0-9.]+\\/[\\w.-]+\\.apk$/.test(d.downloadApkUrl)){
+              && /^https:\/\/github\.com\/timachado\/Brother-Matrizes\/releases\/download\/v[0-9.]+\/[\w.-]+\.apk$/.test(d.downloadApkUrl)){
               link.href=d.downloadApkUrl;
               link.textContent='Baixar APK oficial';
             }else{
