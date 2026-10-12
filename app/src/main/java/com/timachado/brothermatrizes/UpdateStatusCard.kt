@@ -55,6 +55,7 @@ fun UpdateStatusCard() {
     val client = remember(endpoint) { BrotherUpdateClient(endpoint) }
     val scope = rememberCoroutineScope()
     var downloadBusy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf<Int?>(null) }
     var downloadStatus by remember { mutableStateOf<String?>(null) }
     var stagedUpdate by remember { mutableStateOf<File?>(null) }
     var revision by remember { mutableStateOf(0) }
@@ -115,8 +116,10 @@ fun UpdateStatusCard() {
                                 scope.launch {
                                     downloadBusy = true
                                     downloadStatus = "Preparando sua atualização…"
+                                    progress = null
                                     val downloaded = BrotherApkUpdater.download(
-                                        context.applicationContext, result.release
+                                        context.applicationContext, result.release,
+                                        onProgress = { percent -> progress = percent }
                                     )
                                     downloaded.fold(
                                         onSuccess = { file ->
@@ -149,7 +152,7 @@ fun UpdateStatusCard() {
                         )
                     ) {
                         Text(
-                            if (downloadBusy) "Baixando atualização..." else "Atualizar agora",
+                            if (downloadBusy) (progress?.let { "Baixando atualização… $it%" } ?: "Preparando atualização…") else "Atualizar agora",
                             fontWeight = FontWeight.Bold
                         )
                     }

@@ -1,8 +1,7 @@
 package com.timachado.brothermatrizes.ui.updates
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
+import java.io.File
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -11,9 +10,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
+import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
+import kotlinx.coroutines.launch
 
 /**
  * Aviso pós-lançamento: não interrompe o app quando WordPress estiver offline.
@@ -23,6 +25,11 @@ import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 @Composable
 fun BrotherUpdateReminder(endpoint: String) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf<Int?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var downloadedApk by remember { mutableStateOf<File?>(null) }
     val prefs = remember(context) {
         context.getSharedPreferences("brother_update_reminder", Context.MODE_PRIVATE)
     }
@@ -57,7 +64,7 @@ fun BrotherUpdateReminder(endpoint: String) {
     }
 
     AlertDialog(
-        onDismissRequest = { postpone() },
+        onDismissRequest = { if (!busy) postpone() },
         title = { Text("Atualização do Brother Matrizes") },
         text = {
             Text(buildString {
@@ -67,18 +74,62 @@ fun BrotherUpdateReminder(endpoint: String) {
                     append("\n\n")
                     append(result.release.releaseNotes)
                 }
+                if (busy) {
+                    append("\n\n")
+                    append(if (progress != null) "Baixando e verificando APK: ${progress}%" else "Preparando download verificado…")
+                } else if (message != null) {
+                    append("\n\n")
+                    append(message)
+                }
             })
         },
         confirmButton = {
-            TextButton(onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.release.downloadUrl))
-                    .addCategory(Intent.CATEGORY_BROWSABLE)
-                runCatching { context.startActivity(intent) }
-                available = null
-            }) { Text("Atualizar agora") }
+            TextButton(
+                enabled = !busy,
+                onClick = {
+                    val cached = downloadedApk
+                    if (cached != null) {
+                        runCatching { BrotherApkUpdater.launchInstaller(context, cached) }
+                            .onSuccess { opened ->
+                                if (opened) available = null
+                                else message = "Autorize a instalação por Brother Matrizes nas configurações e retorne para concluir."
+                            }.onFailure {
+                                message = "Não foi possível abrir o instalador do Android. Tente novamente."
+                            }
+                    } else {
+                        scope.launch {
+                            busy = true
+                            progress = null
+                            message = null
+                            val outcome = BrotherApkUpdater.download(
+                                context.applicationContext, result.release,
+                                onProgress = { percent -> progress = percent }
+                            )
+                            outcome.fold(
+                                onSuccess = { apk ->
+                                    downloadedApk = apk
+                                    runCatching { BrotherApkUpdater.launchInstaller(context, apk) }
+                                        .onSuccess { opened ->
+                                            if (opened) available = null
+                                            else message = "Autorize a instalação por Brother Matrizes nas configurações e retorne para concluir."
+                                        }.onFailure {
+                                            message = "APK conferido. Toque em Concluir instalação para tentar novamente."
+                                        }
+                                },
+                                onFailure = {
+                                    message = "Não foi possível baixar o APK verificado. Confira sua conexão e tente novamente."
+                                }
+                            )
+                            busy = false
+                        }
+                    }
+                }
+            ) {
+                Text(if (busy) "Baixando…" else if (downloadedApk != null) "Concluir instalação" else "Atualizar agora")
+            }
         },
         dismissButton = {
-            TextButton(onClick = { postpone() }) { Text("Depois") }
+            TextButton(enabled = !busy, onClick = { postpone() }) { Text("Depois") }
         }
     )
 }

@@ -43,18 +43,14 @@ class BrotherUpdateNotificationWorker(
         val response = BrotherUpdateClient(endpoint).check(context)
         return when (response) {
             is BrotherUpdateClient.Result.Available -> {
-                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 val published = response.release.versionCode
-                if (UpdateNotificationRules.shouldNotify(
-                        installedCode = BuildConfig.VERSION_CODE.toLong(),
-                        publishedCode = published,
-                        lastNotifiedCode = prefs.getLong("last_notified_version_code", 0L)
-                    )
-                ) {
-                    if (postUpdateNotification(context, response)) {
-                        prefs.edit().putLong("last_notified_version_code", published).apply()
-                        BrotherInAppUpdateEvents.announce(context)
+                if (BrotherUpdateNotificationGate.postOnce(
+                        context, BuildConfig.VERSION_CODE.toLong(), published
+                    ) {
+                        postUpdateNotification(context, response)
                     }
+                ) {
+                    BrotherInAppUpdateEvents.announce(context)
                 }
                 Result.success()
             }
