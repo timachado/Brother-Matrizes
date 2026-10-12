@@ -1,6 +1,12 @@
 name: Brother Matrizes - Lancamento Comercial Automatizado
 
 on:
+  # Gatilho único de lançamento aprovado: apenas a alteração do registro 1.10.4.
+  # Não dispara para mudanças comuns no app/site.
+  push:
+    branches: [main]
+    paths:
+      - 'releases/brother-1.10.4-authorized.json'
   workflow_dispatch:
     inputs:
       source_ref:
@@ -50,10 +56,10 @@ jobs:
     timeout-minutes: 55
     environment: brother-release-signing
     env:
-      SOURCE_REF: ${{ inputs.source_ref }}
-      VERSION_NAME: ${{ inputs.version_name }}
-      VERSION_CODE: ${{ inputs.version_code }}
-      RELEASE_NOTES: ${{ inputs.release_notes }}
+      SOURCE_REF: ${{ inputs.source_ref || 'release/brother-matrizes-1.10.4' }}
+      VERSION_NAME: ${{ inputs.version_name || '1.10.4' }}
+      VERSION_CODE: ${{ inputs.version_code || '180' }}
+      RELEASE_NOTES: ${{ inputs.release_notes || 'Nova Comunidade Brother Matrizes; Feedback direto para WhatsApp ou e-mail; Avisos de novidades e novas versões com ativação opcional; Melhorias de interface e correções de estabilidade.' }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       EXPECTED_CERT: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a
@@ -76,6 +82,21 @@ jobs:
           ref: ${{ inputs.source_ref }}
           persist-credentials: false
           path: android
+
+      - name: Conferir compromisso comercial e codigo congelado da 1.10.4
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "main"
+          test "$SOURCE_REF" = "release/brother-matrizes-1.10.4"
+          test "$VERSION_NAME" = "1.10.4"
+          test "$VERSION_CODE" = "180"
+          test "$(git -C android rev-parse HEAD)" = "03f2cc6128df8fdced960cdf2881c3e5d62c5aa6" || {
+            echo "::error::Codigo comercial modificado apos aprovacao. Publicacao bloqueada."
+            exit 1
+          }
+          echo "Codigo e parametros oficiais da 1.10.4 congelados e validados."
 
       - name: Comparar versao do codigo e manifesto publico
         shell: bash
