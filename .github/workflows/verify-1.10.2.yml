@@ -3,7 +3,7 @@ name: Brother Matrizes 1.10.2 - Novidades in-app e FCM
 on:
   push:
     branches:
-      - hotfix/brother-matrizes-1.10.2-updates-premium
+      - release/brother-matrizes-1.10.2
   pull_request:
     branches:
       - hotfix/brother-matrizes-1.10.1-updates-premium
