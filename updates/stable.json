@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.3",
-  "versionCode": 179,
+  "versionName": "1.10.4",
+  "versionCode": 180,
   "minSupportedVersionCode": 0,
   "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
-  "sha256": "0b8d35483ee7bc00add72eb8d1fd1563557f539ec2e7c08bc17e3ce0d213bd22",
-  "releaseNotes": "Atualização direta pelo aplicativo, sem abrir o site desnecessariamente; Progresso de download em porcentagem; Melhorias para evitar notificações duplicadas; Correções de estabilidade.",
+  "sha256": "62a663f3710c5989b2bc128f8a0b301bc2cd5f45ad1572a2d618cf51367d4ac0",
+  "releaseNotes": "Nova Comunidade Brother Matrizes; Feedback direto para WhatsApp ou e-mail; Avisos de novidades e novas versões com ativação opcional; Melhorias de interface e correções de estabilidade.",
   "publishedAt": "2026-10-12",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.3/Brother-Matrizes-v1.10.3-ASSINADO.apk"
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.4/Brother-Matrizes-v1.10.4-ASSINADO.apk"
 }
