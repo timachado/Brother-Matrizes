@@ -34,28 +34,28 @@ enum class EmbroideryFontPreset(
     val centerShift: Float = 0f
 ) {
     LINE(
-        "Fio Linha",
+        "BM Linha",
         FontCategory.ESSENTIAL,
         "Equilibrada e versátil",
         1f,
         1f
     ),
     COMPACT(
-        "Fio Compacta",
+        "BM Compacta",
         FontCategory.ESSENTIAL,
         "Mais estreita para espaços pequenos",
         0.82f,
         0.86f
     ),
     WIDE(
-        "Fio Larga",
+        "BM Larga",
         FontCategory.ESSENTIAL,
         "Presença maior e leitura aberta",
         1.18f,
         1.08f
     ),
     MODERN(
-        "Fio Moderna",
+        "BM Moderna",
         FontCategory.MODERN,
         "Geométrica com proporção limpa",
         0.96f,
@@ -63,7 +63,7 @@ enum class EmbroideryFontPreset(
         centerShift = -0.035f
     ),
     ITALIC(
-        "Fio Itálica",
+        "BM Itálica",
         FontCategory.MODERN,
         "Inclinação suave e dinâmica",
         1f,
@@ -71,7 +71,7 @@ enum class EmbroideryFontPreset(
         slant = 0.20f
     ),
     ELEGANT(
-        "Fio Elegante",
+        "BM Elegante",
         FontCategory.ELEGANT,
         "Inclinação discreta com serifas",
         0.94f,
@@ -80,7 +80,7 @@ enum class EmbroideryFontPreset(
         serifAmount = 0.12f
     ),
     ORNAMENTAL(
-        "Fio Ornamental",
+        "BM Ornamental",
         FontCategory.DECORATIVE,
         "Serifas e prolongamentos para monogramas",
         1.03f,
