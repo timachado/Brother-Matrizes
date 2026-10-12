@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.1",
-  "versionCode": 177,
+  "versionName": "1.10.2",
+  "versionCode": 178,
   "minSupportedVersionCode": 0,
   "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
-  "sha256": "fd0cd07eaf71915f1d15dcbed6e3681c113cbde6df2c50ac3e1b27c0bc226651",
-  "releaseNotes": "- Atualizações mais práticas e confiáveis.\n- Novo card premium com visual renovado.\n- Notificações com identidade Brother Matrizes.\n- Correções e estabilidade.",
+  "sha256": "1c30e385b3214ed6147910d6a3ad33e9f79abc025be5d024db780f2c1b7ade43",
+  "releaseNotes": "Mais estabilidade no download de atualizações. Melhorias na verificação de novas versões.",
   "publishedAt": "2026-10-12",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.1/Brother-Matrizes-v1.10.1-ASSINADO.apk"
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.2/Brother-Matrizes-v1.10.2-ASSINADO.apk"
 }
