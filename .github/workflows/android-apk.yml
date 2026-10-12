@@ -1,16 +1,8 @@
 name: Build Android APK
 
+# Fluxo legado FioLab: somente execucao manual, nunca publicar apos commits
+# do manifesto ou da automacao comercial Brother Matrizes.
 on:
-  push:
-    branches: ["main"]
-    paths-ignore:
-      - "FioLab.Engine/**"
-      - "FioLab.Engine.Smoke/**"
-      - "FioLab.Maui/**"
-      - ".github/workflows/maui-android.yml"
-      # Publicar o manifesto de atualizações não deve disparar o legado FioLab.
-      - "updates/stable.json"
-      - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
 permissions:
