@@ -21,7 +21,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Validar sintaxe PHP
-        run: php -l wordpress/tim-brother-sync/tim-brother-sync.php
+        run: |
+          php -l wordpress/tim-brother-sync/tim-brother-sync.php
+          php -l wordpress/tim-brother-sync/includes/app-commerce-core.php
       - name: Validar JavaScript embutido do shortcode
         shell: bash
         run: |
@@ -38,6 +40,36 @@ jobs:
           Path("/tmp/brother-shortcode-test.js").write_text(script)
           PY
           node --check /tmp/brother-shortcode-test.js
+      - name: Testar escopo dos campos App Commerce Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/test-app-commerce-metadata.php <<'PHP'
+          <?php
+          define('ABSPATH', '/');
+          $GLOBALS['manifest']=['versionName'=>'1.10.1','versionCode'=>177,'releaseNotes'=>'Atualização premium',
+            'downloadApkUrl'=>'https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.1/Brother-Matrizes-v1.10.1-ASSINADO.apk'];
+          $GLOBALS['access']='free';
+          function get_post_type($id){return $id===307?'ti_app':'post';}
+          function get_post_meta($id,$key,$single){return $key==='_ti_app_download_access'?$GLOBALS['access']:null;}
+          function tim_brother_sync_latest(){return $GLOBALS['manifest'];}
+          function add_filter($name,$callback,$priority=10,$accepted_args=1){$GLOBALS['callables'][$name]=$callback;}
+          require 'wordpress/tim-brother-sync/includes/app-commerce-core.php';
+          $f=$GLOBALS['callables']['get_post_metadata'];
+          assert($f(null,307,'_ti_app_version',true,'post')==='1.10.1');
+          assert($f(null,307,'_ti_app_release_notes',true,'post')==='Atualização premium');
+          assert($f(null,307,'_ti_app_apk_attachment_id',true,'post')==='0');
+          assert(str_contains($f(null,307,'_ti_app_download',true,'post'),'/v1.10.1/'));
+          assert($f(null,308,'_ti_app_version',true,'post')===null);
+          assert($f(null,307,'_ti_app_product_lifetime',true,'post')===null);
+          $GLOBALS['access']='licensed';
+          assert($f(null,307,'_ti_app_apk_attachment_id',true,'post')===null);
+          assert($f(null,307,'_ti_app_download',true,'post')===null);
+          $GLOBALS['manifest']=null;
+          assert($f(null,307,'_ti_app_version',true,'post')===null);
+          echo 'OK: leitura dinâmica restrita ao app 307; acesso licenciado preservado.' . PHP_EOL;
+          PHP
+          php -d zend.assertions=1 -d assert.exception=1 /tmp/test-app-commerce-metadata.php
       - name: Criar ZIP de instalacao WordPress
         shell: bash
         run: |
