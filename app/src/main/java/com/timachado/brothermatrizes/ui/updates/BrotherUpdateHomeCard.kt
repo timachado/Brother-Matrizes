@@ -73,6 +73,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
         mutableStateOf(prefs.getLong("dismissed_version_code", 0L))
     }
     var busy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf<Int?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var expanded by remember { mutableStateOf(false) }
@@ -177,8 +178,10 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                             scope.launch {
                                 busy = true
                                 status = "Preparando sua atualização…"
+                                progress = null
                                 val outcome = BrotherApkUpdater.download(
-                                    context.applicationContext, release
+                                    context.applicationContext, release,
+                                    onProgress = { percent -> progress = percent }
                                 )
                                 outcome.fold(
                                     onSuccess = { apk ->
@@ -209,7 +212,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                         contentColor = FioBackground
                     )
                 ) {
-                    Text(if (busy) "Preparando atualização…" else "Atualizar agora  ↗",
+                    Text(if (busy) (progress?.let { "Baixando… $it%" } ?: "Preparando atualização…") else "Atualizar agora",
                         fontWeight = FontWeight.Bold)
                 }
                 if (status != null) {
