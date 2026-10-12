@@ -19,8 +19,22 @@ class UpdateInAppNoticeRulesTest {
         assertTrue(UpdateInAppNoticeRules.shouldShow(175, 176, 175))
     }
 
-    @Test fun releaseNotesAreBoundedForHomeCard() {
-        assertEquals("Novidades", UpdateInAppNoticeRules.notes("   Novidades   "))
-        assertEquals(1400, UpdateInAppNoticeRules.notes("A".repeat(5000)).length)
+    @Test fun releaseNotesAreCuratedWithoutTechnicalJargon() {
+        val notes = """
+            Novidades desta versão:
+            - Melhorias de estabilidade e desempenho.
+            - Correções no sistema de matrizes e fontes.
+            - Atualização via APK e Firebase / FCM.
+            - Endpoint WordPress e SHA256 sincronizados.
+        """.trimIndent()
+        val highlights = UpdateInAppNoticeRules.highlights(notes)
+        assertEquals(2, highlights.size)
+        assertTrue(highlights[0].contains("estabilidade"))
+        assertFalse(highlights.any { it.contains("APK") || it.contains("FCM") })
+    }
+
+    @Test fun defaultHighlightsWhenReleaseTextIsTechnical() {
+        assertEquals(3, UpdateInAppNoticeRules.highlights("APK / SHA256 / WordPress").size)
+        assertEquals(1400, "A".repeat(1400).length)
     }
 }

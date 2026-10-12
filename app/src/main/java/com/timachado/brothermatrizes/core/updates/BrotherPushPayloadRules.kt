@@ -10,12 +10,11 @@ internal object BrotherPushPayloadRules {
 
     fun notificationTitle(data: Map<String, String>): String =
         data["title"].orEmpty().trim().take(90)
-            .ifBlank { "Brother Matrizes: atualização disponível" }
+            .ifBlank { "Brother Matrizes: uma nova versão chegou!" }
 
     fun notificationBody(data: Map<String, String>): String =
         data["body"].orEmpty().trim().take(240)
             .ifBlank {
-                "A versão " + data["versionName"].orEmpty().take(32) +
-                    " está disponível. Toque para ver as novidades."
+                "Novidades e melhorias já estão disponíveis. Toque para conferir e atualizar."
             }
 }

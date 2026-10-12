@@ -25,7 +25,7 @@ class BrotherPushPayloadRulesTest {
     }
 
     @Test fun trimsUntrustedMessageText() {
-        assertEquals("Brother Matrizes: atualização disponível",
+        assertEquals("Brother Matrizes: uma nova versão chegou!",
             BrotherPushPayloadRules.notificationTitle(emptyMap()))
         assertEquals(90, BrotherPushPayloadRules.notificationTitle(mapOf("title" to "A".repeat(300))).length)
         assertEquals(240, BrotherPushPayloadRules.notificationBody(mapOf("body" to "A".repeat(300))).length)

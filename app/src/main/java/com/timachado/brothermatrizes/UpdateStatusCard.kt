@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
+import com.timachado.brothermatrizes.core.updates.UpdateInAppNoticeRules
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -105,7 +106,7 @@ fun UpdateStatusCard() {
                     }
                     if (result.release.releaseNotes.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
-                        Text(result.release.releaseNotes, color = FioTextMuted, fontSize = 11.sp)
+                        Text(UpdateInAppNoticeRules.notes(result.release.releaseNotes), color = FioTextMuted, fontSize = 11.sp)
                     }
                     Spacer(Modifier.height(10.dp))
                     Button(
@@ -113,7 +114,7 @@ fun UpdateStatusCard() {
                             if (!downloadBusy) {
                                 scope.launch {
                                     downloadBusy = true
-                                    downloadStatus = "Baixando e verificando a atualização oficial..."
+                                    downloadStatus = "Preparando sua atualização…"
                                     val downloaded = BrotherApkUpdater.download(
                                         context.applicationContext, result.release
                                     )
@@ -124,18 +125,16 @@ fun UpdateStatusCard() {
                                                 BrotherApkUpdater.launchInstaller(context, file)
                                             }.onSuccess { launched ->
                                                 downloadStatus = if (launched) {
-                                                    "APK verificado. Confirme a instalação no Android."
+                                                    "Tudo pronto! Confirme a instalação no Android."
                                                 } else {
                                                     "Permita instalação por Brother Matrizes nas configurações e volte para continuar."
                                                 }
                                             }.onFailure { problem ->
-                                                downloadStatus = problem.message
-                                                    ?: "Não foi possível abrir o instalador."
+                                                downloadStatus = "Não foi possível iniciar a instalação. Tente novamente."
                                             }
                                         },
                                         onFailure = { problem ->
-                                            downloadStatus = problem.message
-                                                ?: "Falha no download. Tente novamente."
+                                            downloadStatus = "Não conseguimos baixar agora. Tente novamente."
                                         }
                                     )
                                     downloadBusy = false
@@ -176,7 +175,7 @@ fun UpdateStatusCard() {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Abrir download no site oficial") }
+                        ) { Text("Baixar pelo site oficial") }
                     }
                     val savedApk = stagedUpdate
                     if (savedApk != null && !downloadBusy) {
@@ -188,11 +187,10 @@ fun UpdateStatusCard() {
                                     downloadStatus = if (launched) {
                                         "APK verificado. Confirme a instalação no Android."
                                     } else {
-                                        "Habilite a instalação por Brother Matrizes e retorne ao app."
+                                        "Autorize esta instalação e retorne ao aplicativo."
                                     }
                                 }.onFailure { problem ->
-                                    downloadStatus = problem.message
-                                        ?: "Não foi possível abrir o instalador."
+                                    downloadStatus = "Não foi possível iniciar a instalação. Tente novamente."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -208,7 +206,7 @@ fun UpdateStatusCard() {
                     color = FioTextMuted, fontSize = 11.sp
                 )
                 is BrotherUpdateClient.Result.Error -> Text(
-                    result.message + " O aplicativo continua funcionando normalmente.",
+                    "Não conseguimos verificar agora. Tente novamente em instantes.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
             }
