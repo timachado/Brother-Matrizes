@@ -199,41 +199,92 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        if (feedbackMessage.isBlank()) "Digite uma mensagem para compartilhar."
-                        else "${feedbackMessage.length}/2500 caracteres • Pronto para compartilhar",
+                        if (!BrotherFeedbackDelivery.canSend(feedbackMessage))
+                            "Escreva seu relato para escolher como enviar."
+                        else "${feedbackMessage.length}/2500 caracteres • Mensagem pronta",
                         color = FioTextMuted
                     )
                     Text(
-                        "Você escolherá o aplicativo e o destinatário. Nada será enviado sem sua confirmação."
+                        "Ao escolher WhatsApp ou e-mail, a mensagem será preenchida para você conferir e enviar.",
+                        color = FioTextMuted
                     )
                 }
             },
             confirmButton = {
-                Button(
-                    enabled = feedbackMessage.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = FioGold,
-                        contentColor = FioBackground
-                    ),
-                    onClick = {
-                        if (feedbackMessage.isBlank()) return@Button
-                        val content = "Brother Matrizes " + BuildConfig.VERSION_NAME +
-                            " — " + feedbackCategory + "\n\n" + feedbackMessage.trim()
-                        val share = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Feedback — Brother Matrizes")
-                            putExtra(Intent.EXTRA_TEXT, content)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = BrotherFeedbackDelivery.canSend(feedbackMessage),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold,
+                            contentColor = FioBackground
+                        ),
+                        onClick = {
+                            val content = BrotherFeedbackDelivery.message(
+                                feedbackCategory, feedbackMessage, BuildConfig.VERSION_NAME
+                            )
+                            val url = "https://wa.me/" +
+                                BrotherFeedbackDelivery.WHATSAPP_PHONE +
+                                "?text=" + Uri.encode(content)
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                feedbackEditorOpen = false
+                            } catch (_: ActivityNotFoundException) {
+                                Toast.makeText(
+                                    context, "Não foi possível abrir o WhatsApp.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } catch (_: SecurityException) {
+                                Toast.makeText(
+                                    context, "O Android bloqueou o acesso ao WhatsApp.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
-                        try {
-                            context.startActivity(Intent.createChooser(share, "Compartilhar feedback"))
-                            feedbackEditorOpen = false
-                        } catch (_: ActivityNotFoundException) {
-                            Toast.makeText(context, "Nenhum aplicativo de compartilhamento disponível.", Toast.LENGTH_LONG).show()
-                        } catch (_: SecurityException) {
-                            Toast.makeText(context, "Compartilhamento bloqueado no aparelho.", Toast.LENGTH_LONG).show()
+                    ) { Text("Enviar pelo WhatsApp") }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = BrotherFeedbackDelivery.canSend(feedbackMessage),
+                        onClick = {
+                            val content = BrotherFeedbackDelivery.message(
+                                feedbackCategory, feedbackMessage, BuildConfig.VERSION_NAME
+                            )
+                            val mail = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse(
+                                    "mailto:" + BrotherFeedbackDelivery.SUPPORT_EMAIL
+                                )
+                                putExtra(
+                                    Intent.EXTRA_EMAIL,
+                                    arrayOf(BrotherFeedbackDelivery.SUPPORT_EMAIL)
+                                )
+                                putExtra(
+                                    Intent.EXTRA_SUBJECT,
+                                    BrotherFeedbackDelivery.subject(feedbackCategory)
+                                )
+                                putExtra(Intent.EXTRA_TEXT, content)
+                            }
+                            try {
+                                context.startActivity(
+                                    Intent.createChooser(mail, "Enviar feedback por e-mail")
+                                )
+                                feedbackEditorOpen = false
+                            } catch (_: ActivityNotFoundException) {
+                                Toast.makeText(
+                                    context, "Nenhum aplicativo de e-mail foi encontrado.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } catch (_: SecurityException) {
+                                Toast.makeText(
+                                    context, "O Android bloqueou a abertura do e-mail.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
-                    }
-                ) { Text("Compartilhar feedback") }
+                    ) { Text("Enviar por e-mail") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { feedbackEditorOpen = false }) { Text("Cancelar") }
