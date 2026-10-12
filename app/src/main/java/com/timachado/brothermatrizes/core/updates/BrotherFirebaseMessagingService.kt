@@ -43,6 +43,7 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
                 BrotherPushPayloadRules.notificationBody(data)
             )) {
             prefs.edit().putLong("last_notified_version_code", versionCode).apply()
+            BrotherInAppUpdateEvents.announce(applicationContext)
         }
     }
 
