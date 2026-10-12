@@ -71,6 +71,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    // A tela Início verifica novidades ao retornar do background ou instalação.
+    private var updateResumeRequest by mutableStateOf(0)
+    private var openHomeUpdatesRequest by mutableStateOf(0)
+
     private var accountOpenRequest by
         mutableStateOf(
             0
@@ -127,13 +131,13 @@ class MainActivity : ComponentActivity() {
             intent
         )
 
-        if (
-            intent.getBooleanExtra(
-                EXTRA_OPEN_ACCOUNT_FROM_AUTH,
-                false
-            ) || intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES"
-        ) {
+        if (intent.getBooleanExtra(EXTRA_OPEN_ACCOUNT_FROM_AUTH, false)) {
             accountOpenRequest++
+        }
+        if (intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES") {
+            getSharedPreferences("brother_update_home_cards", MODE_PRIVATE).edit()
+                .remove("dismissed_version_code").apply()
+            openHomeUpdatesRequest++
         }
 
         setContent {
@@ -173,6 +177,8 @@ class MainActivity : ComponentActivity() {
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
+                    openHomeUpdatesRequest = openHomeUpdatesRequest,
+                    updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
                     onExternalOpenConsumed = {
@@ -221,14 +227,19 @@ class MainActivity : ComponentActivity() {
             intent
         )
 
-        if (
-            intent.getBooleanExtra(
-                EXTRA_OPEN_ACCOUNT_FROM_AUTH,
-                false
-            ) || intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES"
-        ) {
+        if (intent.getBooleanExtra(EXTRA_OPEN_ACCOUNT_FROM_AUTH, false)) {
             accountOpenRequest++
         }
+        if (intent.action == "com.timachado.brothermatrizes.OPEN_UPDATES") {
+            getSharedPreferences("brother_update_home_cards", MODE_PRIVATE).edit()
+                .remove("dismissed_version_code").apply()
+            openHomeUpdatesRequest++
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateResumeRequest++
     }
 }
 
@@ -331,6 +342,8 @@ private sealed interface Screen {
 @Composable
 private fun BrotherMatrizesApp(
     openAccountRequest: Int = 0,
+    openHomeUpdatesRequest: Int = 0,
+    updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
@@ -415,6 +428,13 @@ private fun BrotherMatrizesApp(
         ) {
             screen =
                 Screen.Account
+        }
+    }
+
+    LaunchedEffect(openHomeUpdatesRequest) {
+        if (openHomeUpdatesRequest > 0) {
+            // Tocar na notificação abre o cartão de novidades na Home.
+            screen = Screen.Home
         }
     }
 
@@ -1758,6 +1778,7 @@ private fun BrotherMatrizesApp(
                 Screen.Home -> {
                     HomeScreen(
                         recent = recent,
+                        updateRefreshRequest = updateResumeRequest + openHomeUpdatesRequest,
                         onCreateName = {
                             screen =
                                 Screen.CreateName
