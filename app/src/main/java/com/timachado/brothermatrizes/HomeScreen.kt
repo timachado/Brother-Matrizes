@@ -36,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.ui.updates.BrotherUpdateHomeCard
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioGoldSoft
@@ -58,7 +59,8 @@ fun HomeScreen(
     onEdit: () -> Unit,
     onConvert: () -> Unit,
     onClearRecent: () -> Unit,
-    onUnavailable: (String) -> Unit
+    onUnavailable: (String) -> Unit,
+    updateRefreshRequest: Int = 0
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 150.dp),
@@ -112,6 +114,12 @@ fun HomeScreen(
                         TextAlign.Center
                 )
             }
+        }
+
+        // Banner só aparece para uma versão publicada maior que a instalada.
+        // Independente do opt-in FCM: novidades visíveis ao abrir o aplicativo.
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            BrotherUpdateHomeCard(refreshRequest = updateRefreshRequest)
         }
 
         item(
