@@ -3,4 +3,7 @@
     <cache-path
         name="shared_matrices"
         path="shared/" />
+    <cache-path
+        name="verified_apk_updates"
+        path="verified_apk_updates/" />
 </paths>

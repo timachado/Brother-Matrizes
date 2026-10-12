@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.content.Intent
+import java.io.File
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -18,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
+import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -35,6 +38,7 @@ import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import kotlinx.coroutines.launch
 
 /**
  * Preserva o cartão Minha Conta existente e substitui somente a origem da
@@ -48,6 +52,10 @@ fun UpdateStatusCard() {
             "/wp-json/tim-brother-updates/v1/latest?channel=stable"
     }
     val client = remember(endpoint) { BrotherUpdateClient(endpoint) }
+    val scope = rememberCoroutineScope()
+    var downloadBusy by remember { mutableStateOf(false) }
+    var downloadStatus by remember { mutableStateOf<String?>(null) }
+    var stagedUpdate by remember { mutableStateOf<File?>(null) }
     var revision by remember { mutableStateOf(0) }
     var state by remember { mutableStateOf<BrotherUpdateClient.Result?>(null) }
 
@@ -102,19 +110,73 @@ fun UpdateStatusCard() {
                     Spacer(Modifier.height(10.dp))
                     Button(
                         onClick = {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse(result.release.downloadUrl)
-                            ).addCategory(Intent.CATEGORY_BROWSABLE)
-                            runCatching { context.startActivity(intent) }
+                            if (!downloadBusy) {
+                                scope.launch {
+                                    downloadBusy = true
+                                    downloadStatus = "Baixando e verificando a atualização oficial..."
+                                    val downloaded = BrotherApkUpdater.download(
+                                        context.applicationContext, result.release
+                                    )
+                                    downloaded.fold(
+                                        onSuccess = { file ->
+                                            stagedUpdate = file
+                                            runCatching {
+                                                BrotherApkUpdater.launchInstaller(context, file)
+                                            }.onSuccess { launched ->
+                                                downloadStatus = if (launched) {
+                                                    "APK verificado. Confirme a instalação no Android."
+                                                } else {
+                                                    "Permita instalação por Brother Matrizes nas configurações e volte para continuar."
+                                                }
+                                            }.onFailure { problem ->
+                                                downloadStatus = problem.message
+                                                    ?: "Não foi possível abrir o instalador."
+                                            }
+                                        },
+                                        onFailure = { problem ->
+                                            downloadStatus = problem.message
+                                                ?: "Falha no download. Tente novamente."
+                                        }
+                                    )
+                                    downloadBusy = false
+                                }
+                            }
                         },
+                        enabled = !downloadBusy,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FioGold,
                             contentColor = FioBackground
                         )
                     ) {
-                        Text("Atualizar agora", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (downloadBusy) "Baixando atualização..." else "Atualizar agora",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (downloadStatus != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadStatus.orEmpty(), color = FioTextMuted, fontSize = 11.sp)
+                    }
+                    val savedApk = stagedUpdate
+                    if (savedApk != null && !downloadBusy) {
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    BrotherApkUpdater.launchInstaller(context, savedApk)
+                                }.onSuccess { launched ->
+                                    downloadStatus = if (launched) {
+                                        "APK verificado. Confirme a instalação no Android."
+                                    } else {
+                                        "Habilite a instalação por Brother Matrizes e retorne ao app."
+                                    }
+                                }.onFailure { problem ->
+                                    downloadStatus = problem.message
+                                        ?: "Não foi possível abrir o instalador."
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Concluir instalação") }
                     }
                 }
                 BrotherUpdateClient.Result.UpToDate -> Text(

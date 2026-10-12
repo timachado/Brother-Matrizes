@@ -1,0 +1,43 @@
+name: Brother Matrizes 1.0.8 - ferramentas oficiais para QA local
+
+on:
+  push:
+    branches:
+      - feature/brother-matrizes-1.0.8-direct-apk-updates
+  pull_request:
+    branches:
+      - feature/brother-matrizes-1.0.7-bm-fonts
+
+permissions:
+  contents: read
+
+jobs:
+  package-official-sdk-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obter Android Build Tools 36 do ambiente do GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" "build-tools;36.0.0"
+          SDK="$ANDROID_HOME/build-tools/36.0.0"
+          test -s "$SDK/lib/apksigner.jar"
+          test -x "$SDK/apksigner"
+          test -x "$SDK/zipalign"
+          test -x "$SDK/aapt"
+          mkdir -p local-android-tools/lib local-android-tools/lib64
+          cp "$SDK/apksigner" "$SDK/zipalign" "$SDK/aapt" local-android-tools/
+          cp "$SDK/lib/apksigner.jar" local-android-tools/lib/
+          cp -a "$SDK/lib64/." local-android-tools/lib64/
+          chmod +x local-android-tools/apksigner local-android-tools/zipalign local-android-tools/aapt
+          echo 'SDK Build Tools 36 disponibilizadas para assinatura LOCAL, sem chaves nem segredos.'
+      - name: Guardar ferramentas (NAO inclui certificados nem APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-BuildTools-36-local-signing-kit
+          path: local-android-tools/
+          if-no-files-found: error
+          retention-days: 1
