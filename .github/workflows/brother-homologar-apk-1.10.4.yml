@@ -24,7 +24,7 @@ jobs:
       - name: Baixar candidato Android 1.10.4
         uses: actions/checkout@v4
         with:
-          ref: 9def87b9bfb1cf167407d62d3b15055545d15e52
+          ref: 7f377994a2ab7fbc45c0fa690736bd290c7c54b2
           persist-credentials: false
           path: android
 
@@ -53,7 +53,8 @@ jobs:
         run: |
           set -euo pipefail
           gradle --no-daemon :app:testDebugUnitTest
-          gradle --no-daemon :app:assembleRelease
+          # A tela de diagnóstico e o botão de copiar identificador aparecem SOMENTE no APK assinado de homologação.
+          gradle --no-daemon -PbrotherFcmDiagnostic=true :app:assembleRelease
 
       - name: Assinar com certificado comercial original e auditar
         shell: bash
