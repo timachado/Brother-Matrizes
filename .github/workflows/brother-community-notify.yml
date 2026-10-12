@@ -1,0 +1,60 @@
+name: Brother Matrizes - Avisos da Comunidade FCM
+
+on:
+  workflow_dispatch:
+    inputs:
+      event_id:
+        description: "Identificador unico (8-64 letras, numeros, - ou _); nao reutilize"
+        type: string
+        required: true
+      title:
+        description: "Titulo da notificacao (maximo 90 caracteres)"
+        type: string
+        required: true
+      body:
+        description: "Mensagem ao usuario (maximo 240 caracteres)"
+        type: string
+        required: true
+      confirm:
+        description: "Para autorizar, digite ENVIAR-COMUNIDADE"
+        type: string
+        required: true
+      dry_run:
+        description: "Simular sem entregar aos usuarios (recomendado primeiro)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-community-fcm
+  cancel-in-progress: false
+
+jobs:
+  send-community:
+    name: Comunicar aos usuarios que consentiram
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: brother-release-signing
+    steps:
+      - name: Checkout da fonte oficial
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Instalar ambiente Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verificar sintaxe do emissor (sem enviar)
+        run: node --check .github/scripts/send-brother-community-fcm.mjs
+
+      - name: Instalar Firebase Admin
+        run: npm install --prefix .github/scripts --no-save --ignore-scripts --no-audit --no-fund firebase-admin@14.5.0
+
+      - name: Validar e enviar via FCM (manual)
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node .github/scripts/send-brother-community-fcm.mjs
