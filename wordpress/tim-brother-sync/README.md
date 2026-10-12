@@ -69,3 +69,20 @@ No GitHub Settings → Environments, configure `brother-release-signing`, de pre
 ## Suporte e rollback
 
 Se houver problemas, desative o plugin no painel WordPress: o endpoint preexistente volta a atender normalmente, sem alteração de banco de dados ou produtos. Nenhum dado é excluído.
+
+
+---
+
+## Comunidade e feedback (plugin 1.2.0)
+
+Nova central opcional que não modifica o fluxo de compra/assinatura ou de download.
+
+1. Após instalar a atualização do plugin, acesse **Ferramentas → Brother — Comunidade**.
+2. Crie o canal no WhatsApp, copie o **link oficial do canal** e salve no campo mostrado. Se estiver vazio, os botões de seguir não são exibidos.
+3. Edite **somente** a página pública Brother Matrizes no WordPress e coloque uma vez o shortcode \`[brother_matrizes_community]\`.
+4. A central mostra a versão estável existente, direciona ao canal público e traz formulário de sugestões. Feedbacks são salvos **privadamente** em **Ferramentas → Brother — Feedbacks**; nunca publicados automaticamente.
+5. O aplicativo consulta o endpoint de leitura pública \`/wp-json/tim-brother-sync/v1/community\`. Atualizar o link no WordPress **não exige gerar outro APK**. Em caso de falha de rede, o app mantém acesso à página oficial; o canal fica oculto até que a consulta funcione.
+
+**Privacidade:** o formulário não solicita senhas ou números de licença. E-mail é opcional, armazenado apenas com autorização explícita. O formulário usa nonce, campo anti-bot e limite por origem; não há promessa de proteção absoluta contra spam. Revise e exclua feedbacks antigos de acordo com sua política de privacidade e LGPD. Em sites que usam cache agressivo de página, teste a validade do nonce do formulário. A T.I. Machado deve informar o tratamento de dados na política de privacidade.
+
+**Rollback:** remova o shortcode ou desative somente o plugin Brother Matrizes — Atualizações Automáticas. Não remova o App Commerce Core. Os feedbacks já gravados no WordPress não são apagados automaticamente por desativação; sua exclusão deve ser uma decisão administrativa.
