@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
+import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -152,6 +153,28 @@ fun UpdateStatusCard() {
                 color = FioTextMuted,
                 fontSize = 11.sp
             )
+            var pushEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (pushEnabled && allowed)
+                    "Firebase Push: ativado. Você receberá avisos das novas versões."
+                else
+                    "Firebase Push: desativado. Ative para receber avisos enviados pela T.I. Machado.",
+                color = FioTextMuted,
+                fontSize = 11.sp
+            )
+            if (allowed) {
+                OutlinedButton(
+                    onClick = {
+                        if (pushEnabled) BrotherFirebasePush.disable(context)
+                        else BrotherFirebasePush.enable(context)
+                        pushEnabled = !pushEnabled
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (pushEnabled) "Desativar notificações push" else "Ativar notificações push")
+                }
+            }
             if (!allowed) {
                 OutlinedButton(
                     onClick = {
