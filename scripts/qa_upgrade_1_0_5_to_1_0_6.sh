@@ -64,7 +64,8 @@ adb shell am start -W -a com.timachado.brothermatrizes.OPEN_UPDATES -n "$ACTIVIT
 assert_running
 adb shell run-as "$PKG" ls "$SENTINEL" > /dev/null
 
-if ! adb shell dumpsys package "$PKG" | grep -q 'versionCode=172'; then
+INSTALLED_INFO="$(adb shell dumpsys package "$PKG")"
+if [[ "$INSTALLED_INFO" != *"versionCode=172"* ]]; then
   echo "Falha: versao instalada nao e 172"; exit 1
 fi
 
