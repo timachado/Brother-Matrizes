@@ -1,0 +1,54 @@
+name: Brother Matrizes 1.10.4 - Aviso oficial de atualizacao
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'releases/brother-1.10.4-notification-approved.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-v1-10-4-notificacao-oficial
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    if: ${{ github.run_attempt == 1 }}
+    name: Avisar somente assinantes FCM de atualizacoes
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: brother-release-signing
+    steps:
+      - name: Obter codigo e comprovante de aprovacao
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Exigir criacao unica do registro de aprovacao
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "timachado/Brother-Matrizes"
+          test "$GITHUB_REF_NAME" = "main"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          git diff-tree --no-commit-id --name-only --diff-filter=A -r "$GITHUB_SHA" |
+            grep -Fx 'releases/brother-1.10.4-notification-approved.json'
+          test -s releases/brother-1.10.4-notification-approved.json
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Conferir sintaxe do emissor
+        run: node --check .github/scripts/announce-brother-v1.10.4.mjs
+
+      - name: Instalar Firebase Admin sem scripts de instalacao
+        run: npm install --prefix .github/scripts --no-save --ignore-scripts --no-audit --no-fund firebase-admin@14.5.0
+
+      - name: Conferir release publicada, executar simulacao e avisar uma unica vez
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node .github/scripts/announce-brother-v1.10.4.mjs
