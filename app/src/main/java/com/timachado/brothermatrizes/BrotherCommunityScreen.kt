@@ -3,8 +3,12 @@ package com.timachado.brothermatrizes
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PersistableBundle
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.firebase.messaging.FirebaseMessaging
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -117,6 +122,7 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
     var updateEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
     var communityEnabled by remember { mutableStateOf(BrotherFirebasePush.isCommunityEnabled(context)) }
     var permissionDenied by remember { mutableStateOf(false) }
+    var fcmDiagnosticStatus by remember { mutableStateOf<String?>(null) }
     var feedbackEditorOpen by remember { mutableStateOf(false) }
     var feedbackMessage by remember { mutableStateOf("") }
     var feedbackCategory by remember { mutableStateOf("Sugestão") }
@@ -340,6 +346,51 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     "Avisos dependem da conexão, das configurações do Android e da publicação oficial. Nenhuma licença ou projeto é enviado.",
                     color = FioTextMuted
                 )
+                if (BuildConfig.ENABLE_FCM_DIAGNOSTIC) {
+                    Text("Diagnóstico de notificações — somente homologação", color = FioText,
+                        fontWeight = FontWeight.Bold)
+                    Text(
+                        "Copie o identificador deste aparelho somente para cadastrar no segredo do GitHub. " +
+                            "Não compartilhe em mensagens, prints ou grupos.",
+                        color = FioTextMuted
+                    )
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = communityEnabled && BrotherUpdateNotificationWorker.notificationsAllowed(context),
+                        onClick = {
+                            fcmDiagnosticStatus = "Consultando o Firebase neste aparelho..."
+                            FirebaseMessaging.getInstance().token
+                                .addOnSuccessListener { token ->
+                                    if (token.length !in 60..4096) {
+                                        fcmDiagnosticStatus = "Firebase não disponibilizou um identificador válido."
+                                    } else {
+                                        val clipboard = context.getSystemService(
+                                            android.content.Context.CLIPBOARD_SERVICE
+                                        ) as ClipboardManager
+                                        val clip = ClipData.newPlainText(
+                                            "Brother Matrizes — Identificador de teste", token
+                                        )
+                                        if (Build.VERSION.SDK_INT >= 33) {
+                                            clip.description.extras = PersistableBundle().apply {
+                                                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                                            }
+                                        }
+                                        clipboard.setPrimaryClip(clip)
+                                        fcmDiagnosticStatus = "Identificador copiado. Cadastre em GitHub Secrets como BROTHER_FCM_TEST_DEVICE_TOKEN."
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    fcmDiagnosticStatus = "Não foi possível consultar o Firebase. Verifique a internet."
+                                }
+                        }
+                    ) { Text("Copiar identificador de teste") }
+                    if (!communityEnabled) {
+                        Text("Ative os avisos da comunidade antes do teste.", color = FioTextMuted)
+                    }
+                    fcmDiagnosticStatus?.let { status ->
+                        Text(status, color = FioTextMuted)
+                    }
+                }
             }
         }
         Spacer(Modifier.height(4.dp))
