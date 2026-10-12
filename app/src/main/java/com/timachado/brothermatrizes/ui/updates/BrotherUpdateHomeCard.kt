@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -110,16 +111,17 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = FioSurface),
-            shape = RoundedCornerShape(24.dp)
+            border = BorderStroke(1.dp, FioGold.copy(alpha = 0.36f)),
+            shape = RoundedCornerShape(26.dp)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "NOVIDADE • BROTHER MATRIZES",
+                        "✦  NOVA VERSÃO",
                         color = FioGold,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -132,32 +134,30 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                     )
                 }
                 Text(
-                    "Uma nova atualização chegou!",
+                    "Seu Brother ficou ainda melhor.",
                     color = FioText,
-                    fontSize = 19.sp,
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Confira o que mudou antes de atualizar seu aplicativo.",
+                    "Uma nova versão está pronta para você.",
                     color = FioTextMuted,
                     fontSize = 12.sp
                 )
-                val notes = UpdateInAppNoticeRules.notes(release.releaseNotes)
-                if (notes.isNotBlank()) {
-                    Spacer(Modifier.height(3.dp))
-                    Text("Novidades desta versão", color = FioText,
-                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Text(
-                        if (expanded || notes.length <= 300) notes
-                        else notes.take(300).trimEnd() + "…",
-                        color = FioTextMuted,
-                        fontSize = 12.sp
-                    )
-                    if (notes.length > 300) {
-                        TextButton(onClick = { expanded = !expanded }) {
-                            Text(if (expanded) "Mostrar menos" else "Ler todas as novidades",
-                                color = FioGold)
+                val highlights = UpdateInAppNoticeRules.highlights(release.releaseNotes)
+                if (expanded) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("O que mudou", color = FioText,
+                            fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        highlights.forEach { highlight ->
+                            Text("•  " + highlight, color = FioTextMuted, fontSize = 12.sp)
                         }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("✦ Mais fluidez", color = FioGold, fontSize = 11.sp)
+                        Text("•", color = FioTextMuted, fontSize = 11.sp)
+                        Text("✦ Evolução contínua", color = FioGold, fontSize = 11.sp)
                     }
                 }
                 Button(
@@ -165,7 +165,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                         if (!busy) {
                             scope.launch {
                                 busy = true
-                                status = "Baixando e validando APK oficial…"
+                                status = "Preparando sua atualização…"
                                 val outcome = BrotherApkUpdater.download(
                                     context.applicationContext, release
                                 )
@@ -176,15 +176,15 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                                             BrotherApkUpdater.launchInstaller(context, apk)
                                         }.onSuccess { opened ->
                                             status = if (opened)
-                                                "APK verificado. Confirme a instalação no Android."
+                                                "Tudo pronto! Confirme a instalação no Android."
                                             else
-                                                "Autorize a instalação pelo Brother Matrizes e volte para concluir."
+                                                "Autorize a instalação e volte para concluir."
                                         }.onFailure {
-                                            status = it.message ?: "Não foi possível abrir o instalador."
+                                            status = "Não foi possível abrir a instalação. Tente novamente."
                                         }
                                     },
                                     onFailure = {
-                                        status = it.message ?: "Falha no download. Tente novamente."
+                                        status = "Não conseguimos baixar agora. Tente novamente."
                                     }
                                 )
                                 busy = false
@@ -198,7 +198,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                         contentColor = FioBackground
                     )
                 ) {
-                    Text(if (busy) "Preparando atualização…" else "Atualizar agora",
+                    Text(if (busy) "Preparando atualização…" else "Atualizar agora  ↗",
                         fontWeight = FontWeight.Bold)
                 }
                 if (status != null) {
@@ -217,7 +217,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Abrir download no site oficial") }
+                    ) { Text("Baixar pelo site oficial") }
                 }
                 if (downloadedApk != null && !busy) {
                     OutlinedButton(onClick = {
@@ -228,11 +228,15 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                                 else "Autorize esta origem nas configurações e retorne."
                             }
                             .onFailure {
-                                status = it.message ?: "Não foi possível abrir o instalador."
+                                status = "Não foi possível abrir a instalação. Tente novamente."
                             }
                     }, modifier = Modifier.fillMaxWidth()) {
                         Text("Concluir instalação")
                     }
+                }
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Ocultar novidades" else "Ver novidades",
+                        color = FioGold, fontSize = 12.sp)
                 }
                 TextButton(
                     onClick = {
@@ -240,7 +244,7 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
                         dismissedVersion = release.versionCode
                     }
                 ) {
-                    Text("Agora não", color = FioTextMuted, fontSize = 12.sp)
+                    Text("Depois", color = FioTextMuted, fontSize = 12.sp)
                 }
             }
         }
