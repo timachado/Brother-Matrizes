@@ -1,0 +1,260 @@
+name: Brother Matrizes - Lancamento Comercial Automatizado
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch aprovada: release/brother-matrizes-X.Y.Z"
+        type: string
+        required: true
+      version_name:
+        description: "Versao comercial X.Y.Z (ex: 1.10.2)"
+        type: string
+        required: true
+      version_code:
+        description: "Codigo crescente da versao Android"
+        type: string
+        required: true
+      release_notes:
+        description: "Novidades em linguagem simples (pode separar por ponto e virgula)"
+        type: string
+        required: true
+      announce:
+        description: "Notificar usuarios via Firebase SOMENTE apos publicar e validar"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brother-commercial-stable
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    name: Validar, assinar, publicar e atualizar manifesto
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    environment: brother-release-signing
+    env:
+      SOURCE_REF: ${{ inputs.source_ref }}
+      VERSION_NAME: ${{ inputs.version_name }}
+      VERSION_CODE: ${{ inputs.version_code }}
+      RELEASE_NOTES: ${{ inputs.release_notes }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      EXPECTED_CERT: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a
+    steps:
+      - name: Validar parametros e branch comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_REF" =~ ^release/brother-matrizes-[0-9]+\.[0-9]+\.[0-9]+([._-][A-Za-z0-9._-]+)?$ ]] || { echo 'Apenas branches release/brother-matrizes-X.Y.Z aprovadas'; exit 1; }
+          [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          [[ "$VERSION_CODE" =~ ^[0-9]+$ ]] && test "$VERSION_CODE" -gt 177
+          test "${#RELEASE_NOTES}" -ge 12
+          test "${#RELEASE_NOTES}" -le 3500
+          test "$GH_REPO" = "timachado/Brother-Matrizes"
+          echo "Release aprovada para ser compilada: $SOURCE_REF v$VERSION_NAME codigo $VERSION_CODE"
+
+      - name: Checkout do codigo Android aprovado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+          path: android
+
+      - name: Comparar versao do codigo e manifesto publico
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GRADLE_BUILD="android/app/build.gradle.kts"
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          text=open(os.environ["GRADLE_BUILD"],encoding="utf-8").read()
+          code=re.search(r"\bversionCode\s*=\s*(\d+)",text)
+          name=re.search(r'\bversionName\s*=\s*"([^"]+)"',text)
+          assert code and name, "Versao Android ausente"
+          assert int(code.group(1))==int(os.environ["VERSION_CODE"]), "VersionCode nao corresponde ao codigo aprovado"
+          assert name.group(1)==os.environ["VERSION_NAME"], "VersionName diferente do aprovado"
+          raw=subprocess.check_output(["gh","api",f"repos/{os.environ['GH_REPO']}/contents/updates/stable.json"],text=True)
+          meta=json.loads(raw)
+          import base64
+          old=json.loads(base64.b64decode(meta["content"]))
+          assert old["applicationId"]=="com.timachado.brothermatrizes"
+          assert old["channel"]=="stable"
+          assert int(os.environ["VERSION_CODE"])>int(old["versionCode"]), "Versao anterior ou ja publicada; cancelando"
+          print("Versionamento crescente validado.")
+          PY
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: SDK Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Testes e compilacao de release
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest
+          gradle --no-daemon :app:assembleRelease
+
+      - name: Assinar com a chave comercial ORIGINAL e auditar
+        shell: bash
+        env:
+          BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          BROTHER_MATRIZES_RELEASE_STORE_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          BROTHER_MATRIZES_RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          BROTHER_MATRIZES_RELEASE_KEY_PASSWORD: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 BROTHER_MATRIZES_RELEASE_STORE_PASSWORD BROTHER_MATRIZES_RELEASE_KEY_ALIAS BROTHER_MATRIZES_RELEASE_KEY_PASSWORD; do
+            test -n "${!name:-}" || { echo 'Segredos da assinatura comercial nao configurados; publicacao bloqueada'; exit 1; }
+          done
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          printf '%s' "$BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$WORK/original.jks"
+          SOURCE="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$SOURCE"
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p dist
+          FILE="Brother-Matrizes-v$VERSION_NAME-ASSINADO.apk"
+          "$TOOLS/zipalign" -f -p 4 "$SOURCE" "$WORK/aligned.apk"
+          "$TOOLS/apksigner" sign --ks "$WORK/original.jks" \
+            --ks-key-alias "$BROTHER_MATRIZES_RELEASE_KEY_ALIAS" \
+            --ks-pass env:BROTHER_MATRIZES_RELEASE_STORE_PASSWORD \
+            --key-pass env:BROTHER_MATRIZES_RELEASE_KEY_PASSWORD \
+            --out "dist/$FILE" "$WORK/aligned.apk"
+          "$TOOLS/zipalign" -c -p 4 "dist/$FILE"
+          VERIFY="$("$TOOLS/apksigner" verify --verbose --print-certs "dist/$FILE")"
+          printf '%s\n' "$VERIFY" | grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' >/dev/null
+          printf '%s\n' "$VERIFY" | grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' >/dev/null
+          REAL_CERT="$(printf '%s\n' "$VERIFY" | sed -n -E 's/^Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\1/p' | tr '[:upper:]' '[:lower:]')"
+          test "$REAL_CERT" = "$EXPECTED_CERT" || { echo 'ERRO: certificado divergente do original'; exit 1; }
+          BADGING="$("$TOOLS/aapt" dump badging "dist/$FILE" | head -n1)"
+          [[ "$BADGING" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$BADGING" == *"versionCode='$VERSION_CODE'"* ]]
+          [[ "$BADGING" == *"versionName='$VERSION_NAME'"* ]]
+          SHA="$(sha256sum "dist/$FILE" | cut -d' ' -f1)"
+          echo "$SHA" > dist/apk-sha256.txt
+          echo "APK validado: $FILE (SHA-256 $SHA)"
+
+      - name: Preparar e anexar release rascunho
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION_NAME"
+          APK="Brother-Matrizes-v$VERSION_NAME-ASSINADO.apk"
+          SHA="$(cat dist/apk-sha256.txt)"
+          if gh release view "$TAG" --json isDraft >/tmp/release.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' /tmp/release.json)" = "true" || { echo 'Release ja publico; nenhuma substituicao automatica'; exit 1; }
+          else
+            printf '%s\n' "$RELEASE_NOTES" > /tmp/brother-notes.txt
+            SOURCE_SHA="$(git -C android rev-parse HEAD)"
+            gh release create "$TAG" --draft --target "$SOURCE_SHA" \
+              --title "Brother Matrizes $VERSION_NAME" --notes-file /tmp/brother-notes.txt
+          fi
+          EXISTING="$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '.assets | length')"
+          test "$EXISTING" = "0" || { echo 'Asset ja anexado; proibido substituir binario do release'; exit 1; }
+          gh release upload "$TAG" "dist/$APK"
+          ASSET_SHA="$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '.assets[0].digest' | sed 's/^sha256://')"
+          test "$SHA" = "$ASSET_SHA" || { echo 'Digest nao corresponde ao APK comercial'; exit 1; }
+          echo "Asset aprovado por SHA-256 calculado pelo GitHub."
+
+      - name: Publicar APK no GitHub e verificar download SEM LOGIN
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION_NAME"
+          gh api -X PATCH "repos/$GH_REPO/releases/$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq .id)" \
+            -F draft=false -F prerelease=false >/dev/null
+          URL="https://github.com/$GH_REPO/releases/download/$TAG/Brother-Matrizes-v$VERSION_NAME-ASSINADO.apk"
+          curl -fsSL --retry 3 --max-time 180 -A "BrotherMatrizes-Android-Updater/$VERSION_NAME" \
+            "$URL" -o /tmp/public-brother.apk
+          echo "$(cat dist/apk-sha256.txt)  /tmp/public-brother.apk" | sha256sum --check --status
+          echo "Download publico validado para cliente Android sem token."
+
+      - name: Atualizar SOMENTE manifesto stable depois de validar binario publico
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/updates/stable.json" > /tmp/original-content.json
+          python3 - <<'PY'
+          import base64,datetime,json,os
+          saved=json.load(open("/tmp/original-content.json"))
+          manifest=json.loads(base64.b64decode(saved["content"]))
+          version=os.environ["VERSION_NAME"];code=int(os.environ["VERSION_CODE"])
+          assert manifest["channel"]=="stable" and manifest["applicationId"]=="com.timachado.brothermatrizes"
+          assert code>int(manifest["versionCode"]), "Versao live mais recente; recusando sobrescrever"
+          manifest.update({
+            "versionName":version,"versionCode":code,
+            "sha256":open("dist/apk-sha256.txt").read().strip(),
+            "releaseNotes":os.environ["RELEASE_NOTES"],
+            "publishedAt":datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
+            "downloadApkUrl":f"https://github.com/timachado/Brother-Matrizes/releases/download/v{version}/Brother-Matrizes-v{version}-ASSINADO.apk"
+          })
+          text=json.dumps(manifest,ensure_ascii=False,indent=2)+"\n"
+          payload={"message":f"release(brother): publicar versao {version} com SHA e URL direta",
+                   "sha":saved["sha"],"branch":"main",
+                   "content":base64.b64encode(text.encode()).decode()}
+          json.dump(payload,open("/tmp/publish-manifest.json","w"))
+          PY
+          gh api -X PUT "repos/$GH_REPO/contents/updates/stable.json" \
+            --input /tmp/publish-manifest.json >/dev/null
+          echo "Manifesto publico atualizado na main. Loja WooCommerce e paginas nao alteradas."
+
+      - name: Conferir espelho publico da versao
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request
+          url="https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"
+          for attempt in range(10):
+              with urllib.request.urlopen(url+"?check="+str(attempt),timeout=15) as r:
+                  manifest=json.load(r)
+              if manifest.get("versionName")==os.environ["VERSION_NAME"] and manifest.get("versionCode")==int(os.environ["VERSION_CODE"]):
+                  sha=open("dist/apk-sha256.txt").read().strip()
+                  assert manifest["sha256"]==sha
+                  print("Release publica e manifesto publico sincronizados.")
+                  break
+              time.sleep(5)
+          else: raise SystemExit("Manifesto ainda nao se propagou; nenhum push deve ser enviado")
+          PY
+
+      - name: Checkout seguro do script FCM presente na main
+        if: ${{ inputs.announce }}
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          path: meta
+
+      - name: Notificar Firebase somente depois de publicar e conferir
+        if: ${{ inputs.announce }}
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON:-}" || { echo 'Firebase secret ausente; publicacao foi feita, mas aviso nao enviado'; exit 1; }
+          npm install --prefix meta/.github/scripts --no-save --ignore-scripts --no-audit --no-fund firebase-admin@14.5.0
+          node meta/.github/scripts/send-brother-fcm.mjs
+          echo 'Firebase aceitou aviso. Nao reenviar a mesma versao manualmente.'
