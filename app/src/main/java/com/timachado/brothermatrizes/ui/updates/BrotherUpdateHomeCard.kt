@@ -1,6 +1,10 @@
 package com.timachado.brothermatrizes.ui.updates
 
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.BuildConfig
 import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
+import com.timachado.brothermatrizes.core.updates.BrotherInAppUpdateEvents
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.UpdateInAppNoticeRules
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -66,8 +72,26 @@ fun BrotherUpdateHomeCard(refreshRequest: Int) {
     var status by remember { mutableStateOf<String?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var expanded by remember { mutableStateOf(false) }
+    var receivedNotification by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshRequest) {
+    // Mesmo com o aplicativo aberto na tela inicial, uma notificação FCM
+    // atualiza imediatamente o cartão. Receiver não exportado para outros apps.
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(source: Context?, intent: Intent?) {
+                if (intent?.action == BrotherInAppUpdateEvents.ACTION) {
+                    receivedNotification++
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            context, receiver, IntentFilter(BrotherInAppUpdateEvents.ACTION),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+
+    LaunchedEffect(refreshRequest, receivedNotification) {
         val checked = client.check(context.applicationContext)
         available = checked as? BrotherUpdateClient.Result.Available
         // Não impedir o usuário de dispensar a mesma versão após atualização do estado.
