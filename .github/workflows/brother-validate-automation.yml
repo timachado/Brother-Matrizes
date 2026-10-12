@@ -36,7 +36,7 @@ jobs:
           raise 'Job de release nao encontrado' unless jobs.is_a?(Hash) && jobs['launch']
           steps=jobs['launch']['steps']
           combined=steps.select {|s| s.is_a?(Hash) && s['run']}.map {|s| s['run']}.join("\n")
-          %w[apksigner zipalign sha256sum contents/stable.json github.com].each do |word|
+          %w[apksigner zipalign sha256sum contents/updates/stable.json github.com].each do |word|
             raise "Guarda comercial ausente: #{word}" unless combined.include?(word)
           end
           raise 'Workflow nao protegido pelo ambiente de release' unless jobs['launch']['environment']=='brother-release-signing'
