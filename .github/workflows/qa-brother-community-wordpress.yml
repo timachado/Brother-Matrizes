@@ -1,0 +1,53 @@
+name: Brother Matrizes - QA Comunidade WordPress
+
+on:
+  push:
+    branches:
+      - feature/brother-comunidade-wordpress-20261012
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wordpress-community:
+    name: Verificar plugin PHP sem instalacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: PHP 8.2 com linter
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+          coverage: none
+
+      - name: Verificar sintaxe de todos arquivos PHP do plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          find wordpress/tim-brother-sync -type f -name '*.php' -print0 | xargs -0 -r -n 1 php -l
+
+      - name: Verificar que a comunidade e isolada do comercio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('wordpress/tim-brother-sync')
+          boot=(root/'tim-brother-sync.php').read_text()
+          code=(root/'includes/community.php').read_text()
+          assert "require_once __DIR__ . '/includes/community.php';" in boot
+          for token in ["brother_matrizes_community", "wp_verify_nonce", "admin_post_nopriv_tim_brother_feedback", "manage_options", "wp_safe_redirect", "post_status' => 'private'"]:
+              assert token in code, token
+          assert 'tim_brother_community_group_url' in code
+          print('Verificacoes estaticas de isolamento, nonce e privacidade aprovadas.')
+          PY
