@@ -195,9 +195,17 @@ jobs:
           [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || { echo 'Rascunho nao encontrado na API'; exit 1; }
           EXISTING="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets" --jq 'length')"
           test "$EXISTING" = "0" || { echo 'Rascunho ja possui APK; nao substituir binario'; exit 1; }
-          gh release upload "$TAG" "dist/$APK"
-          ASSET_SHA="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets" \
-            --jq '.[0].digest' | sed 's/^sha256://')"
+          # Upload binario via ID: a consulta por tag pode ocultar drafts.
+          UPLOADED="$(curl --fail-with-body --silent --show-error --retry 2 \
+            --max-time 240 -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@dist/$APK" \
+            "https://uploads.github.com/repos/$GH_REPO/releases/$RELEASE_ID/assets?name=$APK")"
+          test "$(jq -r '.name' <<< "$UPLOADED")" = "$APK"
+          test "$(jq -r '.state' <<< "$UPLOADED")" = "uploaded"
+          ASSET_SHA="$(jq -r '.digest' <<< "$UPLOADED" | sed 's/^sha256://')"
           test "$SHA" = "$ASSET_SHA" || { echo 'Digest nao corresponde ao APK comercial'; exit 1; }
           echo "APK comercial anexado ao rascunho e certificado pelo GitHub."
 
