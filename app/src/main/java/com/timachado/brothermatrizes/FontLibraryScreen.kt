@@ -385,7 +385,7 @@ fun FontLibraryScreen(
                         TextMatrixGenerator
                             .generate(
                                 TextMatrixOptions(
-                                    text = "FIO",
+                                    text = "BM",
                                     heightMm =
                                         13f,
                                     style =
