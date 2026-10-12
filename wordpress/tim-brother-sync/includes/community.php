@@ -102,7 +102,26 @@ add_shortcode('brother_matrizes_community', function() {
           <?php if ($url) : ?>
             <a href="<?php echo esc_url($url); ?>" rel="noopener noreferrer" target="_blank">Seguir canal oficial</a>
           <?php else : ?>
-            <p><strong>Canal em preparação.</strong> O acesso será liberado nesta página quando estiver disponível.</p>
+            <p data-bm-channel-pending><strong>Canal em preparação.</strong> O acesso será liberado nesta página quando estiver disponível.</p>
+            <a data-bm-channel-link hidden href="#" rel="noopener noreferrer" target="_blank">Seguir canal oficial</a>
+            <script>
+              (function(){
+                var root=document.getElementById('brother-community');
+                if(!root||!window.fetch)return;
+                var action=root.querySelector('[data-bm-channel-link]');
+                var pending=root.querySelector('[data-bm-channel-pending]');
+                if(!action||!pending)return;
+                fetch('https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/community.json',{cache:'no-store'})
+                  .then(function(r){if(!r.ok)throw Error('offline');return r.json();})
+                  .then(function(data){
+                    if(data.product!=='brother-matrizes'||typeof data.channelUrl!=='string')return;
+                    if(!/^https:\/\/(?:www\.)?whatsapp\.com\/channel\/[A-Za-z0-9]+\/?$/.test(data.channelUrl))return;
+                    action.href=data.channelUrl;
+                    action.hidden=false;
+                    pending.hidden=true;
+                  }).catch(function(){/* mantém acesso indisponível, sem link falso */});
+              })();
+            </script>
           <?php endif; ?>
         </div>
       </div>
@@ -148,6 +167,7 @@ add_shortcode('brother_matrizes_community', function() {
       .tim-brother-community textarea,.tim-brother-community input[type=email],.tim-brother-community select{display:block;width:100%;box-sizing:border-box;background:#f9fafb;color:#152234;border:1px solid #aebbc8;border-radius:9px;padding:12px;font-size:16px}
       .tim-brother-community .bm-consent{font-size:13px;font-weight:400;display:flex;align-items:flex-start;gap:8px}
       .tim-brother-community .bm-honeypot{position:absolute;left:-9999px}
+      .tim-brother-community [hidden]{display:none!important}
       .tim-brother-community .bm-success{color:#b8f3d0}.tim-brother-community .bm-error{color:#ffb7b7}
     </style>
     <?php
