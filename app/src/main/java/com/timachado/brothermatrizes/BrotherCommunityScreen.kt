@@ -232,12 +232,12 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = FioSurface)
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Notificações", color = FioText, fontWeight = FontWeight.Bold)
+                Text("Notificações push", color = FioText, fontWeight = FontWeight.Bold)
                 Text(
-                    "Escolha quais avisos deseja receber. As notificações são opcionais e podem ser desativadas a qualquer momento.",
+                    "Escolha os avisos enviados pelo Firebase. Os alertas locais de atualização continuam independentes deste ajuste.",
                     color = FioTextMuted
                 )
-                Text("Novas versões: " + if (updateEnabled) "Ativadas" else "Desativadas", color = FioText)
+                Text("Push de novas versões: " + (if (updateEnabled) "Ativado" else "Desativado"), color = FioText)
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
@@ -246,7 +246,7 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                             updateEnabled = false
                         } else activate("update")
                     }
-                ) { Text(if (updateEnabled) "Desativar avisos de versões" else "Ativar avisos de versões") }
+                ) { Text(if (updateEnabled) "Desativar push de versões" else "Ativar push de versões") }
                 Text("Novidades da comunidade: " + if (communityEnabled) "Ativadas" else "Desativadas", color = FioText)
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
