@@ -1,0 +1,45 @@
+name: Brother Matrizes - QA da automacao comercial
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-commercial-release.yml'
+      - '.github/workflows/brother-validate-automation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verificar estrutura do workflow comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY'
+          require 'yaml'
+          path='.github/workflows/brother-commercial-release.yml'
+          data=YAML.load_file(path)
+          events=data['on'] || data[true]
+          raise 'workflow_dispatch ausente' unless events.is_a?(Hash) && events.key?('workflow_dispatch')
+          inputs=events.dig('workflow_dispatch','inputs')
+          expected=%w[source_ref version_name version_code release_notes announce title body dry_run]
+          raise "Inputs faltando: #{expected-inputs.keys}" unless (expected-inputs.keys).empty?
+          jobs=data['jobs']
+          raise 'Job de release nao encontrado' unless jobs.is_a?(Hash) && jobs['launch']
+          steps=jobs['launch']['steps']
+          combined=steps.select {|s| s.is_a?(Hash) && s['run']}.map {|s| s['run']}.join("\n")
+          %w[apksigner zipalign sha256sum contents/stable.json github.com].each do |word|
+            raise "Guarda comercial ausente: #{word}" unless combined.include?(word)
+          end
+          raise 'Workflow nao protegido pelo ambiente de release' unless jobs['launch']['environment']=='brother-release-signing'
+          raise 'Assinatura comercial original nao fixada' unless combined.include?('EXPECTED_CERT')
+          puts 'QA: YAML valido, versionamento, assinatura comercial, digest e manifesto presentes.'
+          RUBY
