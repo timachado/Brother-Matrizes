@@ -32,7 +32,6 @@ object BrotherApkUpdater {
     private const val SITE_PAGE = "https://timachado.ifree.page/aplicativos/brother-matrizes/"
     private const val EXPECTED_CERT = "fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a"
     private const val MAX_APK_BYTES = 150L * 1024L * 1024L
-    private val anchorRegex = Regex("""href\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
 
     suspend fun download(
         context: Context,
@@ -139,27 +138,15 @@ object BrotherApkUpdater {
             }
             val html = page.inputStream.bufferedReader().use { it.readText().take(1_000_001) }
             require(html.length <= 1_000_000) { "Página de download inesperadamente grande." }
-            val links = anchorRegex.findAll(html).map { match ->
-                match.groupValues[1].replace("&amp;", "&")
-            }
-            for (link in links) {
-                val candidate = runCatching { URL(URL(SITE_PAGE), link) }.getOrNull() ?: continue
-                if (!safeOfficial(candidate)) continue
-                val uri = Uri.parse(candidate.toString())
-                if ((uri.getQueryParameter("ti_app_download")?.toLongOrNull() ?: 0L) > 0L &&
-                    !uri.getQueryParameter("_wpnonce").isNullOrBlank()) {
-                    return candidate
-                }
-            }
-            error("Não foi encontrado o botão de download do APK na página oficial. Confirme que ele está publicado.")
+            return BrotherApkSourceRules.findDownloadUrl(html)
+                ?: error("O botão de download do APK não está disponível na página oficial.")
+
         } finally {
             page.disconnect()
         }
     }
 
-    private fun safeOfficial(url: URL): Boolean =
-        url.protocol == "https" && url.host.equals(OFFICIAL_HOST, ignoreCase = true) &&
-            url.userInfo == null && (url.port == -1 || url.port == 443)
+    private fun safeOfficial(url: URL): Boolean = BrotherApkSourceRules.isOfficial(url)
 
     private fun openOfficial(url: URL): HttpsURLConnection {
         var current = url
