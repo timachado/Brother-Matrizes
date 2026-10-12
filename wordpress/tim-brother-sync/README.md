@@ -1,3 +1,19 @@
+## Novo na versão 1.1.0 — App Commerce Core
+
+Integração somente de leitura (filtro `get_post_metadata`) dos campos `_ti_app_version`, `_ti_app_release_notes`, `_ti_app_apk_attachment_id` e `_ti_app_download`, exclusivamente para o cadastro `ti_app` **307**. Campos confirmados em cópia do App Commerce Core **2.6.6**. Acesso `_ti_app_download_access` é consultado, **nunca alterado**.
+
+- Versão e notas aparecem dinamicamente a partir do manifesto `main/updates/stable.json`.
+- Se o Core está em modo `free`, o arquivo GitHub validado torna-se a origem de download e o attachment antigo permanece armazenado, sem exclusão.
+- Se está em `licensed`, as URLs/attachments do Core não são alteradas e o fluxo comercial é mantido.
+- Nenhum campo financeiro, produto, pedido, plano ou licença é modificado.
+- Se o manifesto não estiver disponível, o Core recebe os metadados originais.
+- Download de APK disponibilizado **publicamente** no GitHub pode ser obtido fora da loja. Recursos Pro continuam dependendo da licença validada no aplicativo.
+- A versão de produção atual do Core pode ser mais recente que 2.6.6: testar primeiro a UI, o link e a tela de compra antes de tratar como concluído.
+
+**Instalação única:** no WordPress, atualize **Brother Matrizes — Atualizações Automáticas** instalando o ZIP v1.1.0 e aceitando substituir a versão antiga. **Não substitua o App Commerce Core**. Em Ferramentas → Brother Matrizes, veja o status da integração. Desativar apenas esse plugin restaura os dados originais do Core sem apagar registros.
+
+---
+
 # Brother Matrizes — sincronização automática no WordPress
 
 Este plugin faz a **sincronização de informações de atualizações** entre o GitHub e o WordPress. Foi criado especificamente para `timachado.ifree.page`; **não modifica o WooCommerce, produtos, pedidos, preços, login, Supabase, Efí ou licenças**.
