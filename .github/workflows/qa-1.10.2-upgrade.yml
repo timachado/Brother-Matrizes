@@ -5,7 +5,7 @@ on:
     branches:
       - release/brother-matrizes-1.10.2
     paths:
-      - 'scripts/qa_upgrade_1_10_0_to_1_10_1.sh'
+      - 'scripts/qa_upgrade_1_10_1_to_1_10_2.sh'
       - '.github/workflows/qa-1.10.2-upgrade.yml'
       - 'app/**'
       - 'build.gradle.kts'
@@ -48,7 +48,7 @@ jobs:
         with:
           gradle-version: '9.6.0'
       - name: Validar script QA
-        run: bash -n candidate/scripts/qa_upgrade_1_10_0_to_1_10_1.sh
+        run: bash -n candidate/scripts/qa_upgrade_1_10_1_to_1_10_2.sh
       - name: Compilar APKs debug das duas versoes
         run: |
           gradle --no-daemon -p previous :app:assembleDebug
@@ -68,4 +68,4 @@ jobs:
           profile: pixel_7
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bash candidate/scripts/qa_upgrade_1_10_0_to_1_10_1.sh previous/app/build/outputs/apk/debug/app-debug.apk candidate/app/build/outputs/apk/debug/app-debug.apk
+          script: bash candidate/scripts/qa_upgrade_1_10_1_to_1_10_2.sh previous/app/build/outputs/apk/debug/app-debug.apk candidate/app/build/outputs/apk/debug/app-debug.apk
