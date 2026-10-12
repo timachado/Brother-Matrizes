@@ -13,7 +13,7 @@ const VERSION = '1.10.4';
 const CODE = 180;
 const APK_SHA256 = '62a663f3710c5989b2bc128f8a0b301bc2cd5f45ad1572a2d618cf51367d4ac0';
 const PROJECT = 'brother-matrizes---ti-machado';
-const APPROVAL_PATH = 'releases/brother-1.10.4-notification-approved.json';
+const APPROVAL_PATH = 'releases/brother-1.10.4-notification-approved-retry1.json';
 
 function check(condition, why) {
   if (!condition) throw Error(why);
