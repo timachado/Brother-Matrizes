@@ -10,11 +10,19 @@ import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 /**
- * Consulta metadados públicos de versão do WordPress da T.I. Machado.
- * Não usa autenticação, dados pessoais, WooCommerce ou Efí.
- * Abre o APK no navegador: não instala nem verifica o binário baixado.
+ * Consulta o manifesto publico de atualizacoes Brother Matrizes.
+ * O espelho GitHub oficial tem prioridade sobre o WordPress para evitar cache
+ * desatualizado e paginas HTML de bloqueio, sem mexer nos dados comerciais.
+ * A instalacao e validacao do APK sao realizadas por BrotherApkUpdater.
  */
 class BrotherUpdateClient(private val endpoint: String) {
+    companion object {
+        private const val WORDPRESS_ENDPOINT_PREFIX =
+            "https://timachado.ifree.page/wp-json/tim-brother-updates/v1/latest"
+        private const val OFFICIAL_MIRROR =
+            "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"
+    }
+
     data class Release(
         val versionName: String,
         val versionCode: Long,
@@ -33,6 +41,16 @@ class BrotherUpdateClient(private val endpoint: String) {
     }
 
     suspend fun check(context: Context): Result = withContext(Dispatchers.IO) {
+        // GitHub é a fonte oficial da versão/hash e tem link APK direto. A
+        // hospedagem WordPress pode devolver HTML anti-bot ou cache antigo.
+        // Consultar primeiro o espelho oficial impede falso "atualizado"
+        // e evita sugerir um APK diferente do que o assinador publicou.
+        if (endpoint.startsWith(WORDPRESS_ENDPOINT_PREFIX)) {
+            when (val mirrorResult = BrotherUpdateClient(OFFICIAL_MIRROR).check(context)) {
+                is Result.Available, Result.UpToDate -> return@withContext mirrorResult
+                else -> Unit // Se GitHub cair, manter tentativa na API WordPress.
+            }
+        }
         var connection: HttpsURLConnection? = null
         try {
             val url = URL(endpoint)
@@ -87,7 +105,7 @@ class BrotherUpdateClient(private val endpoint: String) {
             val trustedMirror = url.host == "raw.githubusercontent.com" &&
                 url.path == "/timachado/Brother-Matrizes/main/updates/stable.json"
             val acceptedType = mediaType == "application/json" ||
-                (trustedMirror && mediaType == "text/plain")
+                (trustedMirror && mediaType in setOf("text/plain", "application/octet-stream"))
             if (!acceptedType) {
                 return@withContext Result.Error("O servidor não retornou os dados de atualização esperados.")
             }
