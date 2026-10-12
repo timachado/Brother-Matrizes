@@ -17,5 +17,7 @@
   "broadcastPushAtLaunch": false,
   "approvalDate": "2026-10-12",
   "releaseNotes": "Nova Comunidade Brother Matrizes; Feedback direto para WhatsApp ou e-mail; Avisos de novidades e novas versões com ativação opcional; Melhorias de interface e correções de estabilidade.",
-  "publicationPolicy": "Rebuild, verify original signing certificate, upload GitHub Release, verify public APK checksum, then update stable.json. Do not announce via FCM during launch."
+  "publicationPolicy": "Rebuild, verify original signing certificate, upload GitHub Release, verify public APK checksum, then update stable.json. Do not announce via FCM during launch.",
+  "publicationRetry": 2,
+  "retryReason": "Fix checkout source_ref fallback for push; original attempt blocked before compiling or publishing"
 }
