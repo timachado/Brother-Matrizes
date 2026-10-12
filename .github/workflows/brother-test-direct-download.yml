@@ -1,0 +1,35 @@
+name: Brother Matrizes - testar download APK direto 1.10.1
+on:
+  push:
+    branches:
+      - hotfix/brother-matrizes-1.10.1-updates-premium
+    paths:
+      - .github/workflows/brother-test-direct-download.yml
+permissions:
+  contents: read
+jobs:
+  test-public-download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Baixar release sem token e comparar hash e APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.1/Brother-Matrizes-v1.10.1-ASSINADO.apk"
+          EXPECTED="fd0cd07eaf71915f1d15dcbed6e3681c113cbde6df2c50ac3e1b27c0bc226651"
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            --user-agent "BrotherMatrizes-Android-Updater/1.10.1" \
+            "$URL" -o /tmp/brother-public.apk
+          echo "$EXPECTED  /tmp/brother-public.apk" | sha256sum --check --status
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          p=Path('/tmp/brother-public.apk')
+          assert 14_000_000 < p.stat().st_size < 20_000_000
+          assert p.open('rb').read(4).startswith(b'PK')
+          with ZipFile(p) as z:
+              assert z.testzip() is None
+              assert 'AndroidManifest.xml' in z.namelist()
+          print('SUCESSO: download HTTPS publico direto, hash SHA-256 exato e APK integro.')
+          PY
