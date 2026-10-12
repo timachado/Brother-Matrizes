@@ -198,3 +198,14 @@ function tim_brother_receive_feedback() {
 }
 add_action('admin_post_tim_brother_feedback', 'tim_brother_receive_feedback');
 add_action('admin_post_nopriv_tim_brother_feedback', 'tim_brother_receive_feedback');
+
+
+// Permite ao administrador ler o e-mail opcional sem expô-lo publicamente.
+add_action('add_meta_boxes_tim_brother_feedback', function() {
+    add_meta_box('tim_brother_feedback_contact', 'Contato autorizado', function($post) {
+        if (!current_user_can('edit_post', $post->ID)) { return; }
+        $email = (string) get_post_meta($post->ID, '_tim_brother_contact_email', true);
+        echo '<p>' . ($email !== '' ? esc_html($email) : 'Não informado.') . '</p>';
+        echo '<p>Exclua feedbacks antigos periodicamente para limitar a retenção de dados pessoais.</p>';
+    }, 'tim_brother_feedback', 'side', 'default');
+});
