@@ -52,7 +52,7 @@ fun BrotherPostUpdateNews() {
     LaunchedEffect(installed) {
         // Recurso introduzido na 1.10.8; não mostrar a pessoas que ainda
         // usam uma versão antiga por meio de uma composição temporária.
-        if (installed < 184L || prefs.getLong("shown_version_code", 0L) >= installed) {
+        if (!BrotherPostUpdatePolicy.shouldDisplay(installed, prefs.getLong("shown_version_code", 0L))) {
             return@LaunchedEffect
         }
         notes = BrotherNewsSource.loadCurrentOrFallback()
@@ -125,6 +125,12 @@ private fun BrotherNewsDialog(notes: String, onDismiss: () -> Unit) {
             }
         }
     )
+}
+
+internal object BrotherPostUpdatePolicy {
+    /** Exibir uma vez por código de versão; reabrir manualmente não grava nova marca. */
+    fun shouldDisplay(installedCode: Long, lastAcknowledgedCode: Long): Boolean =
+        installedCode >= 184L && installedCode > lastAcknowledgedCode
 }
 
 internal object BrotherNewsSource {
