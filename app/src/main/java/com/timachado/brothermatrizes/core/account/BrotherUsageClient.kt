@@ -52,6 +52,29 @@ internal object BrotherUsageClient {
         }
     }
 
+    data class ToolUsage(
+        val operation: String, val used: Int, val limit: Int, val remaining: Int
+    )
+
+    /** Read-only counters. This method does not reserve or change quota. */
+    suspend fun monthlyToolUsage(accessToken: String): List<ToolUsage> {
+        val json = post(accessToken, JSONObject().put("action", "status"))
+        val items = json.optJSONArray("items") ?: error("Consumo indisponível.")
+        return buildList {
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                val op = item.optString("operation")
+                if (op !in setOf("telegram_search", "dafont_search", "rar_receive")) continue
+                val max = item.optInt("limit", -1)
+                val used = item.optInt("used", -1)
+                val left = item.optInt("remaining", -1)
+                if (max >= 0 && used >= 0 && left >= 0) {
+                    add(ToolUsage(op, used, max, left))
+                }
+            }
+        }
+    }
+
     /**
      * Monthly tools are server-metered before a real external action,
      * and finalized only if the action is successfully started.
