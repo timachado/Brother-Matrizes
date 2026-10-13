@@ -364,7 +364,22 @@ object BrotherMatrizesAccountService {
                 error("Não foi possível restaurar a sessão Google. Confira a conexão e tente novamente.")
             else -> error("A autenticação está temporariamente indisponível.")
         }
+        // Uma sessão genérica (e-mail/senha ou cadastro antigo) não prova login Google.
+        // O servidor de cotas repete essa validação via app_metadata do Auth.
+        check(BrotherGoogleProviderRules.verified(session.user?.appMetadata)) {
+            "Para importar matrizes ou fontes, entre com sua conta Google em Minha Conta."
+        }
         return session.accessToken
+    }
+
+    /** Pré-checagem de login Google antes do seletor de matrizes.
+     * A reserva de cota ocorre somente depois da escolha do arquivo.
+     */
+    suspend fun ensureGoogleSession(): Result<Unit> = runCatching {
+        check(verifiedAccessToken().isNotBlank()) {
+            "Entre com Google na aba Minha Conta para abrir matrizes."
+        }
+        Unit
     }
 
     suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {

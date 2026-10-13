@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.account.AccountPlanOption
 import com.timachado.brothermatrizes.core.account.AccountPlanCatalog
 import com.timachado.brothermatrizes.core.account.BrotherLaunchPriceDisplay
+import com.timachado.brothermatrizes.core.account.BrotherPlanBenefits
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.AccountSubscriptionEvent
@@ -102,65 +104,52 @@ fun AccountScreen(
     onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
     onOpenPlan: (String) -> Unit,
+    onOpenSupport: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    var showingPlans by remember { mutableStateOf(false) }
+    var showingBenefits by remember { mutableStateOf(false) }
+    var preferencesOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = showingPlans || showingBenefits) {
+        if (showingPlans) showingPlans = false else showingBenefits = false
+    }
+    if (showingBenefits && account != null) {
+        BrotherMyBenefitsScreen(
+            account = account,
+            onBack = { showingBenefits = false },
+            onOpenPlans = {
+                showingBenefits = false
+                showingPlans = true
+            }
+        )
+        return
+    }
+    if (showingPlans) {
+        BrotherPlansScreen(
+            account = account,
+            onBack = { showingPlans = false },
+            onActivateTrial = onActivateTrial,
+            onOpenPlan = onOpenPlan,
+            onOpenWebAccount = onOpenWebAccount
+        )
+        return
+    }
     Column(
         Modifier
             .fillMaxSize()
-            .padding(
-                horizontal =
-                    16.dp
-            )
+            .background(if (account != null) BrotherAccountNavy else FioBackground)
+            .padding(horizontal = 16.dp)
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(
-                    vertical =
-                        6.dp
-                ),
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-            TextButton(
-                onClick = onBack
+        if (account != null) {
+            BrotherAccountHeader(onBack = onBack)
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "‹ Voltar",
-                    color =
-                        FioGold
-                )
-            }
-
-            Column(
-                Modifier.weight(
-                    1f
-                )
-            ) {
-                Text(
-                    "Minha Conta",
-                    color =
-                        FioText,
-                    fontWeight =
-                        FontWeight.Bold,
-                    fontSize =
-                        20.sp
-                )
-
-                Text(
-                    if (
-                        account ==
-                            null
-                    ) {
-                        "Entre para acompanhar sua conta."
-                    } else {
-                        "Perfil e assinatura Brother Matrizes."
-                    },
-                    color =
-                        FioTextMuted,
-                    fontSize =
-                        10.sp
-                )
+                TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
+                Text("Minha Conta", color = FioText, fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp)
             }
         }
 
@@ -272,19 +261,6 @@ fun AccountScreen(
             }
         }
 
-        TextScalePreferenceCard(
-            textScale = textScale,
-            onTextScaleChange = onTextScaleChange,
-            colorMode = colorMode,
-            onColorModeChange = onColorModeChange
-        )
-
-        Spacer(
-            Modifier.height(
-                10.dp
-            )
-        )
-
         if (
             account ==
                 null
@@ -307,10 +283,41 @@ fun AccountScreen(
                 onRefresh = onRefresh,
                 onActivateTrial = onActivateTrial,
                 onOpenWebAccount = onOpenWebAccount,
-                onOpenPlan = onOpenPlan,
+                onOpenPlans = { showingPlans = true },
+                onOpenBenefits = { showingBenefits = true },
+                onOpenSupport = onOpenSupport,
+                textScale = textScale,
+                onTextScaleChange = onTextScaleChange,
+                colorMode = colorMode,
+                onColorModeChange = onColorModeChange,
                 onSignOut = onSignOut
             )
         }
+        if (account == null) {
+        TextButton(
+            onClick = { preferencesOpen = !preferencesOpen },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (preferencesOpen) "Fechar preferências" else "Aparência e preferências  ›",
+                color = FioGold)
+        }
+        if (preferencesOpen) {
+        TextScalePreferenceCard(
+            textScale = textScale,
+            onTextScaleChange = onTextScaleChange,
+            colorMode = colorMode,
+            onColorModeChange = onColorModeChange
+        )
+
+        Spacer(
+            Modifier.height(
+                10.dp
+            )
+        )
+
+        }
+        }
+
         }
     }
 }
@@ -839,154 +846,41 @@ private fun SignedOutAccount(
 @Composable
 private fun SignedInAccount(
     account: AccountSnapshot,
-    onSaveName: (
-        displayName: String
-    ) -> Unit,
+    onSaveName: (String) -> Unit,
     onRefresh: () -> Unit,
     onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
-    onOpenPlan: (String) -> Unit,
+    onOpenPlans: () -> Unit,
+    onOpenBenefits: () -> Unit,
+    onOpenSupport: () -> Unit,
+    textScale: Float,
+    onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit,
     onSignOut: () -> Unit
 ) {
-    val context =
-        LocalContext.current
-
-    var displayName by remember(
-        account.userId,
-        account.displayName
-    ) {
-        mutableStateOf(
-            account.displayName
-        )
+    val context = LocalContext.current
+    var displayName by remember(account.userId, account.displayName) {
+        mutableStateOf(account.displayName)
     }
+    var licenseOpen by remember(account.userId) { mutableStateOf(false) }
+    var historyOpen by remember(account.userId) { mutableStateOf(false) }
+    var devicesOpen by remember(account.userId) { mutableStateOf(false) }
+    var profileOpen by remember(account.userId) { mutableStateOf(false) }
+    var preferencesOpen by remember(account.userId) { mutableStateOf(false) }
+    var moreOpen by remember(account.userId) { mutableStateOf(false) }
 
     Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(
-                top =
-                    18.dp,
-                bottom =
-                    30.dp
-            )
+        Modifier.fillMaxWidth().padding(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Card(
-            modifier =
-                Modifier
-                    .fillMaxWidth(),
-            colors =
-                CardDefaults
-                    .cardColors(
-                        containerColor =
-                            FioSurface
-                    ),
-            shape =
-                RoundedCornerShape(
-                    24.dp
-                )
-        ) {
-            Column(
-                Modifier.padding(
-                    18.dp
-                ),
-                horizontalAlignment =
-                    Alignment.CenterHorizontally
-            ) {
-                AccountAvatar(
-                    account =
-                        account
-                )
-
-                Spacer(
-                    Modifier.height(
-                        12.dp
-                    )
-                )
-
-                Text(
-                    account.displayName,
-                    color =
-                        FioText,
-                    fontWeight =
-                        FontWeight.Bold,
-                    fontSize =
-                        20.sp
-                )
-
-                Text(
-                    account.email,
-                    color =
-                        FioTextMuted,
-                    fontSize =
-                        11.sp
-                )
-
-                Spacer(
-                    Modifier.height(
-                        18.dp
-                    )
-                )
-
-                OutlinedTextField(
-                    value =
-                        displayName,
-                    onValueChange = {
-                        displayName =
-                            it.take(
-                                80
-                            )
-                    },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth(),
-                    label = {
-                        Text(
-                            "Nome no Brother Matrizes"
-                        )
-                    },
-                    singleLine =
-                        true
-                )
-
-                Spacer(
-                    Modifier.height(
-                        10.dp
-                    )
-                )
-
-                Button(
-                    onClick = {
-                        onSaveName(
-                            displayName
-                        )
-                    },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth(),
-                    colors =
-                        ButtonDefaults
-                            .buttonColors(
-                                containerColor =
-                                    FioGold,
-                                contentColor =
-                                    FioBackground
-                            )
-                ) {
-                    Text(
-                        "Salvar nome",
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(
-            Modifier.height(
-                14.dp
-            )
+        BrotherAccountHero(
+            account = account,
+            onBenefits = if (account.commercialConfigured && account.hasProAccess)
+                onOpenBenefits else onOpenPlans,
+            onLicense = { licenseOpen = !licenseOpen }
         )
-
+        if (licenseOpen) {
         Card(
             modifier =
                 Modifier
@@ -1412,76 +1306,124 @@ private fun SignedInAccount(
             )
         )
 
-        // Keep the plan section visible even during commercial API
-        // outages or before the WooCommerce product IDs are mapped.
-        // No cached/placeholder price is ever presented as an active offer.
-        val visiblePlans = AccountPlanCatalog.forDisplay(account.availablePlans)
+        }
+        Spacer(Modifier.height(10.dp))
+
+        BrotherAccountMenuItem(
+            "Planos e benefícios", "plans", onClick = onOpenPlans
+        )
+        BrotherAccountMenuItem(
+            "Compras e histórico", "history",
+            onClick = { historyOpen = !historyOpen }, expanded = historyOpen
+        )
+        if (historyOpen) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = FioSurface),
-            shape = RoundedCornerShape(24.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth(),
+            colors =
+                CardDefaults
+                    .cardColors(
+                        containerColor =
+                            FioSurface
+                    ),
+            shape =
+                RoundedCornerShape(
+                    24.dp
+                )
         ) {
-            Column(Modifier.padding(18.dp)) {
-                Text(
-                    "Planos Brother Matrizes",
-                    color = FioText,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+            Column(
+                Modifier.padding(
+                    18.dp
                 )
+            ) {
                 Text(
-                    if (account.availablePlans.isEmpty())
-                        "Não foi possível atualizar os planos agora. " +
-                            "As opções estão visíveis, mas preços e contratação " +
-                            "ficam indisponíveis até a conexão ser restabelecida."
-                    else if (!account.commercialConfigured)
-                        "Planos disponíveis para consulta. " +
-                            "Aguarde a validação da sua licença para contratar."
-                    else if (visiblePlans.any { it.isPaid && !it.active })
-                        "Alguns planos ainda estão em preparação. " +
-                            "Valores de lançamento. Confira o preço final e a disponibilidade no checkout da T.I. Machado."
-                    else
-                        "Confira abaixo os preços e as opções disponíveis.",
-                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
-                    color = FioTextMuted,
-                    fontSize = 10.sp
+                    "Histórico da assinatura",
+                    color =
+                        FioText,
+                    fontWeight =
+                        FontWeight.Bold,
+                    fontSize =
+                        18.sp
                 )
-                OutlinedButton(
-                    onClick = onOpenWebAccount,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Minhas compras e licenças no site", color = FioGold)
-                }
-                Text(
-                    "Compre no site com o mesmo e-mail confirmado no Google deste aplicativo. " +
-                        "Depois volte e toque em Verificar licença. " +
-                        "Seu plano Pro só aparece após o WooCommerce confirmar o pagamento.",
-                    modifier = Modifier.padding(bottom = 10.dp),
-                    color = FioTextMuted,
-                    fontSize = 10.sp
-                )
-                visiblePlans.forEachIndexed { index, plan ->
-                    PlanSummary(
-                        plan = plan,
-                        current = account.commercialConfigured &&
-                            plan.code == account.planCode,
-                        onOpenPlan = onOpenPlan
+
+                Spacer(
+                    Modifier.height(
+                        8.dp
                     )
-                    if (index < visiblePlans.lastIndex) {
-                        Spacer(Modifier.height(10.dp))
-                    }
-                }
-                if (account.availablePlans.isEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onRefresh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Atualizar planos", color = FioGold) }
+                )
+
+                if (
+                    account.subscriptionHistory
+                        .isEmpty()
+                ) {
+                    Text(
+                        "Seu histórico aparecerá aqui após a primeira contratação, renovação ou compra vitalícia.",
+                        color =
+                            FioTextMuted,
+                        fontSize =
+                            10.sp
+                    )
+                } else {
+                    account.subscriptionHistory
+                        .take(
+                            6
+                        )
+                        .forEachIndexed {
+                                index,
+                                event ->
+                            SubscriptionHistoryLine(
+                                event =
+                                    event
+                            )
+
+                            if (
+                                index <
+                                    account
+                                        .subscriptionHistory
+                                        .take(
+                                            6
+                                        )
+                                        .lastIndex
+                            ) {
+                                Spacer(
+                                    Modifier.height(
+                                        8.dp
+                                    )
+                                )
+                            }
+                        }
                 }
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(
+            Modifier.height(
+                14.dp
+            )
+        )
 
+        }
+        BrotherAccountMenuItem(
+            "Ajuda e suporte", "help", onClick = onOpenSupport
+        )
+        BrotherAccountMenuItem(
+            "Aparência e preferências", "settings",
+            onClick = { preferencesOpen = !preferencesOpen }, expanded = preferencesOpen
+        )
+        if (preferencesOpen) {
+            TextScalePreferenceCard(
+                textScale = textScale,
+                onTextScaleChange = onTextScaleChange,
+                colorMode = colorMode,
+                onColorModeChange = onColorModeChange
+            )
+        }
+        BrotherAccountMenuItem(
+            "Dispositivos conectados", "devices",
+            onClick = { devicesOpen = !devicesOpen }, expanded = devicesOpen
+        )
+        if (devicesOpen) {
         Card(
             modifier =
                 Modifier
@@ -1615,6 +1557,12 @@ private fun SignedInAccount(
             )
         )
 
+        }
+        BrotherAccountMenuItem(
+            "Dados pessoais", "profile",
+            onClick = { profileOpen = !profileOpen }, expanded = profileOpen
+        )
+        if (profileOpen) {
         Card(
             modifier =
                 Modifier
@@ -1633,64 +1581,95 @@ private fun SignedInAccount(
             Column(
                 Modifier.padding(
                     18.dp
-                )
+                ),
+                horizontalAlignment =
+                    Alignment.CenterHorizontally
             ) {
+                AccountAvatar(
+                    account =
+                        account
+                )
+
+                Spacer(
+                    Modifier.height(
+                        12.dp
+                    )
+                )
+
                 Text(
-                    "Histórico da assinatura",
+                    account.displayName,
                     color =
                         FioText,
                     fontWeight =
                         FontWeight.Bold,
                     fontSize =
-                        18.sp
+                        20.sp
+                )
+
+                Text(
+                    account.email,
+                    color =
+                        FioTextMuted,
+                    fontSize =
+                        11.sp
                 )
 
                 Spacer(
                     Modifier.height(
-                        8.dp
+                        18.dp
                     )
                 )
 
-                if (
-                    account.subscriptionHistory
-                        .isEmpty()
+                OutlinedTextField(
+                    value =
+                        displayName,
+                    onValueChange = {
+                        displayName =
+                            it.take(
+                                80
+                            )
+                    },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(),
+                    label = {
+                        Text(
+                            "Nome no Brother Matrizes"
+                        )
+                    },
+                    singleLine =
+                        true
+                )
+
+                Spacer(
+                    Modifier.height(
+                        10.dp
+                    )
+                )
+
+                Button(
+                    onClick = {
+                        onSaveName(
+                            displayName
+                        )
+                    },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(),
+                    colors =
+                        ButtonDefaults
+                            .buttonColors(
+                                containerColor =
+                                    FioGold,
+                                contentColor =
+                                    FioBackground
+                            )
                 ) {
                     Text(
-                        "Seu histórico aparecerá aqui após a primeira contratação, renovação ou compra vitalícia.",
-                        color =
-                            FioTextMuted,
-                        fontSize =
-                            10.sp
+                        "Salvar nome",
+                        fontWeight =
+                            FontWeight.Bold
                     )
-                } else {
-                    account.subscriptionHistory
-                        .take(
-                            6
-                        )
-                        .forEachIndexed {
-                                index,
-                                event ->
-                            SubscriptionHistoryLine(
-                                event =
-                                    event
-                            )
-
-                            if (
-                                index <
-                                    account
-                                        .subscriptionHistory
-                                        .take(
-                                            6
-                                        )
-                                        .lastIndex
-                            ) {
-                                Spacer(
-                                    Modifier.height(
-                                        8.dp
-                                    )
-                                )
-                            }
-                        }
                 }
             }
         }
@@ -1701,6 +1680,12 @@ private fun SignedInAccount(
             )
         )
 
+        }
+        BrotherAccountMenuItem(
+            "Sobre e atualizações", "info",
+            onClick = { moreOpen = !moreOpen }, expanded = moreOpen, last = true
+        )
+        if (moreOpen) {
         AboutBrotherMatrizesCard()
 
         Spacer(
@@ -1717,16 +1702,16 @@ private fun SignedInAccount(
             )
         )
 
+        }
+
+        Spacer(Modifier.height(22.dp))
         OutlinedButton(
-            onClick =
-                onSignOut,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
+            onClick = onSignOut,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BrotherAccountBorder)
         ) {
-            Text(
-                "Sair da conta"
-            )
+            Text("Sair da conta", color = BrotherAccountMuted, fontSize = 12.sp)
         }
     }
 }
@@ -1937,184 +1922,6 @@ private fun AboutBrotherMatrizesCard() {
                         FioGold,
                     fontWeight =
                         FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanSummary(
-    plan: AccountPlanOption,
-    current: Boolean,
-    onOpenPlan: (String) -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                if (current) FioGold.copy(alpha = .10f)
-                else FioBackground.copy(alpha = .34f),
-                RoundedCornerShape(16.dp)
-            )
-            .clickable(enabled = plan.isPaid && !current) {
-                onOpenPlan(plan.code)
-            }
-            .padding(12.dp)
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth(),
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-            Text(
-                plan.name
-                    .replace(
-                        "Brother Matrizes",
-                        "Brother Matrizes"
-                    ),
-                modifier =
-                    Modifier.weight(
-                        1f
-                    ),
-                color =
-                    if (
-                        current
-                    ) {
-                        FioGold
-                    } else {
-                        FioText
-                    },
-                fontWeight =
-                    FontWeight.Bold,
-                fontSize =
-                    13.sp
-            )
-
-            if (
-                current
-            ) {
-                Text(
-                    "● Seu plano",
-                    color =
-                        FioGold,
-                    fontWeight =
-                        FontWeight.SemiBold,
-                    fontSize =
-                        9.sp
-                )
-            } else if (
-                plan.isPromotional
-            ) {
-                Text(
-                    "Lançamento",
-                    color =
-                        FioGold,
-                    fontWeight =
-                        FontWeight.SemiBold,
-                    fontSize =
-                        9.sp
-                )
-            }
-        }
-
-        Text(
-            AccountPresentation
-                .billingLabel(
-                    plan.billingType
-                ) +
-                " • " +
-                when {
-                    !plan.isPaid ->
-                        "Grátis"
-
-                    plan.priceCents != null ||
-                        BrotherLaunchPriceDisplay.priceCents(plan.code) != null ->
-                        formattedMoney(
-                            plan.priceCents
-                                ?: BrotherLaunchPriceDisplay.priceCents(plan.code)!!,
-                            plan.currency
-                        )
-
-                    else ->
-                        "Preço ainda não publicado"
-                },
-            modifier =
-                Modifier.padding(
-                    top =
-                        3.dp
-                ),
-            color =
-                FioTextMuted,
-            fontSize =
-                10.sp
-        )
-
-        if (
-            plan.description
-                .isNotBlank()
-        ) {
-            Text(
-                plan.description
-                    .replace(
-                        "Brother Matrizes",
-                        "Brother Matrizes"
-                    ),
-                modifier =
-                    Modifier.padding(
-                        top =
-                            4.dp
-                    ),
-                color =
-                    FioTextMuted,
-                fontSize =
-                    10.sp
-            )
-        }
-        if (plan.isPaid && !plan.active) {
-            Text(
-                "Consulte a disponibilidade e as condições no site.",
-                modifier = Modifier.padding(top = 6.dp),
-                color = FioTextMuted,
-                fontSize = 10.sp
-            )
-        }
-        if (plan.isPaid && !plan.active &&
-            BrotherLaunchPriceDisplay.priceCents(plan.code) != null
-        ) {
-            Text(
-                "Valor de vitrine; confirmação e disponibilidade no checkout.",
-                modifier = Modifier.padding(top = 5.dp),
-                color = FioTextMuted,
-                fontSize = 9.sp
-            )
-        }
-        if (plan.isPromotional) {
-            Text(
-                "Oferta limitada a 50 licenças de lançamento, conforme estoque.",
-                modifier = Modifier.padding(top = 5.dp),
-                color = FioGold,
-                fontSize = 10.sp
-            )
-        }
-        if (plan.isPaid &&
-            (plan.priceCents != null || BrotherLaunchPriceDisplay.priceCents(plan.code) != null) &&
-            !current
-        ) {
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { onOpenPlan(plan.code) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    if (plan.active) {
-                        if (plan.isLifetime) "Comprar vitalício no site" else "Assinar no site"
-                    } else {
-                        "Ver plano no site"
-                    },
-                    color = FioGold
                 )
             }
         }

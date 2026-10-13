@@ -69,6 +69,7 @@ internal object BrotherUsageClient {
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                 setRequestProperty("Authorization", "Bearer $accessToken")
+                setRequestProperty("X-Brother-App-Version-Code", BuildConfig.VERSION_CODE.toString())
             }
             try {
                 conn.outputStream.use {

@@ -63,6 +63,8 @@ class BrotherUpdateClient(private val endpoint: String) {
                 connectTimeout = 8_000
                 readTimeout = 8_000
                 instanceFollowRedirects = false
+                useCaches = false
+                setRequestProperty("Cache-Control", "no-cache")
             }
             val status = connection.responseCode
             if (status == 404) {
