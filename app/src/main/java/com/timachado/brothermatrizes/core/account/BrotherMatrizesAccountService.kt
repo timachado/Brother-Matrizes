@@ -405,7 +405,10 @@ object BrotherMatrizesAccountService {
         origin: BrotherMeteredAction = BrotherMeteredAction.OPEN_MATRIX
     ): Result<String> = runCatching {
         if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
-            BrotherUsageClient.reserveAction(verifiedAccessToken(), origin)
+            // Every successful new matrix, regardless of its entry point,
+            // must debit the SAME monthly import_matrix allowance shown in Planos.
+            // Daily navigation/search budgets never replace the monthly import budget.
+            BrotherUsageClient.reserve(verifiedAccessToken(), isFont = false)
         } else if (BuildConfig.BETA_LOCAL_IMPORTS) {
             // Resolve paid access from WooCommerce-confirmed Supabase mirror.
             // Refresh a stale lease before importing; free preview works offline.
@@ -448,8 +451,8 @@ object BrotherMatrizesAccountService {
         fingerprint: String? = null
     ): Result<Unit> = runCatching {
         if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
-            BrotherUsageClient.finalizeAction(
-                verifiedAccessToken(), origin, requestKey, success, fingerprint
+            BrotherUsageClient.finalize(
+                verifiedAccessToken(), isFont = false, requestKey, success
             )
         } else if (BuildConfig.BETA_LOCAL_IMPORTS) {
             if (requestKey.startsWith("pro_")) {
