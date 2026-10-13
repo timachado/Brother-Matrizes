@@ -19,11 +19,12 @@ const headers = {
 const reply = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers });
 const imports = new Set(["import_font", "import_matrix"]);
-const dailyActions = new Set([
-  "open_matrix", "rar_receive", "telegram_search", "telegram_import",
-  "dafont_search", "dafont_import",
+// The matrix/font import quotas already reset monthly (5/3), regardless of
+// source. Only searches/external RAR handoffs need supplemental monthly quotas.
+const monthlyActions = new Set([
+  "rar_receive", "telegram_search", "dafont_search",
 ]);
-const operations = new Set([...imports, ...dailyActions]);
+const operations = new Set([...imports, ...monthlyActions]);
 const requestKey = /^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 Deno.serve(async (req: Request) => {
@@ -126,7 +127,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (payload.action === "status") {
-    const { data, error } = await admin.rpc("brother_matrizes_action_status", {
+    const { data, error } = await admin.rpc("brother_matrizes_monthly_action_status", {
       p_user_id: user.id,
     });
     if (error || !data) return reply({ message: "Não foi possível consultar o consumo." }, 503);
@@ -141,22 +142,21 @@ Deno.serve(async (req: Request) => {
     if (!isPro) return reply({ message: "Seu acesso Pro não está mais ativo." }, 403);
     return reply({ ok: true, pro: true });
   }
-  if (dailyActions.has(payload.operation as string)) {
+  if (monthlyActions.has(payload.operation as string)) {
     const operation = payload.operation as string;
     if (payload.action === "reserve") {
-      const { data, error } = await admin.rpc("brother_matrizes_reserve_action", {
+      const { data, error } = await admin.rpc("brother_matrizes_reserve_monthly_action", {
         p_user_id: user.id, p_operation: operation,
       });
-      if (error) return reply({ message: "Não foi possível consultar a cota diária." }, 503);
+      if (error) return reply({ message: "Não foi possível consultar a cota mensal." }, 503);
       if (data?.allowed !== true)
-        return reply({ message: "Cota diária atingida. Ela renova à meia-noite de Brasília. Consulte os planos PRO.",
+        return reply({ message: "Cota mensal atingida. O limite renova no início do próximo mês (UTC). Consulte os planos PRO.",
           ...data }, 409);
       return reply(data);
     }
-    const { data, error } = await admin.rpc("brother_matrizes_finalize_action", {
+    const { data, error } = await admin.rpc("brother_matrizes_finalize_monthly_action", {
       p_user_id: user.id, p_operation: operation,
       p_request_key: payload.request_key, p_success: payload.success,
-      p_fingerprint: payload.fingerprint || null,
     });
     if (error) return reply({ message: "Não foi possível confirmar a operação." }, 503);
     return reply({ ok: true, counted: data === true });
