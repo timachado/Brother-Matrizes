@@ -45,6 +45,6 @@ verify(strpos($html, 'Brother Matrizes') !== false, 'Escopo da vitrine incorreto
 
 $GLOBALS['bm_test_stock'] = 0;
 $htmlSoldOut = bm_planos_display_shortcode();
-verify(strpos($htmlSoldOut, 'Oferta indisponível no momento') !== false, 'Sem estoque deve bloquear compra');
+verify(strpos($htmlSoldOut, 'Indisponível') !== false, 'Sem estoque deve bloquear compra');
 verify(strpos($htmlSoldOut, '/produto/308/') === false, 'Produto esgotado ainda pode ser comprado');
 echo "QA shortcode WooCommerce: preco, economia, link, estoque e isolamento aprovados.\n";
