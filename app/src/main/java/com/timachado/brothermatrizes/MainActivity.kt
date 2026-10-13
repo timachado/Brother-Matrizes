@@ -46,6 +46,7 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
+import com.timachado.brothermatrizes.ui.updates.BrotherVersionGate
 import com.timachado.brothermatrizes.ui.updates.BrotherUpdateReminder
 import com.timachado.brothermatrizes.ui.updates.BrotherFirebasePushOptIn
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
                 textScaleMultiplier = textScale,
                 darkTheme = darkTheme
             ) {
+                BrotherVersionGate(resumeRequest = updateResumeRequest) {
                 BrotherFirebasePushOptIn()
                 BrotherUpdateReminder(
                     endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
@@ -215,6 +217,7 @@ class MainActivity : ComponentActivity() {
                                 )
                     }
                 )
+                }
             }
         }
     }
