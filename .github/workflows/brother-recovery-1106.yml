@@ -63,10 +63,25 @@ jobs:
       - name: Verify release output exists
         run: test -s app/build/outputs/apk/release/app-release-unsigned.apk
 
-      - name: Export unsigned APK for local signing (never publish)
+      - name: Align recovery APK and prepare official Android signing utility
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovery-signing
+          TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          test -s "$TOOLS/lib/apksigner.jar"
+          "$TOOLS/zipalign" -P 16 -f -v 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            recovery-signing/Brother-Matrizes-1.10.6-aligned-unsigned.apk
+          "$TOOLS/zipalign" -P 16 -c -v 4 \
+            recovery-signing/Brother-Matrizes-1.10.6-aligned-unsigned.apk
+          cp "$TOOLS/lib/apksigner.jar" recovery-signing/apksigner.jar
+          test -s recovery-signing/apksigner.jar
+
+      - name: Export unsigned APK and official signer for local private signing
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-1.10.6-recovery-UNSIGNED
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          name: Brother-Matrizes-1.10.6-recovery-UNSIGNED-and-signer
+          path: recovery-signing/*
           if-no-files-found: error
           retention-days: 2
