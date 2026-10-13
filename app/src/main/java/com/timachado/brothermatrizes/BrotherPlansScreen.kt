@@ -24,6 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import com.timachado.brothermatrizes.core.account.AccountPlanCatalog
 import com.timachado.brothermatrizes.core.account.AccountPlanOption
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
+import com.timachado.brothermatrizes.core.account.BrotherLaunchOfferCatalog
 import com.timachado.brothermatrizes.core.account.BrotherLaunchPriceDisplay
 import com.timachado.brothermatrizes.core.account.BrotherPlanBenefits
 import java.text.NumberFormat
@@ -66,6 +68,19 @@ internal fun BrotherPlansScreen(
     val pricingScrollState = rememberScrollState()
     val comparisonScrollState = rememberScrollState()
     BackHandler(enabled = showFullComparison) { showFullComparison = false }
+    // Public, read-only WooCommerce Store API. Checkout remains authoritative.
+    var launchAvailability by remember {
+        mutableStateOf<BrotherLaunchOfferCatalog.Status>(
+            BrotherLaunchOfferCatalog.Status.Unknown
+        )
+    }
+    LaunchedEffect(Unit) {
+        launchAvailability = BrotherLaunchOfferCatalog.fetch()
+    }
+    LaunchedEffect(launchAvailability) {
+        if (launchAvailability is BrotherLaunchOfferCatalog.Status.Unavailable)
+            lifetimeOption = "pro_lifetime"
+    }
     val plans = AccountPlanCatalog.forDisplay(account?.availablePlans ?: emptyList())
     val byCode = plans.associateBy { it.code }
     val serverConfirmed = account?.commercialConfigured == true
@@ -220,7 +235,13 @@ internal fun BrotherPlansScreen(
                 PremiumPlanCard(
                     label = "SEM MENSALIDADES",
                     title = "PRO Vitalício",
-                    price = marketingPrice(byCode[lifetimeOption], lifetimeOption),
+                    price = if (lifetimeOption == "pro_lifetime_launch") {
+                        when (val available = launchAvailability) {
+                            is BrotherLaunchOfferCatalog.Status.Available ->
+                                marketingMoney(available.priceCents)
+                            else -> "Confirmar no site"
+                        }
+                    } else marketingPrice(byCode[lifetimeOption], lifetimeOption),
                     description = "Invista uma vez nos recursos PRO incluídos.",
                     highlights = listOf(
                         "Pagamento único",
@@ -229,18 +250,36 @@ internal fun BrotherPlansScreen(
                     featured = true
                 ) {
                     PremiumPlanSelector(
-                        options = listOf(
+                        options = if (
+                            launchAvailability is BrotherLaunchOfferCatalog.Status.Unavailable
+                        ) listOf("Vitalício" to "pro_lifetime") else listOf(
                             "Vitalício" to "pro_lifetime",
                             "Lançamento" to "pro_lifetime_launch"
                         ),
                         selected = lifetimeOption,
                         onSelect = { lifetimeOption = it }
                     )
-                    if (lifetimeOption == "pro_lifetime_launch") {
-                        Text(
-                            "Oferta sujeita ao estoque real do WooCommerce.",
+                    when (launchAvailability) {
+                        is BrotherLaunchOfferCatalog.Status.Available -> {
+                            if (lifetimeOption == "pro_lifetime_launch") {
+                                Text(
+                                    "Oferta disponível na última consulta. O checkout confirma o estoque final.",
+                                    color = BrotherAccountMuted, fontSize = 11.sp
+                                )
+                            }
+                        }
+                        BrotherLaunchOfferCatalog.Status.Unavailable -> Text(
+                            "A edição de lançamento está indisponível no WooCommerce.",
                             color = BrotherAccountMuted, fontSize = 11.sp
                         )
+                        BrotherLaunchOfferCatalog.Status.Unknown -> {
+                            if (lifetimeOption == "pro_lifetime_launch") {
+                                Text(
+                                    "Estoque não confirmado neste aparelho. Consulte a oferta na loja.",
+                                    color = BrotherAccountMuted, fontSize = 11.sp
+                                )
+                            }
+                        }
                     }
                     if (lifetime) {
                         Text("Sua licença já oferece esse acesso.",
