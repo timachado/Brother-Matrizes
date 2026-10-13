@@ -586,16 +586,19 @@ private fun BrotherMatrizesApp(
         }
     }
 
-    LaunchedEffect(
-        externalOpenUri
-    ) {
-        val uri =
-            externalOpenUri
-                ?: return@LaunchedEffect
-
-        loading =
-            true
-
+    // External ACTION_VIEW/SEND also requires a verified Google account and
+    // the same server reservation as the built-in picker.
+    LaunchedEffect(externalOpenUri, updateResumeRequest) {
+        val uri = externalOpenUri ?: return@LaunchedEffect
+        val auth = BrotherMatrizesAccountService.ensureGoogleSession()
+        if (auth.isFailure) {
+            screen = Screen.Account
+            snackbar.showSnackbar(
+                "Entre com sua conta Google para abrir matrizes e registrar as cotas."
+            )
+            return@LaunchedEffect // Keep URI until the Google login returns.
+        }
+        loading = true
         val isArchive = withContext(Dispatchers.IO) {
             SafeArchiveExtractor.isArchive(context, uri)
         }
@@ -603,45 +606,43 @@ private fun BrotherMatrizesApp(
             loading = false
             screen = Screen.ArchiveImport(uri)
             onExternalOpenConsumed(uri)
+            return@LaunchedEffect // Extractor already reserves its own imports.
+        }
+        val reserved = BrotherMatrizesAccountService.authorizeImport(context, isFont = false)
+        if (reserved.isFailure) {
+            loading = false
+            snackbar.showSnackbar(
+                reserved.exceptionOrNull()?.message
+                    ?: "Não foi possível registrar sua cota de matrizes."
+            )
+            onExternalOpenConsumed(uri)
             return@LaunchedEffect
         }
-        val result =
-            withContext(
-                Dispatchers.IO
-            ) {
-                EmbroideryLoader.load(
-                    context.contentResolver,
-                    uri
-                )
-            }
-
-        loading =
-            false
-
-        when (
-            result
-        ) {
-            is EmbroideryLoadResult.Success -> {
-                activateDesign(
-                    result.design
-                )
-
-                screen =
-                    Screen.Viewer(
-                        result.design
-                    )
-            }
-
-            is EmbroideryLoadResult.Error -> {
-                snackbar.showSnackbar(
-                    result.userMessage
-                )
-            }
+        val key = reserved.getOrThrow()
+        val result = withContext(Dispatchers.IO) {
+            EmbroideryLoader.load(context.contentResolver, uri)
         }
-
-        onExternalOpenConsumed(
-            uri
+        val saved = BrotherMatrizesAccountService.finalizeImport(
+            context, isFont = false, requestKey = key,
+            success = result is EmbroideryLoadResult.Success
         )
+        loading = false
+        if (saved.isFailure) {
+            snackbar.showSnackbar(
+                saved.exceptionOrNull()?.message
+                    ?: "Não foi possível confirmar o registro da importação."
+            )
+            onExternalOpenConsumed(uri)
+            return@LaunchedEffect
+        }
+        when (result) {
+            is EmbroideryLoadResult.Success -> {
+                activateDesign(result.design)
+                screen = Screen.Viewer(result.design)
+            }
+            is EmbroideryLoadResult.Error -> snackbar.showSnackbar(result.userMessage)
+        }
+        onExternalOpenConsumed(uri)
     }
 
     LaunchedEffect(Unit) {
@@ -774,18 +775,36 @@ private fun BrotherMatrizesApp(
 
             scope.launch {
                 loading = true
-
-                val result =
-                    withContext(
-                        Dispatchers.IO
-                    ) {
-                        EmbroideryLoader.load(
-                            context.contentResolver,
-                            uri
-                        )
-                    }
-
+                // The file picker is not a quota bypass: reserve before parsing.
+                val reserved = BrotherMatrizesAccountService.authorizeImport(
+                    context, isFont = false
+                )
+                if (reserved.isFailure) {
+                    loading = false
+                    telegramImportPending = false
+                    snackbar.showSnackbar(
+                        reserved.exceptionOrNull()?.message
+                            ?: "Não foi possível registrar sua cota de matrizes."
+                    )
+                    return@launch
+                }
+                val key = reserved.getOrThrow()
+                val result = withContext(Dispatchers.IO) {
+                    EmbroideryLoader.load(context.contentResolver, uri)
+                }
+                val finalized = BrotherMatrizesAccountService.finalizeImport(
+                    context, isFont = false, requestKey = key,
+                    success = result is EmbroideryLoadResult.Success
+                )
                 loading = false
+                if (finalized.isFailure) {
+                    telegramImportPending = false
+                    snackbar.showSnackbar(
+                        finalized.exceptionOrNull()?.message
+                            ?: "Não foi possível confirmar o registro da importação."
+                    )
+                    return@launch
+                }
 
                 when (result) {
                     is EmbroideryLoadResult.Success -> {
@@ -820,6 +839,23 @@ private fun BrotherMatrizesApp(
                 }
             }
         }
+
+    fun requestMatrixPicker(telegram: Boolean = false) {
+        scope.launch {
+            val logged = BrotherMatrizesAccountService.ensureGoogleSession()
+            if (logged.isFailure) {
+                telegramImportPending = false
+                screen = Screen.Account
+                snackbar.showSnackbar(
+                    "Para abrir uma matriz, entre com sua conta Google. " +
+                        "As cotas serão registradas na sua conta."
+                )
+            } else {
+                telegramImportPending = telegram
+                picker.launch(arrayOf("*/*"))
+            }
+        }
+    }
 
     val saveDocumentLauncher =
         rememberLauncherForActivityResult(
@@ -1813,11 +1849,7 @@ private fun BrotherMatrizesApp(
                                     )
                             }
                         },
-                        onOpen = {
-                            picker.launch(
-                                arrayOf("*/*")
-                            )
-                        },
+                        onOpen = { requestMatrixPicker() },
                         onRecent = {
                             recent?.let {
                                 screen =
@@ -1995,10 +2027,7 @@ private fun BrotherMatrizesApp(
                     TelegramMatrixSearchScreen(
                         projects = savedProjects,
                         onBack = { goBack() },
-                        onImport = {
-                            telegramImportPending = true
-                            picker.launch(arrayOf("*/*"))
-                        },
+                        onImport = { requestMatrixPicker(telegram = true) },
                         onOpenSavedProject = { saved ->
                             loadProject(saved, transferDirectly = false)
                         }
@@ -2276,11 +2305,7 @@ private fun BrotherMatrizesApp(
                         onBack = {
                             goBack()
                         },
-                        onOpen = {
-                            picker.launch(
-                                arrayOf("*/*")
-                            )
-                        },
+                        onOpen = { requestMatrixPicker() },
                         onSimulate = {
                             screen =
                                 Screen
