@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
   const minimum = Number(Deno.env.get("BROTHER_MINIMUM_CLIENT_VERSION_CODE") || "0");
   if (Number.isSafeInteger(minimum) && minimum > 0) {
     const supplied = req.headers.get("x-brother-app-version-code") || "";
-    const installed = /^\\d{1,9}$/.test(supplied) ? Number(supplied) : 0;
+    const installed = /^\d{1,9}$/.test(supplied) ? Number(supplied) : 0;
     if (!Number.isSafeInteger(installed) || installed < minimum) {
       return reply({
         message: "Atualização obrigatória do Brother Matrizes. Atualize pelo site oficial para continuar importando.",
