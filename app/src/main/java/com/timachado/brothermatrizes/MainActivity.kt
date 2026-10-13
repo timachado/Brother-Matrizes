@@ -623,14 +623,22 @@ private fun BrotherMatrizesApp(
             return@LaunchedEffect
         }
         val key = reserved.getOrThrow()
-        val result = withContext(Dispatchers.IO) {
-            EmbroideryLoader.load(context.contentResolver, uri)
+        val parsed = runCatching {
+            withContext(Dispatchers.IO) {
+                EmbroideryLoader.load(context.contentResolver, uri)
+            }
         }
+        val result = parsed.getOrNull()
         val saved = BrotherMatrizesAccountService.finalizeImport(
             context, isFont = false, requestKey = key,
             success = result is EmbroideryLoadResult.Success
         )
         loading = false
+        if (parsed.isFailure) {
+            snackbar.showSnackbar("Não foi possível ler esta matriz. A cota não foi consumida.")
+            onExternalOpenConsumed(uri)
+            return@LaunchedEffect
+        }
         if (saved.isFailure) {
             snackbar.showSnackbar(
                 saved.exceptionOrNull()?.message
@@ -645,6 +653,7 @@ private fun BrotherMatrizesApp(
                 screen = Screen.Viewer(result.design)
             }
             is EmbroideryLoadResult.Error -> snackbar.showSnackbar(result.userMessage)
+            null -> Unit
         }
         onExternalOpenConsumed(uri)
     }
@@ -793,14 +802,22 @@ private fun BrotherMatrizesApp(
                     return@launch
                 }
                 val key = reserved.getOrThrow()
-                val result = withContext(Dispatchers.IO) {
-                    EmbroideryLoader.load(context.contentResolver, uri)
+                val parsed = runCatching {
+                    withContext(Dispatchers.IO) {
+                        EmbroideryLoader.load(context.contentResolver, uri)
+                    }
                 }
+                val result = parsed.getOrNull()
                 val finalized = BrotherMatrizesAccountService.finalizeImport(
                     context, isFont = false, requestKey = key,
                     success = result is EmbroideryLoadResult.Success
                 )
                 loading = false
+                if (parsed.isFailure) {
+                    telegramImportPending = false
+                    snackbar.showSnackbar("Não foi possível ler esta matriz. A cota não foi consumida.")
+                    return@launch
+                }
                 if (finalized.isFailure) {
                     telegramImportPending = false
                     snackbar.showSnackbar(
@@ -840,6 +857,7 @@ private fun BrotherMatrizesApp(
                         telegramImportPending = false
                         snackbar.showSnackbar(result.userMessage)
                     }
+                    null -> Unit
                 }
             }
         }
