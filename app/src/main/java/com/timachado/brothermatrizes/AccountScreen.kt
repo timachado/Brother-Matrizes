@@ -267,6 +267,7 @@ fun AccountScreen(
                 onSaveName =
                     onSaveName,
                 onRefresh = onRefresh,
+                onActivateTrial = onActivateTrial,
                 onOpenWebAccount = onOpenWebAccount,
                 onOpenPlans = { showingPlans = true },
                 onOpenSupport = onOpenSupport,
@@ -299,7 +300,8 @@ fun AccountScreen(
             )
         )
 
-        }        }
+        }
+        }
 
         }
     }
@@ -831,6 +833,7 @@ private fun SignedInAccount(
     account: AccountSnapshot,
     onSaveName: (String) -> Unit,
     onRefresh: () -> Unit,
+    onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
     onOpenPlans: () -> Unit,
     onOpenSupport: () -> Unit,
