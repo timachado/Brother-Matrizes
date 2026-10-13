@@ -51,6 +51,7 @@ import com.timachado.brothermatrizes.core.account.AccountPlanOption
 import com.timachado.brothermatrizes.core.account.AccountPlanCatalog
 import com.timachado.brothermatrizes.core.account.BrotherLaunchPriceDisplay
 import com.timachado.brothermatrizes.core.account.BrotherPlanBenefits
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
 import com.timachado.brothermatrizes.core.account.AccountSubscriptionEvent
@@ -869,6 +870,26 @@ private fun SignedInAccount(
     var profileOpen by remember(account.userId) { mutableStateOf(false) }
     var preferencesOpen by remember(account.userId) { mutableStateOf(false) }
     var moreOpen by remember(account.userId) { mutableStateOf(false) }
+    var otherMonthlyQuota by remember(account.userId) {
+        mutableStateOf<Map<String, Int>>(emptyMap())
+    }
+    LaunchedEffect(account.userId, licenseOpen, account.hasProAccess) {
+        otherMonthlyQuota = emptyMap()
+        if (!licenseOpen || account.hasProAccess) return@LaunchedEffect
+        val usage = BrotherMatrizesAccountService.monthlyUsage().getOrNull()
+        val items = usage?.optJSONArray("items")
+        val quotas = mutableMapOf<String, Int>()
+        if (items != null) {
+            for (index in 0 until items.length()) {
+                val entry = items.optJSONObject(index) ?: continue
+                val name = entry.optString("operation")
+                if (name in setOf("rar_receive", "telegram_search", "dafont_search")) {
+                    quotas[name] = entry.optInt("remaining", 0).coerceAtLeast(0)
+                }
+            }
+        }
+        otherMonthlyQuota = quotas
+    }
 
     Column(
         Modifier.fillMaxWidth().padding(bottom = 28.dp),
@@ -985,6 +1006,24 @@ private fun SignedInAccount(
                             Text("${titles[key] ?: key}: $remaining",
                                 color = FioTextMuted, fontSize = 11.sp)
                         }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    if (!account.hasProAccess && otherMonthlyQuota.isNotEmpty()) {
+                        Text("Demais cotas mensais restantes", color = FioText,
+                            fontWeight = FontWeight.SemiBold)
+                        listOf(
+                            "rar_receive" to "Abrir/enviar pelo RAR",
+                            "telegram_search" to "Pesquisar no Telegram",
+                            "dafont_search" to "Pesquisar no DaFont"
+                        ).forEach { (key, label) ->
+                            otherMonthlyQuota[key]?.let { remaining ->
+                                Text("$label: $remaining",
+                                    color = FioTextMuted, fontSize = 11.sp)
+                            }
+                        }
+                        Text("Renovação no início de cada mês. As importações do Telegram " +
+                            "e DaFont usam as cotas de matrizes e fontes acima.",
+                            color = FioTextMuted, fontSize = 10.sp)
                         Spacer(Modifier.height(10.dp))
                     }
                 }
