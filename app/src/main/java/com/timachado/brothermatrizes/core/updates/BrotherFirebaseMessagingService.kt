@@ -1,5 +1,9 @@
 package com.timachado.brothermatrizes.core.updates
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import android.app.NotificationChannel
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -65,6 +69,11 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun showUpdateNotification(title: String, body: String): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return@runCatching false
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
             NotificationChannel(
@@ -106,6 +115,11 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
     }.getOrDefault(false)
 
     private fun showCommunityNotification(title: String, body: String): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return@runCatching false
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
             NotificationChannel(
