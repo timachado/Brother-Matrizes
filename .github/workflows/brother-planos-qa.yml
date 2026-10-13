@@ -54,7 +54,8 @@ jobs:
           grep -Fq 'versionCode = 181' app/build.gradle.kts
           grep -Fq 'versionName = "1.10.5"' app/build.gradle.kts
           test -s app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherPlanBenefits.kt
-          grep -Fq 'AccountPremiumSummary(' app/src/main/java/com/timachado/brothermatrizes/AccountScreen.kt
+          grep -Fq 'BrotherAccountHero(' app/src/main/java/com/timachado/brothermatrizes/AccountScreen.kt
+          test -s app/src/main/java/com/timachado/brothermatrizes/AccountPremiumComponents.kt
           grep -Fq 'BrotherPlansScreen(' app/src/main/java/com/timachado/brothermatrizes/AccountScreen.kt
           test -s app/src/main/java/com/timachado/brothermatrizes/BrotherPlansScreen.kt
 
