@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
+import com.timachado.brothermatrizes.core.account.BrotherMeteredAction
+import kotlinx.coroutines.launch
 import com.timachado.brothermatrizes.core.project.SavedProjectSummary
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -81,7 +85,8 @@ fun ProjectLibraryScreen(
     onBackup: () -> Unit,
     onRestore: () -> Unit,
     onFonts: () -> Unit,
-    onSearchMatrices: () -> Unit
+    onSearchMatrices: () -> Unit,
+    onLoginRequired: () -> Unit
 ) {
     var section by remember {
         mutableStateOf(
@@ -91,19 +96,67 @@ fun ProjectLibraryScreen(
     val context = LocalContext.current
     var showRarOptions by remember { mutableStateOf(false) }
     var rarMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // Meter only a successful third-party handoff, never a cancelled selection.
+    suspend fun recordRarHandoff(handoff: () -> Boolean): Boolean {
+        val auth = BrotherMatrizesAccountService.ensureGoogleSession()
+        if (auth.isFailure) {
+            rarMessage = "Entre com Google em Minha Conta para usar o RAR."
+            onLoginRequired()
+            return false
+        }
+        val reserved = BrotherMatrizesAccountService.reserveDailyAction(
+            BrotherMeteredAction.RAR_RECEIVE
+        )
+        if (reserved.isFailure) {
+            rarMessage = reserved.exceptionOrNull()?.message
+                ?: "Você atingiu sua cota diária de ações com RAR."
+            return false
+        }
+        val ok = runCatching { handoff() }.getOrDefault(false)
+        val completed = BrotherMatrizesAccountService.completeDailyAction(
+            BrotherMeteredAction.RAR_RECEIVE, reserved.getOrThrow(), ok
+        )
+        if (completed.isFailure) {
+            rarMessage = "Não foi possível sincronizar o uso do RAR."
+            return false
+        }
+        return ok
+    }
+
     val rarArchivePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val preferred = RarExternalOpener.installed(context)
-            val result = RarExternalOpener.handoff(context, uri, preferred)
-            rarMessage = if (result.isSuccess) {
-                "Extraia o pacote no aplicativo escolhido e volte para abrir a matriz."
-            } else {
-                "Não foi possível abrir o pacote. Escolha um descompactador instalado."
+            scope.launch {
+                val preferred = RarExternalOpener.installed(context)
+                val ok = recordRarHandoff {
+                    RarExternalOpener.handoff(context, uri, preferred).isSuccess
+                }
+                if (ok)
+                    rarMessage = "Extraia o pacote no aplicativo escolhido e volte para abrir a matriz."
+                else if (rarMessage == null)
+                    rarMessage = "Não foi possível abrir o pacote. Escolha um descompactador instalado."
             }
         }
     }
+
+    fun chooseRarArchive() {
+        scope.launch {
+            if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
+                rarMessage = "Entre com Google em Minha Conta para enviar arquivos ao RAR."
+                onLoginRequired()
+                return@launch
+            }
+            rarArchivePicker.launch(arrayOf(
+                "application/zip", "application/vnd.rar",
+                "application/x-rar-compressed",
+                "application/x-7z-compressed", "application/octet-stream"
+            ))
+        }
+    }
+
     if (showRarOptions) {
         AlertDialog(
             onDismissRequest = { showRarOptions = false },
@@ -116,8 +169,13 @@ fun ProjectLibraryScreen(
                 TextButton(onClick = {
                     showRarOptions = false
                     if (RarExternalOpener.installed(context)) {
-                        val opened = RarExternalOpener.launch(context)
-                        if (opened.isFailure) rarMessage = "Não foi possível abrir o RAR."
+                        scope.launch {
+                            val opened = recordRarHandoff {
+                                RarExternalOpener.launch(context).isSuccess
+                            }
+                            if (!opened && rarMessage == null)
+                                rarMessage = "Não foi possível abrir o RAR."
+                        }
                     } else {
                         RarExternalOpener.install(context)
                     }
@@ -131,11 +189,7 @@ fun ProjectLibraryScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showRarOptions = false
-                    rarArchivePicker.launch(arrayOf(
-                        "application/zip", "application/vnd.rar",
-                        "application/x-rar-compressed",
-                        "application/x-7z-compressed", "application/octet-stream"
-                    ))
+                    chooseRarArchive()
                 }) { Text("ESCOLHER ARQUIVO", color = FioText) }
             }
         )
@@ -353,11 +407,7 @@ fun ProjectLibraryScreen(
             }
             OutlinedButton(
                 onClick = {
-                    rarArchivePicker.launch(arrayOf(
-                        "application/zip", "application/vnd.rar",
-                        "application/x-rar-compressed",
-                        "application/x-7z-compressed", "application/octet-stream"
-                    ))
+                    chooseRarArchive()
                 },
                 modifier = Modifier.weight(1f)
             ) {
