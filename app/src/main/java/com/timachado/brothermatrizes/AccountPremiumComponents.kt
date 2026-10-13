@@ -18,6 +18,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +57,12 @@ internal fun BrotherAccountHeader(onBack: () -> Unit) {
             Text("Minha Conta", color = BrotherAccountWhite,
                 fontSize = 26.sp, fontWeight = FontWeight.Bold)
         }
-        BrotherAccountGlyph("crown", Modifier.size(32.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            BrotherAccountGlyph("crown", Modifier.size(28.dp))
+            TextButton(onClick = onBack, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                Text("‹ Voltar", color = BrotherAccountGold, fontSize = 10.sp)
+            }
+        }
     }
 }
 
