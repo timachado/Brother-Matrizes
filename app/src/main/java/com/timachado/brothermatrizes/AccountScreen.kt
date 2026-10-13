@@ -123,10 +123,8 @@ fun AccountScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .padding(
-                horizontal =
-                    16.dp
-            )
+            .background(if (account != null) BrotherAccountNavy else FioBackground)
+            .padding(horizontal = 16.dp)
     ) {
         if (account != null) {
             BrotherAccountHeader(onBack = onBack)
