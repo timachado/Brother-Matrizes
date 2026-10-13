@@ -65,6 +65,19 @@ if (!function_exists('bm_planos_display_shortcode')) {
             );
         }
 
+        $annual_savings = null;
+        $monthly_product = $catalog['monthly']['product'];
+        $yearly_product = $catalog['yearly']['product'];
+        if ($catalog['monthly']['valid'] && $catalog['yearly']['valid']
+            && $monthly_product && $yearly_product) {
+            $monthly_amount = (float) $monthly_product->get_price();
+            $annual_amount = (float) $yearly_product->get_price();
+            $difference = ($monthly_amount * 12) - $annual_amount;
+            if ($monthly_amount > 0 && $annual_amount > 0 && $difference > 0) {
+                $annual_savings = wc_price($difference);
+            }
+        }
+
         ob_start();
         ?>
         <section class="bm-plans-vitrine" id="brother-planos" aria-label="Planos exclusivos do Brother Matrizes">
@@ -118,6 +131,9 @@ if (!function_exists('bm_planos_display_shortcode')) {
                         <p class="bm-price"><?php echo wp_kses_post($price); ?>
                             <span class="bm-period"><?php echo esc_html($term); ?></span>
                         </p>
+                        <?php if ($code === 'yearly' && $annual_savings !== null) : ?>
+                            <p class="bm-stock">Economize <?php echo wp_kses_post($annual_savings); ?> em comparação com 12 mensalidades ao preço atual.</p>
+                        <?php endif; ?>
                         <p><?php echo esc_html($row['description']); ?></p>
                         <ul><?php foreach ($row['bullets'] as $benefit) : ?>
                             <li><?php echo esc_html($benefit); ?></li>
