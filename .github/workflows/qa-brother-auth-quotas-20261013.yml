@@ -1,0 +1,49 @@
+name: Brother Matrizes - QA Google login and free quotas
+
+on:
+  push:
+    branches:
+      - fix/brother-quotas-login-20261013-mach
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Android debug build and unit tests (no publish)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verify target application and quota wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.5"' app/build.gradle.kts
+          grep -Fq 'BrotherUsageClient.reserve(verifiedAccessToken(), isFont = false)' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherMatrizesAccountService.kt
+          grep -Fq 'BrotherMeteredAction.RAR_RECEIVE' app/src/main/java/com/timachado/brothermatrizes/ProjectLibraryScreen.kt
+          grep -Fq 'BrotherMeteredAction.DAFONT_SEARCH' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          grep -Fq 'BrotherMandatoryUpdateGate(' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
+      - name: Unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+      - name: Compile debug APK (not signed for public distribution)
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Confirm APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
