@@ -161,12 +161,16 @@ if (!function_exists('bm_planos_display_shortcode')) {
                 <div class="bm-table-scroll" role="region" aria-label="Comparativo de recursos" tabindex="0">
                     <table><thead><tr><th>Recurso</th><th>Gratuito</th><th>PRO (Mensal, Anual e Vitalício)</th></tr></thead><tbody>
                         <tr><td>Criação e edição de trabalhos</td><td>Disponível</td><td>Disponível</td></tr>
+                        <tr><td>Texto e personalização de bordados</td><td>Disponível</td><td>Disponível</td></tr>
                         <tr><td>Biblioteca local de projetos</td><td>Disponível</td><td>Disponível</td></tr>
-                        <tr><td>Importações de fontes</td><td>Até 3 por mês</td><td>Sem a cota mensal do Gratuito</td></tr>
+                        <tr><td>Fontes TTF/OTF e arquivos ZIP</td><td>Até 3 fontes por mês</td><td>Sem a cota mensal do Gratuito</td></tr>
                         <tr><td>Importações de matrizes</td><td>Até 5 por mês</td><td>Sem a cota mensal do Gratuito</td></tr>
+                        <tr><td>Arquivos de bordado aceitos pelo aplicativo</td><td>Conforme formato</td><td>Conforme formato</td></tr>
+                        <tr><td>Editor, visualização e simulação</td><td>Disponível</td><td>Disponível</td></tr>
+                        <tr><td>Exportar e compartilhar trabalhos</td><td>Conforme formato</td><td>Conforme formato</td></tr>
                         <tr><td>Atualizações oficiais</td><td>Disponíveis</td><td>Disponíveis</td></tr>
-                        <tr><td>Conversor EMB/PES</td><td>Em desenvolvimento</td><td>Em desenvolvimento</td></tr>
                         <tr><td>Testes Beta antecipados</td><td colspan="2">Programa futuro, sem direito contratual garantido</td></tr>
+                        <tr><td>Conversor EMB/PES</td><td>Em desenvolvimento</td><td>Em desenvolvimento</td></tr>
                     </tbody></table>
                 </div>
             </div>
