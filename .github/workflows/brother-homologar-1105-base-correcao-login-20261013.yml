@@ -24,7 +24,7 @@ jobs:
       - name: Carregar exatamente a candidata revisada
         uses: actions/checkout@v4
         with:
-          ref: dbf106feacba9cc11ed9e3258aaf235e2e89609e
+          ref: 63d39157c7dab3c7fd9bea20a1be72e0d3c3d37c
           persist-credentials: false
           path: android
       - name: Java 17
