@@ -1424,41 +1424,18 @@ private fun SignedInAccount(
         ) {
             Column(Modifier.padding(18.dp)) {
                 Text(
-                    "Planos Brother Matrizes",
+                    "Escolha seu plano",
                     color = FioText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
                 Text(
                     if (account.availablePlans.isEmpty())
-                        "Não foi possível atualizar os planos agora. " +
-                            "As opções estão visíveis, mas preços e contratação " +
-                            "ficam indisponíveis até a conexão ser restabelecida."
-                    else if (!account.commercialConfigured)
-                        "Planos disponíveis para consulta. " +
-                            "Aguarde a validação da sua licença para contratar."
-                    else if (visiblePlans.any { it.isPaid && !it.active })
-                        "Alguns planos ainda estão em preparação. " +
-                            "Valores de lançamento. Confira o preço final e a disponibilidade no checkout da T.I. Machado."
-                    else
-                        "Confira abaixo os preços e as opções disponíveis.",
-                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                        "Valores de referência. Confira preço e disponibilidade no site."
+                    else "Compare as opções e escolha como prefere trabalhar.",
+                    modifier = Modifier.padding(top = 3.dp, bottom = 10.dp),
                     color = FioTextMuted,
-                    fontSize = 10.sp
-                )
-                OutlinedButton(
-                    onClick = onOpenWebAccount,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Minhas compras e licenças no site", color = FioGold)
-                }
-                Text(
-                    "Compre no site com o mesmo e-mail confirmado no Google deste aplicativo. " +
-                        "Depois volte e toque em Verificar licença. " +
-                        "Seu plano Pro só aparece após o WooCommerce confirmar o pagamento.",
-                    modifier = Modifier.padding(bottom = 10.dp),
-                    color = FioTextMuted,
-                    fontSize = 10.sp
+                    fontSize = 11.sp
                 )
                 visiblePlans.forEachIndexed { index, plan ->
                     PlanSummary(
@@ -1480,6 +1457,14 @@ private fun SignedInAccount(
                         onClick = onRefresh,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Atualizar planos", color = FioGold) }
+                }
+                Text(
+                    "*Valores informativos. Checkout e WooCommerce confirmam preço, estoque e renovação.",
+                    color = FioTextMuted, fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                TextButton(onClick = onOpenWebAccount, modifier = Modifier.fillMaxWidth()) {
+                    Text("Minhas compras e licenças", color = FioGold)
                 }
             }
         }
@@ -1956,18 +1941,28 @@ private fun PlanSummary(
     hasActiveLifetime: Boolean,
     onOpenPlan: (String) -> Unit
 ) {
-    val lifetimeEquivalent = plan.isLifetime && hasActiveLifetime
-    val owned = current || lifetimeEquivalent
+    val equivalentLifetime = plan.isLifetime && hasActiveLifetime && !current
+    val owned = current || equivalentLifetime
+    val priceCents = plan.priceCents ?: BrotherLaunchPriceDisplay.priceCents(plan.code)
+    val priceLabel = when {
+        !plan.isPaid -> "Grátis"
+        priceCents == null -> "Preço no site"
+        else -> formattedMoney(priceCents, plan.currency) + when (plan.code) {
+            "pro_monthly" -> " / mês"
+            "pro_yearly" -> " / ano"
+            else -> " • única vez"
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                if (owned) FioGold.copy(alpha = .10f)
-                else FioBackground.copy(alpha = .34f),
-                RoundedCornerShape(18.dp)
+                if (owned) FioGold.copy(alpha = .11f)
+                else FioBackground.copy(alpha = .42f),
+                RoundedCornerShape(16.dp)
             )
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1981,170 +1976,161 @@ private fun PlanSummary(
                 fontSize = 14.sp
             )
             if (current) {
-                Text(
-                    "Seu plano atual",
-                    color = FioGold,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.sp
-                )
-            } else if (lifetimeEquivalent) {
-                Text(
-                    "Acesso já incluído",
-                    color = FioGold,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.sp
-                )
+                Text("Seu plano", color = FioGold, fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold)
+            } else if (equivalentLifetime) {
+                Text("Já incluído", color = FioGold, fontSize = 10.sp)
             } else if (plan.isPromotional) {
                 Text("Oferta especial", color = FioGold, fontSize = 10.sp)
             }
         }
+        Text(priceLabel, color = FioText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
-            BrotherPlanBenefits.headline(plan.code),
-            color = FioGold,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp
+            BrotherPlanBenefits.cardSubtitle(plan.code),
+            color = FioTextMuted, fontSize = 11.sp
         )
-        val cents = plan.priceCents ?: BrotherLaunchPriceDisplay.priceCents(plan.code)
-        Text(
-            if (!plan.isPaid) "Grátis"
-            else if (cents != null)
-                formattedMoney(cents, plan.currency) +
-                    when (plan.code) {
-                        "pro_monthly" -> " / mês"
-                        "pro_yearly" -> " / ano"
-                        else -> " • pagamento único"
-                    }
-            else "Preço sob consulta",
-            color = FioText,
-            fontWeight = FontWeight.Bold,
-            fontSize = 15.sp
-        )
+        BrotherPlanBenefits.cardHighlights(plan.code).forEach { highlight ->
+            Text("✓ " + highlight, color = FioTextMuted, fontSize = 11.sp)
+        }
         if (plan.code == "pro_yearly") {
-            val monthlyPrice = BrotherLaunchPriceDisplay.priceCents("pro_monthly")
-            val yearlyPrice = cents
-            BrotherPlanBenefits.yearlySavings(monthlyPrice, yearlyPrice)?.let { savings ->
+            BrotherPlanBenefits.yearlySavings(
+                BrotherLaunchPriceDisplay.priceCents("pro_monthly"), priceCents
+            )?.let { savings ->
                 Text(
-                    "Economia indicativa de " + formattedMoney(savings, plan.currency) +
-                        " em relação a 12 mensalidades. Confirme os valores no checkout.",
-                    color = FioGold, fontWeight = FontWeight.SemiBold, fontSize = 10.sp
+                    "Economize " + formattedMoney(savings, plan.currency) +
+                        " frente a 12 mensalidades*",
+                    color = FioGold, fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
-        }
-        Text(BrotherPlanBenefits.audience(plan.code), color = FioTextMuted, fontSize = 11.sp)
-        Text("Recursos e benefícios:", color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-        BrotherPlanBenefits.benefits(plan.code).forEach { benefit ->
-            Text("✓ $benefit", color = FioTextMuted, fontSize = 10.sp)
-        }
-        Text(BrotherPlanBenefits.billing(plan.code), color = FioTextMuted, fontSize = 10.sp)
-        Text(BrotherPlanBenefits.caution(plan.code), color = FioTextMuted, fontSize = 10.sp)
-        if (plan.isPromotional && !owned) {
-            Text(
-                "Oferta promocional sujeita a estoque real. Consulte a disponibilidade antes de comprar.",
-                color = FioGold,
-                fontSize = 10.sp
-            )
         }
         if (plan.isPaid && !owned) {
-            if (plan.priceCents == null && cents != null) {
-                Text(
-                    "Preço de referência. O valor e a disponibilidade finais são confirmados pelo WooCommerce.",
-                    color = FioTextMuted, fontSize = 9.sp
-                )
-            }
             OutlinedButton(
-                onClick = { onOpenPlan(plan.code) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onOpenPlan(plan.code) }
             ) {
                 Text(
-                    if (plan.isPromotional) "Conferir oferta no WooCommerce"
-                    else if (plan.isLifetime) "Conhecer licença vitalícia"
-                    else "Ver contratação no site",
+                    if (plan.isPromotional) "Conferir oferta"
+                    else "Conhecer plano",
                     color = FioGold
                 )
             }
-        } else if (owned) {
-            Text(
-                if (lifetimeEquivalent && !current)
-                    "Você já possui acesso vitalício à mesma categoria PRO. Não é necessário comprar novamente."
-                else "Sua licença é gerenciada na área Minha assinatura acima.",
-                color = FioGold,
-                fontSize = 10.sp
-            )
+        } else if (equivalentLifetime) {
+            Text("Seu Vitalício já oferece esse acesso PRO.",
+                color = FioGold, fontSize = 10.sp)
         }
     }
 }
 
 @Composable
 private fun BrotherPlansComparisonAndFaq() {
+    var compareOpen by remember { mutableStateOf(false) }
+    var vitalicioOpen by remember { mutableStateOf(false) }
+    var faqOpen by remember { mutableStateOf(false) }
+    var selectedQuestion by remember { mutableStateOf<String?>(null) }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = FioSurface)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Compare as funcionalidades", color = FioText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(
-                    "Os planos Mensal, Anual e as duas opções Vitalícias compartilham a categoria de recursos PRO confirmada pelo servidor.",
-                    color = FioTextMuted, fontSize = 11.sp
-                )
-                BrotherPlanBenefits.comparison.forEach { row ->
-                    Column(
-                        Modifier.fillMaxWidth()
-                            .background(FioBackground.copy(alpha = .35f), RoundedCornerShape(12.dp))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(row.name, color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        Text("Gratuito: ${row.free}", color = FioTextMuted, fontSize = 10.sp)
-                        Text("PRO: ${row.pro}", color = FioGold, fontSize = 10.sp)
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Comparar recursos", modifier = Modifier.weight(1f),
+                        color = FioText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    TextButton(onClick = { compareOpen = !compareOpen }) {
+                        Text(if (compareOpen) "Fechar" else "Ver comparativo", color = FioGold)
                     }
                 }
-                Text(
-                    "O conversor EMB ↔ PES ainda está em desenvolvimento. Recursos futuros não podem ser contratados como funcionalidades disponíveis agora.",
-                    color = FioTextMuted,
-                    fontSize = 10.sp
-                )
+                Text("Gratuito ou PRO? Compare apenas quando precisar.",
+                    color = FioTextMuted, fontSize = 11.sp)
+                if (compareOpen) {
+                    BrotherPlanBenefits.comparison.forEach { item ->
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .padding(vertical = 7.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(item.name, color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                            Row(Modifier.fillMaxWidth()) {
+                                Text("Grátis: " + item.free, modifier = Modifier.weight(1f),
+                                    color = FioTextMuted, fontSize = 10.sp)
+                                Text("PRO: " + item.pro, modifier = Modifier.weight(1f),
+                                    color = FioGold, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                    Text(
+                        "Conversor EMB/PES em desenvolvimento. Não incluído como recurso disponível.",
+                        color = FioTextMuted, fontSize = 10.sp
+                    )
+                }
             }
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = FioSurface)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Por que escolher o Brother Matrizes Vitalício?", color = FioGold,
-                    fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(
-                    "Uma única compra para utilizar os recursos PRO incluídos na licença, sem mensalidade recorrente. O Vitalício de Lançamento tem a mesma categoria de acesso, com preço promocional condicionado ao estoque.",
-                    color = FioTextMuted, fontSize = 11.sp
-                )
-                Text("Tenha prioridade nas próximas novidades", color = FioText,
-                    fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text(
-                    "Planejamento: programas de acesso antecipado e testes Beta poderão dar prioridade a clientes vitalícios, quando houver vagas, regras publicadas e recursos tecnicamente disponíveis. Isso ainda não é um benefício contratual garantido.",
-                    color = FioTextMuted, fontSize = 10.sp
-                )
-                Text(
-                    "Sugestões, relatos de problemas e feedbacks já podem ser enviados pela área Comunidade do aplicativo.",
-                    color = FioTextMuted, fontSize = 10.sp
-                )
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Por que escolher o Vitalício?", color = FioGold,
+                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Uma compra. Recursos PRO cobertos pela licença, sem mensalidades.",
+                    color = FioTextMuted, fontSize = 11.sp)
+                TextButton(onClick = { vitalicioOpen = !vitalicioOpen }) {
+                    Text(if (vitalicioOpen) "Mostrar menos" else "Saiba mais",
+                        color = FioGold)
+                }
+                if (vitalicioOpen) {
+                    Text(
+                        "O Vitalício de Lançamento oferece a mesma categoria PRO do convencional, por preço promocional sujeito ao estoque. A licença não inclui outros aplicativos ou serviços separados.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    Text(
+                        "Acesso antecipado e programas Beta são possibilidades futuras, sujeitos a regras, vagas e disponibilidade técnica; ainda não são direitos contratados.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                }
             }
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = FioSurface)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                Text("Perguntas frequentes", color = FioText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                BrotherPlanBenefits.questions.forEach { (question, answer) ->
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(question, color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                        Text(answer, color = FioTextMuted, fontSize = 11.sp)
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Dúvidas frequentes", modifier = Modifier.weight(1f),
+                        color = FioText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    TextButton(onClick = { faqOpen = !faqOpen }) {
+                        Text(if (faqOpen) "Fechar" else "Ver dúvidas", color = FioGold)
+                    }
+                }
+                Text("Teste grátis, renovação, pagamentos e novidades.",
+                    color = FioTextMuted, fontSize = 11.sp)
+                if (faqOpen) {
+                    BrotherPlanBenefits.questions.forEach { (question, answer) ->
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable {
+                                    selectedQuestion = if (selectedQuestion == question) null
+                                        else question
+                                }
+                                .padding(vertical = 9.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                question + if (selectedQuestion == question) "  −" else "  +",
+                                color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp
+                            )
+                            if (selectedQuestion == question) {
+                                Text(answer, color = FioTextMuted, fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }
