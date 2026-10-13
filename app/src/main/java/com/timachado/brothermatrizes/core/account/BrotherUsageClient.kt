@@ -52,6 +52,41 @@ internal object BrotherUsageClient {
         }
     }
 
+    /**
+     * Monthly tools are server-metered before a real external action,
+     * and finalized only if the action is successfully started.
+     */
+    suspend fun reserveTool(accessToken: String, operation: String): String {
+        require(operation in setOf("telegram_search", "dafont_search", "rar_receive")) {
+            "Ferramenta não autorizada."
+        }
+        val body = post(accessToken, JSONObject()
+            .put("action", "reserve_tool")
+            .put("operation", operation))
+        check(body.optBoolean("allowed") && body.optString("operation") == operation) {
+            "Não foi possível consultar a cota."
+        }
+        val key = body.optString("request_key")
+        check(isValidReservationKey(key)) { "Reserva de ferramenta inválida." }
+        return key
+    }
+
+    suspend fun finalizeTool(
+        accessToken: String, operation: String,
+        requestKey: String, success: Boolean
+    ) {
+        require(operation in setOf("telegram_search", "dafont_search", "rar_receive")) {
+            "Ferramenta não autorizada."
+        }
+        require(isValidReservationKey(requestKey)) { "Reserva inválida." }
+        val data = post(accessToken, JSONObject()
+            .put("action", "finalize_tool")
+            .put("operation", operation)
+            .put("request_key", requestKey)
+            .put("success", success))
+        check(data.optBoolean("ok")) { "Não foi possível registrar esta utilização." }
+    }
+
     private suspend fun post(accessToken: String, payload: JSONObject): JSONObject =
         withContext(Dispatchers.IO) {
             val url = URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/brother-usage")
