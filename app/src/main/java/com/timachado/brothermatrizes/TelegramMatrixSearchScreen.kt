@@ -48,6 +48,7 @@ fun TelegramMatrixSearchScreen(
     projects: List<SavedProjectSummary>,
     onBack: () -> Unit,
     onImport: () -> Unit,
+    onSearch: (String) -> Unit,
     onOpenSavedProject: (SavedProjectSummary) -> Unit
 ) {
     val context = LocalContext.current
@@ -84,24 +85,8 @@ fun TelegramMatrixSearchScreen(
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = {
-                // Telegram Android supports tg://search?query= (official
-                // app's shortcuts.xml). No clipboard or extra manual paste.
-                val term = query.trim()
-                val uri = Uri.parse(
-                    if (term.isBlank()) "tg://search"
-                    else "tg://search?query=${Uri.encode(term)}"
-                )
-                val intent = Intent(Intent.ACTION_VIEW, uri)
-                    .addCategory(Intent.CATEGORY_BROWSABLE)
-                val opened = runCatching {
-                    context.startActivity(intent)
-                }.isSuccess
-                status = if (opened) {
-                    if (term.isBlank()) "Pesquisa do Telegram aberta."
-                    else "Pesquisa '$term' enviada ao Telegram. Selecione uma matriz e compartilhe com Brother Matrizes."
-                } else {
-                    "Não foi possível abrir o Telegram. Verifique se o aplicativo está instalado e atualizado."
-                }
+                onSearch(query.trim())
+                status = "Verificando sua cota e abrindo o Telegram…"
             },
             modifier = Modifier.fillMaxWidth()
         ) {
