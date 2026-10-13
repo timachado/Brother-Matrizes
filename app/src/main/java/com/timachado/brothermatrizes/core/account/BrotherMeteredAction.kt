@@ -1,7 +1,7 @@
 package com.timachado.brothermatrizes.core.account
 
 /** Quotas come exclusively from the server. These are wire identifiers, not entitlements. */
-internal enum class BrotherMeteredAction(val operation: String) {
+enum class BrotherMeteredAction(val operation: String) {
     OPEN_MATRIX("open_matrix"),
     RAR_RECEIVE("rar_receive"),
     TELEGRAM_SEARCH("telegram_search"),
