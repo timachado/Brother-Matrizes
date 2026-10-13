@@ -106,16 +106,16 @@ fun ProjectLibraryScreen(
             onLoginRequired()
             return false
         }
-        val reserved = BrotherMatrizesAccountService.reserveDailyAction(
+        val reserved = BrotherMatrizesAccountService.reserveMonthlyAction(
             BrotherMeteredAction.RAR_RECEIVE
         )
         if (reserved.isFailure) {
             rarMessage = reserved.exceptionOrNull()?.message
-                ?: "Você atingiu sua cota diária de ações com RAR."
+                ?: "Você atingiu sua cota mensal de ações com RAR."
             return false
         }
         val ok = runCatching { handoff() }.getOrDefault(false)
-        val completed = BrotherMatrizesAccountService.completeDailyAction(
+        val completed = BrotherMatrizesAccountService.completeMonthlyAction(
             BrotherMeteredAction.RAR_RECEIVE, reserved.getOrThrow(), ok
         )
         if (completed.isFailure) {
