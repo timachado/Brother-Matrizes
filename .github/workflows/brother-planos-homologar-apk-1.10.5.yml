@@ -24,7 +24,7 @@ jobs:
       - name: Baixar candidato Android 1.10.5
         uses: actions/checkout@v4
         with:
-          ref: 3f244db1a5025e7a952c9eb5cf46934339b32809
+          ref: eb6245311fa72a0792d494cf60e94854807eb6fd
           persist-credentials: false
           path: android
 
