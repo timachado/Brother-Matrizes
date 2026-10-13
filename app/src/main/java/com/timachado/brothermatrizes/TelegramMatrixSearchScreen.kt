@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes
 
 import android.content.Context
+import kotlinx.coroutines.launch
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,9 +51,12 @@ fun TelegramMatrixSearchScreen(
     projects: List<SavedProjectSummary>,
     onBack: () -> Unit,
     onImport: () -> Unit,
+    onRequireGoogle: () -> Unit,
     onOpenSavedProject: (SavedProjectSummary) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     val matching = remember(projects, query) {
@@ -84,23 +90,40 @@ fun TelegramMatrixSearchScreen(
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = {
-                // Telegram Android supports tg://search?query= (official
-                // app's shortcuts.xml). No clipboard or extra manual paste.
-                val term = query.trim()
-                val uri = Uri.parse(
-                    if (term.isBlank()) "tg://search"
-                    else "tg://search?query=${Uri.encode(term)}"
-                )
-                val intent = Intent(Intent.ACTION_VIEW, uri)
-                    .addCategory(Intent.CATEGORY_BROWSABLE)
-                val opened = runCatching {
-                    context.startActivity(intent)
-                }.isSuccess
-                status = if (opened) {
-                    if (term.isBlank()) "Pesquisa do Telegram aberta."
-                    else "Pesquisa '$term' enviada ao Telegram. Selecione uma matriz e compartilhe com Brother Matrizes."
-                } else {
-                    "Não foi possível abrir o Telegram. Verifique se o aplicativo está instalado e atualizado."
+                if (!checking) scope.launch {
+                    checking = true
+                    try {
+                        val ready = BrotherMatrizesAccountService.ensureGoogleSession()
+                        if (ready.isFailure) {
+                            status = "Entre com Google em Minha Conta para pesquisar no Telegram."
+                            onRequireGoogle()
+                            return@launch
+                        }
+                        val reserved = BrotherMatrizesAccountService.authorizeTool("telegram_search")
+                        if (reserved.isFailure) {
+                            status = reserved.exceptionOrNull()?.message
+                                ?: "Não foi possível registrar esta pesquisa."
+                            return@launch
+                        }
+                        val key = reserved.getOrThrow()
+                        val term = query.trim()
+                        val uri = Uri.parse(if (term.isBlank()) "tg://search"
+                            else "tg://search?query=${Uri.encode(term)}")
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                            .addCategory(Intent.CATEGORY_BROWSABLE)
+                        val opened = runCatching { context.startActivity(intent) }.isSuccess
+                        val committed = BrotherMatrizesAccountService.finalizeTool(
+                            "telegram_search", key, opened
+                        )
+                        status = when {
+                            !opened -> "Não foi possível abrir o Telegram. A pesquisa não deve ser descontada."
+                            committed.isFailure -> "Telegram aberto, mas não foi possível confirmar a cota."
+                            term.isBlank() -> "Pesquisa do Telegram aberta."
+                            else -> "Pesquisa enviada ao Telegram. Selecione e compartilhe a matriz para importar."
+                        }
+                    } finally {
+                        checking = false
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
