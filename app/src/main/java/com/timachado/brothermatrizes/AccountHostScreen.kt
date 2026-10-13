@@ -198,20 +198,21 @@ fun AccountHostScreen(
                     .currentAccount()
             }
 
-        loading =
-            false
-
         result.fold(
             onSuccess = {
                     current ->
-                offline =
-                    false
-
-                account =
-                    withDevices(
-                        current
-                    )
+                offline = false
+                // Show the validated account immediately. Device synchronization
+                // must never block the account screen or hide an existing license.
+                account = current
                 accountVerified = true
+                loading = false
+                if (current != null) {
+                    val withDeviceDetails = withDevices(current)
+                    if (account?.userId == current.userId) {
+                        account = withDeviceDetails
+                    }
+                }
             },
             onFailure = {
                     error ->
@@ -221,6 +222,7 @@ fun AccountHostScreen(
                             context
                         )
                 accountVerified = account != null
+                loading = false
 
                 snackbar
                     .showSnackbar(
@@ -253,20 +255,19 @@ fun AccountHostScreen(
                         .currentAccount()
                 }
 
-            loading =
-                false
-
             result.fold(
                 onSuccess = {
                         current ->
-                    offline =
-                        false
-
-                    account =
-                        withDevices(
-                            current
-                        )
+                    offline = false
+                    account = current
                     accountVerified = true
+                    loading = false
+                    if (current != null) {
+                        val withDeviceDetails = withDevices(current)
+                        if (account?.userId == current.userId) {
+                            account = withDeviceDetails
+                        }
+                    }
 
                     snackbar.showSnackbar(
                         when {
@@ -281,6 +282,7 @@ fun AccountHostScreen(
                 },
                 onFailure = {
                         error ->
+                    loading = false
                     offline =
                         !NetworkStatus
                             .isOnline(
