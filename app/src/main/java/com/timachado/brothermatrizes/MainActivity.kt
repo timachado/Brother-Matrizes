@@ -1877,6 +1877,9 @@ private fun BrotherMatrizesApp(
                         onBack = {
                             goBack()
                         },
+                        onOpenSupport = {
+                            screen = Screen.Community
+                        },
                         refreshRequest =
                             openAccountRequest,
                         textScale =
