@@ -1,0 +1,72 @@
+name: Brother Matrizes 1.10.6 - Emergency recovery QA
+
+on:
+  push:
+    branches:
+      - hotfix/brother-1.10.6-recovery-stable-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout stable recovery source with tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact 1.10.4 source with version-only change
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 182' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.6"' app/build.gradle.kts
+          git diff --name-only v1.10.4 HEAD -- app | grep -Fx 'app/build.gradle.kts'
+          test "$(git diff --name-only v1.10.4 HEAD -- app | wc -l)" -eq 1
+          git diff v1.10.4 HEAD -- app/build.gradle.kts | grep -F '+        versionCode = 182'
+          git diff v1.10.4 HEAD -- app/build.gradle.kts | grep -F '+        versionName = "1.10.6"'
+          ! git diff v1.10.4 HEAD -- app/build.gradle.kts | grep -E '^[+][^+]' | grep -vE '^\+        version(Code|Name) ='
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Verify no embedded signing secrets
+        run: bash scripts/pre_release_static_check.sh
+
+      - name: Original 1.10.4 unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Compile production unsigned 1.10.6 recovery APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify release output exists
+        run: test -s app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Export unsigned APK for local signing (never publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.6-recovery-UNSIGNED
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 2
