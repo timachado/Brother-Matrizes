@@ -14,6 +14,14 @@ internal object BrotherPlanBenefits {
         val pro: String
     )
 
+    /** Economia editorial; preços precisam vir do catálogo consultado e do checkout. */
+    fun yearlySavings(monthlyCents: Int?, yearlyCents: Int?): Int? {
+        if (monthlyCents == null || yearlyCents == null ||
+            monthlyCents <= 0 || yearlyCents <= 0) return null
+        val savings = monthlyCents.toLong() * 12 - yearlyCents.toLong()
+        return savings.takeIf { it > 0 && it <= Int.MAX_VALUE }?.toInt()
+    }
+
     fun headline(code: String): String = when (code) {
         "free" -> "Comece a criar"
         "pro_monthly" -> "Potencialize seu trabalho"
