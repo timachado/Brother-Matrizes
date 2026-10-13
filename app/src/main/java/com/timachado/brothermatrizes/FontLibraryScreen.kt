@@ -238,7 +238,18 @@ fun FontLibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { browserOpen = true },
+                onClick = {
+                    scope.launch {
+                        val google = com.timachado.brothermatrizes.core.account
+                            .BrotherMatrizesAccountService.ensureGoogleSession()
+                        if (google.isSuccess) {
+                            browserOpen = true
+                        } else {
+                            statusMessage = "Entre com Google para buscar fontes no DaFont."
+                            onRequireGoogle()
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FioSurfaceAlt,
