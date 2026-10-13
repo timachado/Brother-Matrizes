@@ -437,7 +437,7 @@ object BrotherMatrizesAccountService {
     }
 
     /** The server returns read-only monthly balances for the signed-in Google account. */
-    suspend fun toolUsage(): Result<List<BrotherUsageClient.ToolUsage>> = runCatching {
+    internal suspend fun toolUsage(): Result<List<BrotherUsageClient.ToolUsage>> = runCatching {
         BrotherUsageClient.monthlyToolUsage(verifiedAccessToken())
     }
 
