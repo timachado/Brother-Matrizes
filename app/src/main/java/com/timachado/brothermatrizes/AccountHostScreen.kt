@@ -3,12 +3,19 @@ package com.timachado.brothermatrizes
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHost
@@ -717,18 +724,39 @@ fun AccountHostScreen(
             // Never suggest the user has signed out on an initialization
             // race or a temporary network / refresh failure.
             Column(
-                Modifier.fillMaxSize().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                Modifier.fillMaxSize()
+                    .background(BrotherAccountNavy)
+                    .padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Text(
-                    if (loading) "Restaurando sua conta Google…"
-                    else "Não foi possível confirmar sua sessão. Sua conta não foi desconectada.",
-                    color = FioTextMuted
-                )
-                if (!loading) {
-                    OutlinedButton(onClick = { refreshAccount() }) {
-                        Text("Tentar novamente", color = FioGold)
+                BrotherAccountHeader(onBack = onBack)
+                Surface(
+                    color = BrotherAccountSurface,
+                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            if (loading) "Verificando sua sessão"
+                            else "Não foi possível confirmar sua sessão",
+                            color = BrotherAccountWhite,
+                            fontWeight = FontWeight.Bold, fontSize = 17.sp
+                        )
+                        Text(
+                            if (loading)
+                                "Sua conta e seus projetos continuam preservados. Estamos recuperando o acesso."
+                            else
+                                "Sua conta não foi desconectada. Tente verificar novamente quando houver conexão.",
+                            color = BrotherAccountMuted, fontSize = 12.sp
+                        )
+                        if (!loading) {
+                            OutlinedButton(onClick = { refreshAccount() }) {
+                                Text("Tentar novamente", color = BrotherAccountGold)
+                            }
+                        }
                     }
                 }
             }
@@ -745,17 +773,19 @@ fun AccountHostScreen(
                     )
         )
 
-        if (
-            loading
-        ) {
+        if (loading) {
             CircularProgressIndicator(
-                modifier =
-                    Modifier
-                        .align(
-                            Alignment.Center
-                        ),
-                color =
-                    FioGold
+                modifier = Modifier
+                    .align(
+                        if (account != null) Alignment.TopEnd else Alignment.Center
+                    )
+                    .padding(
+                        top = if (account != null) 12.dp else 0.dp,
+                        end = if (account != null) 18.dp else 0.dp
+                    )
+                    .size(if (account != null) 22.dp else 32.dp),
+                color = BrotherAccountGold,
+                strokeWidth = 2.dp
             )
         }
     }
