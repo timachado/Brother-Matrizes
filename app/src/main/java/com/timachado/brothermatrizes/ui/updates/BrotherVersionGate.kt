@@ -60,7 +60,10 @@ fun BrotherVersionGate(resumeRequest: Int, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(resumeRequest, retry) {
-        checking = true
+        // Ao voltar do seletor do Google Drive, apenas consultar atualizações.
+        // Reativar "checking" desmontava BrotherMatrizesApp e destruía o
+        // ActivityResultLauncher antes que o arquivo escolhido fosse entregue.
+        // O loading de tela inteira pertence SOMENTE à primeira inicialização.
         when (val answer = checker.check(context.applicationContext)) {
             is BrotherUpdateClient.Result.Available -> {
                 if (answer.critical) {
