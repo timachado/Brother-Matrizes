@@ -15,6 +15,7 @@ import io.github.jan.supabase.createSupabaseClient
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -364,10 +365,44 @@ object BrotherMatrizesAccountService {
                 error("Não foi possível restaurar a sessão Google. Confira a conexão e tente novamente.")
             else -> error("A autenticação está temporariamente indisponível.")
         }
+        val metadata = session.user?.appMetadata
+        val primary = metadata?.get("provider")?.let {
+            runCatching { it.jsonPrimitive.contentOrNull }.getOrNull()
+        }
+        val providers = metadata?.get("providers")?.let {
+            runCatching {
+                it.jsonArray.any { item -> item.jsonPrimitive.contentOrNull == "google" }
+            }.getOrDefault(false)
+        } ?: false
+        check(primary == "google" || providers) {
+            "Entre com uma conta Google em Minha Conta para utilizar as importações."
+        }
         return session.accessToken
     }
 
+    /** Pré-checagem: sem abrir seletores ou outros aplicativos para usuários não autenticados. */
+    suspend fun ensureGoogleSession(): Result<Unit> = runCatching {
+        check(verifiedAccessToken().isNotBlank()) { "Conta Google indisponível." }
+    }
+
+    suspend fun authorizeTool(operation: String): Result<String> = runCatching {
+        require(operation in setOf("rar_receive", "telegram_search", "dafont_search")) {
+            "Ferramenta não permitida."
+        }
+        BrotherUsageClient.reserveTool(verifiedAccessToken(), operation)
+    }
+
+    suspend fun finalizeTool(
+        operation: String, reservation: String, success: Boolean
+    ): Result<Unit> = runCatching {
+        BrotherUsageClient.finalizeTool(
+            verifiedAccessToken(), operation, reservation, success
+        )
+    }
+
     suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
+        // A prévia debug usa um contador local, mas não isenta o login Google.
+        verifiedAccessToken()
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
             // Resolve paid access from WooCommerce-confirmed Supabase mirror.
             // Refresh a stale lease before importing; free preview works offline.
