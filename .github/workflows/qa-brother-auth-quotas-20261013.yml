@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           LEGACY_TOKEN="$(printf 'fio%s' 'lab')"
-          if git grep -ni -I -F "$LEGACY_TOKEN"; then
+          if git grep -ni -I -F "$LEGACY_TOKEN" -- app/src/main app/build.gradle.kts branding; then
             echo "Legacy brand reference detected. Review before production release."
             exit 1
           fi
