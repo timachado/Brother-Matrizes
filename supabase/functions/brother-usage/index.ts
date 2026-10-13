@@ -65,6 +65,13 @@ Deno.serve(async (req: Request) => {
   if (loginError || !user) return reply({ message: "Sessão Google inválida ou expirada." }, 401);
   if (!user.email || !user.email_confirmed_at)
     return reply({ message: "Confirme seu e-mail Google para utilizar as importações." }, 403);
+  // Provider is read from server-owned auth.app_metadata, never user_metadata.
+  const providers: unknown = user.app_metadata?.providers;
+  const isGoogle = user.app_metadata?.provider === "google" ||
+    (Array.isArray(providers) && providers.includes("google"));
+  if (!isGoogle)
+    return reply({ message: "Entre com uma conta Google para registrar suas cotas de importação." }, 403);
+
   // Staged version gate: enable BROTHER_MINIMUM_CLIENT_VERSION_CODE in
   // Supabase ONLY after the required signed APK is publicly available.
   // Older authenticated API clients without this header are rejected.
