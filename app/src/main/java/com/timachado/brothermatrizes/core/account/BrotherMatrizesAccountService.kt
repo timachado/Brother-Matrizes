@@ -366,12 +366,7 @@ object BrotherMatrizesAccountService {
         }
         // Uma sessão genérica (e-mail/senha ou cadastro antigo) não prova login Google.
         // O servidor de cotas repete essa validação via app_metadata do Auth.
-        val providers = session.user?.appMetadata?.get("providers")
-        val googleProvider = session.user?.appMetadata?.get("provider")
-        val googleAccount = googleProvider?.jsonPrimitive?.contentOrNull == "google" ||
-            (providers as? kotlinx.serialization.json.JsonArray)
-                ?.any { it.jsonPrimitive.contentOrNull == "google" } == true
-        check(googleAccount) {
+        check(BrotherGoogleProviderRules.verified(session.user?.appMetadata)) {
             "Para importar matrizes ou fontes, entre com sua conta Google em Minha Conta."
         }
         return session.accessToken
