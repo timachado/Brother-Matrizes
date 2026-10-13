@@ -52,6 +52,33 @@ internal object BrotherUsageClient {
         }
     }
 
+    private val toolOperations = setOf("rar_receive", "telegram_search", "dafont_search")
+
+    /** A reserva atômica no Supabase impede reiniciar contadores limpando dados locais. */
+    suspend fun reserveTool(accessToken: String, operation: String): String {
+        require(operation in toolOperations) { "Operação inválida." }
+        val result = post(accessToken, JSONObject()
+            .put("action", "reserve").put("operation", operation))
+        check(result.optBoolean("allowed") && result.optString("operation") == operation) {
+            "Limite gratuito atingido ou ferramenta indisponível."
+        }
+        return result.optString("request_key").also {
+            check(isValidReservationKey(it)) { "Reserva inválida." }
+        }
+    }
+
+    suspend fun finalizeTool(
+        accessToken: String, operation: String, requestKey: String, success: Boolean
+    ) {
+        require(operation in toolOperations && isValidReservationKey(requestKey)) {
+            "Operação ou reserva inválida."
+        }
+        val reply = post(accessToken, JSONObject()
+            .put("action", "finalize").put("operation", operation)
+            .put("request_key", requestKey).put("success", success))
+        check(reply.optBoolean("ok")) { "Não foi possível confirmar a utilização." }
+    }
+
     private suspend fun post(accessToken: String, payload: JSONObject): JSONObject =
         withContext(Dispatchers.IO) {
             val url = URL(BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/brother-usage")
@@ -69,6 +96,7 @@ internal object BrotherUsageClient {
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
                 setRequestProperty("Authorization", "Bearer $accessToken")
+                setRequestProperty("X-Brother-App-Version-Code", BuildConfig.VERSION_CODE.toString())
             }
             try {
                 conn.outputStream.use {
