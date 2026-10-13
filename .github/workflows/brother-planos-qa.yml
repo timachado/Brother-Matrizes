@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: brother-planos-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-community:
     name: Compilacao e testes Android (sem assinar)
