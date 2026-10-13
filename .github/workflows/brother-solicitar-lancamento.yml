@@ -53,7 +53,7 @@ jobs:
           echo "RELEASE_NOTES=$notes" >> "$GITHUB_ENV"
           echo "Pedido seguro preparado: $version (codigo $code)."
 
-      - name: Acionar fluxo comercial com notificacoes DESLIGADAS
+      - name: Acionar fluxo comercial com notificacoes automáticas para usuários inscritos
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -66,6 +66,6 @@ jobs:
             -f version_name="$VERSION_NAME" \
             -f version_code="$VERSION_CODE" \
             -f release_notes="$RELEASE_NOTES" \
-            -f announce=false \
-            -f dry_run=true
+            -f announce=true \
+            -f dry_run=false
           echo "Pedido enviado ao validador comercial. O APK so sera publicado apos os testes e verificacoes."
