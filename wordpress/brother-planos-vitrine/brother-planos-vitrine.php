@@ -98,7 +98,7 @@ if (!function_exists('bm_planos_display_shortcode')) {
             .bm-plans-vitrine h2,.bm-plans-vitrine h3,.bm-plans-vitrine h4{color:#fff;margin:0 0 10px;line-height:1.2}
             .bm-plans-vitrine p{color:var(--muted);margin:5px 0 13px}
             .bm-plans-vitrine .bm-eyebrow{color:var(--gold);font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-            .bm-plans-vitrine .bm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:12px;margin:18px 0}
+            .bm-plans-vitrine .bm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin:18px 0}
             .bm-plans-vitrine .bm-card{padding:16px;border:1px solid #355069;background:var(--surface);border-radius:18px;display:flex;flex-direction:column}
             .bm-plans-vitrine .bm-featured{border-color:var(--gold);box-shadow:0 0 0 1px #bd9755}
             .bm-plans-vitrine .bm-price{color:#fff;font-size:1.6rem;font-weight:800;margin:8px 0}
@@ -120,6 +120,14 @@ if (!function_exists('bm_planos_display_shortcode')) {
             .bm-plans-vitrine details{border-bottom:1px solid #294156;padding:12px 2px}
             .bm-plans-vitrine summary{font-weight:700;cursor:pointer;color:#fff}
             .bm-plans-vitrine .bm-actions-bottom a{color:var(--gold)}
+            .bm-plans-vitrine .bm-card ul{margin:8px 0 12px}
+            .bm-plans-vitrine .bm-plan-variants{margin-top:auto;border-top:1px solid #345068}
+            .bm-plans-vitrine .bm-plan-variant{display:flex;justify-content:space-between;
+                align-items:center;gap:12px;border-bottom:1px solid #345068;padding:11px 0;font-size:.9rem}
+            .bm-plans-vitrine .bm-plan-variant span strong{display:block;color:white;font-size:1rem}
+            .bm-plans-vitrine .bm-plan-variant a{color:#071826;background:var(--gold);
+                padding:7px 10px;border-radius:9px;text-decoration:none;font-weight:700;white-space:nowrap}
+            .bm-plans-vitrine .bm-plan-variant>span:last-child{color:var(--muted);font-size:.75rem}
             .bm-plans-vitrine details.bm-section{border:1px solid #294156;background:var(--surface);
                 border-radius:16px;padding:14px 16px;margin-top:12px}
             .bm-plans-vitrine details.bm-section>summary{list-style:none;display:flex;justify-content:space-between;
@@ -137,40 +145,72 @@ if (!function_exists('bm_planos_display_shortcode')) {
             <h2>Planos Brother Matrizes</h2>
             <p>Crie, edite e gerencie matrizes no celular. Escolha a opção ideal para você.</p>
             <div class="bm-grid">
-                <?php foreach ($rows as $code => $row) :
-                    $live = $catalog[$code];
-                    $is_free = $code === 'free';
-                    $available = $is_free || $live['valid'];
-                    $price = $is_free ? 'Grátis' : ($live['product'] ? $live['price'] : 'Indisponível');
-                    $term = $code === 'monthly' ? '/ mês' : ($code === 'yearly' ? '/ ano' : ($is_free ? '' : 'pagamento único'));
-                    ?>
-                    <article class="bm-card <?php echo esc_attr(in_array($code, array('lifetime','launch'), true) ? 'bm-featured' : ''); ?>">
-                        <p class="bm-eyebrow"><?php echo esc_html($row['tag']); ?></p>
-                        <h3><?php echo esc_html($row['title']); ?></h3>
-                        <p class="bm-price"><?php echo wp_kses_post($price); ?>
-                            <span class="bm-period"><?php echo esc_html($term); ?></span>
-                        </p>
-                        <?php if ($code === 'yearly' && $annual_savings !== null) : ?>
-                            <p class="bm-stock">Economize <?php echo wp_kses_post($annual_savings); ?> frente a 12 mensalidades*.</p>
-                        <?php endif; ?>
-                        <p><?php echo esc_html($row['description']); ?></p>
-                        <ul><?php foreach ($highlights[$code] as $benefit) : ?>
-                            <li><?php echo esc_html($benefit); ?></li>
-                        <?php endforeach; ?></ul>
-                        <?php if ($code === 'launch' && is_int($live['stock']) && $live['stock'] > 0): ?>
-                            <p class="bm-stock"><?php echo esc_html(number_format_i18n($live['stock'])); ?> licenças disponíveis no estoque consultado</p>
-                        <?php endif; ?>
-                        <?php if ($available && !$is_free): ?>
-                            <a class="bm-action" rel="nofollow" href="<?php echo esc_url($live['url']); ?>">
-                                <?php echo $code === 'launch' ? 'Conferir oferta promocional' : 'Contratar no site oficial'; ?>
-                            </a>
-                        <?php elseif ($is_free): ?>
-                            <a class="bm-action" href="<?php echo esc_url(home_url('/aplicativos/brother-matrizes/')); ?>">Baixar e começar</a>
-                        <?php else: ?>
-                            <span class="bm-action" aria-disabled="true">Oferta indisponível no momento</span>
-                        <?php endif; ?>
-                    </article>
-                <?php endforeach; ?>
+                <article class="bm-card">
+                    <p class="bm-eyebrow">Comece a criar</p>
+                    <h3>Gratuito</h3>
+                    <p class="bm-price">Grátis</p>
+                    <p>Crie, edite e salve seus projetos.</p>
+                    <ul>
+                        <li>3 fontes e 5 matrizes por mês</li>
+                        <li>Teste PRO de 7 dias para contas elegíveis</li>
+                    </ul>
+                    <a class="bm-action" href="<?php echo esc_url(home_url('/aplicativos/brother-matrizes/')); ?>">Baixar grátis</a>
+                </article>
+                <article class="bm-card">
+                    <p class="bm-eyebrow">Mais produtividade</p>
+                    <h3>PRO</h3>
+                    <p>Importações sem a cota mensal do Gratuito.</p>
+                    <ul>
+                        <li>Recursos PRO incluídos</li>
+                        <li>Escolha mensal ou anual</li>
+                    </ul>
+                    <div class="bm-plan-variants" aria-label="Contratação PRO">
+                        <?php foreach (array('monthly' => 'Mensal', 'yearly' => 'Anual') as $code => $label):
+                            $offer = $catalog[$code]; ?>
+                            <div class="bm-plan-variant">
+                                <span><?php echo esc_html($label); ?>
+                                    <strong><?php echo $offer['product'] ? wp_kses_post($offer['price']) : 'Consultar site'; ?></strong>
+                                </span>
+                                <?php if ($offer['valid']): ?>
+                                    <a rel="nofollow" href="<?php echo esc_url($offer['url']); ?>">Selecionar ›</a>
+                                <?php else: ?>
+                                    <span>Indisponível</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if ($annual_savings !== null): ?>
+                        <p class="bm-stock">Economize <?php echo wp_kses_post($annual_savings); ?> frente a 12 mensalidades*.</p>
+                    <?php endif; ?>
+                </article>
+                <article class="bm-card bm-featured">
+                    <p class="bm-eyebrow">Pagamento único</p>
+                    <h3>PRO Vitalício</h3>
+                    <p>Recursos PRO cobertos pela licença, sem mensalidades.</p>
+                    <ul>
+                        <li>Mesma categoria de acesso PRO</li>
+                        <li>Escolha o preço convencional ou a promoção vigente</li>
+                    </ul>
+                    <div class="bm-plan-variants" aria-label="Compra de licença vitalícia">
+                        <?php foreach (array('lifetime' => 'Vitalício', 'launch' => 'Lançamento') as $code => $label):
+                            $offer = $catalog[$code];
+                            $is_launch = $code === 'launch'; ?>
+                            <div class="bm-plan-variant">
+                                <span><?php echo esc_html($label); ?>
+                                    <strong><?php echo $offer['product'] ? wp_kses_post($offer['price']) : 'Consultar site'; ?></strong>
+                                </span>
+                                <?php if ($offer['valid']): ?>
+                                    <a rel="nofollow" href="<?php echo esc_url($offer['url']); ?>">Selecionar ›</a>
+                                <?php else: ?>
+                                    <span>Indisponível</span>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($is_launch && $offer['valid'] && is_int($offer['stock']) && $offer['stock'] > 0): ?>
+                                <p class="bm-stock"><?php echo esc_html(number_format_i18n($offer['stock'])); ?> licenças disponíveis no estoque consultado</p>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                </article>
             </div>
 
             <details class="bm-section">
