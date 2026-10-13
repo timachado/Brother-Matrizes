@@ -19,8 +19,6 @@ const headers = {
 const reply = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers });
 const operations = new Set(["import_font", "import_matrix"]);
-// Free monthly quotas are configured in Postgres; verified PRO bypasses them.
-const toolOperations = new Set(["telegram_search", "dafont_search", "rar_receive"]);
 const requestKey = /^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 Deno.serve(async (req: Request) => {
@@ -36,16 +34,13 @@ Deno.serve(async (req: Request) => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw Error("invalid");
     payload = parsed;
-    const reserve = parsed.action === "reserve" || parsed.action === "reserve_tool";
-    const finalize = parsed.action === "finalize" || parsed.action === "finalize_tool";
-    const validKeys = reserve ? ["action", "operation"] :
-      ["action", "operation", "request_key", "success"];
-    if (!(reserve || finalize) ||
+    const validKeys = parsed.action === "reserve" ?
+      ["action", "operation"] : ["action", "operation", "request_key", "success"];
+    if (!["reserve", "finalize"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
-      !(parsed.action === "reserve" || parsed.action === "finalize"
-        ? operations.has(parsed.operation) : toolOperations.has(parsed.operation)) ||
-      (finalize &&
+      !operations.has(parsed.operation) ||
+      (parsed.action === "finalize" &&
         (typeof parsed.success !== "boolean" ||
           typeof parsed.request_key !== "string" || !requestKey.test(parsed.request_key))))
       throw Error("invalid");
@@ -116,39 +111,6 @@ Deno.serve(async (req: Request) => {
         .includes(body.planCode);
   } catch {
     return reply({ message: "Não foi possível verificar sua licença. Confira a internet e tente novamente." }, 503);
-  }
-
-  if (payload.action === "reserve_tool" && isPro) {
-    return reply({ allowed: true, request_key: "pro_" + crypto.randomUUID(),
-      operation: payload.operation, remaining: null, pro: true });
-  }
-  if (payload.action === "finalize_tool" && (payload.request_key as string).startsWith("pro_")) {
-    if (!isPro) return reply({ message: "Seu acesso PRO não está mais ativo." }, 403);
-    return reply({ ok: true, pro: true });
-  }
-
-  // A dedicated monthly quota for external tool handoffs/searches. Server owns
-  // the identity, period, count and atomic reservations; clients may not supply them.
-  // Cancelled/failed launches are finalized with success=false and do not consume
-  // a completed quota. Never count a mere menu opening.
-  if (payload.action === "reserve_tool") {
-    const { data, error } = await admin.rpc("brother_matrizes_reserve_monthly_action", {
-      p_user_id: user.id, p_operation: payload.operation,
-    });
-    if (error) return reply({ message: "Não foi possível consultar o limite mensal desta ferramenta." }, 503);
-    if (data?.allowed !== true) return reply({
-      message: "Limite mensal gratuito desta ferramenta atingido. Aguarde o próximo mês ou conheça o PRO.",
-      remaining: 0, limit: data?.limit ?? null, renews_at: data?.renews_at ?? null,
-    }, 409);
-    return reply(data);
-  }
-  if (payload.action === "finalize_tool") {
-    const { data, error } = await admin.rpc("brother_matrizes_finalize_monthly_action", {
-      p_user_id: user.id, p_operation: payload.operation,
-      p_request_key: payload.request_key, p_success: payload.success,
-    });
-    if (error) return reply({ message: "Não foi possível concluir o registro desta ferramenta." }, 503);
-    return reply({ ok: true, counted: data === true });
   }
 
   if (payload.action === "reserve" && isPro) {
