@@ -1662,10 +1662,6 @@ private fun SignedInAccount(
 
         }
         BrotherAccountMenuItem(
-            "Detalhes da licença", "license",
-            onClick = { licenseOpen = !licenseOpen }, expanded = licenseOpen
-        )
-        BrotherAccountMenuItem(
             "Sobre e atualizações", "info",
             onClick = { moreOpen = !moreOpen }, expanded = moreOpen, last = true
         )
