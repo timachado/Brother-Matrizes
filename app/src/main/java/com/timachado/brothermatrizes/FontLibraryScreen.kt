@@ -55,7 +55,8 @@ import java.util.Locale
 
 @Composable
 fun FontLibraryScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onLoginRequired: () -> Unit
 ) {
     val context =
         LocalContext.current
@@ -236,7 +237,17 @@ fun FontLibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { browserOpen = true },
+                onClick = {
+                    scope.launch {
+                        val auth = com.timachado.brothermatrizes.core.account
+                            .BrotherMatrizesAccountService.ensureGoogleSession()
+                        if (auth.isSuccess) browserOpen = true
+                        else {
+                            statusMessage = "Entre com Google em Minha Conta para pesquisar no DaFont."
+                            onLoginRequired()
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FioSurfaceAlt,
