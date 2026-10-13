@@ -1,13 +1,10 @@
 package com.timachado.brothermatrizes.core.account
 
-/** Quotas come exclusively from the server. These are wire identifiers, not entitlements. */
+/** Monthly quotas come exclusively from the server. These are wire identifiers, not entitlements. */
 enum class BrotherMeteredAction(val operation: String) {
-    OPEN_MATRIX("open_matrix"),
     RAR_RECEIVE("rar_receive"),
     TELEGRAM_SEARCH("telegram_search"),
-    TELEGRAM_IMPORT("telegram_import"),
-    DAFONT_SEARCH("dafont_search"),
-    DAFONT_IMPORT("dafont_import");
+    DAFONT_SEARCH("dafont_search");
 
     companion object {
         fun fromOperation(value: String): BrotherMeteredAction? =
