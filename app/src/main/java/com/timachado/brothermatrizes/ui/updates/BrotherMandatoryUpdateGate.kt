@@ -65,6 +65,7 @@ fun BrotherMandatoryUpdateGate(
     val cached = remember(context) { verifiedCachedRequirement(context) }
     var required by remember { mutableStateOf(cached) }
     var checking by remember { mutableStateOf(cached == null) }
+    var verificationError by remember { mutableStateOf(false) }
     var revision by remember { mutableStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf<Int?>(null) }
@@ -73,8 +74,10 @@ fun BrotherMandatoryUpdateGate(
 
     LaunchedEffect(resumeRequest, revision) {
         if (required == null) checking = true
+        verificationError = false
         when (val outcome = checker.check(context.applicationContext)) {
             is BrotherUpdateClient.Result.Available -> {
+                verificationError = false
                 if (outcome.critical) {
                     required = outcome.release
                     prefs.edit()
@@ -91,18 +94,24 @@ fun BrotherMandatoryUpdateGate(
                 }
             }
             BrotherUpdateClient.Result.UpToDate -> {
+                verificationError = false
                 required = null
                 prefs.edit().clear().apply()
             }
-            else -> Unit // Cached confirmed requirement remains locked.
+            else -> {
+                // Fail closed if we cannot verify the installed version.
+                // Existing verified critical requirements remain locked.
+                verificationError = true
+            }
         }
         checking = false
     }
 
     val release = required
+    // No escape hatch from an unverified/obsolete build. The user may leave
+    // Android normally, but cannot bypass this gate inside the application.
+    BackHandler(enabled = release != null || checking || verificationError) {}
     if (release != null) {
-        // Neither system Back nor tapping outside can dismiss the requirement.
-        BackHandler(enabled = true) {}
         Column(
             Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF081B29))
                 .padding(horizontal = 20.dp),
@@ -209,6 +218,52 @@ fun BrotherMandatoryUpdateGate(
             Spacer(Modifier.height(15.dp))
             Text("Verificando versão e compatibilidade…",
                 color = androidx.compose.ui.graphics.Color.White)
+        }
+    } else if (verificationError) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color(0xFF081B29))
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                color = androidx.compose.ui.graphics.Color(0xFF152E40),
+                shape = RoundedCornerShape(22.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("BROTHER MATRIZES", color = FioGold,
+                        fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("Confirme a versão instalada",
+                        color = androidx.compose.ui.graphics.Color.White,
+                        fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    Text(
+                        "É necessário conectar à internet para verificar se existe uma atualização obrigatória. Seus projetos e sua licença continuam preservados.",
+                        color = androidx.compose.ui.graphics.Color(0xFFC0CDD7), fontSize = 13.sp
+                    )
+                    Button(
+                        onClick = { revision++ }, modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold,
+                            contentColor = androidx.compose.ui.graphics.Color(0xFF081B29)
+                        )
+                    ) {
+                        Text("Verificar novamente", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(
+                                        "https://timachado.ifree.page/aplicativos/brother-matrizes/"
+                                    )).addCategory(Intent.CATEGORY_BROWSABLE)
+                                )
+                            }
+                        }, modifier = Modifier.fillMaxWidth()
+                    ) { Text("Abrir página oficial", color = FioGold) }
+                }
+            }
         }
     } else {
         content()
