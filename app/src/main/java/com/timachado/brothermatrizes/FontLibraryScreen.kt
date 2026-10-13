@@ -55,7 +55,8 @@ import java.util.Locale
 
 @Composable
 fun FontLibraryScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     val context =
         LocalContext.current
@@ -132,7 +133,8 @@ fun FontLibraryScreen(
             onArchiveReady = { uri ->
                 browserOpen = false
                 fontZipUri = uri
-            }
+            },
+            onRequireGoogle = onRequireGoogle
         )
         return
     }
