@@ -18,7 +18,12 @@ const headers = {
 };
 const reply = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers });
-const operations = new Set(["import_font", "import_matrix"]);
+const imports = new Set(["import_font", "import_matrix"]);
+const dailyActions = new Set([
+  "open_matrix", "rar_receive", "telegram_search", "telegram_import",
+  "dafont_search", "dafont_import",
+]);
+const operations = new Set([...imports, ...dailyActions]);
 const requestKey = /^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 Deno.serve(async (req: Request) => {
@@ -34,15 +39,22 @@ Deno.serve(async (req: Request) => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw Error("invalid");
     payload = parsed;
-    const validKeys = parsed.action === "reserve" ?
-      ["action", "operation"] : ["action", "operation", "request_key", "success"];
-    if (!["reserve", "finalize"].includes(parsed.action) ||
+    const validKeys = parsed.action === "status" ? ["action"] :
+      parsed.action === "reserve" ? ["action", "operation"] :
+      ["action", "operation", "request_key", "success", "fingerprint"];
+    const mandatoryKeys = parsed.action === "status" ? ["action"] :
+      parsed.action === "reserve" ? ["action", "operation"] :
+      ["action", "operation", "request_key", "success"];
+    if (!["reserve", "finalize", "status"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
-      !validKeys.every(k => Object.hasOwn(parsed, k)) ||
-      !operations.has(parsed.operation) ||
+      !mandatoryKeys.every(k => Object.hasOwn(parsed, k)) ||
+      (parsed.action !== "status" && !operations.has(parsed.operation)) ||
       (parsed.action === "finalize" &&
         (typeof parsed.success !== "boolean" ||
-          typeof parsed.request_key !== "string" || !requestKey.test(parsed.request_key))))
+          typeof parsed.request_key !== "string" || !requestKey.test(parsed.request_key) ||
+          (parsed.fingerprint !== undefined &&
+            (typeof parsed.fingerprint !== "string" ||
+            !/^[0-9a-f]{64}$/.test(parsed.fingerprint))))))
       throw Error("invalid");
   } catch {
     return reply({ message: "Solicitação de importação inválida." }, 400);
@@ -113,6 +125,14 @@ Deno.serve(async (req: Request) => {
     return reply({ message: "Não foi possível verificar sua licença. Confira a internet e tente novamente." }, 503);
   }
 
+  if (payload.action === "status") {
+    const { data, error } = await admin.rpc("brother_matrizes_action_status", {
+      p_user_id: user.id,
+    });
+    if (error || !data) return reply({ message: "Não foi possível consultar o consumo." }, 503);
+    return reply({ ...data, pro: isPro, plan: isPro ? "pro" : "free" });
+  }
+
   if (payload.action === "reserve" && isPro) {
     return reply({ allowed: true, request_key: "pro_" + crypto.randomUUID(),
       operation: payload.operation, remaining: null, pro: true });
@@ -121,6 +141,27 @@ Deno.serve(async (req: Request) => {
     if (!isPro) return reply({ message: "Seu acesso Pro não está mais ativo." }, 403);
     return reply({ ok: true, pro: true });
   }
+  if (dailyActions.has(payload.operation as string)) {
+    const operation = payload.operation as string;
+    if (payload.action === "reserve") {
+      const { data, error } = await admin.rpc("brother_matrizes_reserve_action", {
+        p_user_id: user.id, p_operation: operation,
+      });
+      if (error) return reply({ message: "Não foi possível consultar a cota diária." }, 503);
+      if (data?.allowed !== true)
+        return reply({ message: "Cota diária atingida. Ela renova à meia-noite de Brasília. Consulte os planos PRO.",
+          ...data }, 409);
+      return reply(data);
+    }
+    const { data, error } = await admin.rpc("brother_matrizes_finalize_action", {
+      p_user_id: user.id, p_operation: operation,
+      p_request_key: payload.request_key, p_success: payload.success,
+      p_fingerprint: payload.fingerprint || null,
+    });
+    if (error) return reply({ message: "Não foi possível confirmar a operação." }, 503);
+    return reply({ ok: true, counted: data === true });
+  }
+
   if (payload.action === "reserve") {
     const { data, error } = await admin.rpc("brother_matrizes_reserve_import", {
       p_user_id: user.id, p_operation: payload.operation,
