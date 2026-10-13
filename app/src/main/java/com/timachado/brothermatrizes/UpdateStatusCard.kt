@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateClient
 import com.timachado.brothermatrizes.core.updates.BrotherApkUpdater
+import com.timachado.brothermatrizes.ui.updates.BrotherCurrentVersionNews
 import com.timachado.brothermatrizes.core.updates.UpdateInAppNoticeRules
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.updates.BrotherFirebasePush
@@ -59,6 +60,7 @@ fun UpdateStatusCard() {
     var downloadStatus by remember { mutableStateOf<String?>(null) }
     var stagedUpdate by remember { mutableStateOf<File?>(null) }
     var revision by remember { mutableStateOf(0) }
+    var showInstalledNews by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf<BrotherUpdateClient.Result?>(null) }
 
     LaunchedEffect(revision, endpoint) {
@@ -84,6 +86,12 @@ fun UpdateStatusCard() {
                 color = FioTextMuted,
                 fontSize = 10.sp
             )
+            OutlinedButton(
+                onClick = { showInstalledNews = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Ver novidades da versão instalada")
+            }
             Spacer(Modifier.height(10.dp))
             when (val result = state) {
                 null -> Text(
@@ -272,5 +280,8 @@ fun UpdateStatusCard() {
                 ) { Text("Configurar notificações") }
             }
         }
+    }
+    if (showInstalledNews) {
+        BrotherCurrentVersionNews(onDismiss = { showInstalledNews = false })
     }
 }
