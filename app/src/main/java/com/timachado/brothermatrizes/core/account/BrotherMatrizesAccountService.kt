@@ -13,6 +13,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -353,9 +354,13 @@ object BrotherMatrizesAccountService {
     // user. This is the same recovery logic already used by Minha Conta.
     private suspend fun verifiedAccessToken(): String {
         val auth = client.auth
-        auth.awaitInitialization()
-        val status = auth.sessionStatus.first {
-            it !is SessionStatus.Initializing
+        // Não prender Abrir Matriz e Fontes numa sessão que nunca inicializa.
+        // Limitar a espera não apaga a sessão persistida.
+        val status = withTimeout(7_000L) {
+            auth.awaitInitialization()
+            auth.sessionStatus.first {
+                it !is SessionStatus.Initializing
+            }
         }
         val session = when (status) {
             is SessionStatus.Authenticated -> status.session
