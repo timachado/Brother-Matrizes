@@ -48,6 +48,7 @@ import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
 import com.timachado.brothermatrizes.ui.updates.BrotherUpdateReminder
 import com.timachado.brothermatrizes.ui.updates.BrotherFirebasePushOptIn
+import com.timachado.brothermatrizes.ui.updates.BrotherMandatoryUpdateGate
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
@@ -179,6 +180,7 @@ class MainActivity : ComponentActivity() {
                     endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
                         "/wp-json/tim-brother-updates/v1/latest?channel=stable"
                 )
+                BrotherMandatoryUpdateGate(resumeRequest = updateResumeRequest) {
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
@@ -215,6 +217,7 @@ class MainActivity : ComponentActivity() {
                                 )
                     }
                 )
+                }
             }
         }
     }
