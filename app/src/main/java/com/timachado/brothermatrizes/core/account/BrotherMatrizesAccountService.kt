@@ -436,6 +436,11 @@ object BrotherMatrizesAccountService {
         Unit
     }
 
+    /** The server returns read-only monthly balances for the signed-in Google account. */
+    suspend fun toolUsage(): Result<List<BrotherUsageClient.ToolUsage>> = runCatching {
+        BrotherUsageClient.monthlyToolUsage(verifiedAccessToken())
+    }
+
     /** Tool actions also require Google OAuth; identity and PRO rights are
      * independently checked again in the brother-usage Edge Function.
      */
