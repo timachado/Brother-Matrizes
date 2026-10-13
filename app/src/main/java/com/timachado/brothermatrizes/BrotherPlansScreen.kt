@@ -59,6 +59,7 @@ internal fun BrotherPlansScreen(
 ) {
     var proOption by remember { mutableStateOf("pro_monthly") }
     var lifetimeOption by remember { mutableStateOf("pro_lifetime") }
+    var expandedFreeLimits by remember { mutableStateOf(false) }
     var expandedComparison by remember { mutableStateOf(false) }
     var showFullComparison by remember { mutableStateOf(false) }
     var expandedLifetime by remember { mutableStateOf(false) }
@@ -194,6 +195,34 @@ internal fun BrotherPlansScreen(
                         )
                     }
                 }
+
+
+                PremiumPlansFold(
+                    title = "Limites do plano gratuito",
+                    subtitle = "Veja as cotas mensais e quais importações são compartilhadas",
+                    expanded = expandedFreeLimits,
+                    onToggle = { expandedFreeLimits = !expandedFreeLimits }
+                ) {
+                    BrotherPlanBenefits.monthlyFreeLimits.forEach { (tool, limit) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(tool, modifier = Modifier.weight(1f),
+                                color = BrotherAccountWhite, fontSize = 11.sp)
+                            Text(limit, color = BrotherAccountGold,
+                                fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                        }
+                    }
+                    Text(
+                        "PRO e Vitalício: sem essas cotas quando o acesso está ativo. " +
+                            "As importações de matrizes utilizam uma única cota, independentemente da origem.",
+                        color = BrotherAccountMuted, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 7.dp)
+                    )
+                }
+
 
                 PremiumPlanCard(
                     label = "MAIS PRODUTIVIDADE",
