@@ -2012,6 +2012,17 @@ private fun PlanSummary(
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp
         )
+        if (plan.code == "pro_yearly") {
+            val monthlyPrice = BrotherLaunchPriceDisplay.priceCents("pro_monthly")
+            val yearlyPrice = cents
+            BrotherPlanBenefits.yearlySavings(monthlyPrice, yearlyPrice)?.let { savings ->
+                Text(
+                    "Economia indicativa de " + formattedMoney(savings, plan.currency) +
+                        " em relação a 12 mensalidades. Confirme os valores no checkout.",
+                    color = FioGold, fontWeight = FontWeight.SemiBold, fontSize = 10.sp
+                )
+            }
+        }
         Text(BrotherPlanBenefits.audience(plan.code), color = FioTextMuted, fontSize = 11.sp)
         Text("Recursos e benefícios:", color = FioText, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
         BrotherPlanBenefits.benefits(plan.code).forEach { benefit ->
