@@ -64,9 +64,11 @@ jobs:
         run: |
           set -euo pipefail
           test -s supabase/functions/brother-usage/index.ts
-          grep -Fq 'telegram_search' supabase/functions/brother-usage/index.ts
-          grep -Fq 'dafont_search' supabase/functions/brother-usage/index.ts
-          grep -Fq 'rar_receive' supabase/functions/brother-usage/index.ts
+          grep -Fq 'telegram_search' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt
+          grep -Fq 'dafont_search' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt
+          grep -Fq 'rar_receive' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt
+          grep -Fq '.put("action", "reserve")' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt
+          grep -Fq '.put("action", "finalize")' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt
           grep -Fq 'ensureGoogleSession()' app/src/main/java/com/timachado/brothermatrizes/TelegramMatrixSearchScreen.kt
           grep -Fq 'ensureGoogleSession()' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
           grep -Fq 'ensureGoogleSession()' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
