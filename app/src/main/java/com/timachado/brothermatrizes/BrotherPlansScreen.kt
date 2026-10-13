@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
@@ -61,6 +62,10 @@ internal fun BrotherPlansScreen(
     var expandedLifetime by remember { mutableStateOf(false) }
     var faqOpen by remember { mutableStateOf(false) }
     var questionOpen by remember { mutableStateOf<String?>(null) }
+    // Keep the pricing scroll offset when switching to the full comparison.
+    val pricingScrollState = rememberScrollState()
+    val comparisonScrollState = rememberScrollState()
+    BackHandler(enabled = showFullComparison) { showFullComparison = false }
     val plans = AccountPlanCatalog.forDisplay(account?.availablePlans ?: emptyList())
     val byCode = plans.associateBy { it.code }
     val serverConfirmed = account?.commercialConfigured == true
@@ -83,10 +88,15 @@ internal fun BrotherPlansScreen(
                 fontWeight = FontWeight.Bold, fontSize = 23.sp,
                 modifier = Modifier.padding(vertical = 12.dp))
             Column(
-                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(comparisonScrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                BrotherPlanBenefits.comparison.forEach { item ->
+                // Genuine access differences first, shared tools afterwards.
+                BrotherPlanBenefits.comparison.sortedWith(
+                    compareByDescending<BrotherPlanBenefits.Comparison> {
+                        it.free != it.pro
+                    }
+                ).forEach { item ->
                     Surface(
                         color = BrotherAccountSurface, shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -110,7 +120,7 @@ internal fun BrotherPlansScreen(
             }
         } else {
             Column(
-                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(pricingScrollState),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
                 Text("BROTHER MATRIZES", color = BrotherAccountGold,
@@ -254,7 +264,10 @@ internal fun BrotherPlansScreen(
                     expanded = expandedComparison,
                     onToggle = { expandedComparison = !expandedComparison }
                 ) {
-                    BrotherPlanBenefits.comparison.take(4).forEach { item ->
+                    BrotherPlanBenefits.comparison
+                        .filter { it.free != it.pro }
+                        .take(4)
+                        .forEach { item ->
                         Column(Modifier.padding(vertical = 6.dp),
                             verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(item.name, color = BrotherAccountWhite,
@@ -265,6 +278,10 @@ internal fun BrotherPlansScreen(
                                 color = BrotherAccountGold, fontSize = 10.sp)
                         }
                     }
+                    Text(
+                        "Criação, biblioteca e edição continuam disponíveis também no Gratuito.",
+                        color = BrotherAccountMuted, fontSize = 11.sp
+                    )
                     TextButton(onClick = { showFullComparison = true }) {
                         Text("Ver comparação completa  ›", color = BrotherAccountGold)
                     }
