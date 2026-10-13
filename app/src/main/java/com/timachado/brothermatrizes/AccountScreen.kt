@@ -108,8 +108,22 @@ fun AccountScreen(
     onSignOut: () -> Unit
 ) {
     var showingPlans by remember { mutableStateOf(false) }
+    var showingBenefits by remember { mutableStateOf(false) }
     var preferencesOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = showingPlans) { showingPlans = false }
+    BackHandler(enabled = showingPlans || showingBenefits) {
+        if (showingPlans) showingPlans = false else showingBenefits = false
+    }
+    if (showingBenefits && account != null) {
+        BrotherMyBenefitsScreen(
+            account = account,
+            onBack = { showingBenefits = false },
+            onOpenPlans = {
+                showingBenefits = false
+                showingPlans = true
+            }
+        )
+        return
+    }
     if (showingPlans) {
         BrotherPlansScreen(
             account = account,
@@ -270,6 +284,7 @@ fun AccountScreen(
                 onActivateTrial = onActivateTrial,
                 onOpenWebAccount = onOpenWebAccount,
                 onOpenPlans = { showingPlans = true },
+                onOpenBenefits = { showingBenefits = true },
                 onOpenSupport = onOpenSupport,
                 textScale = textScale,
                 onTextScaleChange = onTextScaleChange,
@@ -836,6 +851,7 @@ private fun SignedInAccount(
     onActivateTrial: () -> Unit,
     onOpenWebAccount: () -> Unit,
     onOpenPlans: () -> Unit,
+    onOpenBenefits: () -> Unit,
     onOpenSupport: () -> Unit,
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -860,7 +876,8 @@ private fun SignedInAccount(
     ) {
         BrotherAccountHero(
             account = account,
-            onBenefits = onOpenPlans,
+            onBenefits = if (account.commercialConfigured && account.hasProAccess)
+                onOpenBenefits else onOpenPlans,
             onLicense = { licenseOpen = !licenseOpen }
         )
         if (licenseOpen) {
