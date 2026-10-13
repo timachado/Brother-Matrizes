@@ -161,8 +161,8 @@ fun AccountScreen(
                     account?.hasProAccess == true ->
                         "BROTHER MATRIZES PRO • Licença validada. Consulte seu plano e renovação abaixo."
                     else ->
-                        "PLANO GRATUITO • 3 fontes e 5 matrizes por mês neste aparelho. " +
-                            "Conheça as opções Pro abaixo."
+                        "PLANO GRATUITO • 5 matrizes e 3 fontes por mês. " +
+                            "Consulte as cotas de ferramentas em Planos e benefícios."
                 },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                 color = FioGold,
