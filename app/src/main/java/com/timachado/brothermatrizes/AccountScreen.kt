@@ -1980,9 +1980,16 @@ private fun PlanSummary(
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
-            if (owned) {
+            if (current) {
                 Text(
                     "Seu plano atual",
+                    color = FioGold,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp
+                )
+            } else if (lifetimeEquivalent) {
+                Text(
+                    "Acesso já incluído",
                     color = FioGold,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 10.sp
