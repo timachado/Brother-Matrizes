@@ -1,0 +1,37 @@
+name: Brother 1.10.5 base exata - QA login cotas gate
+
+on:
+  push:
+    branches:
+      - feature/brother-1105-login-cotas-gate-base-apk-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK Android 36
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Compilar candidato sem publicar
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Testes unitarios sem alterar ambiente comercial
+        run: gradle --no-daemon :app:testDebugUnitTest
+      - name: Confirmar artefato
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
