@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -118,7 +119,7 @@ internal fun BrotherPlansScreen(
                     Text("Planos e benefícios", modifier = Modifier.weight(1f),
                         color = BrotherAccountWhite,
                         fontWeight = FontWeight.Bold, fontSize = 23.sp)
-                    BrotherAccountGlyph("crown", Modifier.padding(start = 8.dp))
+                    BrotherAccountGlyph("crown", Modifier.size(28.dp))
                 }
                 Text("Escolha como aproveitar o Brother Matrizes.",
                     color = BrotherAccountMuted, fontSize = 12.sp)
