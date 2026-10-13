@@ -52,7 +52,7 @@ internal object BrotherUsageClient {
         }
     }
 
-    suspend fun reserveAction(accessToken: String, action: BrotherMeteredAction): String {
+    suspend fun reserveMonthlyAction(accessToken: String, action: BrotherMeteredAction): String {
         val payload = post(accessToken, JSONObject()
             .put("action", "reserve").put("operation", action.operation))
         check(payload.optBoolean("allowed") && payload.optString("operation") == action.operation) {
@@ -63,18 +63,14 @@ internal object BrotherUsageClient {
         }
     }
 
-    suspend fun finalizeAction(
+    suspend fun finalizeMonthlyAction(
         accessToken: String, action: BrotherMeteredAction, key: String,
-        success: Boolean, fingerprint: String? = null
+        success: Boolean
     ) {
         require(isValidReservationKey(key)) { "Reserva inválida." }
-        require(fingerprint == null || fingerprint.matches(Regex("[0-9a-f]{64}"))) {
-            "Identificador do arquivo inválido."
-        }
         val body = JSONObject().put("action", "finalize")
             .put("operation", action.operation)
             .put("request_key", key).put("success", success)
-        if (fingerprint != null) body.put("fingerprint", fingerprint)
         check(post(accessToken, body).optBoolean("ok")) {
             "Não foi possível atualizar seu consumo."
         }
