@@ -79,10 +79,14 @@ fun FontLibraryScreen(
 
     var browserOpen by remember { mutableStateOf(false) }
     var fontZipUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var fontZipFromDaFont by remember { mutableStateOf(false) }
     val zipPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) fontZipUri = uri
+        if (uri != null) {
+            fontZipFromDaFont = false
+            fontZipUri = uri
+        }
     }
     // Original direct TTF/OTF importer remains in the Fonts tab.
     val fontPicker = rememberLauncherForActivityResult(
@@ -132,6 +136,7 @@ fun FontLibraryScreen(
             },
             onArchiveReady = { uri ->
                 browserOpen = false
+                fontZipFromDaFont = true
                 fontZipUri = uri
             }
         )
@@ -141,9 +146,11 @@ fun FontLibraryScreen(
     if (selectedZip != null) {
         FontZipImportScreen(
             archiveUri = selectedZip,
+            sourceFromDaFont = fontZipFromDaFont,
             onBack = {
                 importedFonts = ImportedFontStore.list(context)
                 fontZipUri = null
+                fontZipFromDaFont = false
             },
             onLibraryChanged = {
                 importedFonts = ImportedFontStore.list(context)
