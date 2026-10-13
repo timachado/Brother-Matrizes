@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.4",
-  "versionCode": 180,
-  "minSupportedVersionCode": 0,
+  "versionName": "1.10.7",
+  "versionCode": 183,
+  "minSupportedVersionCode": 183,
   "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
-  "sha256": "62a663f3710c5989b2bc128f8a0b301bc2cd5f45ad1572a2d618cf51367d4ac0",
-  "releaseNotes": "Nova Comunidade Brother Matrizes; Feedback direto para WhatsApp ou e-mail; Avisos de novidades e novas versões com ativação opcional; Melhorias de interface e correções de estabilidade.",
-  "publishedAt": "2026-10-12",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.4/Brother-Matrizes-v1.10.4-ASSINADO.apk"
+  "sha256": "04884d2f8a889ccb0314939c67bb773d4157c329ac1962f6a23a3d1113e7c9d8",
+  "releaseNotes": "Atualização de segurança obrigatória: login Google e cotas do plano Gratuito. Corrigida a seleção de arquivos pelo Google Drive, a verificação de sessão e a importação de matrizes. Não desinstale o aplicativo: atualize por cima para preservar projetos e licenças.",
+  "publishedAt": "2026-10-13",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.7/Brother-Matrizes-1.10.7-CORRECAO-DRIVE-HOMOLOGACAO.apk"
 }
