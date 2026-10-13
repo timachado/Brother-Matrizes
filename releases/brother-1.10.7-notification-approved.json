@@ -1,0 +1,14 @@
+{
+  "campaignId": "brother-v1.10.7-update-20261013",
+  "authorized": true,
+  "authorizedBy": "solicitação expressa do proprietário nesta conversa, 13/10/2026",
+  "applicationId": "com.timachado.brothermatrizes",
+  "versionName": "1.10.7",
+  "versionCode": 183,
+  "sha256": "04884d2f8a889ccb0314939c67bb773d4157c329ac1962f6a23a3d1113e7c9d8",
+  "topic": "brother_matrizes_updates_stable",
+  "title": "Brother Matrizes 1.10.7 disponível",
+  "body": "Atualização importante! Corrigimos a importação pelo Google Drive e a verificação de conta. Abra o Brother Matrizes e atualize para continuar usando com segurança.",
+  "scope": "Somente aparelhos inscritos no canal de atualizações e com permissões de notificação",
+  "doNotRepeat": true
+}
