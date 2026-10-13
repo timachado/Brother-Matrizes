@@ -50,6 +50,7 @@ import com.timachado.brothermatrizes.ui.updates.BrotherUpdateReminder
 import com.timachado.brothermatrizes.ui.updates.BrotherFirebasePushOptIn
 import com.timachado.brothermatrizes.ui.updates.BrotherMandatoryUpdateGate
 import com.timachado.brothermatrizes.core.updates.BrotherUpdateNotificationWorker
+import com.timachado.brothermatrizes.core.account.BrotherMeteredAction
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.core.library.LibraryActivityStore
 import com.timachado.brothermatrizes.core.library.SentMatrixRecord
@@ -255,6 +256,10 @@ class MainActivity : ComponentActivity() {
         updateResumeRequest++
     }
 }
+
+private fun sha256Content(bytes: ByteArray): String =
+    java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+        .joinToString("") { "%02x".format(it) }
 
 internal fun recommendedHoopFor(
     design: EmbroideryDesign
@@ -759,6 +764,10 @@ private fun BrotherMatrizesApp(
     }
 
     var telegramImportPending by remember { mutableStateOf(false) }
+    // Restore the original picker after Google OAuth rather than asking the
+    // user to navigate through the feature a second time.
+    var pendingPickerAfterLogin by remember { mutableStateOf<Boolean?>(null) }
+    var pendingTelegramQuery by remember { mutableStateOf<String?>(null) }
 
     val picker =
         rememberLauncherForActivityResult(
@@ -790,7 +799,9 @@ private fun BrotherMatrizesApp(
                 loading = true
                 // The file picker is not a quota bypass: reserve before parsing.
                 val reserved = BrotherMatrizesAccountService.authorizeImport(
-                    context, isFont = false
+                    context, isFont = false,
+                    origin = if (telegramImportPending) BrotherMeteredAction.TELEGRAM_IMPORT
+                             else BrotherMeteredAction.OPEN_MATRIX
                 )
                 if (reserved.isFailure) {
                     loading = false
@@ -810,7 +821,12 @@ private fun BrotherMatrizesApp(
                 val result = parsed.getOrNull()
                 val finalized = BrotherMatrizesAccountService.finalizeImport(
                     context, isFont = false, requestKey = key,
-                    success = result is EmbroideryLoadResult.Success
+                    success = result is EmbroideryLoadResult.Success,
+                    origin = if (telegramImportPending) BrotherMeteredAction.TELEGRAM_IMPORT
+                             else BrotherMeteredAction.OPEN_MATRIX,
+                    fingerprint = (result as? EmbroideryLoadResult.Success)
+                        ?.design?.sourceBytes?.takeIf { it.isNotEmpty() }
+                        ?.let { sha256Content(it) }
                 )
                 loading = false
                 if (parsed.isFailure) {
@@ -866,6 +882,7 @@ private fun BrotherMatrizesApp(
         scope.launch {
             val logged = BrotherMatrizesAccountService.ensureGoogleSession()
             if (logged.isFailure) {
+                pendingPickerAfterLogin = telegram
                 telegramImportPending = false
                 screen = Screen.Account
                 snackbar.showSnackbar(
@@ -876,6 +893,54 @@ private fun BrotherMatrizesApp(
                 telegramImportPending = telegram
                 picker.launch(arrayOf("*/*"))
             }
+        }
+    }
+
+    suspend fun openTelegramSearch(query: String) {
+        val session = BrotherMatrizesAccountService.ensureGoogleSession()
+        if (session.isFailure) {
+            pendingTelegramQuery = query
+            screen = Screen.Account
+            snackbar.showSnackbar("Entre com Google para pesquisar matrizes no Telegram.")
+            return
+        }
+        val reservation = BrotherMatrizesAccountService.reserveDailyAction(
+            BrotherMeteredAction.TELEGRAM_SEARCH
+        )
+        if (reservation.isFailure) {
+            snackbar.showSnackbar(reservation.exceptionOrNull()?.message ?: "Cota indisponível.")
+            return
+        }
+        val key = reservation.getOrThrow()
+        val uri = Uri.parse(if (query.isBlank()) "tg://search"
+            else "tg://search?query=${Uri.encode(query)}")
+        val opened = runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, uri)
+                .addCategory(Intent.CATEGORY_BROWSABLE))
+        }.isSuccess
+        val outcome = BrotherMatrizesAccountService.completeDailyAction(
+            BrotherMeteredAction.TELEGRAM_SEARCH, key, opened
+        )
+        if (outcome.isFailure) {
+            snackbar.showSnackbar("Não foi possível sincronizar a pesquisa. Verifique a conexão.")
+        } else if (!opened) {
+            snackbar.showSnackbar("Instale ou atualize o Telegram para pesquisar.")
+        }
+    }
+
+    LaunchedEffect(updateResumeRequest, openAccountRequest) {
+        val pending = pendingPickerAfterLogin
+        if (pending != null && BrotherMatrizesAccountService.ensureGoogleSession().isSuccess) {
+            pendingPickerAfterLogin = null
+            telegramImportPending = pending
+            picker.launch(arrayOf("*/*"))
+        }
+        val query = pendingTelegramQuery
+        if (query != null && BrotherMatrizesAccountService.ensureGoogleSession().isSuccess) {
+            pendingTelegramQuery = null
+            screen = Screen.TelegramSearch
+            // Reissue the exact user-requested search once after OAuth.
+            scope.launch { openTelegramSearch(query) }
         }
     }
 
@@ -2050,6 +2115,9 @@ private fun BrotherMatrizesApp(
                         projects = savedProjects,
                         onBack = { goBack() },
                         onImport = { requestMatrixPicker(telegram = true) },
+                        onSearch = { query ->
+                            scope.launch { openTelegramSearch(query) }
+                        },
                         onOpenSavedProject = { saved ->
                             loadProject(saved, transferDirectly = false)
                         }
