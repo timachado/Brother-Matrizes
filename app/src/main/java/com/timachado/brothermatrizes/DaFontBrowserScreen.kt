@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.timachado.brothermatrizes.font.DaFontNavigationRules
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,8 @@ import java.util.Locale
 @Composable
 fun DaFontBrowserScreen(
     onBack: () -> Unit,
-    onArchiveReady: (Uri) -> Unit
+    onArchiveReady: (Uri) -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -80,6 +82,9 @@ fun DaFontBrowserScreen(
     var pageLoading by remember { mutableStateOf(false) }
     var displayedPage by remember { mutableStateOf(DaFontNavigationRules.HOME) }
     var failedPage by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
+    var meteredSearchUrl by remember { mutableStateOf("") }
+    var meteredAt by remember { mutableStateOf(0L) }
     fun goBack() {
         val web = browser
         if (web != null && web.canGoBack()) web.goBack() else onBack()
@@ -153,21 +158,51 @@ fun DaFontBrowserScreen(
         }
     }
 
-    fun searchFont() {
-        val term = query.trim()
-        keyboard?.hide()
-        focusManager.clearFocus()
-        val destination = DaFontNavigationRules.searchUrl(term)
-        browser?.loadUrl(destination)
-        pageLoading = true
-        failedPage = false
-        displayedPage = destination
-        message = if (term.isNotEmpty()) {
-            "Buscando \"" + term + "\" no catálogo DaFont. " +
-                "Se não houver resultados, a fonte pode não estar disponível no site."
-        } else {
-            "Explore o catálogo oficial ou digite o nome de uma fonte."
+    suspend fun meteredSearch(destination: String) {
+        if (searching) return
+        searching = true
+        try {
+            val google = BrotherMatrizesAccountService.ensureGoogleSession()
+            if (google.isFailure) {
+                message = "Entre com Google em Minha Conta para pesquisar no DaFont."
+                onRequireGoogle()
+                return
+            }
+            val permission = BrotherMatrizesAccountService.authorizeTool("dafont_search")
+            if (permission.isFailure) {
+                message = permission.exceptionOrNull()?.message
+                    ?: "Limite de pesquisas DaFont atingido."
+                return
+            }
+            val key = permission.getOrThrow()
+            keyboard?.hide()
+            focusManager.clearFocus()
+            val opened = runCatching {
+                val web = browser ?: error("O catálogo ainda está carregando.")
+                meteredSearchUrl = destination
+                meteredAt = android.os.SystemClock.elapsedRealtime()
+                web.loadUrl(destination)
+            }.isSuccess
+            val receipt = BrotherMatrizesAccountService.finalizeTool(
+                "dafont_search", key, opened
+            )
+            if (opened) {
+                pageLoading = true
+                failedPage = false
+                displayedPage = destination
+            }
+            message = when {
+                !opened -> "Busca não iniciada. Nenhuma pesquisa deve ser descontada."
+                receipt.isFailure -> "Busca iniciada, mas houve falha ao confirmar a cota."
+                else -> "Busca iniciada no catálogo DaFont."
+            }
+        } finally {
+            searching = false
         }
+    }
+
+    fun searchFont() {
+        scope.launch { meteredSearch(DaFontNavigationRules.searchUrl(query.trim())) }
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
@@ -272,7 +307,20 @@ fun DaFontBrowserScreen(
                             view: WebView?, request: WebResourceRequest?
                         ): Boolean {
                             val url = request?.url ?: return true
-                            if (DaFontNavigationRules.isOfficialPage(url.toString())) return false
+                            if (DaFontNavigationRules.isOfficialPage(url.toString())) {
+                                if (request.isForMainFrame &&
+                                    url.path == "/search.php" &&
+                                    !url.getQueryParameter("q").isNullOrBlank()) {
+                                    val address = url.toString()
+                                    val elapsed = android.os.SystemClock.elapsedRealtime() - meteredAt
+                                    if (address == meteredSearchUrl && elapsed in 0L..1500L) {
+                                        return false
+                                    }
+                                    if (!searching) scope.launch { meteredSearch(address) }
+                                    return true
+                                }
+                                return false
+                            }
                             if (url.scheme.equals("https", ignoreCase = true)) {
                                 runCatching {
                                     ctx.startActivity(Intent(Intent.ACTION_VIEW, url))

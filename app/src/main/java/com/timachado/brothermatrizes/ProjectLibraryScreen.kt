@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,8 @@ import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.text.DateFormat
+import kotlinx.coroutines.launch
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import java.util.Date
 import java.util.Locale
 
@@ -81,7 +84,8 @@ fun ProjectLibraryScreen(
     onBackup: () -> Unit,
     onRestore: () -> Unit,
     onFonts: () -> Unit,
-    onSearchMatrices: () -> Unit
+    onSearchMatrices: () -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     var section by remember {
         mutableStateOf(
@@ -89,19 +93,66 @@ fun ProjectLibraryScreen(
         )
     }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showRarOptions by remember { mutableStateOf(false) }
     var rarMessage by remember { mutableStateOf<String?>(null) }
+    var rarBusy by remember { mutableStateOf(false) }
+
+    suspend fun googleReady(): Boolean {
+        val check = BrotherMatrizesAccountService.ensureGoogleSession()
+        if (check.isSuccess) return true
+        rarMessage = "Entre com Google em Minha Conta para utilizar o RAR."
+        onRequireGoogle()
+        return false
+    }
+
+    fun useRar(action: () -> Boolean) {
+        if (rarBusy) return
+        scope.launch {
+            if (!googleReady()) return@launch
+            rarBusy = true
+            try {
+                val permit = BrotherMatrizesAccountService.authorizeTool("rar_receive")
+                if (permit.isFailure) {
+                    rarMessage = permit.exceptionOrNull()?.message
+                        ?: "Limite de utilizações do RAR atingido."
+                    return@launch
+                }
+                val key = permit.getOrThrow()
+                val opened = runCatching { action() }.getOrDefault(false)
+                val confirmation = BrotherMatrizesAccountService.finalizeTool(
+                    "rar_receive", key, opened
+                )
+                rarMessage = when {
+                    !opened -> "Não foi possível abrir o RAR. Nenhuma utilização deve ser descontada."
+                    confirmation.isFailure -> "RAR aberto, mas houve falha ao confirmar a cota."
+                    else -> "RAR aberto. Utilização registrada na sua conta."
+                }
+            } finally {
+                rarBusy = false
+            }
+        }
+    }
     val rarArchivePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val preferred = RarExternalOpener.installed(context)
-            val result = RarExternalOpener.handoff(context, uri, preferred)
-            rarMessage = if (result.isSuccess) {
-                "Extraia o pacote no aplicativo escolhido e volte para abrir a matriz."
-            } else {
-                "Não foi possível abrir o pacote. Escolha um descompactador instalado."
+            useRar {
+                RarExternalOpener.handoff(
+                    context, uri, RarExternalOpener.installed(context)
+                ).isSuccess
             }
+        }
+    }
+    fun chooseRar() {
+        if (rarBusy) return
+        scope.launch {
+            if (!googleReady()) return@launch
+            rarArchivePicker.launch(arrayOf(
+                "application/zip", "application/vnd.rar",
+                "application/x-rar-compressed",
+                "application/x-7z-compressed", "application/octet-stream"
+            ))
         }
     }
     if (showRarOptions) {
@@ -116,8 +167,7 @@ fun ProjectLibraryScreen(
                 TextButton(onClick = {
                     showRarOptions = false
                     if (RarExternalOpener.installed(context)) {
-                        val opened = RarExternalOpener.launch(context)
-                        if (opened.isFailure) rarMessage = "Não foi possível abrir o RAR."
+                        useRar { RarExternalOpener.launch(context).isSuccess }
                     } else {
                         RarExternalOpener.install(context)
                     }
@@ -131,11 +181,7 @@ fun ProjectLibraryScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showRarOptions = false
-                    rarArchivePicker.launch(arrayOf(
-                        "application/zip", "application/vnd.rar",
-                        "application/x-rar-compressed",
-                        "application/x-7z-compressed", "application/octet-stream"
-                    ))
+                    chooseRar()
                 }) { Text("ESCOLHER ARQUIVO", color = FioText) }
             }
         )
@@ -352,13 +398,7 @@ fun ProjectLibraryScreen(
                 Text("ABRIR COM RAR (WINRAR)", color = FioGold, fontSize = 11.sp)
             }
             OutlinedButton(
-                onClick = {
-                    rarArchivePicker.launch(arrayOf(
-                        "application/zip", "application/vnd.rar",
-                        "application/x-rar-compressed",
-                        "application/x-7z-compressed", "application/octet-stream"
-                    ))
-                },
+                onClick = { chooseRar() },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("Enviar pacote ao RAR", color = FioText, fontSize = 11.sp)

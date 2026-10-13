@@ -55,7 +55,8 @@ import java.util.Locale
 
 @Composable
 fun FontLibraryScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     val context =
         LocalContext.current
@@ -74,6 +75,19 @@ fun FontLibraryScreen(
         mutableStateOf<String?>(
             null
         )
+    }
+
+    fun guardedPicker(action: () -> Unit) {
+        scope.launch {
+            val permitted = com.timachado.brothermatrizes.core.account
+                .BrotherMatrizesAccountService.ensureGoogleSession()
+            if (permitted.isFailure) {
+                statusMessage = "Entre com Google em Minha Conta antes de importar fontes."
+                onRequireGoogle()
+                return@launch
+            }
+            action()
+        }
     }
 
     var browserOpen by remember { mutableStateOf(false) }
@@ -132,7 +146,8 @@ fun FontLibraryScreen(
             onArchiveReady = { uri ->
                 browserOpen = false
                 fontZipUri = uri
-            }
+            },
+            onRequireGoogle = onRequireGoogle
         )
         return
     }
@@ -202,7 +217,7 @@ fun FontLibraryScreen(
                 statusMessage =
                     null
 
-                fontPicker.launch(
+                guardedPicker { fontPicker.launch(
                     arrayOf(
                         "font/ttf",
                         "font/otf",
@@ -211,7 +226,7 @@ fun FontLibraryScreen(
                         "application/x-font-opentype",
                         "application/octet-stream"
                     )
-                )
+                ) }
             },
             modifier =
                 Modifier.fillMaxWidth(),
@@ -236,7 +251,7 @@ fun FontLibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { browserOpen = true },
+                onClick = { guardedPicker { browserOpen = true } },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FioSurfaceAlt,
@@ -245,7 +260,9 @@ fun FontLibraryScreen(
             ) { Text("Buscar no DaFont") }
             Button(
                 onClick = {
-                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                    guardedPicker {
+                        zipPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                    }
                 },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(

@@ -47,6 +47,7 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun AccountHostScreen(
@@ -190,13 +191,15 @@ fun AccountHostScreen(
             return@LaunchedEffect
         }
 
-        val result =
-            withContext(
-                Dispatchers.IO
-            ) {
-                BrotherMatrizesAccountService
-                    .currentAccount()
+        // A sessão pode ficar aguardando indefinidamente o refresh de rede.
+        // O timeout afeta somente a apresentação; não encerra login nem licença.
+        val result = withTimeoutOrNull(8_000L) {
+            withContext(Dispatchers.IO) {
+                BrotherMatrizesAccountService.currentAccount()
             }
+        } ?: Result.failure(
+            IllegalStateException("A verificação demorou demais. Tente novamente.")
+        )
 
         result.fold(
             onSuccess = {
@@ -247,13 +250,13 @@ fun AccountHostScreen(
             loading =
                 true
 
-            val result =
-                withContext(
-                    Dispatchers.IO
-                ) {
-                    BrotherMatrizesAccountService
-                        .currentAccount()
+            val result = withTimeoutOrNull(8_000L) {
+                withContext(Dispatchers.IO) {
+                    BrotherMatrizesAccountService.currentAccount()
                 }
+            } ?: Result.failure(
+                IllegalStateException("A verificação demorou demais. Tente novamente.")
+            )
 
             result.fold(
                 onSuccess = {
@@ -670,7 +673,9 @@ fun AccountHostScreen(
     Box(
         Modifier.fillMaxSize()
     ) {
-        if (accountVerified || account != null) {
+        // Em falha ou timeout, mostrar a tela de conta com login Google
+        // e "Tentar novamente", sem bloquear a navegação no spinner.
+        if (accountVerified || account != null || !loading) {
         AccountScreen(
             account =
                 account,
