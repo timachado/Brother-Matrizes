@@ -367,6 +367,16 @@ object BrotherMatrizesAccountService {
         return session.accessToken
     }
 
+    /** Pré-checagem de login Google antes do seletor de matrizes.
+     * A reserva de cota ocorre somente depois da escolha do arquivo.
+     */
+    suspend fun ensureGoogleSession(): Result<Unit> = runCatching {
+        check(verifiedAccessToken().isNotBlank()) {
+            "Entre com Google na aba Minha Conta para abrir matrizes."
+        }
+        Unit
+    }
+
     suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
         if (BuildConfig.BETA_LOCAL_IMPORTS) {
             // Resolve paid access from WooCommerce-confirmed Supabase mirror.
