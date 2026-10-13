@@ -70,6 +70,41 @@ internal object BrotherPlanBenefits {
         } else paid
     }
 
+    /** Destaques sucintos dos cards: detalhes de cobrança e uso ficam no FAQ. */
+    fun cardHighlights(code: String): List<String> = when (code) {
+        "free" -> listOf(
+            "Crie, edite e salve projetos",
+            "3 fontes + 5 matrizes por mês",
+            "Teste PRO de 7 dias, quando elegível"
+        )
+        "pro_monthly" -> listOf(
+            "Importações sem a cota do Gratuito",
+            "Acesso aos recursos PRO incluídos"
+        )
+        "pro_yearly" -> listOf(
+            "Mesmos recursos do PRO Mensal",
+            "Importações sem a cota do Gratuito"
+        )
+        "pro_lifetime" -> listOf(
+            "Recursos PRO cobertos pela licença",
+            "Pagamento único, sem mensalidades"
+        )
+        "pro_lifetime_launch" -> listOf(
+            "Mesmos direitos do PRO Vitalício",
+            "Preço especial, enquanto disponível"
+        )
+        else -> emptyList()
+    }
+
+    fun cardSubtitle(code: String): String = when (code) {
+        "free" -> "Para começar sem pagar."
+        "pro_monthly" -> "Flexibilidade mês a mês."
+        "pro_yearly" -> "Acesso PRO com economia anual."
+        "pro_lifetime" -> "Invista uma vez e use o PRO incluído."
+        "pro_lifetime_launch" -> "O mesmo Vitalício, por menos."
+        else -> ""
+    }
+
     fun caution(code: String): String = when (code) {
         "free" -> "O acesso PRO de teste é temporário. Ao terminar, projetos locais permanecem salvos."
         "pro_lifetime_launch" ->
