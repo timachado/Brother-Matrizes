@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -108,6 +109,7 @@ fun AccountScreen(
 ) {
     var showingPlans by remember { mutableStateOf(false) }
     var preferencesOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = showingPlans) { showingPlans = false }
     if (showingPlans) {
         BrotherPlansScreen(
             account = account,
