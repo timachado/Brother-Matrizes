@@ -175,13 +175,14 @@ class MainActivity : ComponentActivity() {
                 textScaleMultiplier = textScale,
                 darkTheme = darkTheme
             ) {
-                BrotherFirebasePushOptIn()
-                BrotherUpdateReminder(
-                    endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
-                        "/wp-json/tim-brother-updates/v1/latest?channel=stable"
-                )
                 BrotherMandatoryUpdateGate(resumeRequest = updateResumeRequest) {
-                BrotherMatrizesApp(
+                    // Optional notices never interrupt a mandatory update.
+                    BrotherFirebasePushOptIn()
+                    BrotherUpdateReminder(
+                        endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
+                            "/wp-json/tim-brother-updates/v1/latest?channel=stable"
+                    )
+                    BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
                     openHomeUpdatesRequest = openHomeUpdatesRequest,
