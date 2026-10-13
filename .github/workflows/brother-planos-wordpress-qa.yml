@@ -21,6 +21,11 @@ jobs:
           persist-credentials: false
       - name: Verificar PHP 8.2
         run: php -l wordpress/brother-planos-vitrine/brother-planos-vitrine.php
+      - name: Teste integrado do shortcode com produtos e estoque simulados
+        run: |
+          php -l wordpress/brother-planos-vitrine/test-shortcode.php
+          php wordpress/brother-planos-vitrine/test-shortcode.php
+
       - name: Testes de seguranca e isolamento do shortcode
         shell: bash
         run: |
@@ -47,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          (cd wordpress && zip -q -9 -r ../dist/brother-planos-vitrine-0.9.0.zip brother-planos-vitrine)
+          (cd wordpress && zip -q -9 -r ../dist/brother-planos-vitrine-0.9.0.zip brother-planos-vitrine -x '*/test-shortcode.php')
           unzip -t dist/brother-planos-vitrine-0.9.0.zip
           sha256sum dist/brother-planos-vitrine-0.9.0.zip >dist/SHA256.txt
       - uses: actions/upload-artifact@v4
