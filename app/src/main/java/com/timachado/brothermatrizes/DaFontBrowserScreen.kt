@@ -158,12 +158,12 @@ fun DaFontBrowserScreen(
     // Meter user-initiated DaFont searches, including queries typed in its
     // embedded website. Ordinary category navigation is not a search.
     suspend fun openMeteredSearch(destination: String) {
-        val reserved = BrotherMatrizesAccountService.reserveDailyAction(
+        val reserved = BrotherMatrizesAccountService.reserveMonthlyAction(
             BrotherMeteredAction.DAFONT_SEARCH
         )
         if (reserved.isFailure) {
             message = reserved.exceptionOrNull()?.message
-                ?: "Cota diária de pesquisas no DaFont indisponível."
+                ?: "Cota mensal de pesquisas no DaFont indisponível."
             return
         }
         val opened = runCatching {
@@ -173,7 +173,7 @@ fun DaFontBrowserScreen(
             failedPage = false
             displayedPage = destination
         }.isSuccess
-        val done = BrotherMatrizesAccountService.completeDailyAction(
+        val done = BrotherMatrizesAccountService.completeMonthlyAction(
             BrotherMeteredAction.DAFONT_SEARCH, reserved.getOrThrow(), opened
         )
         message = when {
