@@ -47,3 +47,21 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - name: Confirm APK exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify no production secrets or insecure URLs
+        run: bash scripts/pre_release_static_check.sh
+
+      - name: Android lint for release
+        run: gradle --no-daemon :app:lintRelease
+
+      - name: Build unsigned release candidate (no distribution)
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify release candidate and production quotas
+        shell: bash
+        run: |
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          grep -Fq 'versionCode = 181' app/build.gradle.kts
+          grep -Fq 'buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")' app/build.gradle.kts
+          grep -Fq 'brother_matrizes_reserve_monthly_action' supabase/functions/brother-usage/index.ts
+          ! grep -Eq 'dailyActions|reserve_action|finalize_action|cota diária' supabase/functions/brother-usage/index.ts
