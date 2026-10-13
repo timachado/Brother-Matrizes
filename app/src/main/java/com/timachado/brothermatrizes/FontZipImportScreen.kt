@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
-import com.timachado.brothermatrizes.core.account.BrotherMeteredAction
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.ArchiveFormat
 import com.timachado.brothermatrizes.core.archive.ArchiveInventory
@@ -50,8 +49,7 @@ import kotlinx.coroutines.withContext
 fun FontZipImportScreen(
     archiveUri: Uri,
     onBack: () -> Unit,
-    onLibraryChanged: () -> Unit,
-    sourceFromDaFont: Boolean = false
+    onLibraryChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -149,28 +147,13 @@ fun FontZipImportScreen(
                         for ((position, index) in items.withIndex()) {
                             progress = position + 1
                             val entry = fonts.firstOrNull { it.index == index } ?: continue
-                            // DaFont imports have their own daily budget AND the
-                            // original monthly font quota. They are never matrix imports.
-                            val dafontPermit = if (sourceFromDaFont)
-                                BrotherMatrizesAccountService.reserveDailyAction(
-                                    BrotherMeteredAction.DAFONT_IMPORT
-                                ) else null
-                            if (dafontPermit?.isFailure == true) {
-                                status = dafontPermit.exceptionOrNull()?.message
-                                    ?: "Cota diária de importação DaFont indisponível."
-                                break
-                            }
-                            val dafontKey = dafontPermit?.getOrNull()
+                            // DaFont and local ZIP fonts share the same monthly
+                            // 3-font allowance. No additional operation quota.
                             val permit = BrotherMatrizesAccountService
                                 .authorizeImport(context = context, isFont = true)
                             if (permit.isFailure) {
-                                if (dafontKey != null) {
-                                    BrotherMatrizesAccountService.completeDailyAction(
-                                        BrotherMeteredAction.DAFONT_IMPORT, dafontKey, false
-                                    )
-                                }
                                 status = permit.exceptionOrNull()?.message
-                                    ?: "Não foi possível validar a cota de fontes."
+                                    ?: "Não foi possível validar a cota mensal de fontes."
                                 break
                             }
                             val key = permit.getOrThrow()
@@ -201,11 +184,7 @@ fun FontZipImportScreen(
                                 val sync = BrotherMatrizesAccountService.finalizeImport(
                                     context = context, isFont = true, requestKey = key, success = created
                                 )
-                                val dafontSync = if (dafontKey != null)
-                                    BrotherMatrizesAccountService.completeDailyAction(
-                                        BrotherMeteredAction.DAFONT_IMPORT, dafontKey, created
-                                    ) else null
-                                if (sync.isFailure || dafontSync?.isFailure == true) {
+                                if (sync.isFailure) {
                                     status = "Fonte processada, mas a cota não foi sincronizada. " +
                                         "Verifique a conexão antes de tentar novamente."
                                     break
