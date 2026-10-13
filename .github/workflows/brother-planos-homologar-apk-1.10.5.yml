@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/brother-homologar-apk-1.10.5.yml'
+      - '.github/workflows/brother-planos-homologar-apk-1.10.5.yml'
   workflow_dispatch:
 
 permissions:
