@@ -80,12 +80,16 @@ internal object BrotherPlanBenefits {
     }
 
     val comparison: List<Comparison> = listOf(
-        Comparison("Criar e editar trabalhos", "Disponível", "Disponível"),
+        Comparison("Criação e edição de trabalhos", "Disponível", "Disponível"),
+        Comparison("Texto e personalização de bordados", "Disponível", "Disponível"),
         Comparison("Biblioteca local de projetos", "Disponível", "Disponível"),
-        Comparison("Importação de fontes", "Até 3/mês", "Sem cota mensal do Gratuito"),
-        Comparison("Importação de matrizes", "Até 5/mês", "Sem cota mensal do Gratuito"),
-        Comparison("Abrir arquivos e utilizar ferramentas de edição", "Recursos básicos do app", "Recursos do app + acesso PRO validado"),
-        Comparison("Atualizações publicadas", "Disponíveis", "Disponíveis"),
+        Comparison("Importação de fontes TTF/OTF e ZIP", "Até 3 fontes/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Importação de matrizes", "Até 5 matrizes/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Abrir formatos aceitos pelo aplicativo", "Disponível conforme formato", "Disponível conforme formato"),
+        Comparison("Editor, visualização e simulação", "Disponível", "Disponível"),
+        Comparison("Exportar e compartilhar trabalhos", "Disponível conforme formato", "Disponível conforme formato"),
+        Comparison("Atualizações oficiais", "Disponíveis", "Disponíveis"),
+        Comparison("Acesso antecipado / Beta", "Programa ainda não disponível", "Programa ainda não disponível"),
         Comparison("Conversão EMB ↔ PES", "Em desenvolvimento", "Em desenvolvimento")
     )
 
