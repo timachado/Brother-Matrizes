@@ -1,0 +1,66 @@
+name: Brother Matrizes - QA da vitrine de planos
+
+on:
+  push:
+    branches:
+      - feature/brother-planos-vitrine-20261013
+  pull_request:
+    branches:
+      - release/brother-matrizes-1.10.4
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-community:
+    name: Compilacao e testes Android (sem assinar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout da proposta
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Validar identidade comercial e versao candidata
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 180' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.4"' app/build.gradle.kts
+          test -s app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherPlanBenefits.kt
+          grep -Fq 'hasActiveLifetime' app/src/main/java/com/timachado/brothermatrizes/AccountScreen.kt
+
+      - name: Compilar APK de teste
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Executar testes unitarios
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Verificar artefato debug sem publicar
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          echo "Candidato validado para revisao; nenhuma versao foi publicada."
