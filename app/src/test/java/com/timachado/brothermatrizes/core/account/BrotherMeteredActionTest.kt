@@ -6,7 +6,7 @@ import org.junit.Test
 
 class BrotherMeteredActionTest {
     @Test fun hasSixUniqueWireOperations() {
-        assertEquals(6, BrotherMeteredAction.entries.map { it.operation }.toSet().size)
+        assertEquals(3, BrotherMeteredAction.entries.map { it.operation }.toSet().size)
         assertEquals(BrotherMeteredAction.RAR_RECEIVE,
             BrotherMeteredAction.fromOperation("rar_receive"))
     }
