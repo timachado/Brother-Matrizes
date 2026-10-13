@@ -2078,7 +2078,19 @@ private fun BrotherMatrizesApp(
                                 Screen.FontLibrary
                         },
                         onSearchMatrices = {
-                            screen = Screen.TelegramSearch
+                            scope.launch {
+                                if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
+                                    screen = Screen.Account
+                                    snackbar.showSnackbar(
+                                        "Entre com Google para buscar matrizes no Telegram."
+                                    )
+                                } else {
+                                    screen = Screen.TelegramSearch
+                                }
+                            }
+                        },
+                        onLoginRequired = {
+                            screen = Screen.Account
                         }
                     )
                 }
