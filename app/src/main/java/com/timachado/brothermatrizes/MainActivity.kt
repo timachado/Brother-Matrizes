@@ -2137,7 +2137,10 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.FontLibrary -> {
-                    FontLibraryScreen(onBack = { goBack() })
+                    FontLibraryScreen(
+                        onBack = { goBack() },
+                        onLoginRequired = { screen = Screen.Account }
+                    )
                 }
 
                 Screen.CreateName -> {
