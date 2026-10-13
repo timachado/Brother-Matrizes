@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.timachado.brothermatrizes.font.DaFontNavigationRules
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
+import com.timachado.brothermatrizes.core.account.BrotherMeteredAction
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
@@ -153,21 +155,43 @@ fun DaFontBrowserScreen(
         }
     }
 
+    // Meter user-initiated DaFont searches, including queries typed in its
+    // embedded website. Ordinary category navigation is not a search.
+    suspend fun openMeteredSearch(destination: String) {
+        val reserved = BrotherMatrizesAccountService.reserveDailyAction(
+            BrotherMeteredAction.DAFONT_SEARCH
+        )
+        if (reserved.isFailure) {
+            message = reserved.exceptionOrNull()?.message
+                ?: "Cota diária de pesquisas no DaFont indisponível."
+            return
+        }
+        val opened = runCatching {
+            val web = browser ?: error("O navegador ainda está carregando.")
+            web.loadUrl(destination)
+            pageLoading = true
+            failedPage = false
+            displayedPage = destination
+        }.isSuccess
+        val done = BrotherMatrizesAccountService.completeDailyAction(
+            BrotherMeteredAction.DAFONT_SEARCH, reserved.getOrThrow(), opened
+        )
+        message = when {
+            done.isFailure -> "Não foi possível registrar esta pesquisa. Verifique a internet."
+            !opened -> "Não foi possível abrir a busca. Tente novamente."
+            else -> "Pesquisa iniciada no catálogo oficial DaFont."
+        }
+    }
+
     fun searchFont() {
         val term = query.trim()
         keyboard?.hide()
         focusManager.clearFocus()
-        val destination = DaFontNavigationRules.searchUrl(term)
-        browser?.loadUrl(destination)
-        pageLoading = true
-        failedPage = false
-        displayedPage = destination
-        message = if (term.isNotEmpty()) {
-            "Buscando \"" + term + "\" no catálogo DaFont. " +
-                "Se não houver resultados, a fonte pode não estar disponível no site."
-        } else {
-            "Explore o catálogo oficial ou digite o nome de uma fonte."
+        if (term.isBlank()) {
+            message = "Digite o nome da fonte para pesquisar ou explore as categorias."
+            return
         }
+        scope.launch { openMeteredSearch(DaFontNavigationRules.searchUrl(term)) }
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
@@ -272,7 +296,16 @@ fun DaFontBrowserScreen(
                             view: WebView?, request: WebResourceRequest?
                         ): Boolean {
                             val url = request?.url ?: return true
-                            if (DaFontNavigationRules.isOfficialPage(url.toString())) return false
+                            if (DaFontNavigationRules.isOfficialPage(url.toString())) {
+                                val searched = request.isForMainFrame &&
+                                    url.path?.endsWith("/search.php", ignoreCase = true) == true &&
+                                    !url.getQueryParameter("q").isNullOrBlank()
+                                if (searched) {
+                                    scope.launch { openMeteredSearch(url.toString()) }
+                                    return true
+                                }
+                                return false
+                            }
                             if (url.scheme.equals("https", ignoreCase = true)) {
                                 runCatching {
                                     ctx.startActivity(Intent(Intent.ACTION_VIEW, url))
