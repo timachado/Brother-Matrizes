@@ -635,7 +635,7 @@ private fun BrotherMatrizesApp(
         )
         loading = false
         if (parsed.isFailure) {
-            snackbar.showSnackbar("Não foi possível ler esta matriz. A cota não foi consumida.")
+            snackbar.showSnackbar("Não foi possível ler esta matriz. Verifique sua cota na conta e tente novamente.")
             onExternalOpenConsumed(uri)
             return@LaunchedEffect
         }
@@ -815,7 +815,7 @@ private fun BrotherMatrizesApp(
                 loading = false
                 if (parsed.isFailure) {
                     telegramImportPending = false
-                    snackbar.showSnackbar("Não foi possível ler esta matriz. A cota não foi consumida.")
+                    snackbar.showSnackbar("Não foi possível ler esta matriz. Verifique sua cota na conta e tente novamente.")
                     return@launch
                 }
                 if (finalized.isFailure) {
