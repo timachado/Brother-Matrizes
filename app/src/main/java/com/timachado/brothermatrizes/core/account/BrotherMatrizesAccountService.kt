@@ -436,6 +436,21 @@ object BrotherMatrizesAccountService {
         Unit
     }
 
+    /** Tool actions also require Google OAuth; identity and PRO rights are
+     * independently checked again in the brother-usage Edge Function.
+     */
+    suspend fun authorizeTool(operation: String): Result<String> = runCatching {
+        val token = verifiedAccessToken()
+        BrotherUsageClient.reserveTool(token, operation)
+    }
+
+    suspend fun finalizeTool(
+        operation: String, requestKey: String, success: Boolean
+    ): Result<Unit> = runCatching {
+        val token = verifiedAccessToken()
+        BrotherUsageClient.finalizeTool(token, operation, requestKey, success)
+    }
+
     suspend fun openCheckout(planCode: String): Result<String> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Entre na sua conta primeiro.")
