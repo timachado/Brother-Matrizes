@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.timachado.brothermatrizes.font.DaFontNavigationRules
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,8 @@ import java.util.Locale
 @Composable
 fun DaFontBrowserScreen(
     onBack: () -> Unit,
-    onArchiveReady: (Uri) -> Unit
+    onArchiveReady: (Uri) -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -80,6 +82,7 @@ fun DaFontBrowserScreen(
     var pageLoading by remember { mutableStateOf(false) }
     var displayedPage by remember { mutableStateOf(DaFontNavigationRules.HOME) }
     var failedPage by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
     fun goBack() {
         val web = browser
         if (web != null && web.canGoBack()) web.goBack() else onBack()
@@ -154,19 +157,48 @@ fun DaFontBrowserScreen(
     }
 
     fun searchFont() {
-        val term = query.trim()
-        keyboard?.hide()
-        focusManager.clearFocus()
-        val destination = DaFontNavigationRules.searchUrl(term)
-        browser?.loadUrl(destination)
-        pageLoading = true
-        failedPage = false
-        displayedPage = destination
-        message = if (term.isNotEmpty()) {
-            "Buscando \"" + term + "\" no catálogo DaFont. " +
-                "Se não houver resultados, a fonte pode não estar disponível no site."
-        } else {
-            "Explore o catálogo oficial ou digite o nome de uma fonte."
+        if (searching) return
+        scope.launch {
+            searching = true
+            try {
+                val google = BrotherMatrizesAccountService.ensureGoogleSession()
+                if (google.isFailure) {
+                    message = "Entre com Google em Minha Conta para buscar no DaFont."
+                    onRequireGoogle()
+                    return@launch
+                }
+                val request = BrotherMatrizesAccountService.authorizeTool("dafont_search")
+                if (request.isFailure) {
+                    message = request.exceptionOrNull()?.message
+                        ?: "Não foi possível consultar a cota de pesquisas."
+                    return@launch
+                }
+                val key = request.getOrThrow()
+                val term = query.trim()
+                keyboard?.hide()
+                focusManager.clearFocus()
+                val destination = DaFontNavigationRules.searchUrl(term)
+                val opened = runCatching {
+                    val web = browser ?: error("O catálogo ainda está carregando.")
+                    web.loadUrl(destination)
+                }.isSuccess
+                val finalized = BrotherMatrizesAccountService.finalizeTool(
+                    "dafont_search", key, opened
+                )
+                if (opened) {
+                    pageLoading = true
+                    failedPage = false
+                    displayedPage = destination
+                }
+                message = when {
+                    !opened -> "O catálogo não estava pronto. A pesquisa não deve ser descontada."
+                    finalized.isFailure -> "Busca iniciada, mas houve falha ao confirmar a cota."
+                    term.isNotEmpty() -> "Buscando \"" + term + "\" no DaFont."
+                    else -> "Explore o catálogo de fontes do DaFont."
+                }
+            } finally {
+                searching = false
+            }
         }
     }
 
