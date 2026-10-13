@@ -69,3 +69,24 @@ No GitHub Settings → Environments, configure `brother-release-signing`, de pre
 ## Suporte e rollback
 
 Se houver problemas, desative o plugin no painel WordPress: o endpoint preexistente volta a atender normalmente, sem alteração de banco de dados ou produtos. Nenhum dado é excluído.
+
+
+---
+
+## Comunidade e feedback (plugin 1.2.0)
+
+Nova central opcional que não modifica o fluxo de compra/assinatura ou de download.
+
+1. Após instalar a atualização do plugin, acesse **Ferramentas → Brother — Comunidade**.
+2. Use o grupo oficial de feedbacks do WhatsApp e salve o **convite do grupo** no campo mostrado. Se estiver vazio, os botões de seguir não são exibidos.
+3. Edite **somente** a página pública Brother Matrizes no WordPress e coloque uma vez o shortcode \`[brother_matrizes_community]\`.
+4. A central mostra a versão estável existente, direciona ao grupo de feedbacks e traz formulário de sugestões. Feedbacks são salvos **privadamente** em **Ferramentas → Brother — Feedbacks**; nunca publicados automaticamente.
+5. O aplicativo consulta o endpoint de leitura pública \`/wp-json/tim-brother-sync/v1/community\`. Atualizar o convite remoto **não exige gerar outro APK**, depois que esta integração estiver publicada. Em caso de falha de rede, o app mantém acesso à página oficial; o grupo fica oculto até que a consulta funcione.
+
+**Privacidade:** o formulário não solicita senhas ou números de licença. E-mail é opcional, armazenado apenas com autorização explícita. O formulário usa nonce, campo anti-bot e limite por origem; não há promessa de proteção absoluta contra spam. Revise e exclua feedbacks antigos de acordo com sua política de privacidade e LGPD. Em sites que usam cache agressivo de página, teste a validade do nonce do formulário. A T.I. Machado deve informar o tratamento de dados na política de privacidade.
+
+**Rollback:** remova o shortcode ou desative somente o plugin Brother Matrizes — Atualizações Automáticas. Não remova o App Commerce Core. Os feedbacks já gravados no WordPress não são apagados automaticamente por desativação; sua exclusão deve ser uma decisão administrativa.
+
+**Fallback de hospedagem:** se o convite do grupo não estiver definido em Ferramentas → Brother — Comunidade, a central pública consulta `https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/community.json` pelo navegador. Esse JSON também é a fonte prioritária do novo Android, evitando a página HTML de bloqueio que às vezes substitui respostas da API WordPress. Para manter tudo sincronizado, cadastre o convite no JSON do GitHub e evite um valor diferente na opção local do WordPress. A URL é validada como `https://chat.whatsapp.com/...`; não inclua tokens ou credenciais.
+
+**Atenção ao grupo:** habilite aprovação de novos participantes no WhatsApp. Mantenha a opção de membros enviarem mensagens ativa para que possam participar. Oriente sobre a visibilidade dos números de telefone e proíba senhas, cobranças por terceiros, links suspeitos e spam. Para revogar um convite público, gere um novo link e atualize `updates/community.json` e a opção do WordPress; a imagem e a descrição do grupo também devem substituir **Canal** por **Grupo**.
