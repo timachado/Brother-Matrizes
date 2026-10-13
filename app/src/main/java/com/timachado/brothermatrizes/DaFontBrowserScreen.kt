@@ -83,6 +83,9 @@ fun DaFontBrowserScreen(
     var displayedPage by remember { mutableStateOf(DaFontNavigationRules.HOME) }
     var failedPage by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
+    // WebView's own search form must not bypass the metered in-app search.
+    var lastMeteredUrl by remember { mutableStateOf("") }
+    var lastMeteredAt by remember { mutableStateOf(0L) }
     fun goBack() {
         val web = browser
         if (web != null && web.canGoBack()) web.goBack() else onBack()
@@ -180,6 +183,8 @@ fun DaFontBrowserScreen(
                 val destination = DaFontNavigationRules.searchUrl(term)
                 val opened = runCatching {
                     val web = browser ?: error("O catálogo ainda está carregando.")
+                    lastMeteredUrl = destination
+                    lastMeteredAt = android.os.SystemClock.elapsedRealtime()
                     web.loadUrl(destination)
                 }.isSuccess
                 val finalized = BrotherMatrizesAccountService.finalizeTool(
@@ -304,7 +309,51 @@ fun DaFontBrowserScreen(
                             view: WebView?, request: WebResourceRequest?
                         ): Boolean {
                             val url = request?.url ?: return true
-                            if (DaFontNavigationRules.isOfficialPage(url.toString())) return false
+                            if (DaFontNavigationRules.isOfficialPage(url.toString())) {
+                                if (request.isForMainFrame && url.path == "/search.php" &&
+                                    !url.getQueryParameter("q").isNullOrBlank()
+                                ) {
+                                    val address = url.toString()
+                                    val seconds = android.os.SystemClock.elapsedRealtime() - lastMeteredAt
+                                    // Built-in query has already been authorized; don't debit twice.
+                                    if (address == lastMeteredUrl && seconds in 0L..1500L)
+                                        return false
+                                    if (searching) return true
+                                    scope.launch {
+                                        searching = true
+                                        try {
+                                            val google = BrotherMatrizesAccountService.ensureGoogleSession()
+                                            if (google.isFailure) {
+                                                message = "Entre com Google em Minha Conta para pesquisar."
+                                                onRequireGoogle()
+                                                return@launch
+                                            }
+                                            val reserved = BrotherMatrizesAccountService
+                                                .authorizeTool("dafont_search")
+                                            if (reserved.isFailure) {
+                                                message = reserved.exceptionOrNull()?.message
+                                                    ?: "Sua cota de pesquisas não está disponível."
+                                                return@launch
+                                            }
+                                            val key = reserved.getOrThrow()
+                                            val opened = runCatching {
+                                                lastMeteredUrl = address
+                                                lastMeteredAt = android.os.SystemClock.elapsedRealtime()
+                                                view?.loadUrl(address) ?: error("Navegador fechado.")
+                                            }.isSuccess
+                                            val result = BrotherMatrizesAccountService.finalizeTool(
+                                                "dafont_search", key, opened
+                                            )
+                                            if (!opened) message = "A busca não foi aberta e não deve ser descontada."
+                                            else if (result.isFailure) message = "Busca iniciada, mas a cota não foi confirmada."
+                                        } finally {
+                                            searching = false
+                                        }
+                                    }
+                                    return true
+                                }
+                                return false
+                            }
                             if (url.scheme.equals("https", ignoreCase = true)) {
                                 runCatching {
                                     ctx.startActivity(Intent(Intent.ACTION_VIEW, url))
