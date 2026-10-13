@@ -51,6 +51,15 @@ jobs:
       - name: Verify no production secrets or insecure URLs
         run: bash scripts/pre_release_static_check.sh
 
+      - name: Audit legacy brand references before production signing
+        shell: bash
+        run: |
+          LEGACY_TOKEN="$(printf 'fio%s' 'lab')"
+          if git grep -ni -I -F "$LEGACY_TOKEN"; then
+            echo "Legacy brand reference detected. Review before production release."
+            exit 1
+          fi
+
       - name: Android lint for release
         run: gradle --no-daemon :app:lintRelease
 
