@@ -1,0 +1,58 @@
+name: Brother Matrizes - QA e pacote de planos WooCommerce
+
+on:
+  push:
+    branches: [feature/brother-planos-vitrine-20261013]
+    paths:
+      - 'wordpress/brother-planos-vitrine/**'
+      - '.github/workflows/brother-planos-wordpress-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verificar PHP 8.2
+        run: php -l wordpress/brother-planos-vitrine/brother-planos-vitrine.php
+      - name: Testes de seguranca e isolamento do shortcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=wordpress/brother-planos-vitrine/brother-planos-vitrine.php
+          grep -Fq "defined('ABSPATH') || exit;" "$file"
+          grep -Fq "add_shortcode('brother_matrizes_planos'" "$file"
+          grep -Fq 'wc_get_product' "$file"
+          grep -Fq 'is_purchasable' "$file"
+          grep -Fq 'is_in_stock' "$file"
+          grep -Fq 'esc_url' "$file"
+          grep -Fq 'esc_html' "$file"
+          test "$(grep -c 'wc_get_product' "$file")" -ge 2
+          for product_id in 329 330 331 308; do
+            grep -Fq "'product' => $product_id" "$file"
+          done
+          if grep -En 'add_filter.*the_content|wp_set_object_terms|wc_create_order|update_post_meta|woocommerce_order_status' "$file"; then
+            echo 'Plugin deve ser apenas de apresentacao, sem editar produtos/checkout'
+            exit 1
+          fi
+          echo 'Plugin confinado ao shortcode; nenhum preco ou estoque inserido manualmente.'
+      - name: Preparar ZIP instalavel sem implantar
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          (cd wordpress && zip -q -9 -r ../dist/brother-planos-vitrine-0.9.0.zip brother-planos-vitrine)
+          unzip -t dist/brother-planos-vitrine-0.9.0.zip
+          sha256sum dist/brother-planos-vitrine-0.9.0.zip >dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brother-planos-vitrine-0.9.0-wordpress
+          path: dist/*
+          retention-days: 30
+          if-no-files-found: error
