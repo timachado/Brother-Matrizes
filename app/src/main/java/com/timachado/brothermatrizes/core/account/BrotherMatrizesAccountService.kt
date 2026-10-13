@@ -382,8 +382,31 @@ object BrotherMatrizesAccountService {
         Unit
     }
 
-    suspend fun authorizeImport(context: Context, isFont: Boolean): Result<String> = runCatching {
-        if (BuildConfig.BETA_LOCAL_IMPORTS) {
+    /** Ações de fontes externas usam a mesma sessão Google e o servidor de cotas. */
+    suspend fun reserveDailyAction(action: BrotherMeteredAction): Result<String> = runCatching {
+        BrotherUsageClient.reserveAction(verifiedAccessToken(), action)
+    }
+
+    suspend fun completeDailyAction(
+        action: BrotherMeteredAction, requestKey: String, success: Boolean,
+        fingerprint: String? = null
+    ): Result<Unit> = runCatching {
+        BrotherUsageClient.finalizeAction(
+            verifiedAccessToken(), action, requestKey, success, fingerprint
+        )
+    }
+
+    suspend fun dailyUsage(): Result<org.json.JSONObject> = runCatching {
+        BrotherUsageClient.usage(verifiedAccessToken())
+    }
+
+    suspend fun authorizeImport(
+        context: Context, isFont: Boolean,
+        origin: BrotherMeteredAction = BrotherMeteredAction.OPEN_MATRIX
+    ): Result<String> = runCatching {
+        if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
+            BrotherUsageClient.reserveAction(verifiedAccessToken(), origin)
+        } else if (BuildConfig.BETA_LOCAL_IMPORTS) {
             // Resolve paid access from WooCommerce-confirmed Supabase mirror.
             // Refresh a stale lease before importing; free preview works offline.
             val session = client.auth.currentSessionOrNull()
@@ -420,9 +443,15 @@ object BrotherMatrizesAccountService {
     }
 
     suspend fun finalizeImport(
-        context: Context, isFont: Boolean, requestKey: String, success: Boolean
+        context: Context, isFont: Boolean, requestKey: String, success: Boolean,
+        origin: BrotherMeteredAction = BrotherMeteredAction.OPEN_MATRIX,
+        fingerprint: String? = null
     ): Result<Unit> = runCatching {
-        if (BuildConfig.BETA_LOCAL_IMPORTS) {
+        if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
+            BrotherUsageClient.finalizeAction(
+                verifiedAccessToken(), origin, requestKey, success, fingerprint
+            )
+        } else if (BuildConfig.BETA_LOCAL_IMPORTS) {
             if (requestKey.startsWith("pro_")) {
                 require(requestKey.matches(
                     Regex("pro_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
