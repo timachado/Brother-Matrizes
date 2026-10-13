@@ -39,7 +39,9 @@ jobs:
         shell: bash
         run: |
           LEGACY_TOKEN="$(printf 'fio%s' 'lab')"
-          if git grep -ni -I -F "$LEGACY_TOKEN"; then
+          # Scan only packaged sources: old CI/workflow history and
+          # archive docs may legitimately mention the previous brand.
+          if git grep -ni -I -F "$LEGACY_TOKEN" -- app/src/main app/build.gradle.kts branding; then
             echo "Legacy identity reference detected."
             exit 1
           fi
