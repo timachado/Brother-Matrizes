@@ -61,7 +61,7 @@ internal object BrotherUsageClient {
             "Ferramenta não autorizada."
         }
         val body = post(accessToken, JSONObject()
-            .put("action", "reserve_tool")
+            .put("action", "reserve")
             .put("operation", operation))
         check(body.optBoolean("allowed") && body.optString("operation") == operation) {
             "Não foi possível consultar a cota."
@@ -80,7 +80,7 @@ internal object BrotherUsageClient {
         }
         require(isValidReservationKey(requestKey)) { "Reserva inválida." }
         val data = post(accessToken, JSONObject()
-            .put("action", "finalize_tool")
+            .put("action", "finalize")
             .put("operation", operation)
             .put("request_key", requestKey)
             .put("success", success))
