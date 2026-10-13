@@ -2013,7 +2013,20 @@ private fun BrotherMatrizesApp(
                                 Screen.FontLibrary
                         },
                         onSearchMatrices = {
-                            screen = Screen.TelegramSearch
+                            scope.launch {
+                                val google = BrotherMatrizesAccountService.ensureGoogleSession()
+                                if (google.isSuccess) {
+                                    screen = Screen.TelegramSearch
+                                } else {
+                                    screen = Screen.Account
+                                    snackbar.showSnackbar(
+                                        "Entre com Google para pesquisar matrizes no Telegram."
+                                    )
+                                }
+                            }
+                        },
+                        onRequireGoogle = {
+                            screen = Screen.Account
                         }
                     )
                 }
@@ -2050,6 +2063,7 @@ private fun BrotherMatrizesApp(
                         projects = savedProjects,
                         onBack = { goBack() },
                         onImport = { requestMatrixPicker(telegram = true) },
+                        onRequireGoogle = { screen = Screen.Account },
                         onOpenSavedProject = { saved ->
                             loadProject(saved, transferDirectly = false)
                         }
@@ -2057,7 +2071,10 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.FontLibrary -> {
-                    FontLibraryScreen(onBack = { goBack() })
+                    FontLibraryScreen(
+                        onBack = { goBack() },
+                        onRequireGoogle = { screen = Screen.Account }
+                    )
                 }
 
                 Screen.CreateName -> {
