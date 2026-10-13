@@ -99,3 +99,11 @@ jobs:
           grep -Fq 'buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")' app/build.gradle.kts
           grep -Fq 'brother_matrizes_reserve_monthly_action' supabase/functions/brother-usage/index.ts
           ! grep -Eq 'dailyActions|reserve_action|finalize_action|cota diária' supabase/functions/brother-usage/index.ts
+      - name: Upload unsigned 1.10.5 release for private local signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.5-UNSIGNED-local-signing
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 2
+
