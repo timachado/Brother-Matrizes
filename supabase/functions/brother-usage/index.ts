@@ -11,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.116.0";
  */
 const headers = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization,apikey,content-type",
+  "access-control-allow-headers": "authorization,apikey,content-type,x-brother-app-version-code",
   "access-control-allow-methods": "POST,OPTIONS",
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -65,6 +65,25 @@ Deno.serve(async (req: Request) => {
   if (loginError || !user) return reply({ message: "Sessão Google inválida ou expirada." }, 401);
   if (!user.email || !user.email_confirmed_at)
     return reply({ message: "Confirme seu e-mail Google para utilizar as importações." }, 403);
+  // Staged version gate: enable BROTHER_MINIMUM_CLIENT_VERSION_CODE in
+  // Supabase ONLY after the required signed APK is publicly available.
+  // Older authenticated API clients without this header are rejected.
+  // This cannot remotely change APKs that never call our API, and the
+  // header is client-reported (not cryptographic attestation).
+  const minimum = Number(Deno.env.get("BROTHER_MINIMUM_CLIENT_VERSION_CODE") || "0");
+  if (Number.isSafeInteger(minimum) && minimum > 0) {
+    const supplied = req.headers.get("x-brother-app-version-code") || "";
+    const installed = /^\\d{1,9}$/.test(supplied) ? Number(supplied) : 0;
+    if (!Number.isSafeInteger(installed) || installed < minimum) {
+      return reply({
+        message: "Atualização obrigatória do Brother Matrizes. Atualize pelo site oficial para continuar importando.",
+        update_required: true,
+        minimum_version_code: minimum,
+        website: "https://timachado.ifree.page/aplicativos/brother-matrizes/"
+      }, 426);
+    }
+  }
+
 
   // Reuse the current entitlement authority: never duplicate or fabricate
   // WooCommerce/Efí payment checks inside this non-financial service.
