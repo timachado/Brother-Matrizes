@@ -15,8 +15,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 183
-        versionName = "1.10.7"
+        versionCode = 184
+        versionName = "1.10.8"
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.

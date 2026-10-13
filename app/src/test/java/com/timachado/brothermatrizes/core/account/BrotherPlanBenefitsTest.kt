@@ -43,6 +43,21 @@ class BrotherPlanBenefitsTest {
         )
     }
 
+    @Test fun limitesGratuitosReproduzemPoliticaComCompartilhamento() {
+        val rows = BrotherPlanBenefits.monthlyFreeLimits.toMap()
+        assertEquals(7, rows.size)
+        assertEquals("5/mês", rows["Abrir/importar matrizes DST, JEF e PES"])
+        assertEquals("Compartilha as 5 importações", rows["Abrir matrizes pelo WinRAR"])
+        assertEquals("Compartilha as 5 importações", rows["Importar matrizes do Telegram ou Arquivos"])
+        assertEquals("5 envios/mês", rows["Enviar pacote ao RAR"])
+        assertEquals("10 pesquisas/mês", rows["Buscar matrizes no Telegram"])
+        assertEquals("3 fontes/mês", rows["Importar fontes TTF, OTF ou ZIP"])
+        assertEquals("10 pesquisas/mês", rows["Pesquisar fontes no DaFont"])
+        assertTrue(BrotherPlanBenefits.comparison.any {
+            it.name == "Buscar matrizes no Telegram" && it.pro.contains("Sem cota")
+        })
+    }
+
     @Test fun economiaAnualUsaPrecoRealOuReferenciaValida() {
         assertEquals(7890, BrotherPlanBenefits.yearlySavings(1990,15990))
         assertNull(BrotherPlanBenefits.yearlySavings(null,15990))
