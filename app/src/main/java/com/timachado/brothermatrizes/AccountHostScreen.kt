@@ -44,6 +44,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun AccountHostScreen(
     onBack: () -> Unit,
+    onOpenSupport: () -> Unit,
     refreshRequest: Int = 0,
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -706,6 +707,7 @@ fun AccountHostScreen(
             },
             onActivateTrial = { activateFreeTrial() },
             onOpenWebAccount = { openWordPressAccount() },
+            onOpenSupport = onOpenSupport,
             onOpenPlan = { code -> openBrotherPlan(code) },
             onSignOut = {
                 signOut()
