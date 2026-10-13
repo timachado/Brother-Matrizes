@@ -27,6 +27,22 @@ class BrotherPlanBenefitsTest {
         }
     }
 
+    @Test fun cardsSaoCurtosESemPromessasDeBeta() {
+        assertEquals(3, BrotherPlanBenefits.cardHighlights("free").size)
+        for (code in listOf(
+            "pro_monthly", "pro_yearly", "pro_lifetime", "pro_lifetime_launch"
+        )) {
+            val summaries = BrotherPlanBenefits.cardHighlights(code)
+            assertEquals(2, summaries.size)
+            assertTrue(summaries.all { it.length < 55 })
+            assertFalse(summaries.any { it.contains("Beta", ignoreCase = true) })
+        }
+        assertEquals(
+            BrotherPlanBenefits.cardHighlights("pro_lifetime_launch").size,
+            BrotherPlanBenefits.cardHighlights("pro_lifetime").size
+        )
+    }
+
     @Test fun economiaAnualUsaPrecoRealOuReferenciaValida() {
         assertEquals(7890, BrotherPlanBenefits.yearlySavings(1990,15990))
         assertNull(BrotherPlanBenefits.yearlySavings(null,15990))
