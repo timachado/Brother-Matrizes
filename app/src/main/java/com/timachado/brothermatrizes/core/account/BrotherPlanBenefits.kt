@@ -114,12 +114,29 @@ internal object BrotherPlanBenefits {
         else -> "O acesso depende de uma licença válida e verificada no servidor."
     }
 
+    /** Resumo público das cotas comerciais verificadas no servidor.
+     * Os contadores reais e a concessão de acesso continuam no Supabase.
+     * Operações de matriz via Arquivos, WinRAR e Telegram compartilham 5/mês.
+     */
+    val monthlyFreeLimits: List<Pair<String, String>> = listOf(
+        "Abrir/importar matrizes DST, JEF e PES" to "5/mês",
+        "Abrir matrizes pelo WinRAR" to "Compartilha as 5 importações",
+        "Importar matrizes do Telegram ou Arquivos" to "Compartilha as 5 importações",
+        "Enviar pacote ao RAR" to "5 envios/mês",
+        "Buscar matrizes no Telegram" to "10 pesquisas/mês",
+        "Importar fontes TTF, OTF ou ZIP" to "3 fontes/mês",
+        "Pesquisar fontes no DaFont" to "10 pesquisas/mês"
+    )
+
     val comparison: List<Comparison> = listOf(
         Comparison("Criação e edição de trabalhos", "Disponível", "Disponível"),
         Comparison("Texto e personalização de bordados", "Disponível", "Disponível"),
         Comparison("Biblioteca local de projetos", "Disponível", "Disponível"),
         Comparison("Importação de fontes TTF/OTF e ZIP", "Até 3 fontes/mês", "Sem cota mensal do Gratuito"),
-        Comparison("Importação de matrizes", "Até 5 matrizes/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Importação de matrizes", "Até 5 matrizes/mês (inclusive Arquivos, WinRAR e Telegram)", "Sem cota mensal do Gratuito"),
+        Comparison("Enviar pacotes ao RAR", "5 envios/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Buscar matrizes no Telegram", "10 buscas/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Pesquisar fontes no DaFont", "10 buscas/mês", "Sem cota mensal do Gratuito"),
         Comparison("Abrir formatos aceitos pelo aplicativo", "Disponível conforme formato", "Disponível conforme formato"),
         Comparison("Editor, visualização e simulação", "Disponível", "Disponível"),
         Comparison("Exportar e compartilhar trabalhos", "Disponível conforme formato", "Disponível conforme formato"),
