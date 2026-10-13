@@ -59,6 +59,10 @@ internal object BrotherPlanBenefits {
         if (code == "free") return base + listOf(
             "Até 3 importações de fontes por mês na conta gratuita",
             "Até 5 importações de matrizes por mês na conta gratuita",
+            "Até 30 ações com RAR/WinRAR por mês",
+            "Até 60 pesquisas no Telegram por mês",
+            "Até 60 pesquisas no DaFont por mês",
+            "Importações externas compartilham as cotas mensais de matrizes e fontes",
             "7 dias de teste PRO, uma única vez quando elegível"
         )
         val paid = base + listOf(
@@ -120,6 +124,9 @@ internal object BrotherPlanBenefits {
         Comparison("Biblioteca local de projetos", "Disponível", "Disponível"),
         Comparison("Importação de fontes TTF/OTF e ZIP", "Até 3 fontes/mês", "Sem cota mensal do Gratuito"),
         Comparison("Importação de matrizes", "Até 5 matrizes/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Ações com RAR/WinRAR", "Até 30 por mês", "Sem cota mensal do Gratuito"),
+        Comparison("Pesquisa no Telegram", "Até 60 por mês", "Sem cota mensal do Gratuito"),
+        Comparison("Pesquisa no DaFont", "Até 60 por mês", "Sem cota mensal do Gratuito"),
         Comparison("Abrir formatos aceitos pelo aplicativo", "Disponível conforme formato", "Disponível conforme formato"),
         Comparison("Editor, visualização e simulação", "Disponível", "Disponível"),
         Comparison("Exportar e compartilhar trabalhos", "Disponível conforme formato", "Disponível conforme formato"),
