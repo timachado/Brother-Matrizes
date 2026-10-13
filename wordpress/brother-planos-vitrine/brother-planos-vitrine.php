@@ -78,6 +78,15 @@ if (!function_exists('bm_planos_display_shortcode')) {
             }
         }
 
+        // Resumos da vitrine: detalhes comerciais ficam no FAQ, sem repetir longas notas nos cards.
+        $highlights = array(
+            'free' => array('Crie, edite e salve projetos', '3 fontes e 5 matrizes por mês', '7 dias PRO para contas elegíveis'),
+            'monthly' => array('Importações sem a cota do Gratuito', 'Recursos PRO incluídos'),
+            'yearly' => array('Mesmos recursos do PRO Mensal', 'Importações sem a cota do Gratuito'),
+            'lifetime' => array('Recursos PRO cobertos pela licença', 'Uma compra, sem mensalidades'),
+            'launch' => array('Mesmos direitos do PRO Vitalício', 'Preço especial conforme estoque')
+        );
+
         ob_start();
         ?>
         <section class="bm-plans-vitrine" id="brother-planos" aria-label="Planos exclusivos do Brother Matrizes">
@@ -89,13 +98,13 @@ if (!function_exists('bm_planos_display_shortcode')) {
             .bm-plans-vitrine h2,.bm-plans-vitrine h3,.bm-plans-vitrine h4{color:#fff;margin:0 0 10px;line-height:1.2}
             .bm-plans-vitrine p{color:var(--muted);margin:5px 0 13px}
             .bm-plans-vitrine .bm-eyebrow{color:var(--gold);font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-            .bm-plans-vitrine .bm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:14px;margin:24px 0}
-            .bm-plans-vitrine .bm-card{padding:18px;border:1px solid #355069;background:var(--surface);border-radius:20px;display:flex;flex-direction:column}
+            .bm-plans-vitrine .bm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:12px;margin:18px 0}
+            .bm-plans-vitrine .bm-card{padding:16px;border:1px solid #355069;background:var(--surface);border-radius:18px;display:flex;flex-direction:column}
             .bm-plans-vitrine .bm-featured{border-color:var(--gold);box-shadow:0 0 0 1px #bd9755}
             .bm-plans-vitrine .bm-price{color:#fff;font-size:1.6rem;font-weight:800;margin:8px 0}
             .bm-plans-vitrine .bm-period{font-size:.83rem;color:var(--muted);font-weight:400}
             .bm-plans-vitrine .bm-card ul{padding:0;margin:8px 0 18px;list-style:none;flex:1}
-            .bm-plans-vitrine .bm-card li{font-size:.87rem;margin:9px 0;padding-left:21px;position:relative}
+            .bm-plans-vitrine .bm-card li{font-size:.87rem;margin:5px 0;padding-left:21px;position:relative}
             .bm-plans-vitrine .bm-card li::before{content:"✓";color:var(--gold);position:absolute;left:0}
             .bm-plans-vitrine .bm-card small{color:var(--muted);display:block;margin-bottom:12px;line-height:1.5}
             .bm-plans-vitrine .bm-action{display:block;text-align:center;background:var(--gold);color:#071826!important;
@@ -111,12 +120,22 @@ if (!function_exists('bm_planos_display_shortcode')) {
             .bm-plans-vitrine details{border-bottom:1px solid #294156;padding:12px 2px}
             .bm-plans-vitrine summary{font-weight:700;cursor:pointer;color:#fff}
             .bm-plans-vitrine .bm-actions-bottom a{color:var(--gold)}
+            .bm-plans-vitrine details.bm-section{border:1px solid #294156;background:var(--surface);
+                border-radius:16px;padding:14px 16px;margin-top:12px}
+            .bm-plans-vitrine details.bm-section>summary{list-style:none;display:flex;justify-content:space-between;
+                align-items:center;font-size:1rem;gap:12px}
+            .bm-plans-vitrine details.bm-section>summary::-webkit-details-marker{display:none}
+            .bm-plans-vitrine details.bm-section>summary::after{content:"+";color:var(--gold);font-size:1.25rem}
+            .bm-plans-vitrine details.bm-section[open]>summary::after{content:"−"}
+            .bm-plans-vitrine details.bm-section[open]>summary{margin-bottom:12px}
+            .bm-plans-vitrine details.bm-section details{margin-top:4px}
+            .bm-plans-vitrine .bm-summary{color:var(--muted);font-size:.84rem;margin-bottom:2px}
             @media(max-width:680px){.bm-plans-vitrine{margin:20px 0;padding:17px;border-radius:20px}
                 .bm-plans-vitrine h2{font-size:1.6rem}.bm-plans-vitrine .bm-card{padding:16px}}
             </style>
             <p class="bm-eyebrow">Escolha seu jeito de criar</p>
             <h2>Planos Brother Matrizes</h2>
-            <p>Crie, personalize e gerencie matrizes no celular. O aplicativo possui um plano Gratuito e opções PRO com condições de contratação diferentes. Consulte seus direitos na conta e finalize compras somente pelo checkout oficial.</p>
+            <p>Crie, edite e gerencie matrizes no celular. Escolha a opção ideal para você.</p>
             <div class="bm-grid">
                 <?php foreach ($rows as $code => $row) :
                     $live = $catalog[$code];
@@ -132,16 +151,15 @@ if (!function_exists('bm_planos_display_shortcode')) {
                             <span class="bm-period"><?php echo esc_html($term); ?></span>
                         </p>
                         <?php if ($code === 'yearly' && $annual_savings !== null) : ?>
-                            <p class="bm-stock">Economize <?php echo wp_kses_post($annual_savings); ?> em comparação com 12 mensalidades ao preço atual.</p>
+                            <p class="bm-stock">Economize <?php echo wp_kses_post($annual_savings); ?> frente a 12 mensalidades*.</p>
                         <?php endif; ?>
                         <p><?php echo esc_html($row['description']); ?></p>
-                        <ul><?php foreach ($row['bullets'] as $benefit) : ?>
+                        <ul><?php foreach ($highlights[$code] as $benefit) : ?>
                             <li><?php echo esc_html($benefit); ?></li>
                         <?php endforeach; ?></ul>
                         <?php if ($code === 'launch' && is_int($live['stock']) && $live['stock'] > 0): ?>
                             <p class="bm-stock"><?php echo esc_html(number_format_i18n($live['stock'])); ?> licenças disponíveis no estoque consultado</p>
                         <?php endif; ?>
-                        <small><?php echo esc_html($row['note']); ?></small>
                         <?php if ($available && !$is_free): ?>
                             <a class="bm-action" rel="nofollow" href="<?php echo esc_url($live['url']); ?>">
                                 <?php echo $code === 'launch' ? 'Conferir oferta promocional' : 'Contratar no site oficial'; ?>
@@ -155,9 +173,9 @@ if (!function_exists('bm_planos_display_shortcode')) {
                 <?php endforeach; ?>
             </div>
 
-            <div class="bm-section">
-                <h3>Compare os recursos</h3>
-                <p>Os planos PRO Mensal, Anual e Vitalício têm a mesma categoria de acesso PRO validada pelo servidor. O diferencial é a contratação; o lançamento é uma condição promocional da mesma licença vitalícia.</p>
+            <details class="bm-section">
+                <summary>Comparar recursos</summary>
+                <p>Gratuito x PRO: a principal diferença é o limite mensal de importações.</p>
                 <div class="bm-table-scroll" role="region" aria-label="Comparativo de recursos" tabindex="0">
                     <table><thead><tr><th>Recurso</th><th>Gratuito</th><th>PRO (Mensal, Anual e Vitalício)</th></tr></thead><tbody>
                         <tr><td>Criação e edição de trabalhos</td><td>Disponível</td><td>Disponível</td></tr>
@@ -173,15 +191,15 @@ if (!function_exists('bm_planos_display_shortcode')) {
                         <tr><td>Conversor EMB/PES</td><td>Em desenvolvimento</td><td>Em desenvolvimento</td></tr>
                     </tbody></table>
                 </div>
-            </div>
-            <div class="bm-section">
-                <h3>Por que escolher o Brother Matrizes Vitalício?</h3>
+            </details>
+            <details class="bm-section">
+                <summary>Por que escolher o Vitalício?</summary>
                 <p>É uma alternativa para trabalhar com os recursos PRO incluídos na licença sem mensalidades recorrentes. A modalidade promocional oferece a mesma categoria de acesso, enquanto houver estoque.</p>
                 <h4>Tenha prioridade nas próximas novidades</h4>
                 <p>Está em planejamento oferecer participação prioritária em experiências Beta e oportunidades de conhecer recursos antecipadamente. A participação será voluntária e dependerá de critérios técnicos, vagas e regras divulgadas quando o programa existir. Não é benefício garantido na compra atual.</p>
-            </div>
-            <div class="bm-section">
-                <h3>Perguntas frequentes</h3>
+            </details>
+            <details class="bm-section">
+                <summary>Perguntas frequentes</summary>
                 <?php
                 $faqs = array(
                     'O aplicativo é gratuito?' => 'Sim. O download e o plano Gratuito não têm cobrança; importações gratuitas possuem limites mensais.',
@@ -197,7 +215,8 @@ if (!function_exists('bm_planos_display_shortcode')) {
                     <details><summary><?php echo esc_html($question); ?></summary>
                         <p><?php echo esc_html($answer); ?></p></details>
                 <?php endforeach; ?>
-            </div>
+            </details>
+            <p class="bm-summary">*Preços e disponibilidade confirmados no checkout do WooCommerce. Mensal e anual sujeitos às condições de contratação.</p>
             <p class="bm-actions-bottom">Já comprou? <a href="<?php echo esc_url(home_url('/minha-conta/meus-aplicativos/')); ?>">Consulte suas licenças</a>. Após pagar, volte ao aplicativo e toque em <strong>Verificar licença</strong>. Nenhuma funcionalidade PRO é liberada apenas pelo retorno do navegador.</p>
         </section>
         <?php
