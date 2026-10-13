@@ -52,3 +52,12 @@ Fonte pública: `https://timachado.ifree.page/wp-json/wc/store/v1/products?per_p
 - Android: `BrotherPlanBenefits.kt`, vitrine reformulada em `AccountScreen.kt` e testes dedicados.
 - WordPress: `wordpress/brother-planos-vitrine/brother-planos-vitrine.php` com `[brother_matrizes_planos]`; preços e estoque via `wc_get_product` em tempo de renderização, sem alterar pagamentos, produtos ou licenças.
 - Pipelines independentes de QA Android e PHP/ZIP sem publicação.
+
+## UX definitiva proposta após homologação compacta
+
+- Minha Conta: resumo de licença verificada acima dos detalhes, com ação direta para benefícios e atualização de licença. Perfil, detalhes de assinatura, histórico e dispositivos continuam acessíveis, agora em seções recolhidas. Aparência continua disponível em Preferências.
+- Planos e Benefícios: tela separada dentro da aba Conta (não modifica barra inferior). Três escolhas principais: **Gratuito**, **PRO (Mensal/Anual)** e **PRO Vitalício (Regular/Lançamento)**. Seletores preservam os códigos `pro_monthly`, `pro_yearly`, `pro_lifetime` e `pro_lifetime_launch`, com os URLs comerciais anteriores em `WordPressWebStore.planUrl`.
+- Usuários vitalícios ativos não recebem CTA de recompra do mesmo acesso. Usuários com assinatura/trial recebem estados derivados do servidor, não etiquetas comerciais calculadas do front-end.
+- Ajuda e suporte usa a Comunidade já existente. Histórico, dispositivos e renovação permanecem na Minha Conta.
+- Site WordPress: shortcode isolado usa três cards e quatro alternativas pagas integradas via `wc_get_product`; não mexe no catálogo WooCommerce nem publica site sozinho.
+- O fechamento requer teste real dos caminhos gratuito, trial, mensal, anual, vitalício, vencido, sem conexão, compra no checkout e retorno de licença. A publicação pública permanece proibida sem estas confirmações.
