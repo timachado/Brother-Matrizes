@@ -383,31 +383,29 @@ object BrotherMatrizesAccountService {
     }
 
     /** Ações de fontes externas usam a mesma sessão Google e o servidor de cotas. */
-    suspend fun reserveDailyAction(action: BrotherMeteredAction): Result<String> = runCatching {
-        BrotherUsageClient.reserveAction(verifiedAccessToken(), action)
+    suspend fun reserveMonthlyAction(action: BrotherMeteredAction): Result<String> = runCatching {
+        BrotherUsageClient.reserveMonthlyAction(verifiedAccessToken(), action)
     }
 
-    suspend fun completeDailyAction(
-        action: BrotherMeteredAction, requestKey: String, success: Boolean,
-        fingerprint: String? = null
+    suspend fun completeMonthlyAction(
+        action: BrotherMeteredAction, requestKey: String, success: Boolean
     ): Result<Unit> = runCatching {
-        BrotherUsageClient.finalizeAction(
-            verifiedAccessToken(), action, requestKey, success, fingerprint
+        BrotherUsageClient.finalizeMonthlyAction(
+            verifiedAccessToken(), action, requestKey, success
         )
     }
 
-    suspend fun dailyUsage(): Result<org.json.JSONObject> = runCatching {
+    suspend fun monthlyUsage(): Result<org.json.JSONObject> = runCatching {
         BrotherUsageClient.usage(verifiedAccessToken())
     }
 
     suspend fun authorizeImport(
-        context: Context, isFont: Boolean,
-        origin: BrotherMeteredAction = BrotherMeteredAction.OPEN_MATRIX
+        context: Context, isFont: Boolean
     ): Result<String> = runCatching {
         if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
             // Every successful new matrix, regardless of its entry point,
             // must debit the SAME monthly import_matrix allowance shown in Planos.
-            // Daily navigation/search budgets never replace the monthly import budget.
+            // Monthly search/external budgets never replace the shared monthly import budget.
             BrotherUsageClient.reserve(verifiedAccessToken(), isFont = false)
         } else if (BuildConfig.BETA_LOCAL_IMPORTS) {
             // Resolve paid access from WooCommerce-confirmed Supabase mirror.
@@ -446,9 +444,7 @@ object BrotherMatrizesAccountService {
     }
 
     suspend fun finalizeImport(
-        context: Context, isFont: Boolean, requestKey: String, success: Boolean,
-        origin: BrotherMeteredAction = BrotherMeteredAction.OPEN_MATRIX,
-        fingerprint: String? = null
+        context: Context, isFont: Boolean, requestKey: String, success: Boolean
     ): Result<Unit> = runCatching {
         if (!isFont && !BuildConfig.BETA_LOCAL_IMPORTS) {
             BrotherUsageClient.finalize(
