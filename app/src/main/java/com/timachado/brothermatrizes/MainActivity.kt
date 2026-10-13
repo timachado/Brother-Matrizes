@@ -799,9 +799,7 @@ private fun BrotherMatrizesApp(
                 loading = true
                 // The file picker is not a quota bypass: reserve before parsing.
                 val reserved = BrotherMatrizesAccountService.authorizeImport(
-                    context, isFont = false,
-                    origin = if (telegramImportPending) BrotherMeteredAction.TELEGRAM_IMPORT
-                             else BrotherMeteredAction.OPEN_MATRIX
+                    context, isFont = false
                 )
                 if (reserved.isFailure) {
                     loading = false
@@ -821,12 +819,7 @@ private fun BrotherMatrizesApp(
                 val result = parsed.getOrNull()
                 val finalized = BrotherMatrizesAccountService.finalizeImport(
                     context, isFont = false, requestKey = key,
-                    success = result is EmbroideryLoadResult.Success,
-                    origin = if (telegramImportPending) BrotherMeteredAction.TELEGRAM_IMPORT
-                             else BrotherMeteredAction.OPEN_MATRIX,
-                    fingerprint = (result as? EmbroideryLoadResult.Success)
-                        ?.design?.sourceBytes?.takeIf { it.isNotEmpty() }
-                        ?.let { sha256Content(it) }
+                    success = result is EmbroideryLoadResult.Success
                 )
                 loading = false
                 if (parsed.isFailure) {
@@ -904,7 +897,7 @@ private fun BrotherMatrizesApp(
             snackbar.showSnackbar("Entre com Google para pesquisar matrizes no Telegram.")
             return
         }
-        val reservation = BrotherMatrizesAccountService.reserveDailyAction(
+        val reservation = BrotherMatrizesAccountService.reserveMonthlyAction(
             BrotherMeteredAction.TELEGRAM_SEARCH
         )
         if (reservation.isFailure) {
@@ -918,7 +911,7 @@ private fun BrotherMatrizesApp(
             context.startActivity(Intent(Intent.ACTION_VIEW, uri)
                 .addCategory(Intent.CATEGORY_BROWSABLE))
         }.isSuccess
-        val outcome = BrotherMatrizesAccountService.completeDailyAction(
+        val outcome = BrotherMatrizesAccountService.completeMonthlyAction(
             BrotherMeteredAction.TELEGRAM_SEARCH, key, opened
         )
         if (outcome.isFailure) {
