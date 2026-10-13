@@ -31,6 +31,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
+
+      - name: Validate official 1.10.4 signing certificate and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/brother-official-v1.10.4.apk"
+          URL="https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.4/Brother-Matrizes-v1.10.4-ASSINADO.apk"
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 \
+            --output "$APK" "$URL"
+          printf '%s  %s\n' '62a663f3710c5989b2bc128f8a0b301bc2cd5f45ad1572a2d618cf51367d4ac0' "$APK" \
+            | sha256sum --check --status
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/stable-apk-cert.txt"
+          CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/stable-apk-cert.txt" | head -n 1)"
+          EXPECTED="fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a"
+          test "$CERT" = "$EXPECTED" || {
+            echo "The official installed APK certificate does not match production signing workflow."
+            exit 1
+          }
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | head -n 1)"
+          [[ "$BADGING" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$BADGING" == *"versionCode='180'"* ]]
+          echo "Official v1.10.4 SHA256, package ID, version code and signing certificate verified."
+          rm -f "$APK" "$RUNNER_TEMP/stable-apk-cert.txt"
+
       - name: Verify target application and quota wiring
         shell: bash
         run: |
