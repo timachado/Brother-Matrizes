@@ -18,6 +18,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.account.AccountPresentation
 import com.timachado.brothermatrizes.core.account.AccountSnapshot
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
+import com.timachado.brothermatrizes.core.account.BrotherUsageClient
 
 /**
  * Direitos exibidos de acordo com licença verificada. Esta UI nunca concede
@@ -40,6 +47,17 @@ internal fun BrotherMyBenefitsScreen(
     val pro = account.commercialConfigured && account.hasProAccess
     val lifetime = pro && account.isLifetime
     val isTrial = pro && account.planCode.equals("trial", ignoreCase = true)
+    var monthlyUsage by remember(account.userId) {
+        mutableStateOf<List<BrotherUsageClient.ToolUsage>?>(null)
+    }
+    var quotaError by remember(account.userId) { mutableStateOf(false) }
+    LaunchedEffect(account.userId, pro) {
+        if (!pro && account.commercialConfigured) {
+            val result = BrotherMatrizesAccountService.toolUsage()
+            monthlyUsage = result.getOrNull()
+            quotaError = result.isFailure
+        }
+    }
     val plan = when {
         !account.commercialConfigured -> "Licença pendente de verificação"
         lifetime -> "PRO Vitalício"
@@ -104,6 +122,45 @@ internal fun BrotherMyBenefitsScreen(
                     Text("✓", color = BrotherAccountGold, fontSize = 14.sp)
                     Text(text, color = BrotherAccountWhite,
                         modifier = Modifier.weight(1f), fontSize = 12.sp)
+                }
+            }
+            if (!pro && account.commercialConfigured) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = BrotherAccountSurface,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("MINHAS COTAS DE PESQUISA",
+                            color = BrotherAccountGold, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        val labels = mapOf(
+                            "telegram_search" to "Pesquisas no Telegram",
+                            "dafont_search" to "Pesquisas no DaFont",
+                            "rar_receive" to "Abrir / enviar ao RAR"
+                        )
+                        val balances = monthlyUsage
+                        if (balances != null) {
+                            for (balance in balances) {
+                                Text(
+                                    "${labels[balance.operation] ?: balance.operation}: " +
+                                        "${balance.remaining} de ${balance.limit} restantes neste mês",
+                                    color = BrotherAccountWhite, fontSize = 11.sp
+                                )
+                            }
+                            if (balances.isEmpty()) {
+                                Text("Nenhuma cota disponível para consulta.",
+                                    color = BrotherAccountMuted, fontSize = 11.sp)
+                            }
+                        } else {
+                            Text(
+                                if (quotaError) "Não foi possível consultar suas cotas. Confira sua conexão e seu login Google."
+                                else "Consultando seu saldo de utilizações…",
+                                color = BrotherAccountMuted, fontSize = 11.sp
+                            )
+                        }
+                    }
                 }
             }
             if (lifetime) {
