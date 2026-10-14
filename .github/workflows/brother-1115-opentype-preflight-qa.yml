@@ -1,0 +1,43 @@
+name: Brother OpenType Preflight - QA privada
+
+on:
+  push:
+    branches: [fix/brother-1115-opentype-preflight]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-font-qa:
+    name: Validar estilos dafont TTF e OTF - sem publicacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Garantir mesmos limites entre interface e motor Satin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeRunSafety.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypeRunSafetyTest.kt
+          grep -Fq 'OpenTypeRunSafety.allowsShaping' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
+          grep -Fq 'OpenTypeRunSafety.allowsAdvance' app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeStyleEffectProbe.kt
+          grep -Fq 'positionedStyle = appliedPositionedStyle' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+      - name: Compilar Android e executar todos os testes locais
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
