@@ -29,7 +29,8 @@ object ImportedFontMatrixGenerator {
     fun generateGlyph(
         font: ImportedFont,
         char: Char,
-        options: TextMatrixOptions
+        options: TextMatrixOptions,
+        featureTag: String? = null
     ): Result<EmbroideryDesign> =
         generateWithReferenceSatin(
             font = font,
@@ -38,13 +39,15 @@ object ImportedFontMatrixGenerator {
             options =
                 options,
             filePrefix =
-                "fonte"
+                "fonte",
+            featureTag = featureTag
         )
 
     fun generateText(
         font: ImportedFont,
         text: String,
-        options: TextMatrixOptions
+        options: TextMatrixOptions,
+        featureTag: String? = null
     ): Result<EmbroideryDesign> =
         generateWithReferenceSatin(
             font = font,
@@ -53,7 +56,8 @@ object ImportedFontMatrixGenerator {
             options =
                 options,
             filePrefix =
-                "nome"
+                "nome",
+            featureTag = featureTag
         )
 
     /**
@@ -66,7 +70,8 @@ object ImportedFontMatrixGenerator {
         font: ImportedFont,
         sourceText: String,
         options: TextMatrixOptions,
-        filePrefix: String
+        filePrefix: String,
+        featureTag: String?
     ): Result<EmbroideryDesign> =
         if (
             options.style ==
@@ -83,10 +88,15 @@ object ImportedFontMatrixGenerator {
                     options =
                         options,
                     filePrefix =
-                        filePrefix
+                        filePrefix,
+                    featureTag = featureTag
                 )
         } else {
-            generateTextInternal(
+            if (featureTag != null) {
+                Result.failure(IllegalArgumentException(
+                    "Estilos OpenType alternativos exigem o modo Satin."
+                ))
+            } else generateTextInternal(
                 font =
                     font,
                 sourceText =
