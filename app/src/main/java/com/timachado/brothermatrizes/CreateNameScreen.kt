@@ -65,6 +65,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import com.timachado.brothermatrizes.font.ImportedFontStore
 import com.timachado.brothermatrizes.font.OpenTypeStyleChoices
+import com.timachado.brothermatrizes.font.OpenTypeStyleEffectProbe
 import java.io.File
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -324,6 +325,19 @@ fun CreateNameScreen(
             OpenTypeStyleChoices.choices(File(selected.absolutePath))
         } ?: OpenTypeStyleChoices.fromTags(emptySet())
     }
+    var visibleFontStyles by remember(importedFont?.id, text) {
+        mutableStateOf(OpenTypeStyleChoices.fromTags(emptySet()))
+    }
+    LaunchedEffect(importedFont?.id, text) {
+        val selected = importedFont
+        visibleFontStyles = if (selected == null)
+            OpenTypeStyleChoices.fromTags(emptySet())
+            else withContext(Dispatchers.Default) {
+                OpenTypeStyleEffectProbe.changingStyles(
+                    selected, text, availableFontStyles
+                )
+            }
+    }
     var selectedFeatureTag by remember(importedFontId) {
         mutableStateOf<String?>(null)
     }
@@ -331,7 +345,7 @@ fun CreateNameScreen(
         stitchStyle == TextStitchStyle.SATIN &&
         layoutMode == TextLayoutMode.STRAIGHT && spacingMm == 0f
     val appliedFeatureTag = if (openTypeEnabled)
-        OpenTypeStyleChoices.verifiedTag(selectedFeatureTag, availableFontStyles)
+        OpenTypeStyleChoices.verifiedTag(selectedFeatureTag, visibleFontStyles)
         else null
     val textTypeface = remember(importedFont?.id) {
         importedFont?.let { ImportedFontStore.loadTypeface(it).getOrNull() }
@@ -1237,7 +1251,7 @@ fun CreateNameScreen(
                                     color = FioText,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (availableFontStyles.size > 1) {
+                                if (visibleFontStyles.size > 1) {
                                     Spacer(Modifier.height(5.dp))
                                     Text(
                                         if (openTypeEnabled)
@@ -1254,7 +1268,7 @@ fun CreateNameScreen(
                                                 .padding(vertical = 6.dp),
                                             horizontalArrangement = Arrangement.spacedBy(7.dp)
                                         ) {
-                                            availableFontStyles.forEach { style ->
+                                            visibleFontStyles.forEach { style ->
                                                 ChoiceButton(
                                                     text = style.label,
                                                     selected = appliedFeatureTag == style.tag,
