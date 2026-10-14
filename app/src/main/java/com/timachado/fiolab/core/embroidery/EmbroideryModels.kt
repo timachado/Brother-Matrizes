@@ -93,6 +93,9 @@ data class EditTransform(
 )
 
 sealed interface EmbroideryLoadResult {
+    /** Arquivo nativo aberto para inspeção e prévia, não contém trilha de pontos decodificada. */
+    data class EmbReadOnly(val preview: EmbNativePreview) : EmbroideryLoadResult
+
     data class Success(val design: EmbroideryDesign) : EmbroideryLoadResult
 
     data class Error(
