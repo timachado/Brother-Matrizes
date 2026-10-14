@@ -2,7 +2,7 @@ name: Brother 1.10.8 - APK homologacao leitor EMB
 
 on:
   push:
-    branches: [main]
+    branches: [feature/brother-emb-native-readonly-20261014]
     paths:
       - '.github/workflows/brother-emb-sign-candidate.yml'
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
       - name: Carregar exatamente a candidata revisada
         uses: actions/checkout@v4
         with:
-          ref: aaf07c18e20ec6d905b6d96ff7018f8e1baa05ff
+          ref: ${{ github.sha }}
           persist-credentials: false
           path: android
       - name: Java 17
