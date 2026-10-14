@@ -40,6 +40,7 @@ import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
+import com.timachado.brothermatrizes.core.embroidery.EmbNativePreview
 import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
@@ -286,6 +287,7 @@ internal fun recommendedHoopFor(
 }
 
 private sealed interface Screen {
+    data class EmbPreview(val document: EmbNativePreview) : Screen
     data object Home : Screen
     data object CreateName : Screen
     data object CreateMonogram : Screen
@@ -647,6 +649,10 @@ private fun BrotherMatrizesApp(
         when (
             result
         ) {
+            is EmbroideryLoadResult.EmbReadOnly -> {
+                screen = Screen.EmbPreview(result.preview)
+            }
+
             is EmbroideryLoadResult.Success -> {
                 activateDesign(
                     result.design
@@ -729,6 +735,9 @@ private fun BrotherMatrizesApp(
                     )
 
                 is Screen.Viewer ->
+                    Screen.Home
+
+                is Screen.EmbPreview ->
                     Screen.Home
 
                 is Screen.Simulator ->
@@ -835,6 +844,11 @@ private fun BrotherMatrizesApp(
                 loading = false
 
                 when (result) {
+                    is EmbroideryLoadResult.EmbReadOnly -> {
+                        telegramImportPending = false
+                        screen = Screen.EmbPreview(result.preview)
+                    }
+
                     is EmbroideryLoadResult.Success -> {
                         activateDesign(result.design)
                         screen = Screen.Viewer(result.design)
@@ -2115,6 +2129,10 @@ private fun BrotherMatrizesApp(
                                             )
                                     }
 
+                                    is EmbroideryLoadResult.EmbReadOnly -> {
+                                        snackbar.showSnackbar("Matriz EMB: somente visualização nesta versão.")
+                                    }
+
                                     is EmbroideryLoadResult
                                         .Error -> {
                                         snackbar.showSnackbar(
@@ -2191,6 +2209,10 @@ private fun BrotherMatrizesApp(
                                                 showConnections =
                                                     false
                                             )
+                                    }
+
+                                    is EmbroideryLoadResult.EmbReadOnly -> {
+                                        snackbar.showSnackbar("Matriz EMB: somente visualização nesta versão.")
                                     }
 
                                     is EmbroideryLoadResult
@@ -2296,6 +2318,14 @@ private fun BrotherMatrizesApp(
                                     "Enviar matriz por Wi-Fi / app da máquina"
                             )
                         }
+                    )
+                }
+
+                is Screen.EmbPreview -> {
+                    EmbNativePreviewScreen(
+                        document = current.document,
+                        onBack = { goBack() },
+                        onOpen = { launchMatrixPicker() }
                     )
                 }
 
