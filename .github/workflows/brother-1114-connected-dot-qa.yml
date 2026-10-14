@@ -1,0 +1,43 @@
+name: Brother 1.10.14 - Connected Dot Regression
+on:
+  push:
+    branches: [fix/brother-1114-satin-connected-dot]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  font-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verificar código e testes de floreios
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeOverhangPolicy.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypeOverhangPolicyTest.kt
+          grep -Fq 'crossesNeighbourGlyphs' app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeStyleEffectProbe.kt
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypePositionedPath.kt
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeFlourishPreviewView.kt
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypePositionedChoiceProbe.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypePositionedStyleTest.kt
+          grep -Fq 'restoresIWhenCapitalAndStemBelongToSameConnectedIsland' app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt
+          grep -Fq 'positionedStyle = appliedPositionedStyle' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+      - name: Compilar e executar testes unitários
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
