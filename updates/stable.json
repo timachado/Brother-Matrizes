@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.7",
-  "versionCode": 183,
+  "versionName": "1.10.8",
+  "versionCode": 184,
   "minSupportedVersionCode": 183,
   "downloadUrl": "https://timachado.ifree.page/aplicativos/brother-matrizes/",
-  "sha256": "04884d2f8a889ccb0314939c67bb773d4157c329ac1962f6a23a3d1113e7c9d8",
-  "releaseNotes": "Atualização de segurança obrigatória: login Google e cotas do plano Gratuito. Corrigida a seleção de arquivos pelo Google Drive, a verificação de sessão e a importação de matrizes. Não desinstale o aplicativo: atualize por cima para preservar projetos e licenças.",
-  "publishedAt": "2026-10-13",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.7/Brother-Matrizes-1.10.7-CORRECAO-DRIVE-HOMOLOGACAO.apk"
+  "sha256": "67126397ee416386d2991214208a637165e73401aa6c71693495f10d62638819",
+  "releaseNotes": "Limites do plano Gratuito agora detalhados em Planos e benefícios: 5 importações de matrizes compartilhadas entre Arquivos, WinRAR e Telegram, 3 fontes, 5 envios ao RAR e 10 buscas no Telegram e no DaFont por mês; Card Novidades da versão exibido uma vez após atualizar; Histórico de novidades em Minha Conta > Sobre e atualizações; Melhorias de apresentação. Preservados projetos, login Google, licença, importações e o atualizador. Instale por cima, sem desinstalar.",
+  "publishedAt": "2026-10-14",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.8/Brother-Matrizes-1.10.8-COTAS-NOVIDADES-HOMOLOGACAO.apk"
 }
