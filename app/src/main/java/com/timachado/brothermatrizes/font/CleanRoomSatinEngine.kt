@@ -842,7 +842,13 @@ internal object CleanRoomSatinEngine {
             V(mask.left + nearest.first * mask.step,
                 mask.top + nearest.second * mask.step)
         }
-        val maxExtent = 35f // 7 mm full satin width limit
+        // Não recortar o contorno da TTF/OTF em 7 mm. Esse limite
+        // descartava as laterais de letras largas, corações e desenhos
+        // preenchidos; a simulação passava a mostrar um traço central
+        // artificialmente estreito. A busca termina na borda REAL da
+        // máscara ou no primeiro vazio (preserva furos/contrformas).
+        // O Stitcher divide percursos longos em pontos de até 7 mm.
+        val maxExtent = max(mask.width, mask.height) * mask.step
         fun edge(sign: Float): Float {
             var d = 0f
             while (d <= maxExtent &&
