@@ -8,7 +8,7 @@ package com.timachado.brothermatrizes.font
  * Dividir um run de texto pode alterar ligaturas/kerning entre os limites:
  * essa é uma limitação explícita da primeira versão experimental.
  */
-internal data class OpenTypePositionedStyle(
+data class OpenTypePositionedStyle(
     val initialTag: String? = null,
     val finalTag: String? = null
 ) {
