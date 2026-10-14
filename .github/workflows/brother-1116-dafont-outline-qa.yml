@@ -1,0 +1,42 @@
+name: Brother 1.10.16 - DaFont fidelity private QA
+
+on:
+  push:
+    branches: [fix/brother-1116-dafont-outline-fidelity]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  font-fidelity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Garantir versao privada e correcao de largura da fonte
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 192' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.16"' app/build.gradle.kts
+          grep -Fq 'maxExtent = max(mask.width, mask.height) * mask.step' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'wideDecorativeGlyphPreservesFullOutlinedWidth' app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt
+          grep -Fq 'thickOutlinedLetterKeepsTransparentCounterEmpty' app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt
+      - name: Compilar e testar o motor Satin
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
