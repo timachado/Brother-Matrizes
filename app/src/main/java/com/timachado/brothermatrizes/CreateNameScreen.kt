@@ -1,7 +1,6 @@
 package com.timachado.brothermatrizes
 
 import android.content.Context
-import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,6 +66,9 @@ import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import com.timachado.brothermatrizes.font.ImportedFontStore
 import com.timachado.brothermatrizes.font.OpenTypeStyleChoices
 import com.timachado.brothermatrizes.font.OpenTypeStyleEffectProbe
+import com.timachado.brothermatrizes.font.OpenTypeFlourishPreviewView
+import com.timachado.brothermatrizes.font.OpenTypePositionedChoiceProbe
+import com.timachado.brothermatrizes.font.OpenTypePositionedStyle
 import java.io.File
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -339,13 +341,43 @@ fun CreateNameScreen(
                 )
             }
     }
+    var positionChoices by remember(importedFont?.id, text) {
+        val basic = OpenTypeStyleChoices.fromTags(emptySet())
+        mutableStateOf(OpenTypePositionedChoiceProbe.Options(basic, basic))
+    }
+    LaunchedEffect(importedFont?.id, text) {
+        val selected = importedFont
+        positionChoices = if (selected == null) {
+            val basic = OpenTypeStyleChoices.fromTags(emptySet())
+            OpenTypePositionedChoiceProbe.Options(basic, basic)
+        } else withContext(Dispatchers.Default) {
+            OpenTypePositionedChoiceProbe.find(selected, text, availableFontStyles)
+        }
+    }
     var selectedFeatureTag by remember(importedFontId) {
+        mutableStateOf<String?>(null)
+    }
+    var selectedInitialTag by remember(importedFontId) {
+        mutableStateOf<String?>(null)
+    }
+    var selectedFinalTag by remember(importedFontId) {
         mutableStateOf<String?>(null)
     }
     val openTypeEnabled = importedFont != null &&
         stitchStyle == TextStitchStyle.SATIN &&
         layoutMode == TextLayoutMode.STRAIGHT && spacingMm == 0f
-    val appliedFeatureTag = if (openTypeEnabled)
+    val appliedPositionedStyle = if (openTypeEnabled &&
+        text.codePointCount(0, text.length) in 2..9) {
+        OpenTypePositionedStyle(
+            initialTag = OpenTypeStyleChoices.verifiedTag(
+                selectedInitialTag, positionChoices.initial
+            ),
+            finalTag = OpenTypeStyleChoices.verifiedTag(
+                selectedFinalTag, positionChoices.final
+            )
+        )
+    } else OpenTypePositionedStyle()
+    val appliedFeatureTag = if (openTypeEnabled && !appliedPositionedStyle.isEnabled)
         OpenTypeStyleChoices.verifiedTag(selectedFeatureTag, visibleFontStyles)
         else null
     val textTypeface = remember(importedFont?.id) {
@@ -387,7 +419,8 @@ fun CreateNameScreen(
                                     sourceText,
                                 options =
                                     textOptions,
-                                featureTag = appliedFeatureTag
+                                featureTag = appliedFeatureTag,
+                                positionedStyle = appliedPositionedStyle
                             )
                     },
                     preserveWholeTextSequenceForSatin =
@@ -491,6 +524,7 @@ fun CreateNameScreen(
         font,
         importedFontId,
         appliedFeatureTag,
+        appliedPositionedStyle,
         outputFormat,
         previewHoopKey,
         fabricProfile,
@@ -719,20 +753,15 @@ fun CreateNameScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         AndroidView(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(86.dp),
                             factory = { viewContext ->
-                                TextView(viewContext).apply {
-                                    textSize = 29f
-                                    setTextColor(FioText.toArgb())
-                                    setPadding(6, 2, 6, 2)
-                                    isSingleLine = true
-                                }
+                                OpenTypeFlourishPreviewView(viewContext)
                             },
                             update = { view ->
-                                view.text = text.take(24)
-                                textTypeface?.let { view.typeface = it }
-                                view.fontFeatureSettings =
-                                    OpenTypeStyleChoices.fontSettings(appliedFeatureTag)
+                                view.show(
+                                    text.take(24), textTypeface, appliedFeatureTag,
+                                    appliedPositionedStyle, FioText.toArgb()
+                                )
                             }
                         )
                     }
@@ -757,7 +786,11 @@ fun CreateNameScreen(
                                 ChoiceButton(
                                     text = style.label,
                                     selected = appliedFeatureTag == style.tag,
-                                    onClick = { selectedFeatureTag = style.tag }
+                                    onClick = {
+                                        selectedFeatureTag = style.tag
+                                        selectedInitialTag = null
+                                        selectedFinalTag = null
+                                    }
                                 )
                             }
                         }
@@ -768,6 +801,60 @@ fun CreateNameScreen(
                             color = FioTextMuted, fontSize = 11.sp
                         )
                     }
+                    if (openTypeEnabled && text.codePointCount(0, text.length) in 2..9 &&
+                        (positionChoices.initial.size > 1 || positionChoices.final.size > 1)) {
+                        Spacer(Modifier.height(5.dp))
+                        Text("Floreios por letra (experimental)",
+                            color = FioText, fontWeight = FontWeight.SemiBold)
+                        Text("Escolha um enfeite somente para a inicial ou a última letra.",
+                            color = FioTextMuted, fontSize = 11.sp)
+                        if (positionChoices.initial.size > 1) {
+                            Text("Primeira letra: " + text.take(1),
+                                color = FioText, fontSize = 11.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                positionChoices.initial.forEach { style ->
+                                    ChoiceButton(
+                                        text = style.label,
+                                        selected = appliedPositionedStyle.initialTag == style.tag,
+                                        onClick = {
+                                            selectedInitialTag = style.tag
+                                            selectedFeatureTag = null
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        if (positionChoices.final.size > 1) {
+                            Text("Última letra: " + text.takeLast(1),
+                                color = FioText, fontSize = 11.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                positionChoices.final.forEach { style ->
+                                    ChoiceButton(
+                                        text = style.label,
+                                        selected = appliedPositionedStyle.finalTag == style.tag,
+                                        onClick = {
+                                            selectedFinalTag = style.tag
+                                            selectedFeatureTag = null
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            "Amostra e matriz usam o mesmo contorno. " +
+                                "Ligações nos limites do floreio podem mudar.",
+                            color = FioTextMuted, fontSize = 10.sp
+                        )
+                    }
+
                     if (availableFontStyles.size > visibleFontStyles.size) {
                         Text(
                             "Algumas alternativas não são oferecidas para esta palavra: " +
