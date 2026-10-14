@@ -1,0 +1,47 @@
+name: Brother 1.10.9 - QA exclusivo dos glifos TTF OTF
+
+on:
+  push:
+    branches: [fix/brother-1108-imported-glyph-only-20261014]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  imported-glyphs:
+    name: Fontes importadas sem tocar na simulacao oficial
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Bloquear qualquer alteracao do motor ou da simulacao 1.10.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 185' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.9"' app/build.gradle.kts
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt)" = "a398a02a598d775b63c4b328c2125aa84bf808c0"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = "46b58e9ab7b10414970bc47542b7ee5072609646"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = "f51abd96933338b53ee2cf7393f1594aeb726da5"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = "bb5760d057127c68c3370157c6aaddf2aa46ec06"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/StitchThreadSegments.kt)" = "40d8aac9e51fffd2e99ec63fb8b402edb7b4ba40"
+          grep -Fq 'extractShapedGlyphs(paint, text, codePoints)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
+          grep -Fq 'curvedFontOutlineUsesFinerSamplingThanPublic108' app/src/test/java/com/timachado/brothermatrizes/font/ImportedGlyphVectorGeometryTest.kt
+      - name: Compilacao e regressao Android
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
