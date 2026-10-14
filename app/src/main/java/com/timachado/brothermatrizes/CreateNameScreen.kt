@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.content.Context
+import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +64,8 @@ import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import com.timachado.brothermatrizes.font.ImportedFontStore
+import com.timachado.brothermatrizes.font.OpenTypeStyleChoices
+import java.io.File
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -312,6 +317,26 @@ fun CreateNameScreen(
                     importedFontId
             }
 
+    // A família continua local no aparelho, sem upload nem consumo de cota.
+    // Nenhuma alternativa é aplicada por padrão aos projetos antigos.
+    val availableFontStyles = remember(importedFont?.id) {
+        importedFont?.let { selected ->
+            OpenTypeStyleChoices.choices(File(selected.absolutePath))
+        } ?: OpenTypeStyleChoices.fromTags(emptySet())
+    }
+    var selectedFeatureTag by remember(importedFontId) {
+        mutableStateOf<String?>(null)
+    }
+    val openTypeEnabled = importedFont != null &&
+        stitchStyle == TextStitchStyle.SATIN &&
+        layoutMode == TextLayoutMode.STRAIGHT && spacingMm == 0f
+    val appliedFeatureTag = if (openTypeEnabled)
+        OpenTypeStyleChoices.verifiedTag(selectedFeatureTag, availableFontStyles)
+        else null
+    val textTypeface = remember(importedFont?.id) {
+        importedFont?.let { ImportedFontStore.loadTypeface(it).getOrNull() }
+    }
+
     val glyphProvider =
         importedFont
             ?.let {
@@ -331,7 +356,8 @@ fun CreateNameScreen(
                                 char =
                                     char,
                                 options =
-                                    glyphOptions
+                                    glyphOptions,
+                                featureTag = appliedFeatureTag
                             )
                     },
                     generateText = {
@@ -344,7 +370,8 @@ fun CreateNameScreen(
                                 text =
                                     sourceText,
                                 options =
-                                    textOptions
+                                    textOptions,
+                                featureTag = appliedFeatureTag
                             )
                     },
                     preserveWholeTextSequenceForSatin =
@@ -447,6 +474,7 @@ fun CreateNameScreen(
         color,
         font,
         importedFontId,
+        appliedFeatureTag,
         outputFormat,
         previewHoopKey,
         fabricProfile,
@@ -1200,6 +1228,66 @@ fun CreateNameScreen(
                                             )
                                         }
                                 }
+                            }
+
+                            if (importedFont != null) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(
+                                    "Visualização da fonte original",
+                                    color = FioText,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (availableFontStyles.size > 1) {
+                                    Spacer(Modifier.height(5.dp))
+                                    Text(
+                                        if (openTypeEnabled)
+                                            "Variantes OpenType disponíveis nesta fonte"
+                                        else
+                                            "Variantes apenas para texto reto, modo Satin e espaçamento zero.",
+                                        color = FioTextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                    if (openTypeEnabled) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState())
+                                                .padding(vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                        ) {
+                                            availableFontStyles.forEach { style ->
+                                                ChoiceButton(
+                                                    text = style.label,
+                                                    selected = appliedFeatureTag == style.tag,
+                                                    onClick = { selectedFeatureTag = style.tag }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                // A mesma configuração de OpenType é aplicada ao
+                                // contorno do motor Satin, não a uma fonte genérica.
+                                AndroidView(
+                                    modifier = Modifier.fillMaxWidth().height(62.dp),
+                                    factory = { viewContext ->
+                                        TextView(viewContext).apply {
+                                            textSize = 28f
+                                            setTextColor(FioText.toArgb())
+                                            setPadding(8, 4, 8, 4)
+                                            isSingleLine = true
+                                        }
+                                    },
+                                    update = { view ->
+                                        view.text = text.take(24)
+                                        textTypeface?.let { view.typeface = it }
+                                        view.fontFeatureSettings =
+                                            OpenTypeStyleChoices.fontSettings(appliedFeatureTag)
+                                    }
+                                )
+                                Text(
+                                    "A prévia de bordado fica acima. Detalhes muito finos " +
+                                        "podem exigir ajustes para formar pontadas seguras.",
+                                    color = FioTextMuted, fontSize = 10.sp
+                                )
                             }
 
                             Text(
