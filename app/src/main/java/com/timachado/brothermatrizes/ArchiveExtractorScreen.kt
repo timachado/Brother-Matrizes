@@ -285,6 +285,8 @@ fun ArchiveExtractorScreen(
                                                         .getOrThrow()
                                                     project to design.design
                                                 }
+                                                is EmbroideryLoadResult.EmbReadOnly ->
+                                                    error("Arquivo EMB aberto apenas para visualização. Ainda não é possível guardar como matriz bordável.")
                                                 is EmbroideryLoadResult.Error ->
                                                     error(design.userMessage)
                                             }
