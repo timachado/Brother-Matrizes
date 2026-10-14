@@ -1,0 +1,41 @@
+name: Brother 1.10.10 - QA variante Bertilda e acento Satin
+
+on:
+  push:
+    branches: [fix/brother-1110-bertilda-variant-dot-20261014]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Isolamento da correcao
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 186' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.10"' app/build.gradle.kts
+          grep -Fq 'imported.chooserLabel' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+          grep -Fq 'dotOfIIsRestoredEvenWhenAnotherCapitalStartsHigher' app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt
+      - name: Compilar app e executar testes de regressao
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
