@@ -1,0 +1,41 @@
+name: Brother 1.10.17 - QA glifos DaFont sem ruptura
+
+on:
+  push:
+    branches: [fix/brother-1117-contour-hybrid-fidelity]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  geometry:
+    name: Testar preenchimento de glifos com Satin intacto
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verificar escopo e versao da candidata
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 193' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.17"' app/build.gradle.kts
+          grep -Fq 'usesOutlineFill = true' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'outlineFillKeepsRealCountersAndDisconnectedAccents' app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt
+      - name: Compilacao Android e todos testes unitarios
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
