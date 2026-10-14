@@ -316,7 +316,7 @@ internal object CleanRoomSatinEngine {
      * Os intervalos do mesmo nível são separados nos vazados originais;
      * nunca rasterizar o retângulo total ou desenhar ligações sobre furos.
      */
-    internal fun outlineFillRails(raster: Raster, densityMm: Float): List<List<Rail>> {
+    private fun outlineFillRails(raster: Raster, densityMm: Float): List<List<Rail>> {
         require(densityMm in 0.3f..1.2f)
         val component = IntArray(raster.mask.size) { -1 }
         val queue = java.util.ArrayDeque<Int>()
