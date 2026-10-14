@@ -1,0 +1,42 @@
+name: Brother 1.10.9 - QA importacao e fontes
+
+on:
+  push:
+    branches: [fix/brother-1109-font-names-shaping]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Conferir isolamento da correcao
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 185' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.9"' app/build.gradle.kts
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/SfntFontNameReader.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/SfntFontNameReaderTest.kt
+      - name: Compilar e executar testes
+        shell: bash
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
