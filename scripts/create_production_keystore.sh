@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTPUT_DIR="${1:-$HOME/FioLab-Production-Key}"
-KEYSTORE="$OUTPUT_DIR/fiolab-production.jks"
-BASE64_FILE="$OUTPUT_DIR/fiolab-production.base64.txt"
-ALIAS="fiolab-production"
+OUTPUT_DIR="${1:-$HOME/Brother-Matrizes-Production-Key}"
+KEYSTORE="$OUTPUT_DIR/brother-matrizes-production.jks"
+BASE64_FILE="$OUTPUT_DIR/brother-matrizes-production.base64.txt"
+ALIAS="brother-matrizes-production"
 
 if ! command -v keytool >/dev/null 2>&1; then
   echo "Java keytool não encontrado. Instale um JDK 17+ e tente novamente."
@@ -47,7 +47,7 @@ if command -v base64 >/dev/null 2>&1; then
   echo
   echo "Cópia Base64 criada em:"
   echo "  $BASE64_FILE"
-  echo "Use-a apenas para cadastrar FIOLAB_RELEASE_KEYSTORE_BASE64 no GitHub."
+  echo "Use-a apenas para cadastrar BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 no GitHub."
   echo "Depois de cadastrar o secret, mantenha-a protegida ou apague-a."
 fi
 
@@ -58,5 +58,5 @@ echo
 echo "IMPORTANTE:"
 echo "- faça duas cópias seguras da keystore;"
 echo "- não envie a keystore por chat/e-mail;"
-echo "- não coloque a keystore dentro do projeto FioLab;"
+echo "- não coloque a keystore dentro do projeto Brother Matrizes;"
 echo "- perder essa chave pode impedir atualizações compatíveis futuras."

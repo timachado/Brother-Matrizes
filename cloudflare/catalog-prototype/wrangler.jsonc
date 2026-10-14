@@ -1,0 +1,23 @@
+{
+  // Homologacao: Worker existente, sem habilitar assinaturas/pagamentos.
+  // ID do D1 extraido do log de compilacao Cloudflare em 2026-10-10.
+  "name": "brother-matrizes-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true
+    }
+  },
+  "keep_vars": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "brother-matrizes-catalog-teste",
+      "database_id": "9fd50dab-b8ea-4edb-8243-6b465fc58f55"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# FioLab — checklist de Release Candidate
+# Brother Matrizes — checklist de Release Candidate
 
 Este checklist separa o que pode ser validado automaticamente do que precisa de aparelho, bordadeira ou segredo de produção.
 
@@ -40,6 +40,6 @@ Este checklist separa o que pode ser validado automaticamente do que precisa de 
 - [ ] Assinar a variante release com a chave definitiva.
 - [ ] Registrar e guardar SHA-256 da chave de assinatura.
 - [ ] Testar atualização por cima de uma versão anterior assinada com a mesma chave.
-- [ ] Definir URL oficial de atualização/download no site FioLab.
+- [ ] Definir URL oficial de atualização/download no site Brother Matrizes.
 
 A RC não deve ser declarada concluída enquanto os itens físicos e a assinatura de produção permanecerem pendentes.

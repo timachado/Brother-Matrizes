@@ -1,0 +1,71 @@
+name: Great Vibes Satin Diagnostic
+
+on:
+  push:
+    branches: ["refactor/brother-matrizes-clean-0469"]
+    paths:
+      - ".github/workflows/greatvibes-diagnostic.yml"
+      - "app/src/androidTest/java/com/timachado/brothermatrizes/GreatVibesStartDiagnosticTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/PeDesignImportedFontEngine.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greatvibes-satin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Prepare official Great Vibes fixture
+        shell: bash
+        run: |
+          mkdir -p app/src/androidTest/assets
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf \
+            --output app/src/androidTest/assets/GreatVibes-Regular.ttf
+          test -s app/src/androidTest/assets/GreatVibes-Regular.ttf
+          shasum -a 256 app/src/androidTest/assets/GreatVibes-Regular.ttf
+
+      - name: Run real Android Great Vibes diagnostic
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            bash -lc 'set -u; adb wait-for-device; ok=0; for i in $(seq 1 180); do boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r"); pkg=$(adb shell service check package 2>/dev/null || true); if [ "$boot" = "1" ] && echo "$pkg" | grep -qi "found"; then ok=1; break; fi; sleep 2; done; if [ "$ok" != "1" ]; then echo "Android boot/package service not ready"; adb shell getprop sys.boot_completed || true; adb shell service check package || true; exit 97; fi; adb logcat -c || true; set +e; gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest#diagnoseMariaVisualStartOnGreatVibes --stacktrace; status=$?; set -e; adb logcat -d -s GreatVibesDiagnostic:I "*:S" > greatvibes-reference-report.txt || true; adb exec-out run-as com.timachado.brothermatrizes cat files/greatvibes-best-sequence.csv > greatvibes-best-sequence.csv 2>/dev/null || true; cat greatvibes-reference-report.txt || true; exit "$status"'
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greatvibes-start-diagnostic
+          path: |
+            greatvibes-reference-report.txt
+            greatvibes-best-sequence.csv
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: error

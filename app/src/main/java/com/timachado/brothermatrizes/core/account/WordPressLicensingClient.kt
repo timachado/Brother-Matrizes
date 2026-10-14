@@ -1,0 +1,281 @@
+package com.timachado.brothermatrizes.core.account
+
+import com.timachado.brothermatrizes.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.UUID
+
+/**
+ * Commercial source of truth: the WordPress/WooCommerce licensing plugin.
+ * Supabase's access token is forwarded only to the configured HTTPS backend.
+ * Never embed Efí credentials, WooCommerce secrets or commercial decisions.
+ */
+internal object WordPressLicensingClient {
+    // Small in-memory grace window only (not SharedPreferences). It cannot
+    // resurrect entitlements across app reinstall, device clock edits or reboot.
+    // Full persistent offline Pro requires a server-signed license lease.
+    private var lastAccount: AccountSnapshot? = null
+    private var lastVerifiedElapsed: Long = 0L
+
+    fun recentlyVerified(sub: String): AccountSnapshot? {
+        val result = lastAccount ?: return null
+        val age = android.os.SystemClock.elapsedRealtime() - lastVerifiedElapsed
+        if (age < 0 || age > 10 * 60 * 1000L || result.userId != sub) return null
+        return if (result.planCode == "free" || result.hasProAccess) result else null
+    }
+
+    private fun baseUrl(): String {
+        val base = BuildConfig.WORDPRESS_URL.trim().trimEnd('/')
+        require(base.startsWith("https://") && base.length > 10 &&
+            !base.contains('@') && !base.contains('#')) {
+            "Servidor comercial WordPress ainda não configurado."
+        }
+        return base
+    }
+
+    private fun json(
+        route: String,
+        token: String?,
+        body: JSONObject? = null
+    ): JSONObject {
+        require(route.startsWith("/wp-json/brother-matrizes/v1/"))
+        val root = URL(baseUrl())
+        val url = URL(root, route)
+        require(url.protocol == "https" && url.host == root.host) {
+            "Host comercial inesperado."
+        }
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 12000
+            readTimeout = 12000
+            instanceFollowRedirects = false
+            useCaches = false
+            setRequestProperty("Accept", "application/json")
+            token?.let {
+                setRequestProperty("Authorization", "Bearer $it")
+            }
+            if (body != null) {
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+        }
+        try {
+            if (body != null) connection.outputStream.use {
+                it.write(body.toString().toByteArray(Charsets.UTF_8))
+            }
+            val status = connection.responseCode
+            val contentType = connection.contentType.orEmpty()
+            val mimeType = contentType.substringBefore(';').trim().lowercase()
+            // Never try to parse an HTML login page / WAF / hosting error as JSON.
+            // Do not expose bearer tokens, HTML or server responses to the UI.
+            val origin = connection.url.host
+            val diagnostic = "HTTP $status, tipo ${contentType.ifBlank { "não informado" }}, origem $origin"
+            if (mimeType != "application/json" && !mimeType.endsWith("+json")) {
+                throw IllegalStateException(
+                    "Não foi possível validar a cota. Resposta inválida do servidor ($diagnostic). " +
+                        "Nenhuma cota foi consumida."
+                )
+            }
+            val raw = (if (status in 200..299) connection.inputStream
+                       else connection.errorStream)?.bufferedReader()?.use { reader ->
+                val buffer = CharArray(8192)
+                val data = StringBuilder()
+                while (true) {
+                    val n = reader.read(buffer)
+                    if (n < 0) break
+                    require(data.length + n <= 1024 * 1024) {
+                        "Resposta comercial muito grande ($diagnostic)."
+                    }
+                    data.append(buffer, 0, n)
+                }
+                data.toString()
+            }.orEmpty()
+            val parsed = try {
+                JSONObject(raw)
+            } catch (_: org.json.JSONException) {
+                throw IllegalStateException(
+                    "Resposta comercial inválida ($diagnostic). " +
+                        "Nenhuma cota foi consumida."
+                )
+            }
+            if (status !in 200..299) {
+                val message = parsed.optString("message")
+                    .takeIf { it.isNotBlank() && !it.contains('<') }
+                    ?: "Não foi possível consultar o licenciamento."
+                throw IllegalStateException("$message ($diagnostic).")
+            }
+            return parsed
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+
+    /** Public catalog independent of /me and /usage.
+     * No entitlements are inferred from this data. Prices and active state
+     * always come from WooCommerce through WordPress.
+     */
+    suspend fun catalog(): List<AccountPlanOption> = withContext(Dispatchers.IO) {
+        val serverPlans = json("/wp-json/brother-matrizes/v1/plans", null)
+            .optJSONArray("plans")
+        buildList {
+            if (serverPlans != null) for (index in 0 until serverPlans.length()) {
+                val p = serverPlans.optJSONObject(index) ?: continue
+                val code = p.optString("code")
+                val lifetime = code.contains("lifetime")
+                val promo = code == "pro_lifetime_launch"
+                add(AccountPlanOption(
+                    code = code,
+                    name = p.optString("name", code),
+                    billingType = when {
+                        lifetime -> "one_time"
+                        code == "pro_monthly" -> "monthly"
+                        code == "pro_yearly" -> "yearly"
+                        else -> "free"
+                    },
+                    isPaid = code != "free",
+                    isLifetime = lifetime,
+                    isPromotional = promo,
+                    description = if (code == "free") "Recursos básicos."
+                    else if (lifetime) "Pagamento único."
+                    else "Consulte as condições de renovação ao contratar.",
+                    priceCents = p.optInt("price_cents").takeIf {
+                        !p.isNull("price_cents")
+                    },
+                    currency = p.optString("currency", "BRL"),
+                    active = p.optBoolean("active", false),
+                    availableFrom = null,
+                    availableUntil = null,
+                    displayOrder = index
+                ))
+            }
+        }
+    }
+
+    suspend fun account(
+        sub: String,
+        authEmail: String,
+        token: String,
+        authName: String?,
+        authAvatar: String?
+    ): AccountSnapshot = withContext(Dispatchers.IO) {
+        val data = json("/wp-json/brother-matrizes/v1/me", token)
+        check(data.optString("subject") == sub) {
+            "Identidade comercial não corresponde ao login Google."
+        }
+        val license = data.optJSONObject("license") ?: JSONObject()
+        val trial = license.optJSONObject("trial") ?: JSONObject()
+        val level = license.optString("level", "free")
+        val expires = license.optString("expires_at").takeIf { it.isNotBlank() }
+        // A temporary catalog error must not hide a verified account/license.
+        val plans = runCatching { catalog() }.getOrDefault(emptyList())
+        // Usage is optional presentation information. An unavailable /usage
+        // must not erase verified licensing and the independently loaded plans.
+        val quota = runCatching {
+            buildMap<String, Int> {
+            // Usage comes from WordPress only. It is never authoritative
+            // when the backend is unavailable.
+            val usage = json("/wp-json/brother-matrizes/v1/usage", token)
+                .optJSONObject("actions")
+            if (usage != null) for (key in listOf(
+                "create_name", "export_matrix", "import_font", "import_matrix"
+            )) {
+                val action = usage.optJSONObject(key) ?: continue
+                if (!action.isNull("remaining")) put(key, action.optInt("remaining"))
+            }
+        }
+        }.getOrDefault(emptyMap())
+        val snapshot = AccountSnapshot(
+            userId = sub,
+            email = data.optString("email", authEmail),
+            displayName = data.optString("display_name").ifBlank {
+                authName ?: authEmail.substringBefore('@').ifBlank { "Brother Matrizes" }
+            },
+            avatarUrl = data.optString("avatar_url").takeIf {
+                it.isNotBlank() && it != "null"
+            } ?: authAvatar,
+            planCode = level,
+            subscriptionStatus = license.optString("status", "free"),
+            currentPeriodEnd = expires,
+            currency = "BRL",
+            manageUrl = baseUrl() + "/minha-conta/",
+            availablePlans = plans,
+            trialStatus = trial.optString("status", "unknown"),
+            trialRemainingSeconds = trial.optLong("remaining_seconds"),
+            quotaRemaining = quota,
+            commercialConfigured = true
+        )
+        lastAccount = snapshot
+        lastVerifiedElapsed = android.os.SystemClock.elapsedRealtime()
+        snapshot
+    }
+
+    suspend fun updateProfile(token: String, name: String) = withContext(Dispatchers.IO) {
+        json("/wp-json/brother-matrizes/v1/me/profile", token,
+            JSONObject().put("display_name", name))
+    }
+
+    suspend fun trial(token: String): JSONObject = withContext(Dispatchers.IO) {
+        // WordPress enforces one trial per authenticated Google subject.
+        // This endpoint does not register a payment method or create charges.
+        json("/wp-json/brother-matrizes/v1/trial/activate", token, JSONObject())
+    }
+
+    suspend fun checkout(token: String, planCode: String): String =
+        withContext(Dispatchers.IO) {
+            val answer = json("/wp-json/brother-matrizes/v1/checkout", token,
+                JSONObject().put("plan_code", planCode)
+                    .put("request_key", UUID.randomUUID().toString()))
+            val address = answer.getString("checkout_url")
+            val url = URL(address)
+            val expected = URL(baseUrl())
+            require(url.protocol == "https" && url.host == expected.host) {
+                "Checkout não pertence ao WordPress autorizado."
+            }
+            address
+        }
+
+    suspend fun authorizeUsage(token: String, operation: String): String =
+        withContext(Dispatchers.IO) {
+            val key = UUID.randomUUID().toString()
+            val response = json("/wp-json/brother-matrizes/v1/usage/authorize", token,
+                JSONObject().put("operation", operation).put("request_key", key))
+            check(response.optBoolean("authorized", false)) {
+                "Seu limite mensal de importações foi atingido."
+            }
+            key
+        }
+
+    suspend fun finalizeUsage(token: String, operation: String, key: String, success: Boolean) =
+        withContext(Dispatchers.IO) {
+            json("/wp-json/brother-matrizes/v1/usage/" +
+                if (success) "consume" else "release", token,
+                JSONObject().put("operation", operation).put("request_key", key))
+        }
+
+    suspend fun syncDevices(token: String, current: LocalDeviceIdentity):
+        List<AccountDevice> = withContext(Dispatchers.IO) {
+        val r = json("/wp-json/brother-matrizes/v1/devices", token,
+            JSONObject().put("device_id", current.deviceId)
+                .put("device_name", current.deviceName)
+                .put("app_version", BuildConfig.VERSION_NAME))
+        val devices = r.optJSONArray("devices") ?: return@withContext emptyList()
+        buildList {
+            for (i in 0 until devices.length()) {
+                val device = devices.optJSONObject(i) ?: continue
+                val id = device.optString("device_id")
+                add(AccountDevice(
+                    deviceId = id,
+                    deviceName = device.optString("device_name"),
+                    platform = device.optString("platform", "android"),
+                    appVersion = device.optString("app_version"),
+                    lastSeenAt = device.optString("last_seen_at"),
+                    isCurrent = id == current.deviceId
+                ))
+            }
+        }
+    }
+}

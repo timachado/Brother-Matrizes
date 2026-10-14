@@ -1,0 +1,26 @@
+# Archived manual-only test suite. Brother Matrizes uses WordPress/WooCommerce
+# as its commercial source. This workflow does not contact Cloudflare or deploy.
+name: Archived Cloudflare catalog prototype tests (manual only)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archived-prototype-local-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Local worker regression tests only
+        run: node --test worker.test.mjs
+        working-directory: cloudflare/catalog-prototype
+      - name: PHP syntax check of archived relay source
+        run: php -l wordpress/app-commerce-core-integration/bm-cloudflare-catalog-relay.php
+      - name: Archived patcher regression tests
+        run: python3 -m unittest discover -s wordpress/app-commerce-core-integration -p 'test_apply_core_relay.py' -v

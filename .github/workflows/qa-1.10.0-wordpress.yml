@@ -1,0 +1,26 @@
+name: Brother Matrizes 1.10.0 - Teste download WordPress
+
+on:
+  push:
+    branches:
+      - release/brother-matrizes-1.10.0-public-candidate
+    paths:
+      - '.github/scripts/test-brother-download-source.py'
+      - '.github/workflows/qa-1.10.0-wordpress.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-official-download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validar script
+        run: python3 -m py_compile .github/scripts/test-brother-download-source.py
+      - name: Testar endereco de download direto do WordPress
+        run: python3 .github/scripts/test-brother-download-source.py

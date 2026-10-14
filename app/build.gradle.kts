@@ -1,19 +1,29 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
-    namespace = "com.timachado.fiolab"
+    namespace = "com.timachado.brothermatrizes"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.timachado.fiolab"
+        applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 102
-        versionName = "0.61.0"
+        versionCode = 184
+        versionName = "1.10.8"
+
+        // Acesso ao token FCM apenas no APK de homologação explicitamente construído
+        // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
+        buildConfigField(
+            "boolean", "ENABLE_FCM_DIAGNOSTIC",
+            (providers.gradleProperty("brotherFcmDiagnostic").orNull == "true").toString()
+        )
 
         buildConfigField(
             "String",
@@ -25,11 +35,33 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"sb_publishable_K7JQ8O5fNgZjhEGSQsoZdQ_W4TLRHY4\""
         )
+        // Local beta preview quota for imports only. No purchase or Pro unlock.
+        // Disable and migrate quotas before launching commercial sales.
+        buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "true")
+        // Public WordPress store URL only. No WooCommerce or Efí secrets.
+        buildConfigField(
+            "String", "WORDPRESS_URL", "\"https://timachado.ifree.page\""
+        )
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            /*
+             * Project token do PostHog é um identificador público de cliente,
+             * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
+             * privada é incluída no app.
+             */
+            buildConfigField(
+                "String",
+                "POSTHOG_PROJECT_TOKEN",
+                "\"phc_CSmVhfjhoqBHjLtFB2nwNSdGgfss7RtTzx8xXgdrAoSu\""
+            )
+        }
+
         release {
+            // Commercial release must NEVER use the resettable per-device beta counters.
+            buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "false")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -59,12 +91,22 @@ dependencies {
 
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-messaging")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 
-    implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.0.7")
+    implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
+
+    // Archive readers only. RAR license restricts writing a compatible archiver.
+    implementation("com.github.junrar:junrar:8.1.1")
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("org.tukaani:xz:1.10")
+    implementation("commons-io:commons-io:2.20.0")
+    implementation("org.apache.commons:commons-lang3:3.18.0")
 
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.3"))
     implementation("io.github.jan-tennert.supabase:auth-kt")
@@ -73,6 +115,38 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    debugImplementation("com.posthog:posthog-android:3.71.4")
 
     testImplementation("junit:junit:4.13.2")
+}
+
+
+/**
+ * A arte oficial fica em branding/brother_matrizes_brand_logo.base64.
+ * Gera sempre os recursos de ícone antes do processamento Android.
+ * Evita empacotar recursos de marca obsoletos por acidente.
+ */
+val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
+    val source = rootProject.file("branding/brother_matrizes_brand_logo.base64")
+    val drawable = project.file("src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg")
+    val mipmap = project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
+    inputs.file(source)
+    outputs.files(drawable, mipmap)
+    doLast {
+        val data = Base64.getMimeDecoder().decode(source.readText())
+        check(data.size >= 3000 && data[0] == 0xff.toByte() && data[1] == 0xd8.toByte()) {
+            "Imagem oficial Brother Matrizes ausente ou invalida"
+        }
+        drawable.parentFile.mkdirs()
+        mipmap.parentFile.mkdirs()
+        drawable.writeBytes(data)
+        mipmap.writeBytes(data)
+    }
+}
+tasks.configureEach {
+    if (name == "preBuild" || 
+        (name.startsWith("merge") && name.endsWith("Resources")) ||
+        (name.startsWith("process") && name.endsWith("Resources"))) {
+        dependsOn(prepareBrotherBrandAssets)
+    }
 }

@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FioLab"
+rootProject.name = "Brother Matrizes"
 include(":app")

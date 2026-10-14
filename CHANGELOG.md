@@ -1,342 +1,14 @@
 # Changelog
 
-## 0.61.0
-
-### V2 calibrado com a topologia real da Alliby
-- A fonte Alliby Regular enviada pelo usuário foi usada localmente para analisar o caso real do nome "Maria" sem redistribuir o arquivo da fonte.
-- O M da Alliby possui múltiplas zonas de junção entre laço e hastes; essas zonas deixam de participar diretamente do traçado dos ramos.
-- O motor V2 detecta as junções do esqueleto, abre uma pequena zona neutra e traça cada ramo de forma independente.
-- Cada ramo mantém seus próprios trilhos Satin e sua própria direção local.
-- O miolo da junção recebe um patch Tatami curto e local, alinhado ao eixo dominante, em vez de Satin radial.
-- Componentes compactos continuam usando colunas regulares.
-- Mantidos Running/Satin/Tatami automáticos, underlay, compensação, sequência por objetos e exportação.
-- Adicionado teste de regressão que exige ramos independentes e patch Tatami na bifurcação.
-
-## 0.60.1
-
-### Trilhos Satin estáveis em curvas
-- Corrigida a inversão ocasional de borda A/B entre amostras consecutivas do motor V2.
-- Cada nova travessa é orientada pela continuidade física dos dois trilhos, escolhendo a correspondência de menor deslocamento com a travessa anterior.
-- A validação angular deixa de aceitar uma inversão de 180 graus como se fosse continuidade normal.
-- Componentes pequenos e compactos, como ponto do i, coração e bolinha, deixam de usar esqueleto ramificado e passam a usar colunas regulares de preenchimento.
-- Mantidos Running/Satin/Tatami automáticos, underlay, pull compensation, sequência por objetos e exportação.
-- Adicionado teste de regressão que força uma normal invertida e exige preservação dos dois trilhos físicos.
-
-## 0.60.0
-
-### Motor V2 — reconstrução do digitalizador de fontes
-- O caminho padrão das fontes TTF/OTF salvas deixa de usar o pipeline acumulado da série 0.52.x.
-- Criado um motor V2 isolado que primeiro decompõe o glifo em objetos bordáveis e só depois escolhe o tipo de ponto.
-- Running é usado para detalhes abaixo do limite físico mínimo.
-- Satin é usado somente quando o objeto possui duas bordas reais válidas e largura segura.
-- Tatami é usado quando a largura ultrapassa o limite seguro do Satin.
-- O eixo central serve somente para direção e sequência; ele não limita mais a largura da passada.
-- Cada passada Satin termina em uma das duas bordas reais e alterna trilho a trilho, sem pontos intermediários artificiais.
-- Underlay, densidade, comprimento de ponto e pull compensation passam a ser aplicados por objeto.
-- A sequência conclui um objeto antes de escolher o próximo, usando conexão escondida somente quando o trajeto permanece dentro do glifo.
-- A prévia e a matriz continuam usando exatamente a mesma lista de pontos.
-- A arquitetura foi implementada de forma independente. O Mão Design 18.1.2 foi usado somente como referência de comportamento observável: tipos Running/Satin/Tatami, densidade, stitch length, underlay, pull compensation, detalhe mínimo e sequência.
-- Adicionado teste de regressão que exige alternância Satin exclusivamente entre os dois trilhos reais.
-
-## 0.52.2
-
-### Satin até a borda real
-- Corrigido o caso observado em vídeo em que a passada Satin parava no meio do traço e mudava de trajetória.
-- O eixo medial continua definindo centro e direção local, mas deixa de limitar artificialmente o comprimento lateral da travessa.
-- Cada travessa Satin agora procura a primeira borda real do glifo nos dois lados antes de seguir para a próxima amostra.
-- O limite físico máximo de largura do Satin continua ativo; áreas largas permanecem tratadas pelo motor de preenchimento apropriado.
-- Mantidos junções sem Satin radial, anti-leque acumulado, auditoria de cobertura, underlay, bastidor e saída estrutural final.
-- Adicionado teste com raio medial propositalmente subestimado que exige que a travessa alcance a largura real da máscara.
-
-## 0.52.1
-
-### Junções sem Satin radial
-- Removido o bloco Satin dedicado que preenchia junções do eixo medial usando uma direção média entre vários ramos.
-- Ramos de letras cursivas passam a permanecer independentes nas bifurcações.
-- O centro da junção só recebe pontos quando a auditoria de cobertura detectar uma área realmente descoberta.
-- O reparo continua local e limitado, evitando leques e travessas longas no M sem aumentar a densidade do nome inteiro.
-- Mantidos o corte por giro acumulado, eixo medial, Tatami automático, underlay, bastidor e saída estrutural final.
-- Atualizado o teste de regressão para exigir cobertura da junção sem depender de Satin radial.
-
-## 0.52.0
-
-### Motor automático e anti-leque acumulado
-- Removidos da tela Criar Nome os controles antigos de Digitalização por blocos, Objetos inteligentes, Compatibilidade e Ordem de costura.
-- Removida a referência visual ao PE-DESIGN; o usuário não precisa mais escolher motor ou ordem manualmente.
-- O motor interno continua automático e usa o caminho profissional com continuidade por padrão.
-- Adicionado limite de giro acumulado dentro de cada coluna Satin: uma curva suave pode acompanhar o traço, mas é dividida em novo bloco quando a rotação total passa de um limite seguro.
-- Adicionado limite de variação acumulada de largura dentro do mesmo bloco para impedir abertura progressiva em leque.
-- Mantidos eixo medial, auditoria de cobertura interna, Tatami para áreas largas, underlay, jumps/trims, bastidor e saída estrutural do último glifo.
-- Adicionado teste de regressão que simula uma rotação gradual de 50 graus e exige divisão em múltiplos blocos.
-
-## 0.51.1
-
-### Auditoria de cobertura do glifo
-- Após gerar os objetos principais pelo eixo medial, o FioLab compara a geometria resultante com a silhueta real da letra.
-- Regiões internas a mais de aproximadamente 0,55 mm de qualquer travessa recebem blocos locais de reparo.
-- Os reparos são limitados a até 7 mm de largura para evitar novas travessias longas e leques em letras cursivas.
-- A malha de reparo usa passo de aproximadamente 0,30 mm e somente complementa áreas realmente descobertas.
-- Mantidos eixo medial, ordem por Continuidade, Satin/Tatami, underlay, jumps/trims, bastidor e saída estrutural do último glifo.
-- Adicionado teste de regressão específico para confirmar que áreas internas descobertas recebem pontos de reparo.
-
-## 0.51.0
-
-### Motor principal por eixo medial
-- O digitalizador de fontes salvas passa a extrair primeiro o eixo medial de cada traço.
-- Bifurcações e junções são separadas em blocos locais antes da geração dos pontos.
-- As travessas Satin são abertas perpendicularmente ao caminho local do traço, evitando ligar bordas de ramos diferentes.
-- O pareamento direto de contornos deixa de ser o caminho principal e permanece apenas como fallback.
-- Áreas largas continuam usando Tatami denso; traços estreitos continuam usando Satin.
-- A ordem padrão das fontes salvas passa a ser Continuidade, concluindo regiões conectadas antes de saltar; a opção Visual permanece disponível.
-- Mantidos underlay, compensação, jumps/trims, bastidor e saída estrutural do último glifo.
-- Adicionado teste de regressão para impedir leques abruptos no motor principal em bifurcações cursivas.
-- A arquitetura foi reimplementada de forma independente; o APK do Mão Design foi usado somente como referência de comportamento e separação entre app e motor de bordado.
-
-## 0.50.1
-
-### Fechamento do preenchimento Tatami
-- Reduzido o espaçamento máximo entre linhas de preenchimento para 0,30 mm.
-- Adicionada sobreposição lateral controlada de 0,12 mm nas bordas do Tatami.
-- Os pontos internos passam a usar defasagem de 50% entre linhas consecutivas, evitando canais visuais alinhados.
-- As linhas Tatami são alinhadas antes da interpolação para reduzir cruzamentos e clareiras em curvas.
-- Mantidos Satin para traços estreitos, underlay, ordem de costura, jumps/trims e término estrutural do último glifo.
-- Reforçado o teste de cobertura para exigir densificação real nas áreas largas.
-
-## 0.50.0
-
-### Motor por objetos — Satin + Tatami
-- O caminho principal das fontes TTF/OTF salvas passa a trabalhar por objetos bordáveis.
-- Traços estreitos continuam em Satin.
-- Regiões acima do limite físico de 7 mm deixam de ser divididas em travessas Satin longas e passam a receber preenchimento Tatami.
-- O Tatami alterna o sentido de costura por linha e limita o avanço principal a aproximadamente 2,5 mm.
-- O underlay seguro, a ordem Visual/Continuidade, jumps/trims, bastidor, compensação e a saída estrutural do último glifo permanecem preservados.
-- A prévia continua usando os mesmos pontos que serão exportados para a máquina.
-- O modo padrão das fontes salvas passa a aparecer como "Objetos inteligentes".
-- Adicionado teste automático para impedir que uma área larga volte a ser tratada como uma única travessa Satin.
-
-## 0.49.2
-
-### Ordem final e saída estrutural do último glifo
-- Consolidadas as correções posteriores à 0.49.1 no motor de fontes TTF/OTF salvas.
-- O último glifo agora calcula um alvo visual de saída na região estrutural inferior direita, evitando usar um floreio fino como término da costura.
-- A coluna estrutural compatível com esse alvo é reservada para ser bordada por último; colunas muito pequenas são descartadas como candidatas ao término.
-- O último bloco Satin é orientado nos dois sentidos possíveis e também alterna o lado inicial para que a última pontada real fique o mais próximo possível do alvo de saída.
-- No caso observado do nome terminando em "a", a sequência passa a terminar na perninha estrutural do "a", e o comando END permanece na mesma coordenada da última pontada.
-- Mantidos o início visual superior, Blocos profissionais, Ordem Visual/Continuidade, underlay seguro em curvas, fechamento de microvazios, limites de bastidor e leitura de matrizes.
-- Adicionado teste de regressão que exige o último ponto na perna estrutural e rejeita o floreio fino como saída final.
-
-## 0.49.1
-
-### Fechamento de microvazios no Satin
-- Ajuste fino após a simulação de "Maria" na 0.49.0: formato, início e ordem dos blocos foram mantidos.
-- Pequenas falhas residuais nas emendas entre blocos passam a receber uma linha curta de fechamento na ponta do Satin.
-- O fechamento só é adicionado quando o centro, a travessa interna e o deslocamento até a ponta permanecem dentro do contorno do glifo.
-- A densidade geral do nome não foi aumentada; o objetivo é fechar apenas microvazios sem engrossar a letra.
-- Mantidos Blocos profissionais + Ordem Visual como padrão, underlay seguro, pareamento vetorial TTF/OTF e correções do viewer/bastidor.
-- Adicionado teste garantindo uma linha segura de fechamento em cada ponta de um bloco com espaço interno suficiente.
-
-## 0.49.0
-
-### Digitalização por Blocos
-- Nova ferramenta visível na aba Mais para fontes TTF/OTF salvas.
-- O modo padrão passa a ser Blocos profissionais, inspirado no fluxo público de softwares de digitalização como PE-DESIGN: pequenas regiões Satin com linhas de direção próprias e ordem de costura controlada.
-- No modo profissional, o motor prioriza pareamento vetorial das bordas do traço e não volta ao esqueleto raster. Se o pareamento não for suficiente, usa somente a varredura geométrica por eixo como fallback previsível.
-- Adicionada seleção de ordem de costura: Visual ou Continuidade.
-- Ordem Visual mantém os blocos na sequência visual determinística do glifo; Continuidade permite reordenar regiões conectadas para reduzir deslocamentos.
-- Mantidos o início superior da primeira letra e o underlay seguro da 0.48.4, que não atravessa vazados em curvas.
-- O modo Compatibilidade preserva o motor adaptativo legado para fontes específicas que dependam dele.
-- As fontes internas FioLab continuam sem alteração.
-- Adicionado teste garantindo que fontes importadas usem Blocos profissionais + ordem Visual por padrão.
-
-## 0.48.4
-
-### Underlay seguro em curvas e vazados
-- O vídeo 1000309869.mp4 confirmou que o início da 0.48.3 passou para a região superior esquerda do "M", corrigindo o floreio inferior.
-- Foi identificado um defeito separado entre aproximadamente 7 e 12 segundos: o underlay espaçado criava triângulos que atravessavam o miolo vazio do laço da letra.
-- O avanço do underlay agora é validado geometricamente contra o contorno do glifo antes de cada ponto.
-- Em regiões retas, o passo espaçado é mantido.
-- Em curvas fechadas, o motor reduz progressivamente o número de linhas puladas até que a ligação inteira permaneça dentro do traço.
-- Se nem a seção adjacente possuir ligação interna segura, a camada de underlay é encerrada naquele bloco em vez de desenhar uma diagonal pelo vazado.
-- O ponto inicial, a escolha do primeiro bloco, o Satin vetorial e as correções de viewer/bastidor permanecem inalterados.
-- Adicionado teste de regressão com uma coluna curva em anel para garantir que nenhum segmento do underlay atravesse o vazado central.
-
-## 0.48.3
-
-### Primeiro bloco correto em letras cursivas
-- Corrigido o comportamento observado no vídeo 1000309862.mp4: mesmo com o ponto inicial visual no alto, o motor ainda escolhia obrigatoriamente a coluna com menor X, que no "M" cursivo era o floreio inferior.
-- O início visual agora é calculado na metade superior do glifo, evitando que um swash inferior seja tratado como início da letra.
-- Na primeira região de cada glifo, o motor deixa de aceitar cegamente a primeira coluna da ordenação padrão e escolhe, entre todas as orientações válidas, o bloco com entrada mais próxima do início visual superior.
-- A ordenação por continuidade continua valendo para os blocos seguintes.
-- Mantidos o underlay interno em zigue-zague da 0.48.2, o Satin vetorial, a densificação de pequenas lacunas e as correções do viewer/bastidor.
-- Adicionado teste de regressão com um floreio inferior mais à esquerda e uma haste superior ligeiramente à direita; o primeiro comando deve entrar na haste superior.
-
-## 0.48.2
-
-### Início de costura e underlay das fontes salvas
-- Corrigido o início observado no vídeo 1000309853.mp4: a letra cursiva deixava a agulha entrar pela parte inferior esquerda do primeiro glifo.
-- O ponto inicial visual agora segue esquerda → direita e, para o mesmo X, cima → baixo no espaço cartesiano do glifo.
-- O underlay de borda da série 0.48 foi substituído por uma camada única e espaçada de zigue-zague dentro da região do bloco Satin.
-- Isso evita que a simulação comece contornando toda a borda da letra antes do preenchimento principal.
-- Depois do underlay, o Satin principal escolhe automaticamente a extremidade mais próxima da posição atual da agulha e percorre o bloco no sentido de retorno, sem criar uma diagonal longa apenas para voltar ao começo.
-- Mantidos o pareamento vetorial TTF/OTF, densificação de pequenas lacunas, roteamento entre blocos, auto-fit, bastidor automático do viewer e exportação PES/DST/JEF.
-- Adicionados testes para preferência de início superior esquerdo e para impedir a volta do underlay que percorre as duas bordas antes do Satin.
-
-## 0.48.1
-
-### Abertura correta de matrizes PES e fechamento de pequenas falhas Satin
-- Corrigido o viewer que abria toda matriz importada em 100 × 100 mm por padrão, mesmo quando o desenho real era maior.
-- O visualizador passa a escolher automaticamente o menor bastidor FioLab compatível com a matriz e considera a mesma opção de orientação em 90° usada em páginas de desenho retangulares.
-- Para a referência real enviada pelo usuário, 70,2 × 128,1 mm passa a selecionar 130 × 180 mm; 69,2 × 178,4 mm passa a selecionar 140 × 200 mm.
-- O canvas agora calcula a escala pelo maior retângulo entre matriz e bastidor. Mesmo se o usuário selecionar manualmente um bastidor pequeno, o desenho inteiro continua visível e o excesso pode ser identificado em vez de ser recortado.
-- A tela de informações mostra o bastidor de visualização, indica quando ele está girado 90° e exibe um aviso explícito quando a matriz excede a área segura.
-- Mantida a orientação Y das matrizes importadas conforme o sistema de coordenadas do EmbroideryIO; nenhum espelhamento adicional foi aplicado.
-- O Satin vetorial das fontes salvas passa a interpolar linhas intermediárias quando duas seções válidas ficam afastadas demais, fechando pequenas falhas de cobertura sem alterar o pareamento das bordas.
-- As linhas interpoladas só são aceitas quando o centro e a travessa interna permanecem dentro do glifo.
-- Adicionados testes para as duas dimensões PES reais enviadas e para o espaçamento máximo entre linhas Satin vetoriais.
-
-## 0.48.0
-
-### Novo motor vetorial para fontes TTF/OTF salvas
-- O motor principal de fontes salvas deixa de usar o esqueleto raster como fonte de direção.
-- Cada contorno TTF/OTF é amostrado diretamente; a normal interna de cada borda é calculada e a borda oposta do mesmo traço é localizada por interseção vetorial.
-- Só são aceitos pares de borda com tangentes compatíveis, largura segura e segmento totalmente dentro do glifo, evitando atravessar outra perna da letra ou um vazado.
-- Pares duplicados vindos dos dois lados do mesmo traço são removidos e as travessas restantes são agrupadas em blocos pela continuidade de direção e centro.
-- Mudanças graduais de direção permanecem contínuas; regiões incompatíveis tornam-se blocos separados.
-- O motor raster/esqueleto da série 0.47 permanece apenas como fallback quando uma geometria não produz pares vetoriais suficientes.
-- O comportamento é inspirado nas funções públicas do PE-DESIGN 11 de converter texto em pequenos blocos com múltiplas linhas de direção; nenhum código proprietário foi copiado.
-- Mantidos auto-fit, underlay, compensação de repuxo, início visual, roteamento, PES/DST/JEF e todas as fontes FioLab internas.
-- Os testes de largura local, ponto destacado, cobertura de junção e múltiplas direções passam a exercer também o motor principal vetorial.
-
-## 0.47.1
-
-### Junções sem buracos nas fontes salvas
-- Corrigidos os vazios visíveis na simulação da 0.47.0, principalmente nas junções do "M" e nas ligações cursivas.
-- O motor continua separando os ramos para evitar leques, mas agora cria um bloco Satin dedicado para cobrir a região central que havia sido removida.
-- Pixels de bifurcação próximos são agrupados em um único centro de junção, evitando vários blocos sobrepostos no mesmo nó.
-- A direção do bloco de junção é calculada a partir dos ramos vizinhos, priorizando o par com continuidade mais natural.
-- O preenchimento da junção respeita a largura máxima Satin e a área real da máscara, sem atravessar a letra inteira.
-- Mantidos o campo de distância local, blocos de ramo, componentes compactos, underlay, compensação de repuxo, auto-fit e exportação PES/DST/JEF.
-- As fontes FioLab internas continuam sem alteração.
-- Adicionado teste de regressão que exige cobertura Satin no centro de uma junção em T.
-
-## 0.47.0
-
-### Novo motor de fontes salvas — blocos direcionais
-- Mudança estrutural no Satin de fontes TTF/OTF salvas: o FioLab deixa de tratar a letra como um único esqueleto com raios livres e passa a construir blocos direcionais independentes.
-- A arquitetura segue o comportamento público documentado do PE-DESIGN 11: texto convertido em pequenos blocos/regiões com múltiplas direções de costura, sem copiar código proprietário.
-- Cada bloco usa um campo de distância do próprio glifo para medir a espessura local do traço. As travessas Satin são limitadas por essa espessura e não podem atravessar outra perna da letra.
-- Regiões de bifurcação recebem uma zona de separação proporcional à largura local; cada ramo continua como um bloco próprio em vez de formar leques no nó de junção.
-- Curvas graduais permanecem contínuas, enquanto mudanças bruscas de direção, largura ou centro encerram o bloco e iniciam outro.
-- Mantidas as correções para pontos e acentos compactos, underlay, compensação de repuxo, auto-fit, início visual e exportação PES/DST/JEF.
-- As fontes FioLab internas não foram alteradas.
-- Adicionado teste de regressão em forma de T para garantir que uma junção de traços não gere travessa atravessando a barra inteira.
-- A descrição da tela de fontes salvas agora identifica o Satin em blocos direcionais.
-
-## 0.46.18
-
-### Fontes salvas — correção de geometria Satin
-- Correção direcionada apenas ao caminho de fontes TTF/OTF salvas; as fontes FioLab permanecem sem alteração.
-- Removidas conexões diagonais redundantes do grafo do esqueleto quando já existe uma ponte ortogonal. Isso evita bifurcações falsas em cantos e curvas rasterizadas.
-- Uma coluna Satin agora é encerrada e reiniciada quando ocorre mudança abrupta de direção, crescimento anormal de largura ou salto do centro do traço.
-- Curvas graduais continuam em uma única coluna; junções reais viram blocos separados e deixam de formar leques/triângulos.
-- Mantidas as proteções da 0.46.17 para pontos e acentos compactos, poda nas bifurcações e suavização do eixo central.
-- Adicionado teste geométrico com forma ramificada para garantir que nenhuma coluna contenha mudança instantânea de ângulo acima do limite seguro.
-- Mantidos auto-fit, execução fora da UI, underlay, compensação de repuxo e formatos PES/DST/JEF.
-
-## 0.46.17
-
-### Correção visual do Satin em letras cursivas
-- Corrigidos os leques, triângulos e cruzamentos vistos na simulação da palavra "Maria".
-- Componentes pequenos e desconectados, como o ponto do "i" e acentos compactos, passam a ser tratados como uma única coluna Satin simples em vez de virar uma estrela de ramificações do eixo medial.
-- Caminhos que começam ou terminam em bifurcações do esqueleto são recuados alguns pixels antes de gerar travessas, evitando usar o próprio nó de junção como centro de uma faixa Satin.
-- O eixo central é suavizado antes do cálculo da normal local, reduzindo mudanças bruscas de ângulo causadas pelo raster.
-- Travessas anormalmente largas em relação ao limite Satin são descartadas antes da divisão de colunas, impedindo que um raio atravesse outro traço da letra e crie o padrão em leque.
-- Mantidos o Satin adaptativo por múltiplas direções, o início visual, o underlay, a compensação de repuxo e o roteamento por continuidade.
-- Adicionado teste de regressão para haste + ponto destacado, exigindo exatamente duas colunas Satin e impedindo a volta do ponto radial.
-
-## 0.46.16
-
-### Correções após validação em vídeo
-- Corrigido o erro exibido em fontes nativas como Fio Ornamental: `Cannot coerce value to an empty range`. A interpolação do auto-fit agora usa margem dinâmica e nunca cria limites invertidos.
-- Adicionado teste de regressão específico para janela estreita de auto-fit.
-- O Satin adaptativo de fontes TTF/OTF passa a ignorar ramos de esqueleto degenerados com menos de 3 pontos, reduzindo blocos sem valor de costura.
-- A busca de continuidade entre blocos Satin deixou de testar geometricamente todas as regiões restantes. O motor ranqueia os possíveis pontos de entrada por distância e valida no máximo os 24 candidatos mais próximos.
-- A busca das bordas Satin deixa de refinar cada raio com repetidos testes point-in-polygon; usa a resolução submilimétrica da própria máscara e retorna o meio entre a última célula interna e a primeira externa.
-- Mantidos múltiplas direções por traço, início visual, underlay, compensação, limite de largura, conectores ocultos e JUMP em regiões desconectadas.
-- Mantidos o auto-fit rápido e a geração fora da thread principal das versões anteriores.
-
-## 0.46.15
-
-### Otimização estrutural do Satin adaptativo
-- Corrigida a espera prolongada em "Gerando prévia…" que ainda podia ocorrer na 0.46.14 com fontes TTF/OTF detalhadas.
-- A rasterização do glifo deixou de testar cada célula contra todos os polígonos. Agora usa preenchimento por scanline com regra par/ímpar, preservando contornos e vazados com custo muito menor.
-- O thinning do eixo medial deixou de varrer toda a grade em cada uma das passagens. Agora mantém uma fronteira ativa e reavalia somente pixels de borda afetados pelas remoções.
-- A busca das bordas Satin ao longo de cada normal passa a caminhar pela máscara raster em O(1) por passo; o contorno vetorial é consultado apenas no refinamento final da borda.
-- Mantido o Satin adaptativo com múltiplas direções, underlay, compensação de repuxo, limite de largura, roteamento por continuidade e início visual.
-- Mantido o auto-fit rápido da 0.46.14, que mede a TTF/OTF antes de executar a digitalização pesada uma única vez.
-- Nenhum retorno ao motor antigo de eixo único foi realizado.
-
-## 0.46.14
-
-### Auto-fit rápido sem repetir digitalização Satin
-- Corrigido o estado prolongado em "Gerando prévia…" observado na 0.46.13 ao usar fonte TTF/OTF importada com Satin adaptativo.
-- O ajuste automático ao bastidor para texto reto em Satin agora mede somente os contornos vetoriais da fonte, operação muito mais leve que rasterizar e digitalizar cada candidato.
-- Após encontrar o maior tamanho seguro, o motor Satin adaptativo é executado apenas uma vez para gerar a matriz final.
-- A medição rápida preserva a mesma altura de referência por cap height, espaçamento entre letras e área segura do bastidor, com margem de 2% para compensação e pontos de borda.
-- Mantidos o cálculo pesado fora da thread principal e o debounce introduzidos na 0.46.13.
-- A descrição da tela foi atualizada para refletir o motor atual: Satin adaptativo que acompanha a direção dos traços e muda o ângulo dentro da própria letra.
-- O fallback genérico de auto-fit permanece para outros estilos, efeitos especiais e layouts não retos.
-- Nenhuma redução foi aplicada na qualidade/densidade do Satin para obter esta melhoria de desempenho.
-
-## 0.46.13
-
-### Correção do travamento na tela Criar Nome
-- Corrigido o ANR ("FioLab não está respondendo") introduzido pela digitalização Satin adaptativa da 0.46.12.
-- A prévia não é mais calculada durante a recomposição do Jetpack Compose: toda geração de matriz passa a ocorrer em `Dispatchers.Default`, fora da thread principal.
-- Adicionado debounce de 140 ms para evitar iniciar digitalizações caras durante ajustes rápidos.
-- Quando o auto-fit está ativo, o design final já calculado pelo auto-fit é reutilizado diretamente como prévia, eliminando uma geração duplicada.
-- O auto-fit deixou de fazer até cerca de 15 gerações por ajuste; agora usa a proporção real do desenho para aproximar o tamanho ideal e limita o refinamento a no máximo 5 passos, com até 7 chamadas totais incluindo arredondamento.
-- Enquanto a matriz está sendo calculada, a tela mostra "Gerando prévia…" e mantém Simular/Criar matriz desativados até a conclusão.
-- Mantido o Satin adaptativo por eixo medial e múltiplas direções da 0.46.12; esta correção não retorna ao preenchimento de eixo único.
-- Adicionado teste de regressão que limita o número de chamadas do auto-fit e preserva o encaixe no bastidor.
-
-## 0.46.12
-
-### Satin por blocos adaptativos — direção acompanha o traço
-- Corrigida a causa estrutural de a costura ainda parecer com o Mão Design: o motor anterior escolhia um único eixo global (horizontal ou vertical) para varrer cada glifo.
-- O gerador TTF/OTF Satin passa a rasterizar a forma da letra, extrair um eixo medial fino e dividir o glifo em percursos/ramificações de traço.
-- Cada percurso gera travessas Satin perpendiculares à direção local do traço; assim a direção pode mudar dentro da mesma letra e acompanhar curvas, pernas e voltas.
-- Junções e voltas fechadas são tratadas como blocos independentes conectáveis; regiões realmente separadas continuam usando JUMP para não atravessar vazio.
-- Mantidos densidade, compensação de repuxo, limite de largura Satin, underlay edge-run, início visual, roteamento por continuidade e proteção contra geometrias extremas.
-- Para glifos minúsculos/compactos em que o eixo medial não gera um caminho estável, permanece fallback conservador para o scanner anterior.
-- Adicionado teste de regressão com um traço em L: a mesma forma precisa produzir travessas Satin em pelo menos duas direções distintas.
-- A mudança segue o comportamento público documentado do PE-DESIGN de trabalhar blocos com múltiplas linhas/direções de costura, sem copiar código proprietário.
-- Interface, autoajuste ao bastidor, biblioteca, conta, simulação, PES/DST/JEF e demais fluxos da 0.46.11 foram preservados.
-
-## 0.46.11
-
-### Roteamento Satin por continuidade — referência de comportamento PE-DESIGN
-- Mantido o início determinístico no começo visual da letra, sem voltar ao primeiro ponto arbitrário do contorno TTF/OTF.
-- Depois da primeira região, o motor procura primeiro uma continuação cuja ligação inteira permaneça dentro ou encostada na própria área bordável do glifo.
-- A validação usada para escolher essa continuação ganhou amostragem geométrica mais fina, evitando falso positivo em diagonais que atravessam vãos estreitos entre partes desconectadas.
-- Quando há mais de uma continuação válida, é escolhida a entrada de menor distância; a ordem padrão continua como critério determinístico de desempate.
-- Se nenhuma continuação puder ser escondida dentro da letra, o motor volta à ordem padrão e reposiciona com JUMP, evitando diagonais aparentes atravessando buracos ou áreas vazias.
-- O Satin principal continua alternando um lado por linha amostrada; o edge-run underlay continua fazendo uma ida, cruza no final e volta uma única vez.
-- Autoajuste ao bastidor, orientação de máquina, formatos PES/DST/JEF, interface, biblioteca, conta e demais fluxos da 0.46.10 foram preservados.
-- Adicionado teste de regressão em que uma região conectada à direita deve ser concluída antes de uma região intermediária no eixo X, porém fisicamente desconectada.
-- Implementação própria por comportamento observável e princípios públicos de otimização; nenhum código proprietário do PE-DESIGN foi incorporado.
-
 ## 0.46.10
 
-### Sequência de texto em padrão profissional
-- A ordem das regiões Satin deixa de ser reorganizada globalmente pelo ponto mais próximo.
-- Dentro de cada letra, os objetos passam a seguir uma ordem estável da esquerda para a direita; em empate, a região superior vem primeiro.
-- A proximidade continua sendo usada somente para escolher qual ponta da próxima região é a melhor entrada, reduzindo deslocamentos sem trocar a ordem do desenho.
-- O primeiro objeto continua começando no lado visual esquerdo da letra, conforme corrigido na 0.46.9.
-- Underlay edge-run de ida e volta, Satin alternado e conectores escondidos dentro da forma permanecem preservados.
-- Se a ligação atravessar vazio/buraco da letra, continua sendo JUMP em vez de costura aparente.
-- O comportamento segue os princípios públicos do PE-DESIGN para ordem padrão e otimização de pontos de entrada/saída, sem copiar código proprietário.
-- Adicionado teste com três regiões deliberadamente embaralhadas e distâncias enganosas; a saída deve permanecer esquerda → meio → direita.
+### Identidade técnica Brother Matrizes
+- Namespace e applicationId migrados para com.timachado.brothermatrizes.
+- Callback OAuth migrado para com.timachado.brothermatrizes://login-callback.
+- Identificadores, recursos, nomes de backup, artefatos e tabelas esperadas passam a usar Brother Matrizes.
+- Fluxo Google deixa de forçar Custom Tabs e usa a ação externa padrão do Android/Supabase.
+- Motor de bordado e correções da linha 0.46.9 permanecem preservados.
+
 
 ## 0.46.9
 
@@ -351,14 +23,14 @@
 ## 0.46.8
 
 ### Sequência Satin refeita com referência no comportamento do Mão Design
-- A inspeção do APK de referência confirmou o uso de um pipeline baseado em amostragem/divisão de colunas Satin; a implementação do FioLab continua própria e não reutiliza código proprietário.
+- A inspeção do APK de referência confirmou o uso de um pipeline baseado em amostragem/divisão de colunas Satin; a implementação do Brother Matrizes continua própria e não reutiliza código proprietário.
 - Removida a estratégia agressiva da 0.46.7 que costurava todas as colunas da letra em sequência mesmo quando a ligação atravessava área vazia.
 - Cada coluna pode ser invertida e trocar os lados A/B para começar pelo ponto mais próximo e reduzir deslocamentos.
 - O underlay passa a fazer edge-run: uma borda para frente, cruza somente no final e retorna pela outra borda uma única vez.
 - O preenchimento Satin principal passa a alternar um único lado por linha amostrada, evitando a duplicação de cruzamentos que existia antes.
 - Entre colunas da mesma letra, a ligação vira ponto corrido somente quando todo o segmento permanece dentro ou encostado na área preenchida do glifo.
 - Quando a ligação atravessaria buraco/área vazia, o gerador usa JUMP em vez de costurar uma diagonal visível.
-- Entre caracteres consecutivos muito próximos (até 1,2 mm), o FioLab pode manter a ligação em ponto corrido, útil em fontes cursivas; acima disso reposiciona.
+- Entre caracteres consecutivos muito próximos (até 1,2 mm), o Brother Matrizes pode manter a ligação em ponto corrido, útil em fontes cursivas; acima disso reposiciona.
 - Locks internos do motor TTF/OTF foram removidos para evitar arremate duplicado; tie-in/tie-off continuam sendo aplicados uma única vez pela camada MachineFinishing.
 - Adicionados testes para colunas conectadas, áreas desconectadas, Satin alternado e underlay ida/volta.
 
@@ -389,9 +61,9 @@
 
 ### Ajuste automático ao bastidor
 - Criar Nome ganha a opção “Ajustar ao bastidor”, ativada por padrão.
-- Ao trocar o bastidor, texto, fonte, espaçamento, composição ou parâmetros que alteram a geometria, o FioLab recalcula automaticamente a maior altura que cabe na área útil.
+- Ao trocar o bastidor, texto, fonte, espaçamento, composição ou parâmetros que alteram a geometria, o Brother Matrizes recalcula automaticamente a maior altura que cabe na área útil.
 - O cálculo usa a área segura real do bastidor, preservando a margem de 5 mm por lado já existente.
-- O ajuste funciona com fontes FioLab e também TTF/OTF importadas.
+- O ajuste funciona com fontes Brother Matrizes e também TTF/OTF importadas.
 - O usuário pode desligar o modo automático e voltar ao controle manual de altura.
 - O limite interno de altura foi alinhado ao controle visual: 4 a 60 mm, mantendo a política de complexidade e segurança do gerador.
 - O redimensionamento acontece antes de criar/exportar a matriz; o fluxo Enviar para máquina continua sem redimensionamento oculto.
@@ -413,7 +85,7 @@
 
 ### Histórico de envios
 - Adicionado botão ✕ em cada item da aba Enviados para remover somente aquele registro do histórico.
-- Adicionada ação “Limpar recentes” para apagar de uma vez o histórico de envios exibido no FioLab.
+- Adicionada ação “Limpar recentes” para apagar de uma vez o histórico de envios exibido no Brother Matrizes.
 - A interface informa explicitamente que remover o histórico não apaga a matriz salva nem o arquivo já gravado no pendrive.
 - Nenhum arquivo do armazenamento USB, bordadeira ou Biblioteca é excluído por essas ações.
 - Correção de orientação da 0.46.2 permanece preservada.
@@ -421,7 +93,7 @@
 ## 0.46.2
 
 ### Correção crítica de orientação na máquina
-- Corrigida a adaptação do eixo Y entre as coordenadas cartesianas usadas por matrizes criadas no FioLab e o sistema interno do EmbroideryIO.
+- Corrigida a adaptação do eixo Y entre as coordenadas cartesianas usadas por matrizes criadas no Brother Matrizes e o sistema interno do EmbroideryIO.
 - PES, DST e JEF exportados pelo fluxo Enviar para máquina deixam de receber inversão vertical indevida.
 - Matrizes importadas por PES/JEF preservam a convenção de origem e não recebem dupla inversão.
 - Salvamento USB OTG continua apenas gravando os bytes preparados; nenhuma transformação é aplicada pelo pendrive.
@@ -433,7 +105,7 @@
 
 ### Clareza sobre armazenamento de fontes
 - Biblioteca de Fontes deixa explícito que TTF/OTF importadas ficam salvas somente no aparelho atual.
-- A interface informa que fontes importadas não são enviadas nem sincronizadas com a conta FioLab.
+- A interface informa que fontes importadas não são enviadas nem sincronizadas com a conta Brother Matrizes.
 - “Minhas fontes salvas” passa a “Minhas fontes neste aparelho”; o cabeçalho também aparece quando ainda não há fonte importada.
 - Mensagens após importação e os cards das fontes passam a reforçar o escopo local.
 - Smoke test instrumentado passa a validar essa comunicação no Android.
@@ -459,7 +131,7 @@
 
 ### Atualização segura e integridade de distribuição
 - Minha Conta passa a exibir um cartão próprio de atualizações para usuários autenticados e não autenticados.
-- A verificação consulta somente a release pública oficial do repositório FioLab por HTTPS e nunca instala APK silenciosamente.
+- A verificação consulta somente a release pública oficial do repositório Brother Matrizes por HTTPS e nunca instala APK silenciosamente.
 - Comparação de versões é feita localmente e o botão de atualização só abre a página HTTPS da release quando existir versão mais nova.
 - Falhas de rede ou indisponibilidade do serviço não bloqueiam o uso do aplicativo; o usuário pode tentar novamente manualmente.
 - A versão exibida na Home passa a usar BuildConfig.VERSION_NAME, evitando rótulo manual desatualizado em futuras builds.
@@ -473,7 +145,7 @@
 - Backup automático do Android desabilitado para evitar migração involuntária de sessão/tokens; a Biblioteca continua com backup próprio controlado pelo usuário.
 - Tráfego HTTP em texto claro desabilitado no aplicativo.
 - Adicionada detecção de conexão validada para os fluxos de Minha Conta.
-- Em modo offline, o FioLab informa claramente que a sessão não foi encerrada e preserva os dados já carregados na tela.
+- Em modo offline, o Brother Matrizes informa claramente que a sessão não foi encerrada e preserva os dados já carregados na tela.
 - Login, cadastro, atualização de perfil e assinatura passam a mostrar mensagens seguras para rede indisponível, credenciais inválidas, e-mail não confirmado, sessão expirada e excesso de tentativas.
 - Detalhes crus do backend deixam de aparecer no callback do Google.
 - Avatar remoto exige HTTPS, possui timeout e limite de 4 MB para reduzir risco de travamento/memória excessiva.
@@ -520,7 +192,7 @@
 - Contagens derivadas de pontos, saltos, trocas de cor, comando END e limites são recalculadas a partir dos comandos reais, evitando metadados inconsistentes.
 - Arquivos sem pontos de costura, sem coordenadas válidas ou com índices de cor impossíveis são rejeitados antes de chegar ao Viewer/Editor.
 - Matrizes sem comando END continuam aceitas quando estruturalmente válidas, mas são tratadas como caso de atenção no fluxo de envio.
-- Projetos FioLab são validados tanto ao salvar quanto ao reabrir; projeto estruturalmente inválido não é persistido silenciosamente.
+- Projetos Brother Matrizes são validados tanto ao salvar quanto ao reabrir; projeto estruturalmente inválido não é persistido silenciosamente.
 - Dimensões de `EmbroideryBounds` agora usam aritmética segura para evitar overflow com coordenadas extremas.
 - Importações de matriz possuem limite de segurança de 64 MB e leitura controlada, evitando consumo de memória ilimitado por arquivo malformado.
 - Adicionados testes de regressão para normalização de metadados, ausência de pontos, ausência de END e coordenadas extremas.
@@ -531,32 +203,32 @@
 
 ### Consolidação de conta, assinatura, biblioteca e envio
 - **Minha Conta:** avatar do Google quando disponível, nome/e-mail, plano, status, início, renovação, dispositivos conectados e saída da conta.
-- O aparelho autenticado é registrado com identificador derivado localmente, modelo, versão do FioLab e último acesso; nenhum IMEI ou número de telefone é armazenado.
+- O aparelho autenticado é registrado com identificador derivado localmente, modelo, versão do Brother Matrizes e último acesso; nenhum IMEI ou número de telefone é armazenado.
 - **Assinaturas:** botão Restaurar / atualizar assinatura, histórico existente preservado e suporte a link seguro de gerenciamento WooCommerce para renovar/cancelar quando a compra estiver vinculada.
 - Vitalício e Vitalício de Lançamento continuam sem renovação/cancelamento recorrente.
 - Adicionada política central de acesso `CORE` / `PRO_ONLY`; nenhum recurso atual foi bloqueado arbitrariamente antes de definirmos o mapa comercial dos produtos WooCommerce.
 - **Biblioteca:** unifica Minhas Matrizes, Recentes, Favoritos, Enviados e acesso às Fontes salvas.
 - Aberturas de projetos salvos alimentam Recentes; favoritos ficam persistentes no aparelho; arquivos entregues por USB/OTG ou Wi-Fi/app entram no histórico Enviados.
 - **Envio à máquina:** mantém PES/DST/JEF, USB OTG/pendrive e Wi-Fi/app, acrescentando validação obrigatória de formato, pontos, dimensões e encaixe no bastidor antes de liberar o envio.
-- O FioLab não redimensiona silenciosamente uma matriz apenas para fazê-la caber no bastidor.
+- O Brother Matrizes não redimensiona silenciosamente uma matriz apenas para fazê-la caber no bastidor.
 - Backend ganha tabela de dispositivos com RLS por usuário e campo opcional de URL de gerenciamento da assinatura.
 - Motor de bordado, TTF/OTF, Satin, orientação e simulação permanecem inalterados.
 
 ## 0.39.0
 
-### Sobre o FioLab e crédito de desenvolvimento
-- Minha Conta ganha a seção **Sobre o FioLab**, disponível com ou sem login.
+### Sobre o Brother Matrizes e crédito de desenvolvimento
+- Minha Conta ganha a seção **Sobre o Brother Matrizes**, disponível com ou sem login.
 - A seção mostra a versão instalada e a assinatura **Desenvolvido por T.I. Machado — Soluções em Tecnologia**.
 - Incluído acesso direto ao site/portfólio de T.I. Machado.
-- O crédito foi mantido discreto, fora da Home, preservando o protagonismo da marca FioLab.
+- O crédito foi mantido discreto, fora da Home, preservando o protagonismo da marca Brother Matrizes.
 - Login Google, assinaturas, biblioteca de fontes e motor de bordado permanecem inalterados.
 
 ## 0.38.0
 
 ### Login com Google
 - Adicionada a opção “Continuar com Google” em Minha Conta, mantendo login e cadastro por e-mail/senha.
-- OAuth do Supabase usa PKCE e callback próprio do Android: `com.timachado.fiolab://login-callback`.
-- Após autenticar no navegador, o FioLab retorna automaticamente para Minha Conta e recarrega perfil e assinatura.
+- OAuth do Supabase usa PKCE e callback próprio do Android: `com.timachado.brothermatrizes://login-callback`.
+- Após autenticar no navegador, o Brother Matrizes retorna automaticamente para Minha Conta e recarrega perfil e assinatura.
 - Login Google usa a mesma sessão Supabase dos demais logins; não cria um sistema de conta paralelo.
 - O fluxo continua compatível com o vínculo de planos do WooCommerce pelo usuário/e-mail no backend.
 - Adicionada tela de callback para sucesso/erro sem expor tokens no app.
@@ -566,7 +238,7 @@
 
 ### Minha Conta e assinaturas
 - Minha Conta passa a acompanhar o plano vinculado à conta Supabase com atualização manual imediata.
-- Catálogo oficial de planos: Gratuito, FioLab Pro Mensal, FioLab Pro Anual, FioLab Vitalício e FioLab Vitalício • Lançamento.
+- Catálogo oficial de planos: Gratuito, Brother Matrizes Pro Mensal, Brother Matrizes Pro Anual, Brother Matrizes Vitalício e Brother Matrizes Vitalício • Lançamento.
 - Planos vitalícios aparecem como acesso permanente e não exibem renovação ou próxima cobrança.
 - O Vitalício Promocional de Lançamento mantém identificação própria e recebe o selo de Membro de Lançamento.
 - A assinatura passa a guardar data da compra, preço pago, moeda, provedor e referência externa sem permitir alteração desses dados pelo APK.
@@ -583,9 +255,9 @@
 - Os pontos reais da matriz e os bytes originais não são invertidos, preservando exportação, transferência e sequência de bordado.
 - Viewer, Editor e Simulador passam a usar a mesma regra de orientação.
 - Sólida, Pontos e Realista passam a compartilhar o mesmo fundo de tecido, grade, bastidor, escala e enquadramento; somente o estilo de desenho dos pontos muda entre os modos.
-- A orientação de renderização passa a ser salva nos projetos FioLab para não se perder ao reabrir uma matriz salva.
+- A orientação de renderização passa a ser salva nos projetos Brother Matrizes para não se perder ao reabrir uma matriz salva.
 - O formato interno de projeto sobe para v3 mantendo leitura compatível com projetos v1/v2.
-- Incluídos testes de regressão para orientação de coordenadas importadas e coordenadas nativas do FioLab.
+- Incluídos testes de regressão para orientação de coordenadas importadas e coordenadas nativas do Brother Matrizes.
 - Geração de matrizes, TTF/OTF, Satin, conversão e sequência de pontos permanecem inalterados.
 
 ## 0.35.0
@@ -614,7 +286,7 @@
 
 ### Biblioteca de fontes persistente
 - A Home passa a exibir **Biblioteca de fontes** com acesso direto ao gerenciamento de TTF/OTF.
-- A ação principal agora é **Importar e salvar fonte TTF/OTF**, deixando explícito que a fonte fica armazenada no FioLab.
+- A ação principal agora é **Importar e salvar fonte TTF/OTF**, deixando explícito que a fonte fica armazenada no Brother Matrizes.
 - Fontes salvas continuam disponíveis em **Criar Nome** até serem excluídas pelo usuário.
 - Importações repetidas são reconhecidas e não criam cópias duplicadas.
 - A seção de Criar Nome passa a usar o rótulo **Fontes salvas** e orienta o usuário a usar a Biblioteca de fontes na Home.
@@ -675,7 +347,7 @@
 - Ponto Feijão: repete cada pequeno trecho em ida/volta/ida para engrossar e marcar o traçado sem depender de Satin.
 - Ponto Corrido Triplo: percorre o caminho completo três vezes, frente/volta/frente, aumentando durabilidade e visibilidade.
 - Ponto de Motivo: aplica um padrão decorativo repetido ao longo do traçado, com deslocamentos laterais controlados.
-- Os três modos funcionam tanto com fontes FioLab quanto com TTF/OTF importadas.
+- Os três modos funcionam tanto com fontes Brother Matrizes quanto com TTF/OTF importadas.
 - Ao selecionar um ponto especial, o motor usa automaticamente o traçado corrido como base; ao selecionar Satin ou Ponto corrido na aba Tamanho, o modo especial é limpo.
 - Underlay e short stitches continuam disponíveis internamente para o Satin conforme o perfil de tecido, sem poluir a interface.
 - Mantido o guia vetorial reforçado da simulação para comparar a fonte original com o bordado gerado.
@@ -689,7 +361,7 @@
 - O simulador desenha esse guia como silhueta translúcida rosé com contorno mais definido.
 - A linha realmente costurada continua por cima, permitindo comparar visualmente cobertura, direção e desvios do Satin.
 - O guia usa preenchimento EvenOdd para preservar contraformas e furos internos das letras.
-- Projetos FioLab passam ao formato interno v2 para persistir o guia vetorial; projetos v1 continuam sendo aceitos normalmente.
+- Projetos Brother Matrizes passam ao formato interno v2 para persistir o guia vetorial; projetos v1 continuam sendo aceitos normalmente.
 - Matrizes importadas sem guia vetorial continuam usando a prévia fantasma anterior como fallback.
 
 ## 0.26.0
@@ -726,7 +398,7 @@
 
 ### Satin de fontes e simulação
 - Analisado o comportamento do Mão Design a partir do vídeo e do APK fornecidos, usando apenas a arquitetura/comportamento como referência.
-- O FioLab passa a separar claramente digitalização da fonte e renderização da simulação.
+- O Brother Matrizes passa a separar claramente digitalização da fonte e renderização da simulação.
 - O modo Satin de TTF/OTF não possui mais fallback silencioso para preenchimento horizontal.
 - Glifos simples usam colunas Satin normais; geometrias complexas usam colunas Satin conservadoras, mantendo o mesmo princípio de costura.
 - Trechos do eixo são ordenados por proximidade para reduzir deslocamentos e manter uma sequência natural.
@@ -795,7 +467,7 @@
 - Cards secundários reorganizados com shapes maiores, elevação tonal e estados habilitado/desabilitado mais claros.
 - Barra inferior mantém cinco destinos e passa a usar ícones vetoriais reais em vez de caracteres de texto.
 - Ícones importados do conjunto oficial Material Symbols Rounded do Google para Início, Criar, Matrizes, Fontes, Conta, Abrir, Simular, Editar, Converter e Enviar.
-- Tema FioLab passa a definir escala própria de shapes e tipografia Material 3, preservando a identidade dourado + azul-escuro.
+- Tema Brother Matrizes passa a definir escala própria de shapes e tipografia Material 3, preservando a identidade dourado + azul-escuro.
 - Mantida a base Compose compatível com o SDK 36 atual do projeto, aplicando a linguagem visual M3 Expressive sem quebrar a pipeline.
 
 ## 0.22.0
@@ -805,7 +477,7 @@
 - Prévia permanece grande e atualiza em tempo real.
 - Controles separados em abas curtas: Texto, Fonte, Tamanho, Cor e Mais.
 - Texto concentra digitação e formato reto/arco.
-- Fonte concentra famílias FioLab e TTF/OTF importadas.
+- Fonte concentra famílias Brother Matrizes e TTF/OTF importadas.
 - Tamanho concentra altura, espaçamento e tipo/densidade de ponto.
 - Cor concentra a paleta de linha.
 - Bastidor, tecido, formato e ajustes técnicos ficam em Mais.
@@ -868,13 +540,13 @@
 - A fonte é validada antes do cadastro e copiada para o armazenamento privado do aplicativo.
 - Limite de 12 MB por arquivo e bloqueio de extensões fora de TTF/OTF.
 - Fontes importadas podem ser visualizadas e excluídas na própria biblioteca.
-- Fontes importadas aparecem em Criar Nome sem remover ou substituir as famílias nativas do FioLab.
+- Fontes importadas aparecem em Criar Nome sem remover ou substituir as famílias nativas do Brother Matrizes.
 - O desenho vetorial dos glifos é extraído da fonte e convertido em trajetórias de bordado.
 - Mantidos altura, espaçamento, ponto corrido/Satin, densidade, underlay, tecido, bastidor, cores, arco e ajustes por letra.
 - A fonte importada preserva maiúsculas/minúsculas e caracteres suportados pelo próprio arquivo de fonte.
 
 ### Preservado
-- Fontes nativas FioLab e o motor de texto existente.
+- Fontes nativas Brother Matrizes e o motor de texto existente.
 - Geração, simulação, edição, exportação e transferência já existentes.
 - Minha Conta/Supabase continua isolada da inicialização.
 - Identidade visual e recursos de logo/launcher da 0.21.4.
@@ -884,7 +556,7 @@
 ## 0.21.3
 
 ### Hotfix de logo e inicialização
-- Substituído o recurso de imagem corrompido por uma cópia válida da arte original FioLab Matrizes.
+- Substituído o recurso de imagem corrompido por uma cópia válida da arte original Brother Matrizes Matrizes.
 - A mesma arte válida é usada na Home e como ícone/roundIcon do aplicativo.
 - Removida a dependência do mipmap corrompido da versão anterior.
 - Mantido o isolamento de Minha Conta/Supabase da inicialização da Home.
@@ -898,13 +570,13 @@
 - O GitHub Actions reconstrói o JPG válido antes de executar testes e build.
 - Os binários corrompidos deixam de ficar armazenados diretamente no repositório.
 - O mesmo JPG reconstruído alimenta a Home e o ícone do launcher.
-- A imagem continua sendo a arte original FioLab Matrizes, sem redesenho.
+- A imagem continua sendo a arte original Brother Matrizes Matrizes, sem redesenho.
 
 
 ## 0.21.3
 
 ### Correção crítica de imagem
-- Substitui a logo interna corrompida por uma cópia válida da arte original FioLab Matrizes.
+- Substitui a logo interna corrompida por uma cópia válida da arte original Brother Matrizes Matrizes.
 - Substitui o recurso de launcher corrompido pela mesma arte original redimensionada.
 - Remove o PNG inválido que fazia o Android usar o ícone verde genérico.
 - A Home deixa de tentar decodificar o arquivo gráfico corrompido que podia causar fechamento imediato.
@@ -921,14 +593,14 @@
 
 ### Launcher
 - Ícone principal passa a usar recurso mipmap próprio.
-- A arte FioLab Matrizes fornecida pelo projeto continua sendo a identidade do app.
+- A arte Brother Matrizes Matrizes fornecida pelo projeto continua sendo a identidade do app.
 - Corrige o fallback visual para o ícone Android genérico em launchers/instaladores compatíveis.
 
 
 ## 0.21.1
 
 ### Identidade visual
-- A imagem FioLab Matrizes enviada pelo projeto passa a ser o ícone do launcher.
+- A imagem Brother Matrizes Matrizes enviada pelo projeto passa a ser o ícone do launcher.
 - A mesma arte aparece no cabeçalho da Home.
 - O ícone antigo com a letra "F" deixa de ser usado como identidade principal.
 - A arte foi apenas dimensionada para uso no Android; não foi redesenhada.
@@ -954,13 +626,13 @@
 - O aplicativo tem apenas leitura da assinatura; não consegue se autoatribuir plano pago.
 
 ### Backend
-- Tabelas próprias public.fiolab_profiles e public.fiolab_subscriptions.
+- Tabelas próprias public.brother_matrizes_profiles e public.brother_matrizes_subscriptions.
 - RLS habilitado.
 - Usuário só lê/edita o próprio perfil.
 - Usuário só lê a própria assinatura.
 - Nenhuma permissão de escrita de assinatura para o cliente Android.
-- Perfil/assinatura padrão são criados para cadastros identificados com app_slug=fiolab.
-- Estrutura versionada em supabase/fiolab_account_schema.sql.
+- Perfil/assinatura padrão são criados para cadastros identificados com app_slug=brother_matrizes.
+- Estrutura versionada em supabase/brother_matrizes_account_schema.sql.
 
 ### Dependências
 - supabase-kt 3.2.3.
@@ -981,7 +653,7 @@
 
 ### Segurança do backup
 - Formato de backup versionado.
-- Manifesto interno identifica backups válidos do FioLab.
+- Manifesto interno identifica backups válidos do Brother Matrizes.
 - Cada projeto é validado pelo codec antes de entrar no backup.
 - Restauração rejeita backup incompleto, corrompido ou com versão não suportada.
 - Proteções de quantidade e tamanho evitam arquivos ZIP malformados/excessivos.
@@ -998,7 +670,7 @@
 
 ### Minhas Matrizes
 - Nova biblioteca local "Minhas Matrizes".
-- Salva projetos dentro do armazenamento privado do FioLab.
+- Salva projetos dentro do armazenamento privado do Brother Matrizes.
 - Não exige conta, internet ou serviço externo.
 - Botão "Salvar em Minhas Matrizes" no visualizador.
 - Reabrir projeto salvo.
@@ -1006,7 +678,7 @@
 - Enviar uma matriz salva diretamente para a máquina.
 - Salvar novamente a mesma matriz atualiza sua cópia local em vez de gerar duplicatas.
 
-### Projeto FioLab
+### Projeto Brother Matrizes
 - Formato interno versionado para preservar pontadas.
 - Preserva comandos STITCH/JUMP/TRIM/COLOR_CHANGE/END.
 - Preserva paleta de cores.
@@ -1058,7 +730,7 @@
 ## 0.17.0
 
 ### Foco do produto
-- O FioLab permanece um app leve para criar fontes, nomes, monogramas e matrizes.
+- O Brother Matrizes permanece um app leve para criar fontes, nomes, monogramas e matrizes.
 - Não tenta substituir softwares completos de digitalização profissional.
 - O acabamento técnico continua automático por baixo, sem ocupar a interface principal.
 
@@ -1116,7 +788,7 @@
 - Cor individual por letra no Criar Nome.
 - Cor individual por inicial no Criar Monograma.
 - Cores iguais consecutivas permanecem no mesmo bloco.
-- Quando a cor muda, o FioLab insere COLOR_CHANGE real na sequência.
+- Quando a cor muda, o Brother Matrizes insere COLOR_CHANGE real na sequência.
 - Se uma cor voltar depois de outro bloco, uma nova troca é criada.
 - Cada ponto recebe o índice de cor correspondente ao bloco.
 - Paleta da sequência preservada no modelo da matriz.
@@ -1263,7 +935,7 @@
 - Testes de densidade, underlay e exportação.
 
 ### Observação
-- Esta é a primeira geração Satin do FioLab, baseada nos caminhos próprios das letras.
+- Esta é a primeira geração Satin do Brother Matrizes, baseada nos caminhos próprios das letras.
 - Curvas e encontros complexos ainda serão refinados em versões seguintes para melhorar compensação, cantos e acabamento profissional.
 
 
@@ -1289,7 +961,7 @@
 - O simulador representa as pontadas que realmente existem na matriz.
 - Uma matriz satin aparece preenchendo progressivamente as letras.
 - Uma matriz de ponto corrido permanece como ponto corrido.
-- O FioLab não desenha preenchimento falso que não exista no arquivo.
+- O Brother Matrizes não desenha preenchimento falso que não exista no arquivo.
 
 ## 0.7.0
 

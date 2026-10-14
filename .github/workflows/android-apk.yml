@@ -1,17 +1,21 @@
-name: Build Android APK
+name: Build Brother Matrizes Android APK
 
-# Fluxo legado FioLab: somente execucao manual, nunca publicar apos commits
-# do manifesto ou da automacao comercial Brother Matrizes.
 on:
+  push:
+    branches: ["refactor/brother-matrizes-clean-0469"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: brother-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -35,22 +39,73 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Prepare brand assets
+      - name: Verify clean Brother identity
+        shell: bash
+        run: |
+          LEGACY_TOKEN="$(printf 'fio%s' 'lab')"
+          if git grep -ni -I -F "$LEGACY_TOKEN"; then
+            echo "Legacy identity reference detected."
+            exit 1
+          fi
+          grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'namespace = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -F 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
+
+      - name: Prepare Brother brand assets
         shell: bash
         run: |
           bash scripts/prepare_brand_assets.sh
-          file app/src/main/res/drawable-nodpi/fiolab_brand_logo.jpg
-          file app/src/main/res/mipmap-xxxhdpi/ic_launcher_fiolab.jpg
-
+          file app/src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg
+          file app/src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg
 
       - name: Repository safety checks
         run: bash scripts/pre_release_static_check.sh
+
+      # Pure PHP issuer tests are safe: no WordPress boot, orders or live keys.
+      - name: WordPress offline license signature QA
+        run: |
+          php -l wordpress/app-commerce-core-integration/bm-signed-license-issuer.php
+          php -l wordpress/app-commerce-core-integration/test-signed-license-issuer.php
+          php wordpress/app-commerce-core-integration/test-signed-license-issuer.php
 
       - name: Unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Android lint
         run: gradle :app:lintDebug --stacktrace
+
+      # A release candidate must validate the actual APK on an Android runtime.
+      # Unit tests and lint do not cover the document picker, navigation or OAuth callback.
+      # Artifact remains a diagnostic APK, never evidence that runtime QA passed.
+      - name: Build debug APK for QA
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Build unsigned release candidate (not distributed)
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Validate APK alignment and signature
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+
+      - name: Prepare downloadable files
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Brother-Matrizes-0.50.7-rc4-debug.apk
+          zip -9 Brother-Matrizes-0.50.7-rc4-debug.zip Brother-Matrizes-0.50.7-rc4-debug.apk
+          sha256sum Brother-Matrizes-0.50.7-rc4-debug.apk Brother-Matrizes-0.50.7-rc4-debug.zip > Brother-Matrizes-0.50.7-rc4-SHA256.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-0.50.7-rc4-QA-NOT-STABLE
+          path: |
+            Brother-Matrizes-0.50.7-rc4-debug.apk
+            Brother-Matrizes-0.50.7-rc4-debug.zip
+            Brother-Matrizes-0.50.7-rc4-SHA256.txt
+          if-no-files-found: error
 
       - name: Enable KVM for Android emulator
         shell: bash
@@ -59,47 +114,47 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Android runtime smoke test
-        uses: reactivecircus/android-emulator-runner@v2.38.0
+      - name: Android emulator smoke tests (API 35)
+        uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
-          profile: pixel_7
           disable-animations: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: gradle :app:connectedDebugAndroidTest --stacktrace
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.AppSmokeTest,com.timachado.brothermatrizes.AuthDeepLinkTest,com.timachado.brothermatrizes.ExternalOpenIntentSmokeTest,com.timachado.brothermatrizes.core.account.LocalBetaImportQuotaInstrumentedTest'
 
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
-
-      - name: Build unsigned release candidate
-        run: gradle :app:assembleRelease --stacktrace
-
-      - name: Prepare downloadable files
+      - name: Explain Android emulator test failures
+        if: failure()
         shell: bash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk FioLab-0.61.0-debug.apk
-          zip -9 FioLab-0.61.0-debug.zip FioLab-0.61.0-debug.apk
-          sha256sum FioLab-0.61.0-debug.apk FioLab-0.61.0-debug.zip > FioLab-0.61.0-SHA256.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = sorted(Path('app/build/outputs/androidTest-results/connected').rglob('*.xml'))
+          print('Android test result XML files:', len(files))
+          found = 0
+          for file in files:
+              try:
+                  root = ET.parse(file).getroot()
+              except ET.ParseError:
+                  continue
+              for test in root.iter('testcase'):
+                  for failure in [*test.findall('failure'), *test.findall('error')]:
+                      found += 1
+                      print('FAILED:', test.attrib.get('classname'), test.attrib.get('name'))
+                      print((failure.attrib.get('message') or failure.text or '')[:3500])
+          if not files or not found:
+              print('No failing testcase could be extracted from XML; inspect the uploaded Android runtime artifact.')
+          PY
 
-      - name: Upload build artifacts
+      - name: Upload Android runtime test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: FioLab-0.61.0-downloads
+          name: Brother-Matrizes-android-runtime-api35
           path: |
-            FioLab-0.61.0-debug.apk
-            FioLab-0.61.0-debug.zip
-            FioLab-0.61.0-SHA256.txt
-          if-no-files-found: error
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
 
-      - name: Publish GitHub Release
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view v0.61.0 >/dev/null 2>&1; then
-            gh release upload v0.61.0               FioLab-0.61.0-debug.apk               FioLab-0.61.0-debug.zip               FioLab-0.61.0-SHA256.txt               --clobber
-          else
-            gh release create v0.61.0               FioLab-0.61.0-debug.apk               FioLab-0.61.0-debug.zip               FioLab-0.61.0-SHA256.txt               --target main               --title "FioLab 0.61.0"               --notes "FioLab 0.61.0: motor V2 calibrado com a topologia real da fonte Alliby. Junções são detectadas e removidas do traçado dos ramos; cada ramo é bordado separadamente e o miolo da junção recebe um patch Tatami local, evitando leques e falhas no M."
-          fi

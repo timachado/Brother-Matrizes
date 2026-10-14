@@ -1,0 +1,1066 @@
+package com.timachado.brothermatrizes.core.embroidery
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MatrixConverterTest {
+
+    @Test
+    fun convertsNormalizedDesignToAllReleasedFormats() {
+        val source = sampleDesign()
+
+        for (format in MatrixConverter.supportedFormats) {
+            val converted =
+                MatrixConverter.convert(
+                    source,
+                    format
+                ).getOrThrow()
+
+            assertEquals(
+                format,
+                converted.format
+            )
+
+            assertTrue(
+                converted.bytes.isNotEmpty()
+            )
+
+            val parsed =
+                when (format) {
+                    "DST" ->
+                        DstParser.parse(
+                            converted.fileName,
+                            converted.bytes
+                        )
+
+                    "PES",
+                    "JEF" ->
+                        EmbroideryIoParser.parse(
+                            converted.fileName,
+                            converted.bytes
+                        )
+
+                    else ->
+                        error(
+                            "Formato inesperado."
+                        )
+                }
+
+            assertTrue(
+                parsed is
+                    EmbroideryLoadResult.Success
+            )
+
+            val design =
+                (parsed as
+                    EmbroideryLoadResult.Success)
+                    .design
+
+            assertTrue(
+                design.stitchCount > 0
+            )
+
+            assertTrue(
+                design.bounds.widthMm > 0f
+            )
+
+            assertTrue(
+                design.bounds.heightMm > 0f
+            )
+        }
+    }
+
+    @Test
+    fun generatedHorizontalTextWritesBrotherPecOriginWithoutRotation() {
+        val source =
+            TextMatrixGenerator
+                .generate(
+                    TextMatrixOptions(
+                        text = "MARIA",
+                        heightMm = 12f,
+                        style =
+                            TextStitchStyle
+                                .SATIN,
+                        outputFormat =
+                            "PES"
+                    )
+                )
+                .getOrThrow()
+
+        assertTrue(
+            "O texto gerado no editor deve nascer horizontal.",
+            source.bounds.widthMm >
+                source.bounds.heightMm
+        )
+
+        val pes =
+            MatrixConverter
+                .convert(
+                    source,
+                    "PES",
+                    "innovis-origin"
+                )
+                .getOrThrow()
+
+        val bytes =
+            pes.bytes
+
+        val pecOffset =
+            (
+                bytes[8].toInt() and
+                    0xFF
+                ) or
+                (
+                    (
+                        bytes[9].toInt() and
+                            0xFF
+                        ) shl
+                        8
+                    )
+
+        val blockStart =
+            pecOffset +
+                512
+
+        val originXWord =
+            (
+                (
+                    bytes[blockStart + 16]
+                        .toInt() and
+                        0xFF
+                    ) shl
+                    8
+                ) or
+                (
+                    bytes[blockStart + 17]
+                        .toInt() and
+                        0xFF
+                    )
+
+        val originYWord =
+            (
+                (
+                    bytes[blockStart + 18]
+                        .toInt() and
+                        0xFF
+                    ) shl
+                    8
+                ) or
+                (
+                    bytes[blockStart + 19]
+                        .toInt() and
+                        0xFF
+                    )
+
+        assertEquals(
+            0x9000,
+            originXWord and
+                0xF000
+        )
+
+        assertEquals(
+            0x9000,
+            originYWord and
+                0xF000
+        )
+
+        assertEquals(
+            "PES compatível com Innov-is deve começar em área positiva, sem offset X negativo.",
+            0,
+            originXWord and
+                0x0FFF
+        )
+
+        assertEquals(
+            "PES compatível com Innov-is deve começar em área positiva, sem offset Y negativo.",
+            0,
+            originYWord and
+                0x0FFF
+        )
+
+        val parsed =
+            EmbroideryIoParser
+                .parse(
+                    pes.fileName,
+                    pes.bytes
+                )
+
+        assertTrue(
+            parsed is
+                EmbroideryLoadResult.Success
+        )
+
+        val machineGeometry =
+            (
+                parsed as
+                    EmbroideryLoadResult.Success
+                ).design
+
+        assertTrue(
+            "A geometria PES deve continuar horizontal; não deve haver pré-rotação.",
+            machineGeometry.bounds.widthMm >
+                machineGeometry.bounds.heightMm
+        )
+
+        assertTrue(
+            "O PES Brother deve manter X em área positiva.",
+            machineGeometry.bounds.minXUnits >=
+                -1
+        )
+
+        assertTrue(
+            "O PES Brother deve manter Y em área positiva.",
+            machineGeometry.bounds.minYUnits >=
+                -1
+        )
+
+        assertTrue(
+            kotlin.math.abs(
+                machineGeometry.bounds.widthMm -
+                    source.bounds.widthMm
+            ) <=
+                0.3f
+        )
+
+        assertTrue(
+            kotlin.math.abs(
+                machineGeometry.bounds.heightMm -
+                    source.bounds.heightMm
+            ) <=
+                0.3f
+        )
+    }
+
+    @Test
+    fun pesUsesBrotherCompatibleContainerWithoutVisualOffsetBlocks() {
+        val converted =
+            MatrixConverter
+                .convert(
+                    shiftedDesign(),
+                    "PES",
+                    outputSuffix =
+                        "brother"
+                )
+                .getOrThrow()
+
+        val bytes =
+            converted.bytes
+
+        assertTrue(
+            bytes.size >
+                22
+        )
+
+        assertEquals(
+            "#PES0001",
+            bytes
+                .copyOfRange(
+                    0,
+                    8
+                )
+                .toString(
+                    Charsets.US_ASCII
+                )
+        )
+
+        // PES v1 truncado aponta o bloco PEC diretamente para 0x16.
+        assertEquals(
+            0x16,
+            bytes[8]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[9]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[10]
+                .toInt() and
+                0xFF
+        )
+
+        assertEquals(
+            0,
+            bytes[11]
+                .toInt() and
+                0xFF
+        )
+
+        val ascii =
+            bytes.toString(
+                Charsets.ISO_8859_1
+            )
+
+        assertFalse(
+            "PES de máquina não deve carregar CEmbOne com transformação visual.",
+            ascii.contains(
+                "CEmbOne"
+            )
+        )
+
+        assertFalse(
+            "PES de máquina não deve carregar CSewSeg com offset de preview.",
+            ascii.contains(
+                "CSewSeg"
+            )
+        )
+
+        val parsed =
+            EmbroideryIoParser
+                .parse(
+                    converted.fileName,
+                    bytes
+                )
+
+        assertTrue(
+            parsed is
+                EmbroideryLoadResult.Success
+        )
+
+        val target =
+            (
+                parsed as
+                    EmbroideryLoadResult.Success
+                ).design
+
+        assertEquals(
+            shiftedDesign()
+                .bounds
+                .maxXUnits -
+                shiftedDesign()
+                    .bounds
+                    .minXUnits,
+            target.bounds.maxXUnits -
+                target.bounds.minXUnits
+        )
+
+        assertEquals(
+            shiftedDesign()
+                .bounds
+                .maxYUnits -
+                shiftedDesign()
+                    .bounds
+                    .minYUnits,
+            target.bounds.maxYUnits -
+                target.bounds.minYUnits
+        )
+    }
+
+    @Test
+    fun cartesianDesignKeepsGeometryInDst() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = false
+            ),
+            "DST"
+        )
+    }
+
+    @Test
+    fun cartesianDesignKeepsGeometryInPes() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = false
+            ),
+            "PES"
+        )
+    }
+
+    @Test
+    fun cartesianDesignKeepsGeometryInJef() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = false
+            ),
+            "JEF"
+        )
+    }
+
+    @Test
+    fun importedScreenDesignKeepsGeometryInDst() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = true
+            ),
+            "DST"
+        )
+    }
+
+    @Test
+    fun importedScreenDesignKeepsGeometryInPes() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = true
+            ),
+            "PES"
+        )
+    }
+
+    @Test
+    fun importedScreenDesignKeepsGeometryInJef() {
+        assertVisualGeometryPreserved(
+            asymmetricDesign(
+                sourceYAxisDown = true
+            ),
+            "JEF"
+        )
+    }
+
+
+    @Test
+    fun machineFormatsRecenterShiftedDesignWithoutChangingSize() {
+        val source =
+            shiftedDesign()
+
+        for (
+            format in
+                MatrixConverter
+                    .supportedFormats
+        ) {
+            val converted =
+                MatrixConverter
+                    .convert(
+                        source,
+                        format,
+                        outputSuffix =
+                            "centrado"
+                    )
+                    .getOrThrow()
+
+            val parsed =
+                when (
+                    format
+                ) {
+                    "DST" ->
+                        DstParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    "PES",
+                    "JEF" ->
+                        EmbroideryIoParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    else ->
+                        error(
+                            "Formato inesperado."
+                        )
+                }
+
+            assertTrue(
+                parsed is
+                    EmbroideryLoadResult.Success
+            )
+
+            val target =
+                (
+                    parsed as
+                        EmbroideryLoadResult.Success
+                    ).design
+
+            assertEquals(
+                "A largura não pode mudar ao centralizar $format",
+                source.bounds.maxXUnits - source.bounds.minXUnits,
+                target.bounds.maxXUnits - target.bounds.minXUnits
+            )
+
+            assertEquals(
+                "A altura não pode mudar ao centralizar $format",
+                source.bounds.maxYUnits - source.bounds.minYUnits,
+                target.bounds.maxYUnits - target.bounds.minYUnits
+            )
+
+            val centerX =
+                (
+                    target.bounds.minXUnits +
+                        target.bounds.maxXUnits
+                    ) /
+                    2f
+
+            val centerY =
+                (
+                    target.bounds.minYUnits +
+                        target.bounds.maxYUnits
+                    ) /
+                    2f
+
+            if (
+                format ==
+                    "PES"
+            ) {
+                /*
+                 * PEC usa os words de origem para deslocar a geometria
+                 * centralizada para dentro da área positiva declarada.
+                 * Por isso o round-trip PES não fica mais centrado em zero:
+                 * ele deve ocupar aproximadamente 0..largura / 0..altura.
+                 */
+                assertTrue(
+                    "A exportação PES deve ficar dentro da área positiva no eixo X.",
+                    target.bounds.minXUnits >=
+                        -1
+                )
+
+                assertTrue(
+                    "A exportação PES deve ficar dentro da área positiva no eixo Y.",
+                    target.bounds.minYUnits >=
+                        -1
+                )
+            } else {
+                assertTrue(
+                    "A exportação $format precisa ficar centralizada no eixo X.",
+                    kotlin.math.abs(
+                        centerX
+                    ) <=
+                        1f
+                )
+
+                assertTrue(
+                    "A exportação $format precisa ficar centralizada no eixo Y.",
+                    kotlin.math.abs(
+                        centerY
+                    ) <=
+                        1f
+                )
+            }
+        }
+    }
+
+
+    @Test
+    fun machineExportJumpsToFirstNeedlePointBeforeSewing() {
+        val source =
+            shiftedDesign()
+
+        for (
+            format in
+                MatrixConverter
+                    .supportedFormats
+        ) {
+            val converted =
+                MatrixConverter
+                    .convert(
+                        source,
+                        format,
+                        outputSuffix =
+                            "primeiro-ponto"
+                    )
+                    .getOrThrow()
+
+            val parsed =
+                when (
+                    format
+                ) {
+                    "DST" ->
+                        DstParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    "PES",
+                    "JEF" ->
+                        EmbroideryIoParser
+                            .parse(
+                                converted.fileName,
+                                converted.bytes
+                            )
+
+                    else ->
+                        error(
+                            "Formato inesperado."
+                        )
+                }
+
+            assertTrue(
+                parsed is
+                    EmbroideryLoadResult.Success
+            )
+
+            val target =
+                (
+                    parsed as
+                        EmbroideryLoadResult.Success
+                    ).design
+
+            val firstStitchIndex =
+                target.points
+                    .indexOfFirst {
+                        it.command ==
+                            StitchCommand.STITCH
+                    }
+
+            assertTrue(
+                "A exportação $format precisa conter ponto de costura.",
+                firstStitchIndex >=
+                    1
+            )
+
+            val jumpBeforeFirstStitch =
+                target.points
+                    .subList(
+                        0,
+                        firstStitchIndex
+                    )
+                    .lastOrNull {
+                        it.command ==
+                            StitchCommand.JUMP
+                    }
+
+            assertTrue(
+                "A exportação $format deve posicionar a agulha com JUMP antes do primeiro STITCH.",
+                jumpBeforeFirstStitch !=
+                    null
+            )
+
+            val firstStitch =
+                target.points[
+                    firstStitchIndex
+                ]
+
+            assertEquals(
+                "O primeiro STITCH em $format deve começar exatamente onde terminou o JUMP.",
+                jumpBeforeFirstStitch
+                    ?.xUnits,
+                firstStitch.xUnits
+            )
+
+            assertEquals(
+                "O primeiro STITCH em $format deve começar exatamente onde terminou o JUMP.",
+                jumpBeforeFirstStitch
+                    ?.yUnits,
+                firstStitch.yUnits
+            )
+        }
+    }
+
+
+    @Test
+    fun brotherOutputPrefersPes() {
+        assertEquals(
+            "PES",
+            MatrixConverter
+                .preferredBrotherFormat
+        )
+
+        assertEquals(
+            "PES",
+            MatrixConverter
+                .supportedFormats
+                .first()
+        )
+    }
+
+    @Test
+    fun brotherPesFilenameUsesSafeAsciiStem() {
+        val converted =
+            MatrixConverter
+                .convert(
+                    shiftedDesign()
+                        .copy(
+                            fileName =
+                                "João Maria.pes"
+                        ),
+                    "PES",
+                    outputSuffix =
+                        "brother"
+                )
+                .getOrThrow()
+
+        assertEquals(
+            "Joao_Maria-brother.pes",
+            converted.fileName
+        )
+    }
+
+    private fun assertVisualGeometryPreserved(
+        source: EmbroideryDesign,
+        format: String
+    ) {
+        val sourceStitches =
+            source.points
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+
+        val converted =
+            MatrixConverter.convert(
+                source,
+                format,
+                outputSuffix =
+                    "orientacao"
+            ).getOrThrow()
+
+        val parsed =
+            when (format) {
+                "DST" ->
+                    DstParser.parse(
+                        converted.fileName,
+                        converted.bytes
+                    )
+
+                "PES",
+                "JEF" ->
+                    EmbroideryIoParser.parse(
+                        converted.fileName,
+                        converted.bytes
+                    )
+
+                else ->
+                    error(
+                        "Formato inesperado."
+                    )
+            }
+
+        assertTrue(
+            parsed is
+                EmbroideryLoadResult.Success
+        )
+
+        val target =
+            (parsed as
+                EmbroideryLoadResult.Success)
+                .design
+
+        val targetStitches =
+            target.points
+                .filter {
+                    it.command ==
+                        StitchCommand.STITCH
+                }
+
+        assertEquals(
+            "Quantidade de pontos mudou em $format",
+            sourceStitches.size,
+            targetStitches.size
+        )
+
+        assertEquals(
+            "A geometria foi refletida/espelhada ao gerar $format",
+            normalizedVisualPoints(
+                design = source,
+                points = sourceStitches
+            ),
+            normalizedVisualPoints(
+                design = target,
+                points = targetStitches
+            )
+        )
+    }
+
+    private fun normalizedVisualPoints(
+        design: EmbroideryDesign,
+        points: List<EmbroideryPoint>
+    ): List<Pair<Int, Int>> {
+        if (points.isEmpty()) {
+            return emptyList()
+        }
+
+        val minX =
+            points.minOf {
+                it.xUnits
+            }
+
+        val visualYs =
+            points.map {
+                visualY(
+                    design,
+                    it.yUnits
+                )
+            }
+
+        val minVisualY =
+            visualYs.min()
+
+        return points
+            .mapIndexed {
+                    index,
+                    point ->
+                Pair(
+                    point.xUnits -
+                        minX,
+                    visualYs[index] -
+                        minVisualY
+                )
+            }
+            .sortedWith(
+                compareBy<Pair<Int, Int>> {
+                    it.first
+                }.thenBy {
+                    it.second
+                }
+            )
+    }
+
+    private fun visualY(
+        design: EmbroideryDesign,
+        yUnits: Int
+    ): Int =
+        if (
+            design.sourceYAxisDown
+        ) {
+            yUnits
+        } else {
+            -yUnits
+        }
+
+    private fun asymmetricDesign(
+        sourceYAxisDown: Boolean
+    ): EmbroideryDesign {
+        val points =
+            listOf(
+                EmbroideryPoint(
+                    0,
+                    0,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    30,
+                    90,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    90,
+                    -20,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    20,
+                    40,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    20,
+                    40,
+                    StitchCommand.END,
+                    0
+                )
+            )
+
+        return EmbroideryDesign(
+            fileName =
+                if (
+                    sourceYAxisDown
+                ) {
+                    "importada.pes"
+                } else {
+                    "criada-no-brother_matrizes.dst"
+                },
+            format =
+                if (
+                    sourceYAxisDown
+                ) {
+                    "PES"
+                } else {
+                    "DST"
+                },
+            label = "ORIENTACAO",
+            points = points,
+            bounds =
+                EmbroideryBounds(
+                    minXUnits = 0,
+                    maxXUnits = 90,
+                    minYUnits = -20,
+                    maxYUnits = 90
+                ),
+            stitchCount = 4,
+            jumpCount = 0,
+            colorChanges = 0,
+            endFound = true,
+            sourceBytes =
+                ByteArray(0),
+            threadColors =
+                listOf(
+                    0xE6BE70
+                ),
+            sourceYAxisDown =
+                sourceYAxisDown
+        )
+    }
+
+    private fun sampleDesign(): EmbroideryDesign {
+        val points =
+            listOf(
+                EmbroideryPoint(
+                    0,
+                    0,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    120,
+                    0,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    120,
+                    80,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    0,
+                    80,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    0,
+                    0,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    0,
+                    0,
+                    StitchCommand.COLOR_CHANGE,
+                    1
+                ),
+                EmbroideryPoint(
+                    60,
+                    40,
+                    StitchCommand.JUMP,
+                    1
+                ),
+                EmbroideryPoint(
+                    80,
+                    60,
+                    StitchCommand.STITCH,
+                    1
+                ),
+                EmbroideryPoint(
+                    80,
+                    60,
+                    StitchCommand.END,
+                    1
+                )
+            )
+
+        return EmbroideryDesign(
+            fileName = "teste.dst",
+            format = "DST",
+            label = "BROTHER",
+            points = points,
+            bounds =
+                EmbroideryBounds(
+                    minXUnits = 0,
+                    maxXUnits = 120,
+                    minYUnits = 0,
+                    maxYUnits = 80
+                ),
+            stitchCount = 6,
+            jumpCount = 1,
+            colorChanges = 1,
+            endFound = true,
+            sourceBytes =
+                ByteArray(0),
+            threadColors =
+                listOf(
+                    0xE6BE70,
+                    0x2A9D8F
+                )
+        )
+    }
+
+    private fun shiftedDesign():
+        EmbroideryDesign {
+        val points =
+            listOf(
+                EmbroideryPoint(
+                    1000,
+                    2000,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    1200,
+                    2000,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    1200,
+                    2300,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    1000,
+                    2300,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    1000,
+                    2000,
+                    StitchCommand.STITCH,
+                    0
+                ),
+                EmbroideryPoint(
+                    1000,
+                    2000,
+                    StitchCommand.END,
+                    0
+                )
+            )
+
+        return EmbroideryDesign(
+            fileName =
+                "deslocada.pes",
+            format =
+                "PES",
+            label =
+                "CENTRO",
+            points =
+                points,
+            bounds =
+                EmbroideryBounds(
+                    minXUnits =
+                        1000,
+                    maxXUnits =
+                        1200,
+                    minYUnits =
+                        2000,
+                    maxYUnits =
+                        2300
+                ),
+            stitchCount =
+                5,
+            jumpCount =
+                0,
+            colorChanges =
+                0,
+            endFound =
+                true,
+            sourceBytes =
+                ByteArray(
+                    0
+                ),
+            threadColors =
+                listOf(
+                    0xE6BE70
+                ),
+            sourceYAxisDown =
+                true
+        )
+    }
+
+}

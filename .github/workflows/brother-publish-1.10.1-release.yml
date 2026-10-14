@@ -1,0 +1,48 @@
+name: Brother Matrizes - publicar APK 1.10.1 validado
+on:
+  push:
+    branches:
+      - hotfix/brother-matrizes-1.10.1-updates-premium
+    paths:
+      - .github/workflows/brother-publish-1.10.1-release.yml
+permissions:
+  contents: write
+concurrency:
+  group: brother-1.10.1-release
+  cancel-in-progress: false
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verificar APK comercial e publicar release se corresponde
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_ID=410165266
+          APK_ID=632682512
+          APK_NAME=Brother-Matrizes-v1.10.1-ASSINADO.apk
+          EXPECTED=fd0cd07eaf71915f1d15dcbed6e3681c113cbde6df2c50ac3e1b27c0bc226651
+          RELEASE="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
+          test "$(jq -r '.tag_name' <<<"$RELEASE")" = "v1.10.1"
+          ASSETS="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID/assets")"
+          test "$(jq 'length' <<<"$ASSETS")" -eq 1
+          jq -e --arg n "$APK_NAME" --arg d "sha256:$EXPECTED" \
+            --argjson id "$APK_ID" \
+            '.[0] | .id == $id and .name == $n and .digest == $d
+              and .content_type == "application/vnd.android.package-archive"
+              and .state == "uploaded" and .size > 14000000 and .size < 20000000' \
+            <<<"$ASSETS" >/dev/null
+          echo "Asset unico do Brother Matrizes confere por SHA-256 calculado pelo GitHub."
+          if test "$(jq -r '.draft' <<<"$RELEASE")" = "true"; then
+            gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+              -F draft=false -F prerelease=false \
+              >/dev/null
+          fi
+          PUBLIC="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
+          test "$(jq -r '.draft' <<<"$PUBLIC")" = "false"
+          test "$(jq -r '.tag_name' <<<"$PUBLIC")" = "v1.10.1"
+          echo "Release publico v1.10.1 validado. Nenhum FCM enviado e nenhum manifesto alterado."

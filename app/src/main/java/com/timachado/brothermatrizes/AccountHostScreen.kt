@@ -1,0 +1,799 @@
+package com.timachado.brothermatrizes
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.timachado.brothermatrizes.core.account.AccountErrorMessage
+import com.timachado.brothermatrizes.core.account.AccountSnapshot
+import com.timachado.brothermatrizes.core.account.DeviceIdentity
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
+import com.timachado.brothermatrizes.core.account.SignUpOutcome
+import com.timachado.brothermatrizes.core.account.WordPressWebStore
+import com.timachado.brothermatrizes.core.settings.AppColorMode
+import com.timachado.brothermatrizes.core.network.NetworkStatus
+import com.timachado.brothermatrizes.ui.theme.FioGold
+import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+
+@Composable
+fun AccountHostScreen(
+    onBack: () -> Unit,
+    onOpenSupport: () -> Unit,
+    refreshRequest: Int = 0,
+    textScale: Float,
+    onTextScaleChange: (Float) -> Unit,
+    colorMode: AppColorMode,
+    onColorModeChange: (AppColorMode) -> Unit
+) {
+    val context =
+        LocalContext.current
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumeRevision by remember { mutableStateOf(0) }
+
+    // Re-read restored Google session when returning from browser/background.
+    // Supabase temporarily reports Initializing while Android resumes.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeRevision++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val scope =
+        rememberCoroutineScope()
+
+    val snackbar =
+        remember {
+            SnackbarHostState()
+        }
+
+    var account by remember {
+        mutableStateOf<
+            AccountSnapshot?
+        >(null)
+    }
+
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    // Null account is not necessarily logout until Supabase finishes loading
+    // from encrypted/persisted platform storage.
+    var accountVerified by remember { mutableStateOf(false) }
+
+    var offline by remember {
+        mutableStateOf(
+            !NetworkStatus
+                .isOnline(
+                    context
+                )
+        )
+    }
+
+    fun checkOnline(): Boolean {
+        val online =
+            NetworkStatus
+                .isOnline(
+                    context
+                )
+
+        offline =
+            !online
+
+        if (
+            !online
+        ) {
+            scope.launch {
+                snackbar.showSnackbar(
+                    "Sem conexão com a internet. Sua sessão não foi encerrada."
+                )
+            }
+        }
+
+        return online
+    }
+
+    suspend fun withDevices(
+        snapshot: AccountSnapshot?
+    ): AccountSnapshot? {
+        if (
+            snapshot ==
+                null
+        ) {
+            return null
+        }
+
+        val localDevice =
+            DeviceIdentity.current(
+                context
+            )
+
+        val devices =
+            withContext(
+                Dispatchers.IO
+            ) {
+                BrotherMatrizesAccountService
+                    .syncDevices(
+                        localDevice
+                    )
+            }.getOrElse {
+                emptyList()
+            }
+
+        return snapshot.copy(
+            devices =
+                devices,
+            currentDeviceId =
+                localDevice.deviceId
+        )
+    }
+
+    LaunchedEffect(
+        refreshRequest,
+        resumeRevision
+    ) {
+        val online =
+            NetworkStatus
+                .isOnline(
+                    context
+                )
+
+        offline =
+            !online
+
+        if (
+            !online
+        ) {
+            loading =
+                false
+            accountVerified = account != null
+
+            snackbar.showSnackbar(
+                "Sem conexão com a internet. Sua sessão permanece no aparelho e será carregada quando a rede voltar."
+            )
+
+            return@LaunchedEffect
+        }
+
+        // A sessão pode ficar aguardando indefinidamente o refresh de rede.
+        // O timeout afeta somente a apresentação; não encerra login nem licença.
+        val result = withTimeoutOrNull(8_000L) {
+            withContext(Dispatchers.IO) {
+                BrotherMatrizesAccountService.currentAccount()
+            }
+        } ?: Result.failure(
+            IllegalStateException("A verificação demorou demais. Tente novamente.")
+        )
+
+        result.fold(
+            onSuccess = {
+                    current ->
+                offline = false
+                // Show the validated account immediately. Device synchronization
+                // must never block the account screen or hide an existing license.
+                account = current
+                accountVerified = true
+                loading = false
+                if (current != null) {
+                    val withDeviceDetails = withDevices(current)
+                    if (account?.userId == current.userId) {
+                        account = withDeviceDetails
+                    }
+                }
+            },
+            onFailure = {
+                    error ->
+                offline =
+                    !NetworkStatus
+                        .isOnline(
+                            context
+                        )
+                accountVerified = account != null
+                loading = false
+
+                snackbar
+                    .showSnackbar(
+                        AccountErrorMessage
+                            .forUser(
+                                error,
+                                "Não foi possível atualizar sua conta."
+                            )
+                    )
+            }
+        )
+    }
+
+    fun refreshAccount() {
+        if (
+            !checkOnline()
+        ) {
+            return
+        }
+
+        scope.launch {
+            loading =
+                true
+
+            val result = withTimeoutOrNull(8_000L) {
+                withContext(Dispatchers.IO) {
+                    BrotherMatrizesAccountService.currentAccount()
+                }
+            } ?: Result.failure(
+                IllegalStateException("A verificação demorou demais. Tente novamente.")
+            )
+
+            result.fold(
+                onSuccess = {
+                        current ->
+                    offline = false
+                    account = current
+                    accountVerified = true
+                    loading = false
+                    if (current != null) {
+                        val withDeviceDetails = withDevices(current)
+                        if (account?.userId == current.userId) {
+                            account = withDeviceDetails
+                        }
+                    }
+
+                    snackbar.showSnackbar(
+                        when {
+                            current == null -> "Nenhuma sessão Google confirmada."
+                            current.commercialConfigured && current.planCode == "trial" &&
+                                current.hasProAccess -> "Teste Pro de 7 dias confirmado pelo WordPress."
+                            current.commercialConfigured -> if (current.hasProAccess)
+                                "Licença Pro confirmada pelo servidor." else "Conta consultada. Nenhuma licença Pro ativa."
+                            else -> "Conta Google conectada. Licença não verificável pela hospedagem atual."
+                        }
+                    )
+                },
+                onFailure = {
+                        error ->
+                    loading = false
+                    offline =
+                        !NetworkStatus
+                            .isOnline(
+                                context
+                            )
+
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível atualizar sua assinatura."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun signInWithGoogle() {
+        if (
+            !checkOnline()
+        ) {
+            return
+        }
+
+        scope.launch {
+            loading =
+                true
+
+            val result =
+                BrotherMatrizesAccountService
+                    .signInWithGoogle()
+
+            loading =
+                false
+
+            result.fold(
+                onSuccess = {
+                    snackbar
+                        .showSnackbar(
+                            "Conclua o login na sua conta Google."
+                        )
+                },
+                onFailure = {
+                        error ->
+                    offline =
+                        !NetworkStatus
+                            .isOnline(
+                                context
+                            )
+
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível abrir o login do Google."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun signIn(
+        email: String,
+        password: String
+    ) {
+        if (
+            !checkOnline()
+        ) {
+            return
+        }
+
+        scope.launch {
+            loading =
+                true
+
+            val result =
+                withContext(
+                    Dispatchers.IO
+                ) {
+                    BrotherMatrizesAccountService
+                        .signIn(
+                            email,
+                            password
+                        )
+                }
+
+            loading =
+                false
+
+            result.fold(
+                onSuccess = {
+                        signedIn ->
+                    offline =
+                        false
+
+                    account =
+                        withDevices(
+                            signedIn
+                        )
+                    accountVerified = true
+
+                    snackbar
+                        .showSnackbar(
+                            "Conta conectada."
+                        )
+                },
+                onFailure = {
+                        error ->
+                    offline =
+                        !NetworkStatus
+                            .isOnline(
+                                context
+                            )
+
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível entrar."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun signUp(
+        displayName: String,
+        email: String,
+        password: String
+    ) {
+        if (
+            !checkOnline()
+        ) {
+            return
+        }
+
+        scope.launch {
+            loading =
+                true
+
+            val result =
+                withContext(
+                    Dispatchers.IO
+                ) {
+                    BrotherMatrizesAccountService
+                        .signUp(
+                            displayName,
+                            email,
+                            password
+                        )
+                }
+
+            loading =
+                false
+
+            result.fold(
+                onSuccess = {
+                        outcome ->
+                    when (
+                        outcome
+                    ) {
+                        is SignUpOutcome
+                            .SignedIn -> {
+                            offline =
+                                false
+
+                            account =
+                                withDevices(
+                                    outcome.account
+                                )
+                            accountVerified = true
+
+                            snackbar
+                                .showSnackbar(
+                                    "Conta criada e conectada."
+                                )
+                        }
+
+                        is SignUpOutcome
+                            .ConfirmationRequired -> {
+                            offline =
+                                false
+
+                            account =
+                                null
+                            accountVerified = true
+
+                            snackbar
+                                .showSnackbar(
+                                    "Conta criada. Confira o e-mail " +
+                                        outcome.email +
+                                        " antes de entrar."
+                                )
+                        }
+                    }
+                },
+                onFailure = {
+                        error ->
+                    offline =
+                        !NetworkStatus
+                            .isOnline(
+                                context
+                            )
+
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível criar a conta."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun saveName(
+        displayName: String
+    ) {
+        if (
+            !checkOnline()
+        ) {
+            return
+        }
+
+        scope.launch {
+            loading =
+                true
+
+            val result =
+                withContext(
+                    Dispatchers.IO
+                ) {
+                    BrotherMatrizesAccountService
+                        .updateDisplayName(
+                            displayName
+                        )
+                }
+
+            loading =
+                false
+
+            result.fold(
+                onSuccess = {
+                        updated ->
+                    offline =
+                        false
+
+                    account =
+                        withDevices(
+                            updated
+                        )
+
+                    snackbar
+                        .showSnackbar(
+                            "Nome atualizado."
+                        )
+                },
+                onFailure = {
+                        error ->
+                    offline =
+                        !NetworkStatus
+                            .isOnline(
+                                context
+                            )
+
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível atualizar o nome."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun signOut() {
+        scope.launch {
+            loading =
+                true
+
+            val result =
+                withContext(
+                    Dispatchers.IO
+                ) {
+                    BrotherMatrizesAccountService
+                        .signOut()
+                }
+
+            loading =
+                false
+
+            result.fold(
+                onSuccess = {
+                    offline =
+                        false
+
+                    account =
+                        null
+                    accountVerified = true
+
+                    snackbar
+                        .showSnackbar(
+                            "Você saiu da conta."
+                        )
+                },
+                onFailure = {
+                        error ->
+                    snackbar
+                        .showSnackbar(
+                            AccountErrorMessage
+                                .forUser(
+                                    error,
+                                    "Não foi possível sair da conta."
+                                )
+                        )
+                }
+            )
+        }
+    }
+
+    fun activateFreeTrial() {
+        if (!checkOnline()) return
+        scope.launch {
+            loading = true
+            val result = BrotherMatrizesAccountService.activateTrial()
+            loading = false
+            result.fold(
+                onSuccess = {
+                    account = withDevices(it)
+                    accountVerified = true
+                    snackbar.showSnackbar("Seu teste Pro de 7 dias foi ativado.")
+                },
+                onFailure = {
+                    snackbar.showSnackbar(AccountErrorMessage.forUser(
+                        it, "Não foi possível ativar o teste."
+                    ))
+                }
+            )
+        }
+    }
+
+    fun openWordPressAccount() {
+        if (!checkOnline()) return
+        runCatching {
+            val address = WordPressWebStore.accountUrl(BuildConfig.WORDPRESS_URL)
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+            )
+        }.onFailure {
+            scope.launch {
+                snackbar.showSnackbar(
+                    "Não foi possível abrir o portal de licenças no navegador."
+                )
+            }
+        }
+    }
+
+    fun openBrotherPlan(planCode: String) {
+        if (!checkOnline()) return
+        runCatching {
+            val address = WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+            )
+        }.onFailure {
+            scope.launch {
+                snackbar.showSnackbar("Não foi possível abrir o plano no site T.I. Machado.")
+            }
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize()
+    ) {
+        // Em falha ou timeout, mostrar a tela de conta com login Google
+        // e "Tentar novamente", sem bloquear a navegação no spinner.
+        if (accountVerified || account != null || !loading) {
+        AccountScreen(
+            account =
+                account,
+            offline =
+                offline,
+            onBack =
+                onBack,
+            textScale =
+                textScale,
+            onTextScaleChange =
+                onTextScaleChange,
+            colorMode = colorMode,
+            onColorModeChange = onColorModeChange,
+            onGoogleSignIn = {
+                signInWithGoogle()
+            },
+            onSignIn = {
+                    email,
+                    password ->
+                signIn(
+                    email,
+                    password
+                )
+            },
+            onSignUp = {
+                    name,
+                    email,
+                    password ->
+                signUp(
+                    name,
+                    email,
+                    password
+                )
+            },
+            onSaveName = {
+                    name ->
+                saveName(
+                    name
+                )
+            },
+            onRefresh = {
+                refreshAccount()
+            },
+            onActivateTrial = { activateFreeTrial() },
+            onOpenWebAccount = { openWordPressAccount() },
+            onOpenSupport = onOpenSupport,
+            onOpenPlan = { code -> openBrotherPlan(code) },
+            onSignOut = {
+                signOut()
+            }
+        )
+        } else {
+            // Never suggest the user has signed out on an initialization
+            // race or a temporary network / refresh failure.
+            Column(
+                Modifier.fillMaxSize()
+                    .background(BrotherAccountNavy)
+                    .padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                BrotherAccountHeader(onBack = onBack)
+                Surface(
+                    color = BrotherAccountSurface,
+                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            if (loading) "Verificando sua sessão"
+                            else "Não foi possível confirmar sua sessão",
+                            color = BrotherAccountWhite,
+                            fontWeight = FontWeight.Bold, fontSize = 17.sp
+                        )
+                        Text(
+                            if (loading)
+                                "Sua conta e seus projetos continuam preservados. Estamos recuperando o acesso."
+                            else
+                                "Sua conta não foi desconectada. Tente verificar novamente quando houver conexão.",
+                            color = BrotherAccountMuted, fontSize = 12.sp
+                        )
+                        if (!loading) {
+                            OutlinedButton(onClick = { refreshAccount() }) {
+                                Text("Tentar novamente", color = BrotherAccountGold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SnackbarHost(
+            hostState =
+                snackbar,
+            modifier =
+                Modifier
+                    .align(
+                        Alignment
+                            .BottomCenter
+                    )
+        )
+
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .align(
+                        if (account != null) Alignment.TopEnd else Alignment.Center
+                    )
+                    .padding(
+                        top = if (account != null) 12.dp else 0.dp,
+                        end = if (account != null) 18.dp else 0.dp
+                    )
+                    .size(if (account != null) 22.dp else 32.dp),
+                color = BrotherAccountGold,
+                strokeWidth = 2.dp
+            )
+        }
+    }
+}

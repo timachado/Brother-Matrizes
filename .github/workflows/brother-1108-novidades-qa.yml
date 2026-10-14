@@ -1,0 +1,45 @@
+name: Brother 1.10.8 - QA limites e novidades
+
+on:
+  push:
+    branches:
+      - feature/brother-1108-limites-novidades-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar plataforma Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Conferir versão e isolamento do novo recurso
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 184' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
+          grep -Fq 'BrotherPostUpdateNews()' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
+          grep -Fq 'BrotherCurrentVersionNews' app/src/main/java/com/timachado/brothermatrizes/UpdateStatusCard.kt
+          grep -Fq 'monthlyFreeLimits' app/src/main/java/com/timachado/brothermatrizes/BrotherPlansScreen.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/ui/updates/BrotherPostUpdatePolicyTest.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/core/account/BrotherPlanBenefitsTest.kt
+      - name: Compilar e executar todos os testes unitários
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
