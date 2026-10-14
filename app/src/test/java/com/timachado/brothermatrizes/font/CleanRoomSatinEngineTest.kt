@@ -96,8 +96,8 @@ class CleanRoomSatinEngineTest {
             glyph.usesOutlineFill)
         val rails = glyph.rails.flatten()
         assertTrue("A área da fonte deve chegar às bordas externas.",
-            rails.minOf { it.middle.x } < 94f &&
-                rails.maxOf { it.middle.x } > 94f)
+            rails.minOf { minOf(it.a.x, it.b.x) } <= 1f &&
+                rails.maxOf { maxOf(it.a.x, it.b.x) } >= 184f)
         assertTrue("Deve haver diversas carreiras de bordado.",
             rails.map { it.middle.y.roundToInt() }.distinct().size > 15)
     }
