@@ -50,7 +50,8 @@ internal object AndroidSkiaOutlineExtractor {
         targetCapHeightUnits: Float,
         spacingUnits: Float,
         rotationDegrees: Float,
-        preferWholeRun: Boolean = true
+        preferWholeRun: Boolean = true,
+        featureTag: String? = null
     ): Result {
         val fontFile =
             File(
@@ -87,6 +88,9 @@ internal object AndroidSkiaOutlineExtractor {
                     true
                 hinting =
                     Paint.HINTING_OFF
+                // Android 26+; shaping tipográfico respeita recursos GSUB
+                // declarados somente quando selecionados pelo usuário.
+                fontFeatureSettings = OpenTypeStyleChoices.fontSettings(featureTag)
             }
 
         paint.textSize =
@@ -132,6 +136,12 @@ internal object AndroidSkiaOutlineExtractor {
             codePoints.size in 2..9 &&
             paint.measureText(text) <= targetCapHeightUnits * 6f
 
+        // Para alternativas contextuais, extrair letra a letra descartaria o
+        // estilo escolhido; informar a limitação em vez de gerar um PES falso.
+        require(featureTag == null || useCompleteRun) {
+            "Este estilo exige texto curto e espaçamento zero no modo Satin."
+        }
+
         if (useCompleteRun) {
             val whole = Path()
             paint.getTextPath(text, 0, text.length, 0f, 0f, whole)
@@ -149,6 +159,10 @@ internal object AndroidSkiaOutlineExtractor {
                     )
                 }
             }
+        }
+
+        require(featureTag == null || rawGlyphs.isNotEmpty()) {
+            "Não foi possível digitalizar o contorno inteiro com o estilo escolhido."
         }
 
         if (rawGlyphs.isEmpty()) {
