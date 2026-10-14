@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
                 textScaleMultiplier = textScale,
                 darkTheme = darkTheme
             ) {
+                BrotherPresenceHeartbeat()
                 BrotherVersionGate(resumeRequest = updateResumeRequest) {
                 BrotherFirebasePushOptIn()
                 BrotherUpdateReminder(
