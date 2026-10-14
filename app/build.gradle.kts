@@ -124,7 +124,7 @@ dependencies {
 /**
  * A arte oficial fica em branding/brother_matrizes_brand_logo.base64.
  * Gera sempre os recursos de ícone antes do processamento Android.
- * Evita voltar a empacotar o recurso legado FioLab por acidente.
+ * Evita empacotar recursos de marca obsoletos por acidente.
  */
 val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     val source = rootProject.file("branding/brother_matrizes_brand_logo.base64")
