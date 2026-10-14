@@ -87,6 +87,53 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun heavyDecorativeFontUsesOutlineFaithfulFillInsteadOfOversizedSatin() {
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 185f, 165f)),
+            densityMm = 0.4f, pullMm = 0.2f
+        )
+        assertTrue("As áreas largas devem seguir a própria máscara vetorial.",
+            glyph.usesOutlineFill)
+        val rails = glyph.rails.flatten()
+        assertTrue("A área da fonte deve chegar às bordas externas.",
+            rails.minOf { it.middle.x } < 94f &&
+                rails.maxOf { it.middle.x } > 94f)
+        assertTrue("Deve haver diversas carreiras de bordado.",
+            rails.map { it.middle.y.roundToInt() }.distinct().size > 15)
+    }
+
+    @Test
+    fun ordinaryNarrowSatinDoesNotSwitchToRasterTatami() {
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 18f, 100f)),
+            densityMm = 0.4f
+        )
+        assertTrue("A coluna Satin tradicional deve continuar intacta.",
+            !glyph.usesOutlineFill)
+    }
+
+    @Test
+    fun outlineFillKeepsRealCountersAndDisconnectedAccents() {
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(0f, 0f, 170f, 170f),
+                rectangle(50f, 50f, 70f, 70f).asReversed(),
+                rectangle(20f, -28f, 14f, 10f)
+            ), densityMm = 0.4f, pullMm = 0f
+        )
+        assertTrue(glyph.usesOutlineFill)
+        val rails = glyph.rails.flatten()
+        assertTrue("O adorno separado deve ser bordado.",
+            rails.any { it.middle.y < 0f })
+        assertTrue("Furo da letra precisa continuar vazio.",
+            rails.none { rail ->
+                val left = minOf(rail.a.x, rail.b.x)
+                val right = maxOf(rail.a.x, rail.b.x)
+                rail.middle.y in 65f..105f && left < 90f && right > 90f
+            })
+    }
+
+    @Test
     fun firstLegOfMUsesOneTransverseSatinCoverageWithoutReturningToSameRail() {
         val plan = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 24f, 132f)), densityMm = 0.4f
