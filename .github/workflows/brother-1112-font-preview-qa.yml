@@ -1,0 +1,45 @@
+name: Brother 1.10.12 - QA preview e estilos
+
+on:
+  push:
+    branches: [fix/brother-1112-opentype-preview-dialog]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Versao e integracao sem alterar atualizador
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 188' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.12"' app/build.gradle.kts
+          grep -Fq 'fontFeatureSettings = OpenTypeStyleChoices.fontSettings(featureTag)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
+          grep -Fq 'featureTag = appliedFeatureTag' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+          grep -Fq '"Ver estilos e prévia"' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+          grep -Fq '"Aplicar e fechar"' app/src/main/java/com/timachado/brothermatrizes/CreateNameScreen.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypeStyleChoicesTest.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypeFeatureCatalogTest.kt
+      - name: Compilacao e testes unitarios
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
