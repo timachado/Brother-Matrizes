@@ -1,0 +1,91 @@
+name: Publicar Brother Matrizes 1.10.8 comercial
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-publicar-v1.10.8-apk-validado.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: brother-release-1-10-8
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 25
+    steps:
+      - name: Conferir release oficial existente
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v1.10.8 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release v1.10.8 já existe; não republicar sem revisão."
+            exit 1
+          fi
+      - name: Obter EXATAMENTE o APK assinado e validado
+        uses: actions/download-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.8-COTAS-NOVIDADES-APK-ASSINADO-HOMOLOGACAO
+          repository: ${{ github.repository }}
+          run-id: 38484911872
+          github-token: ${{ github.token }}
+          path: dist
+      - name: Conferir hash e assinatura comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='dist/Brother-Matrizes-1.10.8-COTAS-NOVIDADES-HOMOLOGACAO.apk'
+          test -s "$apk"
+          actual="$(sha256sum "$apk" | cut -d' ' -f1)"
+          test "$actual" = '67126397ee416386d2991214208a637165e73401aa6c71693495f10d62638819' || {
+            echo "::error::SHA-256 divergente do APK assinado testado"; exit 1;
+          }
+          (cd dist && sed 's@  dist/@  @' APK-SHA256.txt | sha256sum -c -)
+          test "$(stat -c%s "$apk")" -eq 14330189
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "build-tools;36.0.0"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          audit="$("$tools/apksigner" verify --verbose --print-certs "$apk")"
+          printf '%s\n' "$audit" | grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true'
+          printf '%s\n' "$audit" | grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true'
+          cert="$(printf '%s\n' "$audit" | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\1/p' | tr '[:upper:]' '[:lower:]')"
+          test "$cert" = 'fac3e71b641805e1184e34a636e50e4890e8fe24873f53e85d863b934815de4a' || {
+            echo "::error::Certificado comercial original não confere"; exit 1;
+          }
+          badging="$("$tools/aapt" dump badging "$apk" | head -n 1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='184'"* ]]
+          [[ "$badging" == *"versionName='1.10.8'"* ]]
+      - name: Publicar exatamente este APK na versão estável
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > RELEASE_NOTES.md <<'NOTES'
+          Brother Matrizes 1.10.8 — novas informações de planos e card de novidades.
+
+          - Planos e benefícios: limites do Gratuito detalhados (matrizes, fontes, RAR, Telegram e DaFont).
+          - Novidades da versão: card de apresentação ao abrir após cada atualização, exibido uma vez por versão.
+          - Histórico de novidades acessível em Minha Conta > Sobre e atualizações. Preservados os ajustes da 1.10.7, projetos, planos, licenças e importações.
+          - Instale sobre sua versão anterior. Não desinstale o aplicativo nem limpe seus dados.
+
+          SHA-256: 67126397ee416386d2991214208a637165e73401aa6c71693495f10d62638819
+          NOTES
+          gh release create v1.10.8 \
+            "dist/Brother-Matrizes-1.10.8-COTAS-NOVIDADES-HOMOLOGACAO.apk#Brother-Matrizes-v1.10.8-ASSINADO.apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 19ca60e13ead6177aba7362a0ed526cd3beba7c7 \
+            --title "Brother Matrizes 1.10.8 — atualização oficial" \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+          echo 'Release publicado. Promover manifesto estável em operação separada.'
