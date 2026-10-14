@@ -44,6 +44,19 @@ class OpenTypeOverhangPolicyTest {
         }
     }
 
+    @Test fun loveHeartAlternativesWithMatchingAdvanceRemainAvailable() {
+        // Love.ttf a.alt1: advance 811, contorno horizontal 50..830.
+        // A variante aumenta o advance junto com o desenho do coração.
+        // Não bloquear por ser apenas maior, desde que não invada vizinhos.
+        assertFalse(OpenTypeOverhangPolicy.isUnsafeForWholeWord(
+            e(811f, 50f, 830f), 1, 5
+        ))
+        // Love.ttf i.alt1: advance 551, contorno 50..570.
+        assertFalse(OpenTypeOverhangPolicy.isUnsafeForWholeWord(
+            e(551f, 50f, 570f), 3, 5
+        ))
+    }
+
     @Test fun singleLetterCanUseItsOwnOrnaments() {
         assertFalse(OpenTypeOverhangPolicy.isUnsafeForWholeWord(
             e(142f, -950f, 1077f), 0, 1
