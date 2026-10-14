@@ -106,105 +106,77 @@ internal object AndroidSkiaOutlineExtractor {
         paint.textSize =
             resolvedSize
 
-        val rawGlyphs =
-            mutableListOf<RawGlyph>()
+        val rawGlyphs = mutableListOf<RawGlyph>()
 
-        // O deslocamento deve considerar kerning e shaping do texto completo,
-        // em vez de somar larguras isoladas (que separa fontes cursivas).
-        var textOffset = 0
+        val codePoints = text.codePoints().toArray()
+        codePoints.forEach { codePoint ->
+            val glyphText = String(Character.toChars(codePoint))
+            if (Character.isWhitespace(codePoint)) return@forEach
+            require(paint.hasGlyph(glyphText)) {
+                "A fonte " + font.displayName + " não possui o caractere U+" +
+                    codePoint.toString(16).uppercase() + "."
+            }
+        }
 
-        val codePoints =
-            text
-                .codePoints()
-                .toArray()
+        // Skia substitui glifos/ligaturas e alterna desenhos dependendo da
+        // sequência inteira. Pintar cada letra isolada (antigo comportamento)
+        // perdia essas substituições apesar de posicionar corretamente pelo
+        // kerning. Para palavras curtas sem espaçamento manual, extrair a
+        // curva da mesma sequência completa exibida no preview Android.
+        //
+        // Limitar a extensão geométrica protege o digitizador Satin de
+        // consumo excessivo em frases grandes: para estas permanece a
+        // estratégia de glifos individuais já usada na versão comercial.
+        val useCompleteRun = spacingUnits == 0f &&
+            codePoints.size in 2..9 &&
+            paint.measureText(text) <= targetCapHeightUnits * 6f
 
-        codePoints
-            .forEachIndexed {
-                    index,
-                    codePoint ->
-                val glyphText =
-                    String(
-                        Character.toChars(
-                            codePoint
-                        )
+        if (useCompleteRun) {
+            val whole = Path()
+            paint.getTextPath(text, 0, text.length, 0f, 0f, whole)
+            if (!whole.isEmpty) {
+                val bounds = RectF()
+                whole.computeBounds(bounds, true)
+                val contours = sampleContours(whole)
+                if (contours.isNotEmpty() && bounds.width() > 0f) {
+                    rawGlyphs += RawGlyph(
+                        contours = contours,
+                        left = bounds.left,
+                        top = bounds.top,
+                        right = bounds.right,
+                        bottom = bounds.bottom
                     )
-
-                require(
-                    paint.hasGlyph(
-                        glyphText
-                    )
-                ) {
-                    "A fonte " +
-                        font.displayName +
-                        " não possui o caractere U+" +
-                        codePoint
-                            .toString(
-                                16
-                            )
-                            .uppercase() +
-                        "."
                 }
+            }
+        }
 
+        if (rawGlyphs.isEmpty()) {
+            var textOffset = 0
+            codePoints.forEachIndexed { index, codePoint ->
+                val glyphText = String(Character.toChars(codePoint))
                 val shapedX = paint.getRunAdvance(
-                    text,
-                    0,
-                    text.length,
-                    0,
-                    text.length,
-                    false,
-                    textOffset
+                    text, 0, text.length, 0, text.length, false, textOffset
                 )
                 val glyphX = shapedX + index * spacingUnits
-
-                val path =
-                    Path()
-
-                paint.getTextPath(
-                    glyphText,
-                    0,
-                    glyphText.length,
-                    glyphX,
-                    0f,
-                    path
-                )
-
-                if (
-                    !path.isEmpty
-                ) {
-                    val tight =
-                        RectF()
-
-                    path.computeBounds(
-                        tight,
-                        true
-                    )
-
-                    val contours =
-                        sampleContours(
-                            path
+                val path = Path()
+                paint.getTextPath(glyphText, 0, glyphText.length, glyphX, 0f, path)
+                if (!path.isEmpty) {
+                    val bounds = RectF()
+                    path.computeBounds(bounds, true)
+                    val contours = sampleContours(path)
+                    if (contours.isNotEmpty()) {
+                        rawGlyphs += RawGlyph(
+                            contours = contours,
+                            left = bounds.left,
+                            top = bounds.top,
+                            right = bounds.right,
+                            bottom = bounds.bottom
                         )
-
-                    if (
-                        contours.isNotEmpty()
-                    ) {
-                        rawGlyphs +=
-                            RawGlyph(
-                                contours =
-                                    contours,
-                                left =
-                                    tight.left,
-                                top =
-                                    tight.top,
-                                right =
-                                    tight.right,
-                                bottom =
-                                    tight.bottom
-                            )
                     }
                 }
-
                 textOffset += glyphText.length
             }
+        }
 
         require(
             rawGlyphs.isNotEmpty()
