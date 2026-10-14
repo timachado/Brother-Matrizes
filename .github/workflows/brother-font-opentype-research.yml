@@ -1,0 +1,36 @@
+name: Brother Fonts - OpenType Research Validation
+
+on:
+  push:
+    branches: [research/brother-smart-opentype-zip-poc-20261014]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar plataforma Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verificar scanner sem tocar no app comercial
+        run: |
+          test -s app/src/main/java/com/timachado/brothermatrizes/font/OpenTypeFeatureCatalog.kt
+          test -s app/src/test/java/com/timachado/brothermatrizes/font/OpenTypeFeatureCatalogTest.kt
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
