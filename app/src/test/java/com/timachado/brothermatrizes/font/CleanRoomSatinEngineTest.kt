@@ -64,6 +64,29 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun thickOutlinedLetterKeepsTransparentCounterEmpty() {
+        // Exemplos de letras com miolo vazado: não transformar espaço
+        // transparente entre os contornos em bordado de preenchimento.
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(0f, 0f, 200f, 200f),
+                rectangle(55f, 55f, 90f, 90f).asReversed()
+            ),
+            densityMm = 0.4f,
+            pullMm = 0.0f
+        )
+        val stream = CleanRoomSatinEngine.stitchPlannedGlyphForTest(glyph)
+        val outsideCounter = stream.filter { it.command == StitchCommand.STITCH }
+        assertTrue("A borda externa deve ser bordada.", outsideCounter.isNotEmpty())
+        // Pontos dentro do vazio protegido (margem de 1 mm) indicariam
+        // que a nova busca atravessou uma contr forma real da fonte.
+        assertTrue("O furo interno da letra não pode receber pontos.",
+            outsideCounter.none {
+                it.xUnits in 65..135 && it.yUnits in 65..135
+            })
+    }
+
+    @Test
     fun firstLegOfMUsesOneTransverseSatinCoverageWithoutReturningToSameRail() {
         val plan = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 24f, 132f)), densityMm = 0.4f
