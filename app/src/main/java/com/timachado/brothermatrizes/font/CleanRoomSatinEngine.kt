@@ -88,34 +88,49 @@ internal object CleanRoomSatinEngine {
         // Não inserir espaçamento automático: fontes cursivas dependem
         // de encaixe e kerning para manter suas ligações entre letras.
         val spacing = options.spacingMm * 10f
-        val outlines = AndroidSkiaOutlineExtractor.extract(
-            font = font,
-            text = text,
-            targetCapHeightUnits = heightUnits,
-            spacingUnits = spacing,
-            rotationDegrees = options.rotationDegrees
-        )
-        val points = mutableListOf<EmbroideryPoint>()
-        val stitcher = Stitcher(points)
-        var sewnGlyphs = 0
-        outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
-            val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
-            if (contours.isEmpty()) return@forEachIndexed
-            val plan = planContours(
-                contours,
-                densityMm = options.satinDensityMm,
-                pullMm = options.satinPullCompensationMm
+        fun digitize(preferWholeRun: Boolean): MutableList<EmbroideryPoint> {
+            val outlines = AndroidSkiaOutlineExtractor.extract(
+                font = font,
+                text = text,
+                targetCapHeightUnits = heightUnits,
+                spacingUnits = spacing,
+                rotationDegrees = options.rotationDegrees,
+                preferWholeRun = preferWholeRun
             )
-            require(plan.rails.isNotEmpty()) {
-                "A fonte não produziu uma faixa Satin segura na letra " +
-                    (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
+            val result = mutableListOf<EmbroideryPoint>()
+            val stitcher = Stitcher(result)
+            var sewnGlyphs = 0
+            outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
+                val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
+                if (contours.isEmpty()) return@forEachIndexed
+                val plan = planContours(
+                    contours,
+                    densityMm = options.satinDensityMm,
+                    pullMm = options.satinPullCompensationMm
+                )
+                require(plan.rails.isNotEmpty()) {
+                    "A fonte não produziu uma faixa Satin segura na letra " +
+                        (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
+                }
+                stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
+                sewnGlyphs++
             }
-            stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
-            sewnGlyphs++
+            require(sewnGlyphs > 0 && result.any { it.command == StitchCommand.STITCH }) {
+                "Não foram geradas pontadas válidas."
+            }
+            return result
         }
-        require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
-            "Não foram geradas pontadas válidas."
-        }
+
+        // Primeiro tentar o contorno real do texto moldado pelo Android
+        // (ligaturas, alternâncias e escrita cursiva). Se esse contorno
+        // for complexo demais para o Satin seguro, preservar a rota antiga.
+        val points = runCatching { digitize(preferWholeRun = true) }
+            .getOrElse { initialFailure ->
+                if (text.codePointCount(0, text.length) > 9 || spacing != 0f) {
+                    throw initialFailure
+                }
+                digitize(preferWholeRun = false)
+            }
         val last = points.last()
         points.add(last.copy(command = StitchCommand.END))
         val coords = points.filter { it.command != StitchCommand.END }
