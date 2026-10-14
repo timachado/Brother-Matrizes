@@ -137,9 +137,11 @@ internal object AndroidSkiaOutlineExtractor {
         // consumo excessivo em frases grandes: para estas permanece a
         // estratégia de glifos individuais já usada na versão comercial.
         val useCompleteRun = preferWholeRun && spacingUnits == 0f &&
-            codePoints.size in 2..9 &&
+            OpenTypeRunSafety.allowsShaping(codePoints.size) &&
             (positionedStyle.isEnabled ||
-                paint.measureText(text) <= targetCapHeightUnits * 6f)
+                OpenTypeRunSafety.allowsAdvance(
+                    paint.measureText(text), targetCapHeightUnits
+                ))
 
         // Para alternativas contextuais, extrair letra a letra descartaria o
         // estilo escolhido; informar a limitação em vez de gerar um PES falso.
