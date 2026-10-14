@@ -18,6 +18,52 @@ class CleanRoomSatinEngineTest {
     )
 
     @Test
+    fun wideDecorativeGlyphPreservesFullOutlinedWidthInsteadOfSevenMillimeterStrip() {
+        // Fontes ornamentais do DaFont podem conter desenhos grossos ou
+        // corações, diferentes de letras Satin estreitas. O limite anterior
+        // de 35 unidades por lado cortava silenciosamente parte da tinta.
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 185f, 165f)),
+            densityMm = 0.4f,
+            pullMm = 0.2f
+        )
+        val rails = glyph.rails.flatten()
+        assertTrue("A área larga deve produzir pontadas.", rails.isNotEmpty())
+        val longest = rails.maxOf { rail ->
+            kotlin.math.hypot(
+                (rail.b.x - rail.a.x).toDouble(),
+                (rail.b.y - rail.a.y).toDouble()
+            )
+        }
+        assertTrue("O contorno foi recortado ao limite artificial de 7 mm.",
+            longest > 110.0)
+        val physical = CleanRoomSatinEngine.stitchPlannedGlyphForTest(glyph)
+        assertTrue("É necessário haver pontadas reais no desenho largo.",
+            physical.count { it.command == StitchCommand.STITCH } > 50)
+    }
+
+    @Test
+    fun wideOutlineKeepsSeparateAreasAndDoesNotBridgeEmptySpace() {
+        // Dois motivos distintos não podem ser conectados por linha de
+        // costura, mesmo quando sua extensão excede 7 mm.
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(0f, 0f, 170f, 155f),
+                rectangle(220f, 0f, 170f, 155f)
+            ),
+            densityMm = 0.5f
+        )
+        val rails = glyph.rails.flatten()
+        assertTrue("O primeiro desenho deve ser mantido.",
+            rails.any { it.middle.x < 170f })
+        assertTrue("O segundo desenho deve ser mantido.",
+            rails.any { it.middle.x > 220f })
+        val stitched = CleanRoomSatinEngine.stitchPlannedGlyphForTest(glyph)
+        assertTrue("Entre motivos vazios devem existir saltos, não pontos.",
+            stitched.count { it.command == StitchCommand.JUMP } >= 2)
+    }
+
+    @Test
     fun firstLegOfMUsesOneTransverseSatinCoverageWithoutReturningToSameRail() {
         val plan = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 24f, 132f)), densityMm = 0.4f
