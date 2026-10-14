@@ -451,20 +451,34 @@ internal object CleanRoomSatinEngine {
             }
             islands += FilledIsland(minX, minY, maxX, maxY, count)
         }
-        val body = islands.maxByOrNull { it.pixelCount } ?: return emptyList()
-        val bodyHeight = (body.maxY - body.minY + 1) * raster.step
-        if (bodyHeight < 10f) return emptyList()
+        if (islands.isEmpty()) return emptyList()
         val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
         return islands.asSequence()
             .filter { island ->
-                if (island === body || island.maxY >= body.minY) return@filter false
+                // Quando o texto é moldado como um contorno único ("Maria"),
+                // o M pode começar acima do pingo do i. Usar o topo da MAIOR
+                // letra fazia a recuperação falhar e deixava um traço reto.
+                // Procurar a haste real ABAIXO do acento, na mesma região X.
+                val support = islands.asSequence()
+                    .filter { stem ->
+                        stem !== island &&
+                            stem.pixelCount > island.pixelCount * 4 &&
+                            stem.minY > island.maxY &&
+                            stem.minX <= island.maxX &&
+                            stem.maxX >= island.minX
+                    }
+                    .maxByOrNull { it.pixelCount } ?: return@filter false
+
+                val stemHeight = (support.maxY - support.minY + 1) * raster.step
+                if (stemHeight < 10f) return@filter false
                 val w = (island.maxX - island.minX + 1) * raster.step
                 val h = (island.maxY - island.minY + 1) * raster.step
                 val ratio = w / h
-                w <= minOf(55f, bodyHeight * 0.48f) &&
-                    h <= minOf(55f, bodyHeight * 0.48f) &&
+                val gap = (support.minY - island.maxY - 1) * raster.step
+                w <= minOf(55f, stemHeight * 0.48f) &&
+                    h <= minOf(55f, stemHeight * 0.48f) &&
                     ratio in 0.45f..2.2f &&
-                    island.pixelCount * 4 < body.pixelCount
+                    gap in 0f..minOf(60f, stemHeight * 0.60f)
             }
             .sortedBy { it.minX }
             .mapNotNull { island ->
