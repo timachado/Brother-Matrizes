@@ -41,9 +41,8 @@ object EmbNativeInspector {
         bytes.size >= 8 && signature.indices.all { bytes[it] == signature[it] }
 
     fun looksLikeEmbName(name: String): Boolean {
-        val lower = name.lowercase(java.util.Locale.ROOT)
-        return lower.endsWith(".emb") ||
-            (lower.endsWith(".doc") && lower.contains(".emb"))
+        val lower = name.lowercase(java.util.Locale.ROOT).replace(Regex("\\s+"), "")
+        return lower.endsWith(".emb") || lower.endsWith(".emb.doc")
     }
 
     /**
