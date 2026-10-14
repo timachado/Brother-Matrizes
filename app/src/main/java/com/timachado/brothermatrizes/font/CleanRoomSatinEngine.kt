@@ -69,8 +69,12 @@ internal object CleanRoomSatinEngine {
         font: ImportedFont,
         sourceText: String,
         options: TextMatrixOptions,
-        filePrefix: String
+        filePrefix: String,
+        featureTag: String? = null
     ): Result<EmbroideryDesign> = runCatching {
+        require(featureTag == null || OpenTypeStyleChoices.isAllowedTag(featureTag)) {
+            "Estilo OpenType inválido."
+        }
         val text = sourceText.trim().take(24)
         require(text.isNotBlank()) { "Digite um nome." }
         require(options.heightMm in 4f..60f) { "Altura fora de 4 a 60 mm." }
@@ -95,7 +99,8 @@ internal object CleanRoomSatinEngine {
                 targetCapHeightUnits = heightUnits,
                 spacingUnits = spacing,
                 rotationDegrees = options.rotationDegrees,
-                preferWholeRun = preferWholeRun
+                preferWholeRun = preferWholeRun,
+                featureTag = featureTag
             )
             val result = mutableListOf<EmbroideryPoint>()
             val stitcher = Stitcher(result)
@@ -126,7 +131,8 @@ internal object CleanRoomSatinEngine {
         // for complexo demais para o Satin seguro, preservar a rota antiga.
         val points = runCatching { digitize(preferWholeRun = true) }
             .getOrElse { initialFailure ->
-                if (text.codePointCount(0, text.length) > 9 || spacing != 0f) {
+                if (featureTag != null ||
+                    text.codePointCount(0, text.length) > 9 || spacing != 0f) {
                     throw initialFailure
                 }
                 digitize(preferWholeRun = false)
