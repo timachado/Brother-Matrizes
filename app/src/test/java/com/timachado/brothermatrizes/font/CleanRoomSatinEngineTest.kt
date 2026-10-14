@@ -87,6 +87,23 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun originalSatinStrokeRoutingIsPreservedForWideDecorativeGlyphs() {
+        // Regressão da versão 1.10.17: proibir trocar a simulação
+        // Satin por carreiras independentes de preenchimento de linhas.
+        val glyph = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 185f, 165f)),
+            densityMm = 0.4f, pullMm = 0.2f
+        )
+        assertTrue("Manter o percurso Satin de múltiplas barras contínuas.",
+            glyph.rails.any { route -> route.size >= 4 })
+        val stream = CleanRoomSatinEngine.stitchPlannedGlyphForTest(glyph)
+        assertTrue("As barras Satin devem produzir pontadas.",
+            stream.count { it.command == StitchCommand.STITCH } >= 4)
+        assertEquals("Sem alterar cortes e arremates aprovados.",
+            0, stream.count { it.command == StitchCommand.TRIM })
+    }
+
+    @Test
     fun firstLegOfMUsesOneTransverseSatinCoverageWithoutReturningToSameRail() {
         val plan = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 24f, 132f)), densityMm = 0.4f
