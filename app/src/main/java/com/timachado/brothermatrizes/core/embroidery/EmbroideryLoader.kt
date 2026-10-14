@@ -155,6 +155,26 @@ object EmbroideryLoader {
                     it.isNotBlank()
                 }
 
+        // Importação EMB offline, sem API remota e sem transformar miniatura em matriz.
+        if (EmbNativeInspector.looksLikeEmbName(displayName) ||
+            EmbNativeInspector.hasCfbSignature(bytes)) {
+            val emb = runCatching {
+                EmbNativeInspector.inspect(displayName, bytes)
+            }.getOrElse { error ->
+                return EmbroideryLoadResult.Error(
+                    "Este arquivo EMB não pôde ser aberto com segurança.",
+                    error.message
+                )
+            }
+            if (emb != null) return EmbroideryLoadResult.EmbReadOnly(emb)
+            if (EmbNativeInspector.looksLikeEmbName(displayName)) {
+                return EmbroideryLoadResult.Error(
+                    "Arquivo EMB não reconhecido ou versão ainda não compatível.",
+                    "Seu arquivo original foi preservado."
+                )
+            }
+        }
+
         if (
             declaredExtension !=
                 null &&
