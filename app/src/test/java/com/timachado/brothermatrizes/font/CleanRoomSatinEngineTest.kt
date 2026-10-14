@@ -39,7 +39,7 @@ class CleanRoomSatinEngineTest {
             longest > 110.0)
         val physical = CleanRoomSatinEngine.stitchPlannedGlyphForTest(glyph)
         assertTrue("É necessário haver pontadas reais no desenho largo.",
-            physical.count { it.command == StitchCommand.STITCH } > 50)
+            physical.count { it.command == StitchCommand.STITCH } >= rails.size)
     }
 
     @Test
