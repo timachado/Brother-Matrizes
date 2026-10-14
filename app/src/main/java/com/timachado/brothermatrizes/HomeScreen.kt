@@ -259,7 +259,7 @@ fun HomeScreen(
                         .ic_ms_folder_open_rounded,
                 title = "Abrir matriz",
                 subtitle =
-                    "DST, JEF e PES",
+                    "DST, JEF, PES e EMB (prévia)",
                 enabled = true,
                 onClick =
                     onOpen
