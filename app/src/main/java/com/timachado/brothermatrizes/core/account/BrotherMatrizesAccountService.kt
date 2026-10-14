@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.core.account
 import android.content.Context
 import android.content.Intent
 import com.timachado.brothermatrizes.BuildConfig
+import com.timachado.brothermatrizes.core.network.NetworkStatus
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
@@ -327,6 +328,32 @@ object BrotherMatrizesAccountService {
                 isCurrent = true
             ))
         }
+
+    /**
+     * Atualiza atividade do app sem interferir em login, licença ou checkout.
+     * Falhas de rede/presença são silenciosas para não bloquear o usuário.
+     */
+    suspend fun recordPresence(context: Context): Result<Unit> = runCatching {
+        if (!NetworkStatus.isOnline(context)) return@runCatching Unit
+
+        val auth = client.auth
+        auth.awaitInitialization()
+        val status = auth.sessionStatus.first {
+            it !is SessionStatus.Initializing
+        }
+        val session = when (status) {
+            is SessionStatus.Authenticated -> status.session
+            else -> return@runCatching Unit
+        }
+
+        val token = session.accessToken
+        if (token.isBlank()) return@runCatching Unit
+
+        BrotherPresenceClient.heartbeat(
+            accessToken = token,
+            device = DeviceIdentity.current(context.applicationContext)
+        )
+    }
 
     suspend fun activateTrial(): Result<AccountSnapshot> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
