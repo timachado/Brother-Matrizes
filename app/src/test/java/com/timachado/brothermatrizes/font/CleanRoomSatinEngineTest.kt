@@ -112,6 +112,26 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun dotOfIIsRestoredEvenWhenAnotherCapitalStartsHigher() {
+        // Reprodução do vídeo "Maria": um M alto é a maior região,
+        // mas o pingo está sobre a haste do i (não sobre o M).
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(-90f, -75f, 24f, 135f),
+                rectangle(20f, 0f, 17f, 80f),
+                rectangle(24f, -24f, 9f, 10f)
+            ), densityMm = 0.4f
+        )
+        val dot = plan.rails.flatten().filter {
+            it.middle.x in 21f..38f && it.middle.y in -27f..-12f
+        }
+        assertTrue("Pingo precisa de multiplas linhas, mesmo com M alto",
+            dot.map { it.middle.y.roundToInt() }.distinct().size >= 3)
+        assertTrue("M nao deve desaparecer",
+            plan.rails.flatten().any { it.middle.x < -65f })
+    }
+
+    @Test
     fun branchesContinueForwardBeforeVisitingOtherPartsOfTheLetter() {
         val ordered = CleanRoomSatinEngine.orderSkeletonRoutes(
             listOf(
