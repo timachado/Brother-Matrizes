@@ -46,7 +46,7 @@ jobs:
       - name: Testes unitários da build debug
         run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Verificar arquivo oficial de marca gerado (sem FioLab)
+      - name: Verificar identidade visual oficial Brother Matrizes
         shell: bash
         run: |
           set -euo pipefail
