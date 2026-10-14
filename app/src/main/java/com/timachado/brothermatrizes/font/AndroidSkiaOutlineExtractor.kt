@@ -51,8 +51,12 @@ internal object AndroidSkiaOutlineExtractor {
         spacingUnits: Float,
         rotationDegrees: Float,
         preferWholeRun: Boolean = true,
-        featureTag: String? = null
+        featureTag: String? = null,
+        positionedStyle: OpenTypePositionedStyle = OpenTypePositionedStyle()
     ): Result {
+        require(featureTag == null || !positionedStyle.isEnabled) {
+            "Escolha estilo global ou floreios individuais, não ambos."
+        }
         val fontFile =
             File(
                 font.absolutePath
@@ -134,17 +138,21 @@ internal object AndroidSkiaOutlineExtractor {
         // estratégia de glifos individuais já usada na versão comercial.
         val useCompleteRun = preferWholeRun && spacingUnits == 0f &&
             codePoints.size in 2..9 &&
-            paint.measureText(text) <= targetCapHeightUnits * 6f
+            (positionedStyle.isEnabled ||
+                paint.measureText(text) <= targetCapHeightUnits * 6f)
 
         // Para alternativas contextuais, extrair letra a letra descartaria o
         // estilo escolhido; informar a limitação em vez de gerar um PES falso.
-        require(featureTag == null || useCompleteRun) {
+        require((featureTag == null && !positionedStyle.isEnabled) || useCompleteRun) {
             "Este estilo exige texto curto e espaçamento zero no modo Satin."
         }
 
         if (useCompleteRun) {
-            val whole = Path()
-            paint.getTextPath(text, 0, text.length, 0f, 0f, whole)
+            val whole = if (positionedStyle.isEnabled) {
+                OpenTypePositionedPath.compose(paint, text, positionedStyle).path
+            } else Path().apply {
+                paint.getTextPath(text, 0, text.length, 0f, 0f, this)
+            }
             if (!whole.isEmpty) {
                 val bounds = RectF()
                 whole.computeBounds(bounds, true)
@@ -161,7 +169,8 @@ internal object AndroidSkiaOutlineExtractor {
             }
         }
 
-        require(featureTag == null || rawGlyphs.isNotEmpty()) {
+        require((featureTag == null && !positionedStyle.isEnabled) ||
+            rawGlyphs.isNotEmpty()) {
             "Não foi possível digitalizar o contorno inteiro com o estilo escolhido."
         }
 
