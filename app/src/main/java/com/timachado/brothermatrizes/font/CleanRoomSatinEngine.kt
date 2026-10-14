@@ -41,7 +41,8 @@ internal object CleanRoomSatinEngine {
     internal data class PlannedGlyph(
         val rails: List<List<Rail>>,
         val sampledEdges: Int,
-        val duplicateRailsDiscarded: Int
+        val duplicateRailsDiscarded: Int,
+        val usesOutlineFill: Boolean = false
     )
 
     private data class Cell(val x: Int, val y: Int)
@@ -285,7 +286,112 @@ internal object CleanRoomSatinEngine {
             // nunca voltar para o topo depois de concluir a letra.
             result.addAll(0, restoredDots.map { it.rails })
         }
+
+        // Um Satin com colunas acima de 6 mm produz bandas transversais
+        // que atravessam os desenhos grossos de fontes ornamentais (ex.
+        // Anak Manja, Love e Snowball). Para este caso, digitalizar a
+        // MÁSCARA ORIGINAL como preenchimento de contorno: cada pontada
+        // continua dentro de uma ilha real da fonte, inclusive furos e
+        // pinguinhos desconectados. Não sobrepor máscara apenas na tela.
+        // O Stitcher fraciona as travessias grandes em pontadas seguras.
+        val hasOversizedSatin = result.any { route ->
+            route.any { rail -> length(rail.a, rail.b) > 60f }
+        }
+        if (hasOversizedSatin) {
+            val outline = outlineFillRails(raster, densityMm)
+            if (outline.isNotEmpty()) {
+                return PlannedGlyph(outline, orderedRoutes.sumOf { it.size },
+                    duplicates, usesOutlineFill = true)
+            }
+        }
         return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
+    }
+
+    /**
+     * Preenchimento adaptativo de contorno para fontes TTF/OTF largas.
+     * Cada ilha 8-conectada recebe linhas com densidade definida pelo
+     * usuário, começando no topo REAL da própria ilha, não na borda da
+     * palavra. Isso inclui pingos e ornamentos menores que o pitch.
+     *
+     * Os intervalos do mesmo nível são separados nos vazados originais;
+     * nunca rasterizar o retângulo total ou desenhar ligações sobre furos.
+     */
+    internal fun outlineFillRails(raster: Raster, densityMm: Float): List<List<Rail>> {
+        require(densityMm in 0.3f..1.2f)
+        val component = IntArray(raster.mask.size) { -1 }
+        val queue = java.util.ArrayDeque<Int>()
+        data class Island(val id: Int, val minX: Int, val minY: Int,
+                          val maxY: Int)
+        val islands = mutableListOf<Island>()
+        for (seed in raster.mask.indices) {
+            if (!raster.mask[seed] || component[seed] != -1) continue
+            val id = islands.size
+            component[seed] = id
+            queue.add(seed)
+            var minX = raster.width
+            var minY = raster.height
+            var maxY = 0
+            while (queue.isNotEmpty()) {
+                val at = queue.removeFirst()
+                val x = at % raster.width
+                val y = at / raster.width
+                minX = minOf(minX, x)
+                minY = minOf(minY, y)
+                maxY = maxOf(maxY, y)
+                for (dy in -1..1) for (dx in -1..1) {
+                    if (dx == 0 && dy == 0) continue
+                    val nx = x + dx
+                    val ny = y + dy
+                    if (nx !in 0 until raster.width ||
+                        ny !in 0 until raster.height) continue
+                    val next = raster.index(nx, ny)
+                    if (raster.mask[next] && component[next] == -1) {
+                        component[next] = id
+                        queue.add(next)
+                    }
+                }
+            }
+            islands += Island(id, minX, minY, maxY)
+        }
+        val pitchCells = max(1, (densityMm * 10f / raster.step).roundToInt())
+        val output = mutableListOf<List<Rail>>()
+        for (island in islands.sortedWith(compareBy<Island> { it.minX }
+                .thenBy { it.minY })) {
+            val selected = linkedSetOf<Int>()
+            var y = island.minY
+            while (y <= island.maxY) {
+                selected += y
+                y += pitchCells
+            }
+            selected += island.maxY
+            var reverse = false
+            for (row in selected.sorted()) {
+                val intervals = mutableListOf<Rail>()
+                var x = 0
+                while (x < raster.width) {
+                    while (x < raster.width &&
+                        component[raster.index(x, row)] != island.id) x++
+                    if (x >= raster.width) break
+                    val first = x
+                    while (x < raster.width &&
+                        component[raster.index(x, row)] == island.id) x++
+                    val last = x - 1
+                    val left = raster.left + (first - 0.45f) * raster.step
+                    val right = raster.left + (last + 0.45f) * raster.step
+                    val atY = raster.top + row * raster.step
+                    intervals += Rail(V(left, atY), V(right, atY))
+                }
+                if (intervals.isEmpty()) continue
+                val rowRails = if (reverse) intervals.asReversed().map {
+                    Rail(it.b, it.a)
+                } else intervals
+                // Uma linha por intervalo: Stitcher aplica JUMP ao
+                // atravessar espaço vazio antes da próxima região.
+                rowRails.forEach { output += listOf(it) }
+                reverse = !reverse
+            }
+        }
+        return output
     }
 
     /**
