@@ -22,13 +22,27 @@ internal object OpenTypeStyleEffectProbe {
         candidates: List<OpenTypeStyleChoice>
     ): List<OpenTypeStyleChoice> {
         val fallback = listOf(OpenTypeStyleChoice(null, "Padrão"))
-        if (text.isBlank() || text.length > 24 || candidates.size < 2) return fallback
+        if (text.isBlank() || text.length > 24 || candidates.size < 2 ||
+            !OpenTypeRunSafety.allowsShaping(text.codePointCount(0, text.length)))
+            return fallback
         return runCatching {
             val typeface = Typeface.createFromFile(File(font.absolutePath))
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.typeface = typeface
                 textSize = 94f
                 hinting = Paint.HINTING_OFF
+            }
+            fun capHeightForSelectedFeature(): Float {
+                // Mesmo H usado no extrator Satin: uma alternativa que
+                // excede o limite de shaping não deve aparecer na lista.
+                val cap = Path()
+                paint.getTextPath("H", 0, 1, 0f, 0f, cap)
+                if (!cap.isEmpty) {
+                    val bounds = RectF()
+                    cap.computeBounds(bounds, true)
+                    if (bounds.height() > 0f) return bounds.height()
+                }
+                return abs(paint.fontMetrics.ascent) * 0.72f
             }
             fun contour(settings: String?): FloatArray {
                 paint.fontFeatureSettings = settings
@@ -84,6 +98,9 @@ internal object OpenTypeStyleEffectProbe {
                 .filter { candidate ->
                     val other = contour(candidate.settings)
                     other.isNotEmpty() && changed(original, other) &&
+                        OpenTypeRunSafety.allowsAdvance(
+                            paint.measureText(text), capHeightForSelectedFeature()
+                        ) &&
                         !crossesNeighbourGlyphs(candidate.settings!!)
                 }
                 .toList()
