@@ -335,18 +335,19 @@ object ImportedFontStore {
         val rawBase =
             file.nameWithoutExtension
 
-        val displayName =
-            rawBase
-                .replace(
-                    Regex("-[0-9a-fA-F]{10}$"),
-                    ""
-                )
-                .replace('_', ' ')
-                .replace('-', ' ')
-                .trim()
-                .ifBlank {
-                    "Fonte importada"
-                }
+        // O nome verdadeiro vem da tabela interna SFNT, não do nome
+        // frequentemente técnico, abreviado ou codificado recebido no ZIP.
+        // Não mudamos o ID/caminho da fonte: fontes já instaladas passam a
+        // ser exibidas corretamente sem refazer a importação ou gastar cota.
+        val fallbackName = rawBase
+            .replace(Regex("-[0-9a-fA-F]{10}$"), "")
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .trim()
+            .ifBlank { "Fonte importada" }
+
+        val displayName = SfntFontNameReader.familyName(file)
+            ?: fallbackName
 
         return ImportedFont(
             id = file.name,
