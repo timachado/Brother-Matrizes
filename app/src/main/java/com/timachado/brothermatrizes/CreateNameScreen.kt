@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
@@ -350,6 +351,7 @@ fun CreateNameScreen(
     val textTypeface = remember(importedFont?.id) {
         importedFont?.let { ImportedFontStore.loadTypeface(it).getOrNull() }
     }
+    var showFontPreviewDialog by remember { mutableStateOf(false) }
 
     val glyphProvider =
         importedFont
@@ -685,6 +687,110 @@ fun CreateNameScreen(
             hoopFit?.fits ==
                 true
         }
+
+    if (showFontPreviewDialog && importedFont != null) {
+        AlertDialog(
+            onDismissRequest = { showFontPreviewDialog = false },
+            containerColor = FioSurface,
+            title = {
+                Text(
+                    "Estilos da fonte · " + importedFont.displayName,
+                    color = FioText, fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    Text(
+                        "Texto: " + text.take(24),
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    // Esta caixa sempre tem altura própria no diálogo; na aba
+                    // Fonte a prévia antiga era cortada pelos botões fixos.
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                            .height(92.dp)
+                            .background(FioSurfaceAlt, RoundedCornerShape(12.dp))
+                            .padding(6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxWidth(),
+                            factory = { viewContext ->
+                                TextView(viewContext).apply {
+                                    textSize = 29f
+                                    setTextColor(FioText.toArgb())
+                                    setPadding(6, 2, 6, 2)
+                                    isSingleLine = true
+                                }
+                            },
+                            update = { view ->
+                                view.text = text.take(24)
+                                textTypeface?.let { view.typeface = it }
+                                view.fontFeatureSettings =
+                                    OpenTypeStyleChoices.fontSettings(appliedFeatureTag)
+                            }
+                        )
+                    }
+                    if (textTypeface == null) {
+                        Text(
+                            "Não foi possível renderizar esta fonte no Android.",
+                            color = Color(0xFFFF9F9A), fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        if (openTypeEnabled) "Estilos que alteram o contorno deste texto"
+                        else "Para escolher alternativas, use texto reto, Satin e espaçamento zero.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    if (openTypeEnabled && visibleFontStyles.size > 1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            visibleFontStyles.forEach { style ->
+                                ChoiceButton(
+                                    text = style.label,
+                                    selected = appliedFeatureTag == style.tag,
+                                    onClick = { selectedFeatureTag = style.tag }
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Padrão. Nenhuma alternativa comprovada para este texto " +
+                                "nas configurações atuais.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                    }
+                    if (availableFontStyles.size > 1) {
+                        Text(
+                            "Recursos da fonte: " +
+                                availableFontStyles.mapNotNull { it.tag }.joinToString(", ") +
+                                ". A existência de um recurso não garante diferença nesta palavra.",
+                            color = FioTextMuted, fontSize = 10.sp
+                        )
+                    }
+                    Text(
+                        "Compare com a prévia de bordado na tela anterior. " +
+                            "Detalhes pequenos podem não gerar pontos Satin fiéis.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFontPreviewDialog = false }) {
+                    Text("Aplicar e fechar", color = FioGold,
+                        fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 
     Column(
         Modifier
@@ -1175,13 +1281,25 @@ fun CreateNameScreen(
                                 )
                             )
 
-                            Text(
-                                "Fontes salvas",
-                                color =
-                                    FioText,
-                                fontWeight =
-                                    FontWeight.SemiBold
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "Fontes salvas",
+                                    color = FioText,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (importedFont != null) {
+                                    TextButton(onClick = { showFontPreviewDialog = true }) {
+                                        Text(
+                                            "Ver estilos e prévia",
+                                            color = FioGold, fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
 
                             if (
                                 importedFonts
@@ -1242,66 +1360,6 @@ fun CreateNameScreen(
                                             )
                                         }
                                 }
-                            }
-
-                            if (importedFont != null) {
-                                Spacer(Modifier.height(10.dp))
-                                Text(
-                                    "Visualização da fonte original",
-                                    color = FioText,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                if (visibleFontStyles.size > 1) {
-                                    Spacer(Modifier.height(5.dp))
-                                    Text(
-                                        if (openTypeEnabled)
-                                            "Variantes OpenType disponíveis nesta fonte"
-                                        else
-                                            "Variantes apenas para texto reto, modo Satin e espaçamento zero.",
-                                        color = FioTextMuted,
-                                        fontSize = 10.sp
-                                    )
-                                    if (openTypeEnabled) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth()
-                                                .horizontalScroll(rememberScrollState())
-                                                .padding(vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(7.dp)
-                                        ) {
-                                            visibleFontStyles.forEach { style ->
-                                                ChoiceButton(
-                                                    text = style.label,
-                                                    selected = appliedFeatureTag == style.tag,
-                                                    onClick = { selectedFeatureTag = style.tag }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                // A mesma configuração de OpenType é aplicada ao
-                                // contorno do motor Satin, não a uma fonte genérica.
-                                AndroidView(
-                                    modifier = Modifier.fillMaxWidth().height(62.dp),
-                                    factory = { viewContext ->
-                                        TextView(viewContext).apply {
-                                            textSize = 28f
-                                            setTextColor(FioText.toArgb())
-                                            setPadding(8, 4, 8, 4)
-                                            isSingleLine = true
-                                        }
-                                    },
-                                    update = { view ->
-                                        view.text = text.take(24)
-                                        textTypeface?.let { view.typeface = it }
-                                        view.fontFeatureSettings =
-                                            OpenTypeStyleChoices.fontSettings(appliedFeatureTag)
-                                    }
-                                )
-                                Text(
-                                    "A prévia de bordado fica acima. Detalhes muito finos " +
-                                        "podem exigir ajustes para formar pontadas seguras.",
-                                    color = FioTextMuted, fontSize = 10.sp
-                                )
                             }
 
                             Text(
