@@ -206,29 +206,50 @@ internal object AndroidSkiaOutlineExtractor {
                 textOffset += glyphText.length
             }
 
+        /*
+         * A prévia Android desenha o TEXTO INTEIRO. A versão 1.10.8 extraía
+         * cada caractere isoladamente e apenas somava um avanço de kerning:
+         * isso NÃO aplica ao contorno as substituições e ligaduras da
+         * renderização OpenType. Para texto latino sem espaçamento forçado,
+         * extrair a silhueta completa uma única vez e apenas AGRUPAR seus
+         * anéis por centro visual. Nenhuma coordenada de contorno é alterada.
+         *
+         * Espaçamento manual ou scripts complexos mantêm o percurso antigo.
+         * A saída continua sendo List<List<List<Point>>> para o Satin
+         * original, sem mudanças no motor ou no simulador.
+         */
+        val shapedGlyphs = if (
+            spacingUnits == 0f &&
+            codePoints.size in 2..24 &&
+            codePoints.all { it in 0x20..0x024f }
+        ) {
+            extractShapedGlyphs(paint, text, codePoints)
+        } else null
+        val selectedGlyphs = shapedGlyphs?.takeIf { it.isNotEmpty() } ?: rawGlyphs
+
         require(
-            rawGlyphs.isNotEmpty()
+            selectedGlyphs.isNotEmpty()
         ) {
             "A fonte não gerou glifos vetoriais bordáveis."
         }
 
         val minX =
-            rawGlyphs.minOf {
+            selectedGlyphs.minOf {
                 it.left
             }
 
         val maxX =
-            rawGlyphs.maxOf {
+            selectedGlyphs.maxOf {
                 it.right
             }
 
         val minY =
-            rawGlyphs.minOf {
+            selectedGlyphs.minOf {
                 it.top
             }
 
         val maxY =
-            rawGlyphs.maxOf {
+            selectedGlyphs.maxOf {
                 it.bottom
             }
 
@@ -265,7 +286,7 @@ internal object AndroidSkiaOutlineExtractor {
                 .toFloat()
 
         val transformed =
-            rawGlyphs.map {
+            selectedGlyphs.map {
                     glyph ->
                 glyph.contours.map {
                     contour ->
@@ -305,6 +326,64 @@ internal object AndroidSkiaOutlineExtractor {
                 maxY -
                     minY
         )
+    }
+
+    /**
+     * Preservar literalmente os contornos gerados pelo shaping OpenType da
+     * palavra completa. A distribuição por caractere serve SOMENTE à ordem
+     * do Satin existente, jamais para cortar ou transladar um contorno.
+     */
+    private fun extractShapedGlyphs(
+        paint: Paint,
+        text: String,
+        codePoints: IntArray
+    ): List<RawGlyph>? {
+        val fullPath = Path()
+        paint.getTextPath(text, 0, text.length, 0f, 0f, fullPath)
+        if (fullPath.isEmpty) return null
+
+        val outlines = sampleContours(fullPath)
+        if (outlines.isEmpty()) return null
+
+        val centers = mutableListOf<Float>()
+        var position = 0
+        for (cp in codePoints) {
+            val start = paint.getRunAdvance(
+                text, 0, text.length, 0, text.length, false, position
+            )
+            position += Character.charCount(cp)
+            val end = paint.getRunAdvance(
+                text, 0, text.length, 0, text.length, false, position
+            )
+            val center = (start + end) * 0.5f
+            if (!center.isFinite()) return null
+            centers += center
+        }
+        if (centers.isEmpty()) return null
+
+        val perGlyph = List(centers.size) { mutableListOf<List<Point>>() }
+        for (contour in outlines) {
+            val minX = contour.minOf { it.x }
+            val maxX = contour.maxOf { it.x }
+            val centroid = (minX + maxX) * 0.5f
+            if (!centroid.isFinite()) return null
+            val index =
+                ImportedGlyphVectorGeometry.nearestGlyphIndex(centroid, centers)
+            perGlyph[index] += contour
+        }
+
+        return perGlyph.mapNotNull { contours ->
+            if (contours.isEmpty()) null else {
+                val coords = contours.flatten()
+                RawGlyph(
+                    contours = contours,
+                    left = coords.minOf { it.x },
+                    top = coords.minOf { it.y },
+                    right = coords.maxOf { it.x },
+                    bottom = coords.maxOf { it.y }
+                )
+            }
+        }
     }
 
     private fun measuredCapHeight(
@@ -369,13 +448,7 @@ internal object AndroidSkiaOutlineExtractor {
                 length.isFinite()
             ) {
                 val sampleCount =
-                    max(
-                        8,
-                        ceil(
-                            length /
-                                2f
-                        ).toInt()
-                    )
+                    ImportedGlyphVectorGeometry.sampleCount(length)
 
                 val points =
                     ArrayList<Point>(
