@@ -120,6 +120,27 @@ object EmbroideryLoader {
             )
         }
 
+        // EMB nativo: leitura local de streams OLE/CFB e prévia, sem fabricação
+        // de pontos de máquina nem envio de dados. Suporta também ".emb .doc".
+        if (EmbNativeInspector.looksLikeEmbName(displayName) ||
+            EmbNativeInspector.hasCfbSignature(bytes)) {
+            val emb = runCatching {
+                EmbNativeInspector.inspect(displayName, bytes)
+            }.getOrElse { error ->
+                return EmbroideryLoadResult.Error(
+                    "Este EMB não pôde ser aberto com segurança.",
+                    error.message
+                )
+            }
+            if (emb != null) return EmbroideryLoadResult.EmbReadOnly(emb)
+            if (EmbNativeInspector.looksLikeEmbName(displayName)) {
+                return EmbroideryLoadResult.Error(
+                    "Arquivo EMB não reconhecido ou versão ainda não compatível.",
+                    "O arquivo original não foi modificado."
+                )
+            }
+        }
+
         if (
             declaredExtension !=
                 null &&
