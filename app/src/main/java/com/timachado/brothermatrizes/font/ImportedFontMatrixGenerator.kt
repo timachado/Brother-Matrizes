@@ -30,7 +30,8 @@ object ImportedFontMatrixGenerator {
         font: ImportedFont,
         char: Char,
         options: TextMatrixOptions,
-        featureTag: String? = null
+        featureTag: String? = null,
+        positionedStyle: OpenTypePositionedStyle = OpenTypePositionedStyle()
     ): Result<EmbroideryDesign> =
         generateWithReferenceSatin(
             font = font,
@@ -40,14 +41,16 @@ object ImportedFontMatrixGenerator {
                 options,
             filePrefix =
                 "fonte",
-            featureTag = featureTag
+            featureTag = featureTag,
+            positionedStyle = positionedStyle
         )
 
     fun generateText(
         font: ImportedFont,
         text: String,
         options: TextMatrixOptions,
-        featureTag: String? = null
+        featureTag: String? = null,
+        positionedStyle: OpenTypePositionedStyle = OpenTypePositionedStyle()
     ): Result<EmbroideryDesign> =
         generateWithReferenceSatin(
             font = font,
@@ -57,7 +60,8 @@ object ImportedFontMatrixGenerator {
                 options,
             filePrefix =
                 "nome",
-            featureTag = featureTag
+            featureTag = featureTag,
+            positionedStyle = positionedStyle
         )
 
     /**
@@ -71,7 +75,8 @@ object ImportedFontMatrixGenerator {
         sourceText: String,
         options: TextMatrixOptions,
         filePrefix: String,
-        featureTag: String?
+        featureTag: String?,
+        positionedStyle: OpenTypePositionedStyle
     ): Result<EmbroideryDesign> =
         if (
             options.style ==
@@ -89,10 +94,11 @@ object ImportedFontMatrixGenerator {
                         options,
                     filePrefix =
                         filePrefix,
-                    featureTag = featureTag
+                    featureTag = featureTag,
+                    positionedStyle = positionedStyle
                 )
         } else {
-            if (featureTag != null) {
+            if (featureTag != null || positionedStyle.isEnabled) {
                 Result.failure(IllegalArgumentException(
                     "Estilos OpenType alternativos exigem o modo Satin."
                 ))
