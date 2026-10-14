@@ -470,26 +470,46 @@ internal object CleanRoomSatinEngine {
                 // o M pode começar acima do pingo do i. Usar o topo da MAIOR
                 // letra fazia a recuperação falhar e deixava um traço reto.
                 // Procurar a haste real ABAIXO do acento, na mesma região X.
-                val support = islands.asSequence()
-                    .filter { stem ->
-                        stem !== island &&
-                            stem.pixelCount > island.pixelCount * 4 &&
-                            stem.minY > island.maxY &&
-                            stem.minX <= island.maxX &&
-                            stem.maxX >= island.minX
-                    }
-                    .maxByOrNull { it.pixelCount } ?: return@filter false
-
-                val stemHeight = (support.maxY - support.minY + 1) * raster.step
-                if (stemHeight < 10f) return@filter false
+                // Em palavras cursivas o M e a haste do i podem fazer
+                // parte da mesma ilha conectada. A ilha inteira começa
+                // ACIMA do pingo; exigir stem.minY > dot.maxY descarta o
+                // pingo e deixa somente uma barra horizontal na matriz.
+                // Buscar, em vez disso, suporte REAL preenchido na coluna
+                // diretamente abaixo do pingo, sem inventar geometria.
                 val w = (island.maxX - island.minX + 1) * raster.step
                 val h = (island.maxY - island.minY + 1) * raster.step
-                val ratio = w / h
-                val gap = (support.minY - island.maxY - 1) * raster.step
-                w <= minOf(55f, stemHeight * 0.48f) &&
-                    h <= minOf(55f, stemHeight * 0.48f) &&
-                    ratio in 0.45f..2.2f &&
-                    gap in 0f..minOf(60f, stemHeight * 0.60f)
+                if (w !in 2f..55f || h !in 2f..55f ||
+                    w / h !in 0.45f..2.2f) return@filter false
+
+                val fromX = maxOf(1, island.minX - 2)
+                val toX = minOf(raster.width - 2, island.maxX + 2)
+                val firstY = island.maxY + 1
+                val lastY = minOf(
+                    raster.height - 2,
+                    island.maxY + (65f / raster.step).roundToInt()
+                )
+                if (firstY > lastY) return@filter false
+                fun occupiedBelow(y: Int): Boolean =
+                    (fromX..toX).any { x -> raster.inside(x, y) }
+
+                var firstStemY = -1
+                var stemRun = 0
+                var longestStemRun = 0
+                for (y in firstY..lastY) {
+                    if (occupiedBelow(y)) {
+                        if (firstStemY < 0) firstStemY = y
+                        stemRun++
+                        longestStemRun = maxOf(longestStemRun, stemRun)
+                    } else stemRun = 0
+                }
+                if (firstStemY < 0) return@filter false
+                val gap = (firstStemY - island.maxY - 1) * raster.step
+                val requiredStem = maxOf(7f, h * 1.25f)
+                gap in 0f..minOf(45f, requiredStem * 2f) &&
+                    longestStemRun * raster.step >= requiredStem &&
+                    // Notas grandes ou ornamentos isolados não são pingos.
+                    w <= minOf(55f, longestStemRun * raster.step * 0.60f) &&
+                    h <= minOf(55f, longestStemRun * raster.step * 0.60f)
             }
             .sortedBy { it.minX }
             .mapNotNull { island ->
