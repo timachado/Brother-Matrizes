@@ -93,6 +93,7 @@ data class EditTransform(
 )
 
 sealed interface EmbroideryLoadResult {
+    data class EmbReadOnly(val preview: EmbNativePreview) : EmbroideryLoadResult
     data class Success(val design: EmbroideryDesign) : EmbroideryLoadResult
 
     data class Error(
