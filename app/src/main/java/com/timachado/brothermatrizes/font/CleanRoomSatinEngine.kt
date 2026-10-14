@@ -70,8 +70,12 @@ internal object CleanRoomSatinEngine {
         sourceText: String,
         options: TextMatrixOptions,
         filePrefix: String,
-        featureTag: String? = null
+        featureTag: String? = null,
+        positionedStyle: OpenTypePositionedStyle = OpenTypePositionedStyle()
     ): Result<EmbroideryDesign> = runCatching {
+        require(featureTag == null || !positionedStyle.isEnabled) {
+            "Escolha um estilo global OU uma variante por letra."
+        }
         require(featureTag == null || OpenTypeStyleChoices.isAllowedTag(featureTag)) {
             "Estilo OpenType inválido."
         }
@@ -100,7 +104,8 @@ internal object CleanRoomSatinEngine {
                 spacingUnits = spacing,
                 rotationDegrees = options.rotationDegrees,
                 preferWholeRun = preferWholeRun,
-                featureTag = featureTag
+                featureTag = featureTag,
+                positionedStyle = positionedStyle
             )
             val result = mutableListOf<EmbroideryPoint>()
             val stitcher = Stitcher(result)
@@ -131,7 +136,7 @@ internal object CleanRoomSatinEngine {
         // for complexo demais para o Satin seguro, preservar a rota antiga.
         val points = runCatching { digitize(preferWholeRun = true) }
             .getOrElse { initialFailure ->
-                if (featureTag != null ||
+                if (featureTag != null || positionedStyle.isEnabled ||
                     text.codePointCount(0, text.length) > 9 || spacing != 0f) {
                     throw initialFailure
                 }
