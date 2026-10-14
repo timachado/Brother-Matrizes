@@ -768,6 +768,16 @@ fun CreateNameScreen(
                             color = FioTextMuted, fontSize = 11.sp
                         )
                     }
+                    if (availableFontStyles.size > visibleFontStyles.size) {
+                        Text(
+                            "Algumas alternativas não são oferecidas para esta palavra: " +
+                                "elas não mudam o desenho ou seus floreios ultrapassam " +
+                                "o espaço das letras vizinhas. O modo Padrão preserva " +
+                                "a leitura do nome. Floreios individuais exigem " +
+                                "uma seleção separada da letra.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                    }
                     if (availableFontStyles.size > 1) {
                         Text(
                             "Recursos da fonte: " +
