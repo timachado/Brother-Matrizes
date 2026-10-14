@@ -1,4 +1,6 @@
-# Brother Matrizes 0.46.9
+# Brother Matrizes
+
+Versão comercial oficial de referência: **1.10.8** (`com.timachado.brothermatrizes`).
 
 Aplicativo Android nativo para criar, visualizar, editar, simular e converter matrizes de bordado diretamente pelo celular.
 
