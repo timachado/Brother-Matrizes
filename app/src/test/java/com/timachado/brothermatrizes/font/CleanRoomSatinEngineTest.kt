@@ -132,6 +132,34 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun restoresIWhenCapitalAndStemBelongToSameConnectedIsland() {
+        // O problema que o teste anterior não cobria: a letra M se
+        // conecta ao i por uma linha cursiva. Assim, a ilha principal
+        // começa em Y=-75, acima do pingo em Y=-24.
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(
+                rectangle(-90f, -75f, 24f, 135f), // M alto
+                rectangle(-66f, 6f, 88f, 9f),    // ligação M→i
+                rectangle(16f, 0f, 17f, 80f),    // haste do i
+                rectangle(20f, -24f, 9f, 10f)    // pingo separado
+            ), densityMm = 0.4f
+        )
+        val dotRails = plan.rails.flatten().filter { r ->
+            r.middle.x in 17f..32f && r.middle.y in -27f..-12f
+        }
+        assertTrue(
+            "Pingo precisa de multiplas linhas Satin com letras conectadas",
+            dotRails.map { it.middle.y.roundToInt() }.distinct().size >= 3
+        )
+        assertTrue("M original deve ser preservado",
+            plan.rails.flatten().any { it.middle.x < -65f })
+        assertTrue("Haste real do i deve permanecer",
+            plan.rails.flatten().any {
+                it.middle.x in 16f..34f && it.middle.y in 30f..70f
+            })
+    }
+
+    @Test
     fun branchesContinueForwardBeforeVisitingOtherPartsOfTheLetter() {
         val ordered = CleanRoomSatinEngine.orderSkeletonRoutes(
             listOf(
