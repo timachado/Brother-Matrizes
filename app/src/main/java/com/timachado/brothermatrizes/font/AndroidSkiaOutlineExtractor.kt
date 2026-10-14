@@ -366,14 +366,11 @@ internal object AndroidSkiaOutlineExtractor {
                     0f &&
                 length.isFinite()
             ) {
+                // Refinar SOMENTE o contorno TTF/OTF de entrada:
+                // o Stitcher, as faixas Satin, os saltos e a simulação
+                // continuam exatamente no percurso original.
                 val sampleCount =
-                    max(
-                        8,
-                        ceil(
-                            length /
-                                2f
-                        ).toInt()
-                    )
+                    ImportedGlyphContourSampling.sampleCount(length)
 
                 val points =
                     ArrayList<Point>(
