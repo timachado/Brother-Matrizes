@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Instalar leitor independente para arquivos de máquina
-        run: python -m pip install --disable-pip-version-check pyembroidery==1.5.1
+        run: python -m pip install --disable-pip-version-check pyembroidery==1.5.1 olefile==0.47
       - name: Inspecionar amostras autenticas; NAO CONVERTER arquivos EMB
         run: python project/research/brother-studio/inspect_authentic_samples.py public-samples research-output
       - name: Publicar evidências somente do experimento, nunca APK ou release
