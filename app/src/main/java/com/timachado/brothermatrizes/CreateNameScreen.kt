@@ -69,6 +69,7 @@ import com.timachado.brothermatrizes.font.OpenTypeStyleEffectProbe
 import com.timachado.brothermatrizes.font.OpenTypeFlourishPreviewView
 import com.timachado.brothermatrizes.font.OpenTypePositionedChoiceProbe
 import com.timachado.brothermatrizes.font.OpenTypePositionedStyle
+import com.timachado.brothermatrizes.font.OpenTypeRunSafety
 import java.io.File
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -796,8 +797,15 @@ fun CreateNameScreen(
                         }
                     } else {
                         Text(
-                            "Padrão. Nenhuma alternativa comprovada para este texto " +
-                                "nas configurações atuais.",
+                            if (openTypeEnabled &&
+                                !OpenTypeRunSafety.allowsShaping(
+                                    text.codePointCount(0, text.length)
+                                ))
+                                "Alternativas OpenType exigem um nome de 2 a 9 caracteres. " +
+                                    "Você ainda pode usar esta fonte no modo Padrão."
+                            else
+                                "Padrão. Nenhuma alternativa comprovada para este texto " +
+                                    "nas configurações atuais.",
                             color = FioTextMuted, fontSize = 11.sp
                         )
                     }
