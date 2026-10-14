@@ -36,6 +36,7 @@ import com.timachado.fiolab.core.embroidery.ConvertedMatrix
 import com.timachado.fiolab.core.embroidery.EmbroideryDesign
 import com.timachado.fiolab.core.embroidery.EmbroideryLoadResult
 import com.timachado.fiolab.core.embroidery.EmbroideryLoader
+import com.timachado.fiolab.core.embroidery.EmbNativePreview
 import com.timachado.fiolab.core.embroidery.HoopProfile
 import com.timachado.fiolab.core.embroidery.HoopValidator
 import com.timachado.fiolab.core.embroidery.MatrixConverter
@@ -132,6 +133,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private sealed interface Screen {
+    data class EmbPreview(val document: EmbNativePreview) : Screen
     data object Home : Screen
     data object CreateName : Screen
     data object CreateMonogram : Screen
@@ -461,6 +463,9 @@ private fun FioLabApp(
                 is Screen.Viewer ->
                     Screen.Home
 
+                is Screen.EmbPreview ->
+                    Screen.Home
+
                 is Screen.Simulator ->
                     Screen.Viewer(
                         design =
@@ -526,6 +531,10 @@ private fun FioLabApp(
                 loading = false
 
                 when (result) {
+                    is EmbroideryLoadResult.EmbReadOnly -> {
+                        screen = Screen.EmbPreview(result.preview)
+                    }
+
                     is EmbroideryLoadResult.Success -> {
                         activateDesign(
                             result.design
@@ -1811,6 +1820,14 @@ private fun FioLabApp(
                                     "Enviar matriz por Wi-Fi / app da máquina"
                             )
                         }
+                    )
+                }
+
+                is Screen.EmbPreview -> {
+                    EmbNativePreviewScreen(
+                        document = current.document,
+                        onBack = { goBack() },
+                        onOpen = { picker.launch(arrayOf("*/*")) }
                     )
                 }
 
