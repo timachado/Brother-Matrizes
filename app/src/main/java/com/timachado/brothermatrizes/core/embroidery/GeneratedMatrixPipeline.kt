@@ -161,6 +161,11 @@ object GeneratedMatrixPipeline {
                     )
             }
 
+            is EmbroideryLoadResult.EmbReadOnly ->
+                EmbroideryLoadResult.Error(
+                    "Um EMB nativo não pode ser tratado como pontos de máquina."
+                )
+
             is EmbroideryLoadResult
                 .Error ->
                 opened
