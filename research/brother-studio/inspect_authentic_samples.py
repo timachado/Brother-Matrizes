@@ -12,6 +12,7 @@ from pathlib import Path
 import sys
 
 import pyembroidery
+import olefile
 
 SAMPLES = Path(sys.argv[1] if len(sys.argv) > 1 else "public-samples")
 OUTPUT = Path(sys.argv[2] if len(sys.argv) > 2 else "research-output")
@@ -59,6 +60,15 @@ for name in NATIVE:
     if not path.is_file():
         raise FileNotFoundError(f"Amostra EMB pública ausente: {name}")
     d = evidence(path)
+    if d["ole_container"] and olefile.isOleFile(str(path)):
+        with olefile.OleFileIO(str(path)) as compound:
+            streams = ["/".join(x) for x in compound.listdir(streams=True, storages=False)]
+        d["ole_streams"] = streams[:24]
+        d["ole_stream_count"] = len(streams)
+        d["wilcom_version_read_from_emb"] = None
+    else:
+        d["ole_streams"] = []
+        d["ole_stream_count"] = 0
     d["classification"] = "arquivo de amostra denominado EMB; leitura proprietária NÃO validada"
     # Não aceitar renomear um formato distinto para EMB como conversão.
     if d["pes_magic"]:
@@ -118,11 +128,11 @@ lines = [
     "**Status:** identificação de amostras EMB e leitura independente dos arquivos de máquina, NÃO uma conversão EMB.",
     "",
     "## Amostras EMB autênticas de referência",
-    "| Nome | Tamanho (bytes) | Cabeçalho hexadecimal (32 primeiros bytes) | SHA-256 |",
+    "| Nome | Tamanho | Streams internos OLE | SHA-256 |",
     "|---|---:|---|---|"
 ]
 for x in native:
-    lines.append(f"| {x['filename']} | {x['bytes']} | \`{x['header_hex']}\` | \`{x['sha256']}\` |")
+    lines.append(f"| {x['filename']} | {x['bytes']} | {', '.join(x['ole_streams'][:5])} | \`{x['sha256']}\` |")
 lines.extend(["", "## Matrizes de máquina de referência", "| Formato | Arquivo | Leitura independente | Pontos de costura |",
               "|---|---|---|---:|"])
 for x in machines:
