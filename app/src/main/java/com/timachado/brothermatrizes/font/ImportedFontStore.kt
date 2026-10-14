@@ -16,7 +16,11 @@ data class ImportedFont(
     val fileName: String,
     val extension: String,
     val absolutePath: String
-)
+) {
+    /** Mantém TTF e OTF identificáveis quando o pacote possui duas variantes. */
+    val chooserLabel: String
+        get() = "$displayName · ${extension.uppercase(Locale.ROOT)}"
+}
 
 object ImportedFontStore {
     private const val DIRECTORY = "imported_fonts"
