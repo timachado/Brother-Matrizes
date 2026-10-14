@@ -1,0 +1,54 @@
+name: Brother Matrizes 1.10.8 - Aviso automatico aos usuarios inscritos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'releases/brother-1.10.8-notification-approved.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-1-10-8-fcm-once
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: ${{ github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 15
+    steps:
+      - name: Checkout da campanha unica
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Exigir aprovacao NOVA para release 1.10.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "timachado/Brother-Matrizes"
+          test "$GITHUB_REF_NAME" = "main"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          git diff-tree --no-commit-id --name-only --diff-filter=A -r "$GITHUB_SHA" |
+            grep -Fx 'releases/brother-1.10.8-notification-approved.json'
+          test -s releases/brother-1.10.8-notification-approved.json
+          jq -e '.authorized == true and .doNotRepeat == true
+            and .campaignId == "brother-v1.10.8-update-20261014"
+            and .versionName == "1.10.8" and .versionCode == 184
+            and .sha256 == "67126397ee416386d2991214208a637165e73401aa6c71693495f10d62638819"
+            and .topic == "brother_matrizes_updates_stable"'             releases/brother-1.10.8-notification-approved.json
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe do emissor
+        run: node --check .github/scripts/announce-brother-1.10.8.mjs
+      - name: Instalar biblioteca oficial Firebase
+        run: npm install --prefix .github/scripts --no-save --ignore-scripts --no-audit --no-fund firebase-admin@14.5.0
+      - name: Validar e enviar UMA vez para opt-in de atualizacoes
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node .github/scripts/announce-brother-1.10.8.mjs
