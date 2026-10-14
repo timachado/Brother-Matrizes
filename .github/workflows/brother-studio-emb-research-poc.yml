@@ -1,0 +1,44 @@
+name: Brother Studio - experimento isolado amostras EMB autenticas
+
+on:
+  push:
+    branches:
+      - research/brother-studio-emb-poc-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authentic-samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Obter APENAS pesquisa isolada
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: project
+      - name: Obter amostras publicas Wilcom EMB + PES/JEF/DST (licenca MIT)
+        uses: actions/checkout@v4
+        with:
+          repository: EmbroidePy/samples
+          ref: master
+          path: public-samples
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar leitor independente para arquivos de máquina
+        run: python -m pip install --disable-pip-version-check pyembroidery==1.5.1
+      - name: Inspecionar amostras autenticas; NAO CONVERTER arquivos EMB
+        run: python project/research/brother-studio/inspect_authentic_samples.py public-samples research-output
+      - name: Publicar evidências somente do experimento, nunca APK ou release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Studio-EMB-Research-Evidence
+          path: |
+            research-output/RESULTADOS.md
+            research-output/authentic_samples_evidence.json
+          if-no-files-found: error
+          retention-days: 14
