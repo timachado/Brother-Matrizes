@@ -1174,7 +1174,7 @@ fun CreateNameScreen(
                                                 imported ->
                                             ChoiceButton(
                                                 text =
-                                                    imported.displayName,
+                                                    imported.chooserLabel,
                                                 selected =
                                                     importedFontId ==
                                                         imported.id,
