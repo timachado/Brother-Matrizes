@@ -49,7 +49,8 @@ internal object AndroidSkiaOutlineExtractor {
         text: String,
         targetCapHeightUnits: Float,
         spacingUnits: Float,
-        rotationDegrees: Float
+        rotationDegrees: Float,
+        preferWholeRun: Boolean = true
     ): Result {
         val fontFile =
             File(
@@ -127,7 +128,7 @@ internal object AndroidSkiaOutlineExtractor {
         // Limitar a extensão geométrica protege o digitizador Satin de
         // consumo excessivo em frases grandes: para estas permanece a
         // estratégia de glifos individuais já usada na versão comercial.
-        val useCompleteRun = spacingUnits == 0f &&
+        val useCompleteRun = preferWholeRun && spacingUnits == 0f &&
             codePoints.size in 2..9 &&
             paint.measureText(text) <= targetCapHeightUnits * 6f
 
