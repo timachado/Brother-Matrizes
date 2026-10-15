@@ -77,6 +77,28 @@ class ManualSatinRailsTest {
         assertTrue(generate(ManualSatinSection(listOf(curvedSection().rails.first()))).isFailure)
     }
 
+    @Test fun suggestedRailsStartNearThreeMillimetersWide() {
+        val width = 90
+        val height = 60
+        val pixels = IntArray(width * height) { 0xFF111111.toInt() }
+        for (y in 10..48) {
+            for (x in 18..42) {
+                pixels[y * width + x] = 0xFFEE8B24.toInt()
+            }
+        }
+        val src = RasterImagePixels(width, height, pixels, "Início manual")
+        val options = MultiColorRasterOptions(maxColors = 2, widthMm = 60f)
+        val art = MultiColorRasterDigitizer.separate(src, options).getOrThrow()
+        val color = art.pixels[20 * width + 22]
+        val suggested = ManualSatinRails.suggest(
+            art, width, height, color, 60f
+        ).getOrThrow()
+        assertEquals(6, suggested.rails.size)
+        val rail = suggested.rails.first()
+        val spreadMm = (rail.bx - rail.ax) * 60f
+        assertTrue("Sugestão não pode ocupar a palavra inteira", spreadMm in .8f..3.5f)
+    }
+
     @Test fun manualRailsIntegrateIntoMultiColorPesReopening() {
         val w = 104
         val h = 65
