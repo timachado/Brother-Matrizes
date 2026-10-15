@@ -56,6 +56,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
+import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -132,6 +133,12 @@ fun CreateDrawingScreen(
     var invertRaster by remember { mutableStateOf(false) }
     var multiColorEnabled by remember { mutableStateOf(false) }
     var maxRasterColors by remember { mutableIntStateOf(2) }
+    var layerEdits by remember(imagePixels, maxRasterColors) {
+        mutableStateOf<List<ColorLayerEdit>>(emptyList())
+    }
+    var selectedLayerSource by remember(imagePixels, maxRasterColors) {
+        mutableIntStateOf(0)
+    }
 
     var freehandPaths by remember {
         mutableStateOf<
@@ -352,24 +359,52 @@ fun CreateDrawingScreen(
             DrawingSourceMode.IMAGE -> null
         }
 
+    // Separação das cores é preservada ao editar só a paleta ou a ordem:
+    // evita reprocessar os pixels da imagem a cada ajuste de camada.
+    val separatedRaster = remember(imagePixels, maxRasterColors, multiColorEnabled) {
+        imagePixels?.takeIf { multiColorEnabled }?.let { pixels ->
+            MultiColorRasterDigitizer.separate(
+                pixels, MultiColorRasterOptions(maxColors = maxRasterColors)
+            )
+        }
+    }
+    val separatedArtwork = separatedRaster?.getOrNull()
+    val visibleLayerEdits = if (
+        separatedArtwork != null &&
+        layerEdits.size == separatedArtwork.colors.size &&
+        layerEdits.map { it.sourceIndex }.toSet() == separatedArtwork.colors.indices.toSet()
+    ) layerEdits else separatedArtwork?.colors?.indices?.map {
+        ColorLayerEdit(sourceIndex = it)
+    } ?: emptyList()
+
     val rasterResult = remember(
         imagePixels, widthMm, threshold, invertRaster, color,
-        outputFormat, hoopProfile, multiColorEnabled, maxRasterColors
+        outputFormat, hoopProfile, multiColorEnabled, maxRasterColors,
+        separatedArtwork, separatedRaster, visibleLayerEdits
     ) {
-        imagePixels?.let {
+        imagePixels?.let { pixels ->
             if (multiColorEnabled) {
-                MultiColorRasterDigitizer.generate(
-                    it,
-                    MultiColorRasterOptions(
-                        widthMm = widthMm,
-                        maxColors = maxRasterColors,
-                        outputFormat = outputFormat,
-                        hoopProfile = hoopProfile
+                if (separatedArtwork == null) {
+                    Result.failure(
+                        separatedRaster?.exceptionOrNull()
+                            ?: IllegalArgumentException("Não foi possível separar as cores.")
                     )
-                )
+                } else {
+                    MultiColorRasterDigitizer.generateSeparated(
+                        pixels,
+                        separatedArtwork,
+                        MultiColorRasterOptions(
+                            widthMm = widthMm,
+                            maxColors = maxRasterColors,
+                            outputFormat = outputFormat,
+                            hoopProfile = hoopProfile,
+                            layers = visibleLayerEdits
+                        )
+                    )
+                }
             } else {
                 RasterImageDigitizer.generate(
-                    it,
+                    pixels,
                     RasterImageOptions(
                         widthMm = widthMm,
                         threshold = threshold.toInt(),
@@ -758,6 +793,167 @@ fun CreateDrawingScreen(
                             color = FioTextMuted,
                             fontSize = 11.sp
                         )
+                        if (separatedArtwork != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Camadas e sequência de bordado",
+                                color = FioText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "De cima para baixo: ordem de costura. " +
+                                    "Escolha uma cor para editar; desative camadas indesejadas.",
+                                color = FioTextMuted, fontSize = 10.sp
+                            )
+                            visibleLayerEdits.forEachIndexed { index, layer ->
+                                val colorSample = layer.threadColor
+                                    ?: separatedArtwork.colors[layer.sourceIndex]
+                                val selected = selectedLayerSource == layer.sourceIndex
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        Modifier.size(24.dp)
+                                            .background(
+                                                Color(0xFF000000L or colorSample.toLong()),
+                                                CircleShape
+                                            )
+                                            .border(
+                                                if (selected) 3.dp else 1.dp,
+                                                if (selected) FioGold else FioTextMuted,
+                                                CircleShape
+                                            )
+                                            .clickable { selectedLayerSource = layer.sourceIndex }
+                                    )
+                                    TextButton(
+                                        onClick = { selectedLayerSource = layer.sourceIndex },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            "Cor ${layer.sourceIndex + 1}" +
+                                                if (!layer.enabled) " (oculta)" else "",
+                                            color = if (selected) FioGold else FioText,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(enabled = !it.enabled) else it
+                                            }
+                                        }
+                                    ) {
+                                        Text(if (layer.enabled) "Ocultar" else "Ativar",
+                                            color = FioGold, fontSize = 10.sp)
+                                    }
+                                    TextButton(
+                                        enabled = index > 0,
+                                        onClick = {
+                                            val current = visibleLayerEdits.toMutableList()
+                                            val before = current[index - 1]
+                                            current[index - 1] = current[index]
+                                            current[index] = before
+                                            layerEdits = current
+                                        }
+                                    ) { Text("↑", color = FioGold) }
+                                    TextButton(
+                                        enabled = index < visibleLayerEdits.lastIndex,
+                                        onClick = {
+                                            val current = visibleLayerEdits.toMutableList()
+                                            val after = current[index + 1]
+                                            current[index + 1] = current[index]
+                                            current[index] = after
+                                            layerEdits = current
+                                        }
+                                    ) { Text("↓", color = FioGold) }
+                                }
+                            }
+                            val selectedLayer = visibleLayerEdits.firstOrNull {
+                                it.sourceIndex == selectedLayerSource
+                            } ?: visibleLayerEdits.firstOrNull()
+                            selectedLayer?.let { layer ->
+                                val identifiedColor = separatedArtwork.colors[layer.sourceIndex]
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "Linha da cor ${layer.sourceIndex + 1}" +
+                                        if (layer.threadColor == null) " • detectada" else " • personalizada",
+                                    color = FioText, fontWeight = FontWeight.SemiBold
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                                        .padding(vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    (listOf(identifiedColor) + drawingPalette).distinct()
+                                        .forEach { swatch ->
+                                            val chosen = swatch ==
+                                                (layer.threadColor ?: identifiedColor)
+                                            Box(
+                                                Modifier.size(32.dp)
+                                                    .background(
+                                                        Color(0xFF000000L or swatch.toLong()),
+                                                        CircleShape
+                                                    )
+                                                    .border(
+                                                        if (chosen) 3.dp else 1.dp,
+                                                        if (chosen) FioGold else FioTextMuted,
+                                                        CircleShape
+                                                    )
+                                                    .clickable {
+                                                        layerEdits = visibleLayerEdits.map {
+                                                            if (it.sourceIndex == layer.sourceIndex)
+                                                                it.copy(threadColor = swatch) else it
+                                                        }
+                                                    }
+                                            )
+                                        }
+                                }
+                                TextButton(
+                                    onClick = {
+                                        layerEdits = visibleLayerEdits.map {
+                                            if (it.sourceIndex == layer.sourceIndex)
+                                                it.copy(threadColor = null) else it
+                                        }
+                                    }
+                                ) {
+                                    Text("Restaurar cor detectada", color = FioGold)
+                                }
+                                val spacing = layer.rowSpacingMm ?: 0.5f
+                                Text(
+                                    "Espaçamento entre fileiras: " +
+                                        String.format(Locale("pt", "BR"), "%.2f mm", spacing),
+                                    color = FioText, fontSize = 11.sp
+                                )
+                                Slider(
+                                    value = spacing,
+                                    onValueChange = { next ->
+                                        layerEdits = visibleLayerEdits.map {
+                                            if (it.sourceIndex == layer.sourceIndex)
+                                                it.copy(rowSpacingMm = next) else it
+                                        }
+                                    },
+                                    valueRange = 0.4f..1f
+                                )
+                                Text(
+                                    "Ajuste experimental de preenchimento. " +
+                                        "Valores menores aumentam a densidade; " +
+                                        "não substituem estabilização e teste no tecido.",
+                                    color = FioTextMuted, fontSize = 10.sp
+                                )
+                            }
+                        } else if (imagePixels != null) {
+                            Text(
+                                separatedRaster?.exceptionOrNull()?.message
+                                    ?: "Não foi possível identificar cores.",
+                                color = Color(0xFFFF9F9A),
+                                fontSize = 11.sp
+                            )
+                        }
+
                     }
                     if (!multiColorEnabled) {
                     Text("Contraste do desenho: ${threshold.toInt()}",
@@ -967,6 +1163,7 @@ fun CreateDrawingScreen(
                     )
                 )
 
+                if (sourceMode != DrawingSourceMode.IMAGE || !multiColorEnabled) {
                 Text(
                     "Cor da linha",
                     color = FioText,
@@ -1034,6 +1231,8 @@ fun CreateDrawingScreen(
                                     }
                             )
                         }
+                }
+
                 }
 
                 Text(
