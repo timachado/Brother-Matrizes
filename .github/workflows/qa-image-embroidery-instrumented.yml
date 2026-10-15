@@ -2,7 +2,7 @@ name: Image to Embroidery Android Instrumented QA
 
 on:
   push:
-    branches: ["qa/image-to-embroidery-android-smoke-20261015"]
+    branches: ["qa/image-to-embroidery-android-smoke-20261015", "feature/image-photo-preview-reeditable-20261015"]
   workflow_dispatch:
 
 permissions:
