@@ -1,0 +1,50 @@
+name: Diagnostico de certificado dos APKs ja publicados
+on:
+  push:
+    branches: [build/official-1.10.8-netfontes-signing-check]
+    paths: [.github/workflows/verify-published-apk-certificate.yml]
+permissions:
+  contents: read
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Inspecionar apenas APKs publicos da GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p inspection
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          for item in             'v1.10.8|Brother-Matrizes-1.10.8-COTAS-NOVIDADES-HOMOLOGACAO.apk'             'v1.10.7|Brother-Matrizes-1.10.7-CORRECAO-DRIVE-HOMOLOGACAO.apk'             'v1.10.4|Brother-Matrizes-v1.10.4-ASSINADO.apk'; do
+            IFS='|' read -r tag filename <<< "$item"
+            url="https://github.com/timachado/Brother-Matrizes/releases/download/$tag/$filename"
+            printf '\n=== %s ===\n' "$tag" | tee -a inspection/certificates.txt
+            if curl --fail --show-error --silent --location --retry 2 -o inspection/original.apk "$url"; then
+              "$tools/apksigner" verify --verbose --print-certs inspection/original.apk                   | grep -E 'Verifies|Verified using v[123]|Signer #1 certificate SHA-256 digest|Signer #1 certificate DN'                   | tee -a inspection/certificates.txt
+              "$tools/aapt" dump badging inspection/original.apk | head -n 1 | tee -a inspection/certificates.txt
+              sha256sum inspection/original.apk | tee -a inspection/certificates.txt
+            else
+              echo 'Download indisponivel' | tee -a inspection/certificates.txt
+            fi
+          done
+          rm -f inspection/original.apk
+      - name: Disponibilizar somente o relatorio de certificados PUBLICOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: certificado-das-releases-oficiais
+          path: inspection/certificates.txt
+          if-no-files-found: error
