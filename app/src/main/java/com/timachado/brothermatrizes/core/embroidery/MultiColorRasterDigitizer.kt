@@ -20,7 +20,8 @@ import kotlin.math.sqrt
 enum class RasterLayerStitchMode {
     FILL,
     SATIN_STRAIGHT,
-    SATIN_CURVED
+    SATIN_CURVED,
+    MANUAL_SATIN
 }
 
 /** Edição não destrutiva: índice da cor detectada, ordem, visibilidade e parâmetros locais. */
@@ -31,7 +32,8 @@ data class ColorLayerEdit(
     val rowSpacingMm: Float? = null,
     val stitchMode: RasterLayerStitchMode = RasterLayerStitchMode.FILL,
     val satinPullCompensationMm: Float = 0.15f,
-    val satinCenterUnderlay: Boolean = true
+    val satinCenterUnderlay: Boolean = true,
+    val manualSections: List<ManualSatinSection> = emptyList()
 )
 
 data class MultiColorRasterOptions(
@@ -255,6 +257,36 @@ object MultiColorRasterDigitizer {
         var hasStitched = false
 
         for ((colorIndex, layer) in activeLayers.withIndex()) {
+            if (layer.stitchMode == RasterLayerStitchMode.MANUAL_SATIN) {
+                val satin = ManualSatinRails.generate(
+                    sections = layer.manualSections,
+                    outputColorIndex = colorIndex,
+                    widthMm = options.widthMm,
+                    imageAspectRatio = croppedWidth.toFloat() / croppedHeight,
+                    densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
+                    pullCompensationMm = layer.satinPullCompensationMm,
+                    centerUnderlay = layer.satinCenterUnderlay
+                ).getOrElse { error ->
+                    throw IllegalArgumentException(
+                        "Camada ${layer.sourceIndex + 1}: " +
+                            (error.message ?: "trilhos manuais inválidos."),
+                        error
+                    )
+                }
+                if (hasStitched) {
+                    out += EmbroideryPoint(lastX, lastY, StitchCommand.TRIM, colorIndex - 1)
+                    out += EmbroideryPoint(lastX, lastY, StitchCommand.COLOR_CHANGE, colorIndex)
+                }
+                out.addAll(satin)
+                require(out.size <= MAX_STITCHES) {
+                    "Muitos pontos; reduza o tamanho do desenho."
+                }
+                val last = satin.last()
+                lastX = last.xUnits
+                lastY = last.yUnits
+                hasStitched = true
+                continue
+            }
             if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT ||
                 layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
                 val satin = (if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
