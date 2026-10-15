@@ -91,6 +91,17 @@ class ImportedGlyphVoidGuardTest {
     }
 
     @Test
+    fun subpixelStemRemainsSewn() {
+        val contours = listOf(rectangle(3.22f, 0f, 0.2f, 80f))
+        val points = mutableListOf(
+            at(3, 4, StitchCommand.JUMP),
+            at(3, 60, StitchCommand.STITCH)
+        )
+        assertEquals(0, ImportedGlyphVoidGuard.preventVoidConnections(points, 0, contours))
+        assertEquals(StitchCommand.STITCH, points[1].command)
+    }
+
+    @Test
     fun sameCoordinatesAndCommandsOtherThanSewingAreAlwaysPreserved() {
         val contours = listOf(rectangle(0f, 0f, 30f, 30f))
         val points = mutableListOf(
