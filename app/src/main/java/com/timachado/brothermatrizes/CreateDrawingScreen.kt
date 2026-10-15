@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
+import com.timachado.brothermatrizes.core.embroidery.RasterImageDigitizer
+import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
+import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -65,11 +70,15 @@ import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class DrawingSourceMode(
     val label: String
 ) {
-    SVG("Importar SVG"),
+    SVG("SVG"),
+    IMAGE("Imagem"),
     FREEHAND("Desenhar")
 }
 
@@ -95,6 +104,7 @@ fun CreateDrawingScreen(
 ) {
     val context =
         LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var sourceMode by remember {
         mutableStateOf(
@@ -113,6 +123,11 @@ fun CreateDrawingScreen(
             "Nenhum SVG importado."
         )
     }
+
+    var imagePixels by remember { mutableStateOf<RasterImagePixels?>(null) }
+    var imageMessage by remember { mutableStateOf("Nenhuma imagem importada.") }
+    var threshold by remember { mutableFloatStateOf(140f) }
+    var invertRaster by remember { mutableStateOf(false) }
 
     var freehandPaths by remember {
         mutableStateOf<
@@ -257,6 +272,25 @@ fun CreateDrawingScreen(
             }
         }
 
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            imagePixels = null
+            imageMessage = "Lendo imagem com segurança..."
+            scope.launch {
+                val loaded = withContext(Dispatchers.IO) {
+                    RasterImageDecoder.decode(context.contentResolver, uri)
+                }
+                imagePixels = loaded.getOrNull()
+                imageMessage = loaded.fold(
+                    onSuccess = { "${it.label} • ${it.width} × ${it.height} px" },
+                    onFailure = { it.message ?: "Não foi possível importar a imagem." }
+                )
+            }
+        }
+    }
+
     val freehandArtwork =
         remember(
             freehandPaths,
@@ -310,10 +344,32 @@ fun CreateDrawingScreen(
 
             DrawingSourceMode.FREEHAND ->
                 freehandArtwork
+
+            DrawingSourceMode.IMAGE -> null
         }
 
-    val result =
-        artwork?.let {
+    val rasterResult = remember(
+        imagePixels, widthMm, threshold, invertRaster, color,
+        outputFormat, hoopProfile
+    ) {
+        imagePixels?.let {
+            RasterImageDigitizer.generate(
+                it,
+                RasterImageOptions(
+                    widthMm = widthMm,
+                    threshold = threshold.toInt(),
+                    invert = invertRaster,
+                    threadColor = color,
+                    outputFormat = outputFormat,
+                    hoopProfile = hoopProfile
+                )
+            )
+        }
+    }
+
+    val result = if (sourceMode == DrawingSourceMode.IMAGE) {
+        rasterResult
+    } else artwork?.let {
             VectorMatrixGenerator
                 .generate(
                     it,
@@ -392,7 +448,7 @@ fun CreateDrawingScreen(
                 )
 
                 Text(
-                    "SVG simples ou desenho à mão livre",
+                    "Imagem, SVG ou desenho à mão livre",
                     color =
                         FioTextMuted,
                     fontSize =
@@ -471,7 +527,9 @@ fun CreateDrawingScreen(
                 )
             } else {
                 Text(
-                    "Importe um SVG para visualizar.",
+                    if (sourceMode == DrawingSourceMode.IMAGE)
+                        "Importe uma imagem para visualizar os pontos."
+                    else "Importe um SVG para visualizar.",
                     modifier =
                         Modifier.align(
                             Alignment.Center
@@ -638,6 +696,50 @@ fun CreateDrawingScreen(
                                     4.dp
                             )
                     )
+                } else if (sourceMode == DrawingSourceMode.IMAGE) {
+                    Button(
+                        onClick = { imagePicker.launch(arrayOf("image/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold,
+                            contentColor = FioBackground
+                        )
+                    ) {
+                        Text("Importar PNG, JPG ou WebP", fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        imageMessage,
+                        color = if (imagePixels != null) FioTextMuted else Color(0xFFFFB36B),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text("Contraste do desenho: ${threshold.toInt()}",
+                        color = FioText, fontWeight = FontWeight.SemiBold)
+                    Slider(
+                        value = threshold,
+                        onValueChange = { threshold = it },
+                        valueRange = 20f..235f
+                    )
+                    OutlinedButton(
+                        onClick = { invertRaster = !invertRaster },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (invertRaster) "Selecionando tons claros"
+                            else "Selecionando tons escuros",
+                            color = FioGold
+                        )
+                    }
+                    Text(
+                        "Digitalização experimental de uma cor com preenchimento corrido. " +
+                            "Recorte apenas o logo, preferencialmente com fundo uniforme " +
+                            "ou transparente. Não converte fotos complexas em bordado " +
+                            "profissional. Confira a prévia, o bastidor e teste em tecido.",
+                        color = FioTextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 } else {
                     Row(
                         horizontalArrangement =
@@ -728,6 +830,7 @@ fun CreateDrawingScreen(
                         10f..200f
                 )
 
+                if (sourceMode != DrawingSourceMode.IMAGE) {
                 Text(
                     "Tipo de ponto",
                     color = FioText,
@@ -804,6 +907,8 @@ fun CreateDrawingScreen(
                     fontSize =
                         10.sp
                 )
+
+                }
 
                 Spacer(
                     Modifier.height(
