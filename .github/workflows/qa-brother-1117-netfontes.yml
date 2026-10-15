@@ -1,0 +1,71 @@
+name: Brother 1.10.17 - QA NetFontes candidato nao-assinado
+
+on:
+  push:
+    branches: [feature/brother-1.10.17-netfontes]
+    paths: [.github/workflows/qa-brother-1117-netfontes.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verificar pacote e busca NetFontes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 193' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.17"' app/build.gradle.kts
+          grep -Fq 'Buscar fonte no ${source.displayName}' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          grep -Fq 'NetFontesNavigationRules.searchUrl(term)' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          test -s app/src/main/res/drawable/ic_ms_search_rounded.xml
+      - name: Preparar assets da marca
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes unitarios e build release
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease --stacktrace
+      - name: Verificar identidade do APK sem assinatura
+        shell: bash
+        run: |
+          set -euo pipefail
+          unsigned="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$unsigned"
+          info="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$unsigned" | head -n 1)"
+          echo "$info"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='193'"* ]]
+          [[ "$info" == *"versionName='1.10.17'"* ]]
+          sha256sum "$unsigned" > app/build/outputs/apk/release/unsigned-sha256.txt
+          echo "::warning::Candidata de QA sem assinatura. Nao instalar nem publicar."
+      - name: Guardar somente APK nao-assinado para assinatura LOCAL pelo titular
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-1.10.17-NetFontes-UNSIGNED-QA-NAO-INSTALAR
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/unsigned-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
