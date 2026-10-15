@@ -266,7 +266,13 @@ internal object CleanRoomSatinEngine {
             // nunca voltar para o topo depois de concluir a letra.
             result.addAll(0, restoredDots.map { it.rails })
         }
-        return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
+        // Evitar faixas cruzadas repetidas na mesma massa de glifo.
+        // Apenas planejamento TTF/OTF; Stitcher e Simulação preservados.
+        val nonOverlappingRails =
+            ImportedGlyphRailCoverage.suppressRedundant(result, densityMm)
+        return PlannedGlyph(
+            nonOverlappingRails, orderedRoutes.sumOf { it.size }, duplicates
+        )
     }
 
     /**
