@@ -106,18 +106,19 @@ internal object AndroidSkiaOutlineExtractor {
         paint.textSize =
             resolvedSize
 
-        val rawGlyphs =
-            mutableListOf<RawGlyph>()
-
-        // O deslocamento deve considerar kerning e shaping do texto completo,
-        // em vez de somar larguras isoladas (que separa fontes cursivas).
-        var textOffset = 0
-
-        val codePoints =
-            text
-                .codePoints()
-                .toArray()
-
+        val codePoints = text.codePoints().toArray()
+        // A simulação e a exportação devem receber a mesma silhueta que
+        // Paint desenha na prévia: UM run OpenType, sem particionar anéis
+        // (inclusive conexões entre letras e contraformas) por avanço X.
+        // O caminho individual original continua disponível quando existe
+        // espaçamento manual ou a fonte não fornece um path completo.
+        val preparedGlyphs = (
+            if (spacingUnits == 0f && codePoints.size in 2..24) {
+                extractCompleteRun(paint, text)
+            } else null
+        )?.takeIf { it.isNotEmpty() } ?: run {
+            val rawGlyphs = mutableListOf<RawGlyph>()
+            var textOffset = 0
         codePoints
             .forEachIndexed {
                     index,
@@ -206,15 +207,8 @@ internal object AndroidSkiaOutlineExtractor {
                 textOffset += glyphText.length
             }
 
-        // A Biblioteca usa TextView: o Android desenha o run COMPLETO.
-        // getTextPath de cada letra isolada perde ligaturas, kerning de
-        // substituição, conexões cursivas e marcas posicionadas pelo GSUB/GPOS.
-        // Só usar a silhueta do run inteiro quando não existe espaçamento
-        // manual; neste caso, preservar os anéis e os seus furos sem recortes.
-        val shapedGlyphs = if (spacingUnits == 0f && codePoints.size in 2..24) {
-            extractCompleteRun(paint, text, codePoints)
-        } else null
-        val preparedGlyphs = shapedGlyphs?.takeIf { it.isNotEmpty() } ?: rawGlyphs
+            rawGlyphs
+        }
 
         require(
             preparedGlyphs.isNotEmpty()
@@ -317,55 +311,35 @@ internal object AndroidSkiaOutlineExtractor {
         )
     }
 
+    /**
+     * A topologia da fonte é definida pelo conjunto de todos os contornos
+     * do texto renderizado. Um anel pode cruzar a área de várias letras;
+     * atribuí-lo ao centro da letra mais próxima altera o winding e causa
+     * sobreposição/vazados espúrios no raster antes do Satin.
+     *
+     * Entregar um único grupo de contornos preserva a geometria exata do
+     * run. O motor e a ordem do algoritmo de pontadas NÃO são modificados.
+     */
     private fun extractCompleteRun(
         paint: Paint,
-        text: String,
-        codePoints: IntArray
+        text: String
     ): List<RawGlyph>? {
         val path = Path()
         paint.getTextPath(text, 0, text.length, 0f, 0f, path)
         if (path.isEmpty) return null
         val contours = sampleContours(path)
-        if (contours.isEmpty()) return null
+        val groups = ImportedOpenTypeContourGroups.completeRun(contours)
+        if (groups.isEmpty()) return null
 
-        val centers = mutableListOf<Float>()
-        var utf16Index = 0
-        codePoints.forEach { cp ->
-            val before = paint.getRunAdvance(
-                text, 0, text.length, 0, text.length, false, utf16Index
+        return groups.map { rings ->
+            val points = rings.flatten()
+            RawGlyph(
+                contours = rings,
+                left = points.minOf { it.x },
+                top = points.minOf { it.y },
+                right = points.maxOf { it.x },
+                bottom = points.maxOf { it.y }
             )
-            utf16Index += Character.charCount(cp)
-            val after = paint.getRunAdvance(
-                text, 0, text.length, 0, text.length, false, utf16Index
-            )
-            centers += (before + after) * 0.5f
-        }
-        if (centers.any { !it.isFinite() }) return null
-
-        val bounds = contours.map { polygon ->
-            ImportedOpenTypeContourGroups.Box(
-                left = polygon.minOf { it.x },
-                top = polygon.minOf { it.y },
-                right = polygon.maxOf { it.x },
-                bottom = polygon.maxOf { it.y }
-            )
-        }
-        val owners = ImportedOpenTypeContourGroups.owners(bounds, centers)
-        val grouped = List(centers.size) { mutableListOf<List<Point>>() }
-        contours.forEachIndexed { index, polygon ->
-            grouped[owners[index]] += polygon
-        }
-        // A atribuição define somente a ORDEM dos glifos para o Satin.
-        // NÃO corta nem ajusta os pontos vetoriais de nenhum anel.
-        return grouped.mapNotNull { rings ->
-            if (rings.isEmpty()) null else {
-                val p = rings.flatten()
-                RawGlyph(
-                    contours = rings,
-                    left = p.minOf { it.x }, top = p.minOf { it.y },
-                    right = p.maxOf { it.x }, bottom = p.maxOf { it.y }
-                )
-            }
         }
     }
 
