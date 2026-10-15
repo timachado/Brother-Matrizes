@@ -290,6 +290,7 @@ private sealed interface Screen {
     data object CreateName : Screen
     data object CreateMonogram : Screen
     data object CreateDrawing : Screen
+    data object ImageToEmbroidery : Screen
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
@@ -718,7 +719,8 @@ private fun BrotherMatrizesApp(
                 Screen.FontLibrary,
                 Screen.CreateName,
                 Screen.CreateMonogram,
-                Screen.CreateDrawing ->
+                Screen.CreateDrawing,
+                Screen.ImageToEmbroidery ->
                     Screen.Home
 
                 is Screen.ArchiveImport -> current.returnTo
@@ -1861,6 +1863,9 @@ private fun BrotherMatrizesApp(
                             screen =
                                 Screen.CreateName
                         },
+                        onImageToEmbroidery = {
+                            screen = Screen.ImageToEmbroidery
+                        },
                         onFonts = {
                             screen =
                                 Screen.FontLibrary
@@ -2201,6 +2206,23 @@ private fun BrotherMatrizesApp(
                                     }
                                 }
                             }
+                        }
+                    )
+                }
+
+                Screen.ImageToEmbroidery -> {
+                    // Ferramentas > Imagem para Bordado abre diretamente
+                    // a digitalização raster; não altera Criar desenho/logo.
+                    CreateDrawingScreen(
+                        onBack = { goBack() },
+                        imageToEmbroideryTool = true,
+                        onCreate = { created ->
+                            activateDesign(created)
+                            screen = Screen.Viewer(created)
+                        },
+                        onSimulate = { created ->
+                            activateDesign(created)
+                            screen = Screen.Simulator(created)
                         }
                     )
                 }

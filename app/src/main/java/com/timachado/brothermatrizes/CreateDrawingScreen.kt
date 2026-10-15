@@ -114,7 +114,8 @@ private val drawingPalette =
 fun CreateDrawingScreen(
     onBack: () -> Unit,
     onCreate: (EmbroideryDesign) -> Unit,
-    onSimulate: (EmbroideryDesign) -> Unit
+    onSimulate: (EmbroideryDesign) -> Unit,
+    imageToEmbroideryTool: Boolean = false
 ) {
     val context =
         LocalContext.current
@@ -122,7 +123,8 @@ fun CreateDrawingScreen(
 
     var sourceMode by remember {
         mutableStateOf(
-            DrawingSourceMode.SVG
+            if (imageToEmbroideryTool) DrawingSourceMode.IMAGE
+            else DrawingSourceMode.SVG
         )
     }
 
@@ -142,7 +144,9 @@ fun CreateDrawingScreen(
     var imageMessage by remember { mutableStateOf("Nenhuma imagem importada.") }
     var threshold by remember { mutableFloatStateOf(140f) }
     var invertRaster by remember { mutableStateOf(false) }
-    var multiColorEnabled by remember { mutableStateOf(false) }
+    var multiColorEnabled by remember {
+        mutableStateOf(imageToEmbroideryTool)
+    }
     var maxRasterColors by remember { mutableIntStateOf(2) }
     var layerEdits by remember {
         mutableStateOf<List<ColorLayerEdit>>(emptyList())
@@ -578,7 +582,8 @@ fun CreateDrawingScreen(
                 )
             ) {
                 Text(
-                    "Criar desenho/logo",
+                    if (imageToEmbroideryTool) "Imagem para Bordado"
+                    else "Criar desenho/logo",
                     color = FioText,
                     fontWeight =
                         FontWeight.Bold,
@@ -587,7 +592,9 @@ fun CreateDrawingScreen(
                 )
 
                 Text(
-                    "Imagem, SVG ou desenho à mão livre",
+                    if (imageToEmbroideryTool)
+                        "Importar imagem • preparar matriz • exportar PES"
+                    else "Imagem, SVG ou desenho à mão livre",
                     color =
                         FioTextMuted,
                     fontSize =
@@ -745,63 +752,49 @@ fun CreateDrawingScreen(
                         rememberScrollState()
                     )
             ) {
-                Text(
-                    "Origem",
-                    color = FioText,
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
-
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            vertical =
-                                8.dp
-                        ),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
-                            8.dp
-                        )
-                ) {
-                    DrawingSourceMode
-                        .entries
-                        .forEach {
-                                option ->
-                            val selected =
-                                sourceMode ==
-                                    option
-
+                if (imageToEmbroideryTool) {
+                    Text(
+                        "Da imagem para a matriz",
+                        color = FioText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "1. Importe uma logo ou arte recortada. " +
+                            "2. Revise as cores e as camadas. " +
+                            "3. Ajuste os pontos, simule e gere a matriz PES.",
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "Fotografias de tecidos e letras cursivas podem precisar " +
+                            "de recorte e refinamento manual. A digitalização é experimental.",
+                        color = FioTextMuted,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
+                    )
+                } else {
+                    Text(
+                        "Origem",
+                        color = FioText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DrawingSourceMode.entries.forEach { option ->
+                            val selected = sourceMode == option
                             OutlinedButton(
-                                onClick = {
-                                    sourceMode =
-                                        option
-                                },
-                                modifier =
-                                    Modifier.weight(
-                                        1f
-                                    )
+                                onClick = { sourceMode = option },
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Text(
-                                    if (
-                                        selected
-                                    ) {
-                                        "● " +
-                                            option.label
-                                    } else {
-                                        option.label
-                                    },
-                                    color =
-                                        if (
-                                            selected
-                                        ) {
-                                            FioGold
-                                        } else {
-                                            FioText
-                                        }
+                                    if (selected) "● " + option.label else option.label,
+                                    color = if (selected) FioGold else FioText
                                 )
                             }
                         }
+                    }
                 }
 
                 if (
