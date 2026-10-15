@@ -51,6 +51,7 @@ import java.util.Locale
 fun HomeScreen(
     recent: EmbroideryDesign?,
     onCreateName: () -> Unit,
+    onImageToEmbroidery: () -> Unit,
     onFonts: () -> Unit,
     onTransfer: () -> Unit,
     onOpen: () -> Unit,
@@ -223,6 +224,21 @@ fun HomeScreen(
                         top = 4.dp,
                         bottom = 2.dp
                     )
+            )
+        }
+
+        // Nova ferramenta, separada da criação de nomes e da abertura de PES.
+        item {
+            ExpressiveFeatureCard(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 136.dp),
+                iconRes = R.drawable.ic_ms_image_rounded,
+                title = "Imagem para bordado",
+                subtitle = "Digitalize logos e exporte PES",
+                enabled = true,
+                onClick = onImageToEmbroidery
             )
         }
 
