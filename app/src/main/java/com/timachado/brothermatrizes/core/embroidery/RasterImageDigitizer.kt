@@ -102,6 +102,9 @@ object RasterImageDigitizer {
         }
         val croppedWidth = maxX - minX + 1
         val croppedHeight = maxY - minY + 1
+        require(croppedWidth >= 2 && croppedHeight >= 2) {
+            "O desenho é fino demais. Aumente a resolução ou use um SVG."
+        }
         val unitsPerPixel = options.widthMm * 10f / croppedWidth
         val widthUnits = croppedWidth * unitsPerPixel
         val heightUnits = croppedHeight * unitsPerPixel
@@ -129,7 +132,7 @@ object RasterImageDigitizer {
                 val start = x
                 while (x <= maxX && mask[y * source.width + x]) x++
                 val end = x - 1
-                if ((end - start + 1) * unitsPerPixel >= 0.7f * 10f) {
+                if (end > start && (end - start) * unitsPerPixel >= 0.7f * 10f) {
                     spans += start to end
                 }
             }
