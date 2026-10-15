@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt)" = "cca0787e793178df405d404c7a0d764d162ac5c3"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt)" = "880bf7df9587ced30bae185d4fbe9ef74086cca3"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = "46b58e9ab7b10414970bc47542b7ee5072609646"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = "f51abd96933338b53ee2cf7393f1594aeb726da5"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = "bb5760d057127c68c3370157c6aaddf2aa46ec06"
