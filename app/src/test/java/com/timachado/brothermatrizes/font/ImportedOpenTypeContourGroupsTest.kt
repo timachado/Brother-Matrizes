@@ -57,4 +57,48 @@ class ImportedOpenTypeContourGroupsTest {
             )
         }
     }
+
+    @Test
+    fun completeRunPreservesOverlappingLetterOutlinesAndHolesTogether() {
+        // Ligação cursiva: o desenho exterior cruza a divisão nominal
+        // entre letras; os contornos interiores devem herdar o MESMO raster.
+        val connectedOuter = listOf(
+            0f to 0f, 72f to 0f, 72f to 75f, 0f to 75f
+        )
+        val counter = listOf(
+            52f to 20f, 52f to 50f, 62f to 50f, 62f to 20f
+        )
+        val nextLetter = listOf(
+            65f to 5f, 95f to 5f, 95f to 70f, 65f to 70f
+        )
+        val input = listOf(connectedOuter, counter, nextLetter)
+        val grouped = ImportedOpenTypeContourGroups.completeRun(input)
+        assertEquals(1, grouped.size)
+        assertEquals(input, grouped.single())
+        // Cada anel original, incluindo seu winding, conserva a ordem.
+        assertEquals(counter, grouped.single()[1])
+    }
+
+    @Test
+    fun completeRunPreservesDisconnectedAccentsAsSubpaths() {
+        val body = listOf(0 to 20, 30 to 20, 30 to 90, 0 to 90)
+        val detachedDot = listOf(10 to 0, 20 to 0, 20 to 10, 10 to 10)
+        val run = ImportedOpenTypeContourGroups.completeRun(
+            listOf(body, detachedDot)
+        )
+        assertEquals(1, run.size)
+        assertEquals(listOf(body, detachedDot), run.single())
+    }
+
+    @Test
+    fun completeRunIgnoresOnlyEmptyInputAndRejectsIncompleteRing() {
+        assertEquals(
+            emptyList<List<List<Int>>>(),
+            ImportedOpenTypeContourGroups.completeRun<Int>(emptyList())
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            ImportedOpenTypeContourGroups.completeRun(listOf(listOf(1, 2)))
+        }
+    }
+
 }
