@@ -110,7 +110,14 @@ internal object CleanRoomSatinEngine {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
             }
+            val firstGlyphPoint = points.size
             stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
+            // A simulação e a construção Satin são intocadas.
+            // Apenas conexões STITCH que atravessam um vazado REAL da
+            // fonte são convertidas em movimento sem costura (JUMP).
+            ImportedGlyphVoidGuard.preventVoidConnections(
+                points, firstGlyphPoint, contours
+            )
             sewnGlyphs++
         }
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
