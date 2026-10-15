@@ -36,7 +36,8 @@ object ManualSatinRails {
         art: SeparatedColorArtwork,
         imageWidth: Int,
         imageHeight: Int,
-        sourceColorIndex: Int
+        sourceColorIndex: Int,
+        targetWidthMm: Float
     ): Result<ManualSatinSection> = runCatching {
         require(sourceColorIndex in art.colors.indices &&
             imageWidth in 8..512 && imageHeight in 8..512 &&
@@ -59,15 +60,23 @@ object ManualSatinRails {
         val cropH = (art.maxY - art.minY + 1).toFloat()
         fun u(px: Float) = ((px - art.minX + 0.5f) / cropW).coerceIn(0.01f, 0.99f)
         fun v(py: Float) = ((py - art.minY + 0.5f) / cropH).coerceIn(0.01f, 0.99f)
+        require(targetWidthMm in 10f..200f) { "Tamanho do desenho inválido." }
         val vertical = bottom - top >= right - left
+        // Sugestão segura e estreita: NÃO presumir que toda uma palavra cursiva
+        // forma uma única coluna Satin de muitos centímetros de largura.
+        val desiredPixels = 3f * cropW / targetWidthMm
         val rails = (0..5).map { step ->
             val t = step / 5f
             if (vertical) {
                 val y = top + (bottom - top) * t
-                SatinRailPair(u(left.toFloat()), v(y), u(right.toFloat()), v(y))
+                val center = (left + right) / 2f
+                val half = minOf((right - left) / 2f, desiredPixels / 2f)
+                SatinRailPair(u(center - half), v(y), u(center + half), v(y))
             } else {
                 val x = left + (right - left) * t
-                SatinRailPair(u(x), v(top.toFloat()), u(x), v(bottom.toFloat()))
+                val center = (top + bottom) / 2f
+                val half = minOf((bottom - top) / 2f, desiredPixels / 2f)
+                SatinRailPair(u(x), v(center - half), u(x), v(center + half))
             }
         }
         ManualSatinSection(rails)
