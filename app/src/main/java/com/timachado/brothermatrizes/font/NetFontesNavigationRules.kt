@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.font
 
 import java.net.URI
+import java.net.URLEncoder
 import java.util.Locale
 
 /**
@@ -9,6 +10,14 @@ import java.util.Locale
  */
 internal object NetFontesNavigationRules {
     const val HOME = "https://www.netfontes.com/"
+
+    /** Confirmed route used by the official NetFontes search form. */
+    fun searchUrl(query: String): String {
+        val term = query.trim().take(90)
+        if (term.isBlank()) return HOME
+        val encoded = URLEncoder.encode(term, "UTF-8").replace("+", "%20")
+        return "https://www.netfontes.com/search/${encoded}?f=1"
+    }
 
     fun isOfficialPage(url: String): Boolean {
         val parsed = parseHttps(url) ?: return false
