@@ -41,7 +41,10 @@ internal object CleanRoomSatinEngine {
     internal data class PlannedGlyph(
         val rails: List<List<Rail>>,
         val sampledEdges: Int,
-        val duplicateRailsDiscarded: Int
+        val duplicateRailsDiscarded: Int,
+        // Apenas para gerar o comando correto de deslocamento entre faixas.
+        // Nunca descartar uma barra Satin original para "limpar" o desenho.
+        val connectorInsideInk: ((V, V) -> Boolean)? = null
     )
 
     private data class Cell(val x: Int, val y: Int)
@@ -62,6 +65,42 @@ internal object CleanRoomSatinEngine {
             val x = index % width
             val y = index / width
             return V(left + x * step, top + y * step)
+        }
+
+        private fun nearInk(v: V): Boolean {
+            val cx = ((v.x - left) / step).roundToInt()
+            val cy = ((v.y - top) / step).roundToInt()
+            for (dy in -1..1) for (dx in -1..1) {
+                if (inside(cx + dx, cy + dy)) return true
+            }
+            return false
+        }
+
+        /**
+         * Verifica a ligação real ENTRE barras Satin, antes da produção
+         * das pontadas. Uma travessia longa sobre contraforma ou ar vazios
+         * recebe JUMP; as duas barras legítimas continuam intactas.
+         * Distâncias curtas, repuxo e hastes subpixel permanecem costurados.
+         */
+        fun connectorIsFilled(from: V, to: V): Boolean {
+            val distance = length(from, to)
+            if (distance < 12f) return true
+            if (!nearInk(from) || !nearInk(to)) return true
+            val count = ceil(distance / (step * 0.65f)).toInt().coerceIn(2, 500)
+            var empty = 0
+            for (i in 1 until count) {
+                val t = i.toFloat() / count
+                if (nearInk(V(
+                    from.x + (to.x - from.x) * t,
+                    from.y + (to.y - from.y) * t
+                ))) {
+                    empty = 0
+                } else {
+                    empty++
+                    if (empty * distance / count >= 6f) return false
+                }
+            }
+            return true
         }
     }
 
@@ -110,7 +149,9 @@ internal object CleanRoomSatinEngine {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
             }
-            stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
+            stitcher.sewGlyph(
+                plan.rails, options.satinUnderlayMode, plan.connectorInsideInk
+            )
             sewnGlyphs++
         }
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
@@ -259,7 +300,10 @@ internal object CleanRoomSatinEngine {
             // nunca voltar para o topo depois de concluir a letra.
             result.addAll(0, restoredDots.map { it.rails })
         }
-        return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
+        return PlannedGlyph(
+            result, orderedRoutes.sumOf { it.size }, duplicates,
+            connectorInsideInk = { a, b -> raster.connectorIsFilled(a, b) }
+        )
     }
 
     /**
@@ -816,7 +860,9 @@ internal object CleanRoomSatinEngine {
         underlay: SatinUnderlayMode = SatinUnderlayMode.NONE
     ): List<EmbroideryPoint> {
         val points = mutableListOf<EmbroideryPoint>()
-        Stitcher(points).sewGlyph(planned.rails, underlay)
+        Stitcher(points).sewGlyph(
+            planned.rails, underlay, planned.connectorInsideInk
+        )
         return points
     }
 
@@ -852,7 +898,11 @@ internal object CleanRoomSatinEngine {
                     StitchCommand.STITCH)
             }
         }
-        fun sewGlyph(paths: List<List<Rail>>, underlay: SatinUnderlayMode) {
+        fun sewGlyph(
+            paths: List<List<Rail>>,
+            underlay: SatinUnderlayMode,
+            connectorInsideInk: ((V, V) -> Boolean)? = null
+        ) {
             var anchored = false
             paths.forEach { rows ->
                 if (rows.isEmpty()) return@forEach
@@ -870,7 +920,9 @@ internal object CleanRoomSatinEngine {
                 val cover = if (doUnderlay) rows.asReversed() else rows
                 val entry = cover.first().a
                 val lastPos = needle
-                if (lastPos == null || length(lastPos, entry) > 4f) jump(entry)
+                if (lastPos == null || length(lastPos, entry) > 4f ||
+                    connectorInsideInk?.invoke(lastPos, entry) == false
+                ) jump(entry)
                 else sew(entry)
                 if (!anchored) {
                     // One short tie-in for this glyph, not every medial branch.
@@ -882,7 +934,12 @@ internal object CleanRoomSatinEngine {
                     anchored = true
                 }
                 cover.forEach { rail ->
-                    sew(rail.a)
+                    val previous = needle
+                    // Não bordar a ligação diagonal se atravessar um furo
+                    // do desenho; preservar a barra transversal da letra.
+                    if (previous != null &&
+                        connectorInsideInk?.invoke(previous, rail.a) == false
+                    ) jump(rail.a) else sew(rail.a)
                     sew(rail.b)
                 }
             }
