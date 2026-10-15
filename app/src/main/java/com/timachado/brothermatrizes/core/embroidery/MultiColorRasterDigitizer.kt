@@ -19,7 +19,8 @@ import kotlin.math.sqrt
 /** Tipos de costura para cada cor isolada da arte. */
 enum class RasterLayerStitchMode {
     FILL,
-    SATIN_STRAIGHT
+    SATIN_STRAIGHT,
+    SATIN_CURVED
 }
 
 /** Edição não destrutiva: índice da cor detectada, ordem, visibilidade e parâmetros locais. */
@@ -254,8 +255,20 @@ object MultiColorRasterDigitizer {
         var hasStitched = false
 
         for ((colorIndex, layer) in activeLayers.withIndex()) {
-            if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT) {
-                val satin = RasterStraightSatin.generate(
+            if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT ||
+                layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
+                val satin = (if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
+                    RasterCurvedSatin.generate(
+                        source = source,
+                        art = art,
+                        sourceColorIndex = layer.sourceIndex,
+                        outputColorIndex = colorIndex,
+                        widthMm = options.widthMm,
+                        densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
+                        compensationMm = layer.satinPullCompensationMm,
+                        centerUnderlay = layer.satinCenterUnderlay
+                    )
+                } else RasterStraightSatin.generate(
                     source = source,
                     art = art,
                     sourceColorIndex = layer.sourceIndex,
@@ -264,10 +277,10 @@ object MultiColorRasterDigitizer {
                     densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
                     compensationMm = layer.satinPullCompensationMm,
                     centerUnderlay = layer.satinCenterUnderlay
-                ).getOrElse { error ->
+                )).getOrElse { error ->
                     throw IllegalArgumentException(
                         "Camada ${layer.sourceIndex + 1}: " +
-                            (error.message ?: "não é compatível com Satin reto."),
+                            (error.message ?: "não é compatível com o Satin selecionado."),
                         error
                     )
                 }

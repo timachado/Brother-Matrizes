@@ -967,11 +967,31 @@ fun CreateDrawingScreen(
                                         )
                                     }
                                 }
-                                if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT) {
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        layerEdits = visibleLayerEdits.map {
+                                            if (it.sourceIndex == layer.sourceIndex)
+                                                it.copy(stitchMode =
+                                                    RasterLayerStitchMode.SATIN_CURVED)
+                                            else it
+                                        }
+                                    }
+                                ) {
                                     Text(
-                                        "Use somente em faixas retas de 0,8 a 5,5 mm. " +
-                                            "Furos, curvas ou letras ramificadas são rejeitados " +
-                                            "para evitar um bordado inválido.",
+                                        if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED)
+                                            "● Satin curvo experimental"
+                                        else "Satin curvo experimental",
+                                        color = FioGold, fontSize = 11.sp
+                                    )
+                                }
+                                if (layer.stitchMode != RasterLayerStitchMode.FILL) {
+                                    Text(
+                                        if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT)
+                                            "Satin reto: faixas de 0,8 a 5,5 mm. " +
+                                                "Curvas, furos e ramos não são aceitos."
+                                        else "Satin curvo: faixa suave e contínua de 0,8 a 5,4 mm. " +
+                                                "Laços, interseções e ramificações exigem edição vetorial.",
                                         color = FioTextMuted, fontSize = 10.sp
                                     )
                                     val pull = layer.satinPullCompensationMm
@@ -1012,7 +1032,7 @@ fun CreateDrawingScreen(
                                 }
                                 val spacing = layer.rowSpacingMm ?: 0.5f
                                 Text(
-                                    (if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT)
+                                    (if (layer.stitchMode != RasterLayerStitchMode.FILL)
                                         "Passo Satin: " else "Espaçamento entre fileiras: ") +
                                         String.format(Locale("pt", "BR"), "%.2f mm", spacing),
                                     color = FioText, fontSize = 11.sp
@@ -1029,8 +1049,8 @@ fun CreateDrawingScreen(
                                 )
                                 Text(
                                     "Etapa experimental: valores menores aumentam a densidade. " +
-                                        "Revise pontos, bastidor e acabamento; " +
-                                        "teste em tecido antes de produzir.",
+                                        "Satin curvo não faz ligação automática entre letras. " +
+                                        "Revise a geometria e teste em tecido antes de produzir.",
                                     color = FioTextMuted, fontSize = 10.sp
                                 )
                             }
