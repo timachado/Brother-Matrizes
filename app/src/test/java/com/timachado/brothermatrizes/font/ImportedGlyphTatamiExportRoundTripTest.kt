@@ -5,6 +5,8 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.MachineFinishing
+import com.timachado.brothermatrizes.core.embroidery.MachineFinishingSettings
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,8 +51,17 @@ class ImportedGlyphTatamiExportRoundTripTest {
             colorChanges = 0, endFound = true, sourceBytes = ByteArray(0),
             threadColors = listOf(0xE74C3C), sourceYAxisDown = true, isModified = true
         )
+        val finished = MachineFinishing.apply(
+            design,
+            MachineFinishingSettings(
+                autoTrimLongJumps = true, trimJumpThresholdMm = 6f,
+                tieInEnabled = true, tieOffEnabled = true, optimizeTravel = true
+            )
+        ).design
+        assertTrue("O acabamento não gerou cortes para os saltos longos",
+            finished.points.any { it.command == StitchCommand.TRIM })
         for (format in listOf("PES", "JEF", "DST")) {
-            val encoded = MatrixConverter.convert(design, format, "m-tatami-qa").getOrThrow()
+            val encoded = MatrixConverter.convert(finished, format, "m-tatami-qa").getOrThrow()
             assertTrue("$format gerou arquivo vazio", encoded.bytes.size > 100)
             val opened = EmbroideryLoader.loadBytes(encoded.fileName, encoded.bytes)
             assertTrue("$format não reabriu: $opened", opened is EmbroideryLoadResult.Success)
