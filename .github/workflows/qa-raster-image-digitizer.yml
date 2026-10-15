@@ -2,7 +2,7 @@ name: Brother Image-to-PES QA
 
 on:
   push:
-    branches: ["feature/image-to-stitches-pes-20261015", "feature/multicolor-digitization-20261015", "feature/layer-editor-pes-20261015", "feature/raster-straight-satin-20261015", "feature/raster-curved-satin-20261015", "feature/manual-satin-rails-editor-20261015", "feature/raster-project-persistence-20261015", "feature/raster-satin-backup-and-joins-20261015", "feature/home-image-to-embroidery-tool-20261015", "feature/photo-logo-crop-background-20261015"]
+    branches: ["feature/image-to-stitches-pes-20261015", "feature/multicolor-digitization-20261015", "feature/layer-editor-pes-20261015", "feature/raster-straight-satin-20261015", "feature/raster-curved-satin-20261015", "feature/manual-satin-rails-editor-20261015", "feature/raster-project-persistence-20261015", "feature/raster-satin-backup-and-joins-20261015", "feature/home-image-to-embroidery-tool-20261015", "feature/photo-logo-crop-background-20261015", "feature/image-photo-preview-reeditable-20261015"]
   workflow_dispatch:
 
 permissions:

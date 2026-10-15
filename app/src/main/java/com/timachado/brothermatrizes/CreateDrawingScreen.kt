@@ -57,6 +57,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
+import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
@@ -65,6 +66,7 @@ import com.timachado.brothermatrizes.core.embroidery.ManualSatinRails
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.SatinRailPair
 import com.timachado.brothermatrizes.core.project.RasterEditProject
+import com.timachado.brothermatrizes.core.project.RasterEditPhotoSource
 import com.timachado.brothermatrizes.core.project.RasterEditProjectStore
 import com.timachado.brothermatrizes.core.project.RasterEditProjectSummary
 import com.timachado.brothermatrizes.core.project.RasterEditProjectBackupStore
@@ -144,6 +146,10 @@ fun CreateDrawingScreen(
 
     var imagePixels by remember { mutableStateOf<RasterImagePixels?>(null) }
     var originalPhotoPixels by remember { mutableStateOf<RasterImagePixels?>(null) }
+    var originalPhotoAvailable by remember { mutableStateOf(false) }
+    var photoPreview by remember { mutableStateOf<PreparedRasterPhoto?>(null) }
+    var photoPreviewBusy by remember { mutableStateOf(false) }
+    var photoPreviewRevision by remember { mutableIntStateOf(0) }
     var rasterCropBounds by remember { mutableStateOf(RasterCropBounds()) }
     var photoRemoveBackground by remember { mutableStateOf(true) }
     var photoBackgroundTolerance by remember { mutableFloatStateOf(55f) }
@@ -382,6 +388,9 @@ fun CreateDrawingScreen(
         if (uri != null) {
             imagePixels = null
             originalPhotoPixels = null
+            originalPhotoAvailable = false
+            photoPreview = null
+            photoPreviewRevision++
             rasterCropBounds = RasterCropBounds()
             photoPreparationMessage = ""
             layerEdits = emptyList()
@@ -394,8 +403,10 @@ fun CreateDrawingScreen(
                 val loaded = withContext(Dispatchers.IO) {
                     RasterImageDecoder.decode(context.contentResolver, uri)
                 }
-                imagePixels = loaded.getOrNull()
                 originalPhotoPixels = loaded.getOrNull()
+                originalPhotoAvailable = loaded.isSuccess
+                imagePixels = if (imageToEmbroideryTool) null else loaded.getOrNull()
+                photoPreview = null
                 loaded.getOrNull()?.let { rasterProjectTitle = it.label.take(120).ifBlank { "Meu bordado" } }
                 imageMessage = loaded.fold(
                     onSuccess = { "${it.label} • ${it.width} × ${it.height} px" },
@@ -889,7 +900,7 @@ fun CreateDrawingScreen(
                     }
                     Text(
                         imageMessage,
-                        color = if (imagePixels != null) FioTextMuted else Color(0xFFFFB36B),
+                        color = if (originalPhotoPixels != null) FioTextMuted else Color(0xFFFFB36B),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 6.dp)
                     )
@@ -911,7 +922,12 @@ fun CreateDrawingScreen(
                         RasterPhotoCropCanvas(
                             photo = originalPhoto,
                             selection = rasterCropBounds,
-                            onSelection = { rasterCropBounds = it }
+                            onSelection = {
+                                rasterCropBounds = it
+                                photoPreview = null
+                                photoPreviewRevision++
+                                photoPreviewBusy = false
+                            }
                         )
                         Row(
                             Modifier.fillMaxWidth(),
@@ -919,16 +935,31 @@ fun CreateDrawingScreen(
                         ) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f),
-                                onClick = { rasterCropBounds = RasterCropBounds(0f,0f,1f,1f) }
+                                onClick = {
+                                    rasterCropBounds = RasterCropBounds(0f,0f,1f,1f)
+                                    photoPreview = null
+                                    photoPreviewRevision++
+                                    photoPreviewBusy = false
+                                }
                             ) { Text("Toda imagem", color = FioGold, fontSize = 11.sp) }
                             OutlinedButton(
                                 modifier = Modifier.weight(1f),
-                                onClick = { rasterCropBounds = RasterCropBounds() }
+                                onClick = {
+                                    rasterCropBounds = RasterCropBounds()
+                                    photoPreview = null
+                                    photoPreviewRevision++
+                                    photoPreviewBusy = false
+                                }
                             ) { Text("Redefinir recorte", color = FioGold, fontSize = 11.sp) }
                         }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = { photoRemoveBackground = !photoRemoveBackground }
+                            onClick = {
+                                photoRemoveBackground = !photoRemoveBackground
+                                photoPreview = null
+                                photoPreviewRevision++
+                                photoPreviewBusy = false
+                            }
                         ) {
                             Text(
                                 if (photoRemoveBackground)
@@ -944,57 +975,120 @@ fun CreateDrawingScreen(
                             )
                             Slider(
                                 value = photoBackgroundTolerance,
-                                onValueChange = { photoBackgroundTolerance = it },
+                                onValueChange = {
+                                    photoBackgroundTolerance = it
+                                    photoPreview = null
+                                    photoPreviewRevision++
+                                    photoPreviewBusy = false
+                                },
                                 valueRange = 12f..110f
                             )
                         }
                         Button(
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = !photoPreviewBusy,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = FioGold,
                                 contentColor = FioBackground
                             ),
                             onClick = {
-                                val prepared = RasterPhotoPreparation.prepare(
-                                    original = originalPhoto,
-                                    bounds = rasterCropBounds,
-                                    removeEdgeBackground = photoRemoveBackground,
-                                    tolerance = photoBackgroundTolerance.toInt()
-                                )
-                                prepared.fold(
-                                    onSuccess = { resultPhoto ->
-                                        imagePixels = resultPhoto.image
-                                        layerEdits = emptyList()
-                                        selectedLayerSource = 0
-                                        savedRasterProjectId = null
-                                        rasterProjectMessage = ""
-                                        multiColorEnabled = true
-                                        photoPreparationMessage =
-                                            "Arte preparada: ${resultPhoto.image.width} × " +
-                                                "${resultPhoto.image.height} px; " +
-                                                "${resultPhoto.removedBackgroundPixels} pixels de fundo removidos. " +
-                                                "Confira a matriz abaixo antes de exportar."
-                                    },
-                                    onFailure = {
-                                        photoPreparationMessage = it.message
-                                            ?: "Não foi possível preparar esta foto."
+                                val selectedCrop = rasterCropBounds
+                                val selectedRemoval = photoRemoveBackground
+                                val selectedTolerance = photoBackgroundTolerance.toInt()
+                                photoPreviewRevision++
+                                val request = photoPreviewRevision
+                                photoPreview = null
+                                photoPreviewBusy = true
+                                photoPreparationMessage = ""
+                                scope.launch {
+                                    val previewResult = withContext(Dispatchers.Default) {
+                                        RasterPhotoPreparation.prepare(
+                                            original = originalPhoto,
+                                            bounds = selectedCrop,
+                                            removeEdgeBackground = selectedRemoval,
+                                            tolerance = selectedTolerance
+                                        )
                                     }
-                                )
+                                    // Ignore stale results if the user imported another image
+                                    // or adjusted the crop/tolerance during processing.
+                                    if (request == photoPreviewRevision &&
+                                        originalPhotoPixels === originalPhoto) {
+                                        photoPreviewBusy = false
+                                        previewResult.fold(
+                                            onSuccess = {
+                                                photoPreview = it
+                                                photoPreparationMessage =
+                                                    "Confira a prévia e a transparência antes de aplicar."
+                                            },
+                                            onFailure = {
+                                                photoPreparationMessage = it.message
+                                                    ?: "Não foi possível preparar esta foto."
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         ) {
-                            Text("Aplicar recorte e preparar matriz", fontWeight = FontWeight.Bold)
+                            Text("Visualizar recorte e fundo", fontWeight = FontWeight.Bold)
+                        }
+                        if (photoPreviewBusy) {
+                            Text(
+                                "Preparando a prévia da foto...",
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                        }
+                        photoPreview?.let { previewPhoto ->
+                            Text(
+                                "Resultado da preparação (quadriculado = transparência)",
+                                color = FioText, fontWeight = FontWeight.SemiBold
+                            )
+                            RasterPreparedImagePreview(image = previewPhoto.image)
+                            Text(
+                                "${previewPhoto.image.width} × ${previewPhoto.image.height} px • " +
+                                    "${previewPhoto.removedBackgroundPixels} pixels de fundo removidos",
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                            Button(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !photoPreviewBusy,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = FioGold,
+                                    contentColor = FioBackground
+                                ),
+                                onClick = {
+                                    imagePixels = previewPhoto.image
+                                    layerEdits = emptyList()
+                                    selectedLayerSource = 0
+                                    multiColorEnabled = true
+                                    photoPreparationMessage =
+                                        "Arte confirmada. Revise as camadas e a matriz abaixo."
+                                }
+                            ) {
+                                Text("Aplicar resultado à matriz", fontWeight = FontWeight.Bold)
+                            }
                         }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = imagePixels !== originalPhoto,
+                            enabled = originalPhotoAvailable && imagePixels != null,
                             onClick = {
-                                imagePixels = originalPhoto
+                                imagePixels =
+                                    if (imageToEmbroideryTool) null else originalPhoto
                                 layerEdits = emptyList()
                                 selectedLayerSource = 0
-                                savedRasterProjectId = null
-                                photoPreparationMessage = "Imagem original restaurada. Faça um novo recorte."
+                                photoPreview = null
+                                photoPreviewRevision++
+                                photoPreviewBusy = false
+                                photoPreparationMessage =
+                                    "Matriz atual descartada. A foto original permanece disponível."
                             }
-                        ) { Text("Restaurar imagem original", color = FioGold) }
+                        ) { Text("Recomeçar da foto original", color = FioGold) }
+                        if (!originalPhotoAvailable) {
+                            Text(
+                                "Projeto antigo: não há cópia da foto antes do recorte. " +
+                                    "Você pode preparar novamente a arte recuperada.",
+                                color = FioTextMuted, fontSize = 10.sp
+                            )
+                        }
                         if (photoPreparationMessage.isNotBlank()) {
                             Text(
                                 photoPreparationMessage,
@@ -1083,7 +1177,18 @@ fun CreateDrawingScreen(
                                     maxColors = maxRasterColors,
                                     outputFormat = outputFormat,
                                     hoopProfile = hoopProfile,
-                                    layers = visibleLayerEdits
+                                    layers = visibleLayerEdits,
+                                    photoSource = if (originalPhotoAvailable)
+                                        originalPhotoPixels?.let {
+                                            RasterEditPhotoSource(
+                                                original = it,
+                                                crop = rasterCropBounds,
+                                                removeEdgeBackground = photoRemoveBackground,
+                                                backgroundTolerance =
+                                                    photoBackgroundTolerance.toInt()
+                                            )
+                                        }
+                                    else null
                                 )
                                 val originalId = savedRasterProjectId
                                 scope.launch {
@@ -1157,9 +1262,21 @@ fun CreateDrawingScreen(
                                         opened.fold(
                                             onSuccess = { project ->
                                                 imagePixels = project.image
-                                                originalPhotoPixels = project.image
-                                                rasterCropBounds = RasterCropBounds()
-                                                photoPreparationMessage = ""
+                                                originalPhotoPixels =
+                                                    project.photoSource?.original ?: project.image
+                                                originalPhotoAvailable = project.photoSource != null
+                                                rasterCropBounds =
+                                                    project.photoSource?.crop ?: RasterCropBounds()
+                                                photoRemoveBackground =
+                                                    project.photoSource?.removeEdgeBackground ?: false
+                                                photoBackgroundTolerance =
+                                                    (project.photoSource?.backgroundTolerance ?: 55).toFloat()
+                                                photoPreview = null
+                                                photoPreviewRevision++
+                                                photoPreparationMessage =
+                                                    if (originalPhotoAvailable)
+                                                        "Foto e recorte originais recuperados."
+                                                    else "Projeto antigo: a foto original não foi salva."
                                                 imageMessage = "${project.image.label} • projeto reaberto"
                                                 maxRasterColors = project.maxColors
                                                 multiColorEnabled = true
