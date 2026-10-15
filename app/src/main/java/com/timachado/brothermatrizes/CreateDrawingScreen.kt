@@ -818,7 +818,7 @@ fun CreateDrawingScreen(
                                     Box(
                                         Modifier.size(24.dp)
                                             .background(
-                                                Color(0xFF000000L or colorSample.toLong()),
+                                                Color(0xFF000000.toInt() or colorSample),
                                                 CircleShape
                                             )
                                             .border(
@@ -895,7 +895,7 @@ fun CreateDrawingScreen(
                                             Box(
                                                 Modifier.size(32.dp)
                                                     .background(
-                                                        Color(0xFF000000L or swatch.toLong()),
+                                                        Color(0xFF000000.toInt() or swatch),
                                                         CircleShape
                                                     )
                                                     .border(
