@@ -57,9 +57,10 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * Browser under DaFont's own pages. There is no undocumented DaFont API,
- * remote scraping, or automatic licensing claim. Downloaded archives are
- * imported locally only after the user taps DaFont's download button.
+ * Browser for the official DaFont and NetFontes websites, without scraping
+ * or undocumented APIs. Files are downloaded only after the user requests
+ * them on the selected website, then validated by the existing ZIP importer.
+ * Font licenses remain the responsibility of their respective authors.
  */
 @Composable
 fun DaFontBrowserScreen(
