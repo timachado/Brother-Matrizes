@@ -40,9 +40,11 @@ object RasterImageDecoder {
             }
 
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            resolver.openInputStream(uri)?.use { stream ->
+            val boundsStream = resolver.openInputStream(uri)
+                ?: error("Não foi possível abrir a imagem.")
+            boundsStream.use { stream ->
                 BitmapFactory.decodeStream(stream, null, bounds)
-            } ?: error("Não foi possível abrir a imagem.")
+            }
             require(bounds.outWidth in 2..MAX_SOURCE_SIDE &&
                 bounds.outHeight in 2..MAX_SOURCE_SIDE) {
                 "Dimensões da imagem inválidas ou muito grandes."
