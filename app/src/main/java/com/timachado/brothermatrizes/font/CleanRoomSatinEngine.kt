@@ -88,20 +88,34 @@ internal object CleanRoomSatinEngine {
         // Não inserir espaçamento automático: fontes cursivas dependem
         // de encaixe e kerning para manter suas ligações entre letras.
         val spacing = options.spacingMm * 10f
-        val outlines = AndroidSkiaOutlineExtractor.extract(
-            font = font,
-            text = text,
-            targetCapHeightUnits = heightUnits,
-            spacingUnits = spacing,
-            rotationDegrees = options.rotationDegrees
-        )
+        // O Tatami QA preserva os contornos do texto completo e nunca
+        // divide anéis cursivos entre letras. O Satin oficial segue intacto.
+        // Com espaçamento manual, manter o caminho oficial até haver
+        // modelagem vetorial específica para esse caso.
+        val useQaTatami = ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED && spacing == 0f
+        val outlines = if (useQaTatami) {
+            ImportedFontFullRunExtractor.extract(
+                font = font,
+                text = text,
+                targetCapHeightUnits = heightUnits,
+                rotationDegrees = options.rotationDegrees
+            )
+        } else {
+            AndroidSkiaOutlineExtractor.extract(
+                font = font,
+                text = text,
+                targetCapHeightUnits = heightUnits,
+                spacingUnits = spacing,
+                rotationDegrees = options.rotationDegrees
+            )
+        }
         val points = mutableListOf<EmbroideryPoint>()
         val stitcher = Stitcher(points)
         var sewnGlyphs = 0
         outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
-            if (ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED) {
+            if (useQaTatami) {
                 // Planejador em homologação: desativado por padrão.
                 // Nunca altera o simulador ou o comportamento oficial.
                 val candidate = ImportedGlyphTatamiAdapter.digitize(contours)
