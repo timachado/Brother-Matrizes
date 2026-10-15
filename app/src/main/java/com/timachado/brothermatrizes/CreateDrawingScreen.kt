@@ -58,6 +58,9 @@ import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
 import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
+import com.timachado.brothermatrizes.core.embroidery.ManualSatinRails
+import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
+import com.timachado.brothermatrizes.core.embroidery.SatinRailPair
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -139,6 +142,18 @@ fun CreateDrawingScreen(
     }
     var selectedLayerSource by remember(imagePixels, maxRasterColors) {
         mutableIntStateOf(0)
+    }
+    var manualEditEnabled by remember(imagePixels, maxRasterColors, selectedLayerSource) {
+        mutableStateOf(false)
+    }
+    var manualSectionIndex by remember(imagePixels, maxRasterColors, selectedLayerSource) {
+        mutableIntStateOf(0)
+    }
+    var manualEditorMessage by remember(imagePixels, maxRasterColors, selectedLayerSource) {
+        mutableStateOf("")
+    }
+    var manualUndoStack by remember(imagePixels, maxRasterColors, selectedLayerSource) {
+        mutableStateOf<List<List<ManualSatinSection>>>(emptyList())
     }
 
     var freehandPaths by remember {
@@ -566,6 +581,43 @@ fun CreateDrawingScreen(
                             .fillMaxSize()
                 )
             } else if (
+                sourceMode == DrawingSourceMode.IMAGE &&
+                multiColorEnabled &&
+                manualEditEnabled &&
+                imagePixels != null &&
+                separatedArtwork != null &&
+                visibleLayerEdits.any {
+                    it.sourceIndex == selectedLayerSource &&
+                        it.stitchMode == RasterLayerStitchMode.MANUAL_SATIN &&
+                        manualSectionIndex in it.manualSections.indices
+                }
+            ) {
+                val editedLayer = visibleLayerEdits.first {
+                    it.sourceIndex == selectedLayerSource
+                }
+                ManualSatinRailCanvas(
+                    art = separatedArtwork,
+                    imageWidth = imagePixels!!.width,
+                    colorIndex = selectedLayerSource,
+                    section = editedLayer.manualSections[manualSectionIndex],
+                    onBeginDrag = {
+                        manualUndoStack =
+                            (manualUndoStack + listOf(editedLayer.manualSections)).takeLast(25)
+                    },
+                    onEdit = { changed ->
+                        val sectionIndex = manualSectionIndex
+                        layerEdits = visibleLayerEdits.map { item ->
+                            if (item.sourceIndex != selectedLayerSource) item
+                            else item.copy(manualSections =
+                                item.manualSections.mapIndexed { at, section ->
+                                    if (at == sectionIndex) changed else section
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (
                 preview != null
             ) {
                 EmbroideryCanvas(
@@ -985,13 +1037,193 @@ fun CreateDrawingScreen(
                                         color = FioGold, fontSize = 11.sp
                                     )
                                 }
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        if (layer.manualSections.isEmpty()) {
+                                            val suggested = ManualSatinRails.suggest(
+                                                separatedArtwork, imagePixels!!.width,
+                                                imagePixels!!.height, layer.sourceIndex
+                                            )
+                                            val first = suggested.getOrNull()
+                                            if (first != null) {
+                                                layerEdits = visibleLayerEdits.map {
+                                                    if (it.sourceIndex == layer.sourceIndex)
+                                                        it.copy(
+                                                            stitchMode = RasterLayerStitchMode.MANUAL_SATIN,
+                                                            manualSections = listOf(first)
+                                                        )
+                                                    else it
+                                                }
+                                                manualSectionIndex = 0
+                                                manualUndoStack = emptyList()
+                                                manualEditEnabled = true
+                                                manualEditorMessage = ""
+                                            } else {
+                                                manualEditorMessage = suggested.exceptionOrNull()
+                                                    ?.message ?: "Não foi possível iniciar os trilhos."
+                                            }
+                                        } else {
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(stitchMode = RasterLayerStitchMode.MANUAL_SATIN)
+                                                else it
+                                            }
+                                            manualEditEnabled = !manualEditEnabled
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        if (layer.stitchMode == RasterLayerStitchMode.MANUAL_SATIN &&
+                                            manualEditEnabled) "● Fechar editor de trilhos"
+                                        else "Editar trilhos Satin manualmente",
+                                        color = FioGold, fontSize = 11.sp
+                                    )
+                                }
+                                if (layer.stitchMode == RasterLayerStitchMode.MANUAL_SATIN) {
+                                    Text(
+                                        "Mova as bolinhas douradas (trilho A) e azuis (B) " +
+                                            "diretamente na área superior. Cada seção é " +
+                                            "um traço do bordado; não conecta letras sozinha.",
+                                        color = FioTextMuted, fontSize = 10.sp
+                                    )
+                                    if (manualEditEnabled) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = manualUndoStack.isNotEmpty(),
+                                                onClick = {
+                                                    val previous = manualUndoStack.last()
+                                                    manualUndoStack = manualUndoStack.dropLast(1)
+                                                    layerEdits = visibleLayerEdits.map {
+                                                        if (it.sourceIndex == layer.sourceIndex)
+                                                            it.copy(manualSections = previous)
+                                                        else it
+                                                    }
+                                                }
+                                            ) { Text("↶ Desfazer", color = FioGold, fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    if (layer.manualSections.size < 80) {
+                                                        manualUndoStack = (
+                                                            manualUndoStack +
+                                                                listOf(layer.manualSections)
+                                                        ).takeLast(25)
+                                                        val last = layer.manualSections.last()
+                                                        layerEdits = visibleLayerEdits.map {
+                                                            if (it.sourceIndex == layer.sourceIndex)
+                                                                it.copy(manualSections =
+                                                                    it.manualSections + last)
+                                                            else it
+                                                        }
+                                                        manualSectionIndex = layer.manualSections.size
+                                                        manualEditorMessage =
+                                                            "Nova seção sobreposta: mova seus pontos antes de gerar."
+                                                    }
+                                                }
+                                            ) { Text("+ Seção", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                        Text(
+                                            "Seção ${manualSectionIndex + 1} de ${layer.manualSections.size}",
+                                            color = FioText, fontSize = 11.sp
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = manualSectionIndex > 0,
+                                                onClick = { manualSectionIndex-- }
+                                            ) { Text("‹ Seção", color = FioGold, fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = manualSectionIndex < layer.manualSections.lastIndex,
+                                                onClick = { manualSectionIndex++ }
+                                            ) { Text("Seção ›", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                        val railList = layer.manualSections
+                                            .getOrNull(manualSectionIndex)?.rails ?: emptyList()
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = railList.size in 2..99,
+                                                onClick = {
+                                                    val i = (railList.size - 1) / 2
+                                                    val a = railList[i]
+                                                    val b = railList[i + 1]
+                                                    val mid = SatinRailPair(
+                                                        (a.ax + b.ax) / 2f, (a.ay + b.ay) / 2f,
+                                                        (a.bx + b.bx) / 2f, (a.by + b.by) / 2f
+                                                    )
+                                                    manualUndoStack = (
+                                                        manualUndoStack +
+                                                            listOf(layer.manualSections)
+                                                    ).takeLast(25)
+                                                    layerEdits = visibleLayerEdits.map { item ->
+                                                        if (item.sourceIndex != layer.sourceIndex) item
+                                                        else item.copy(
+                                                            manualSections =
+                                                                item.manualSections.mapIndexed { at, section ->
+                                                                    if (at == manualSectionIndex)
+                                                                        section.copy(rails =
+                                                                            section.rails.toMutableList().apply {
+                                                                                add(i + 1, mid)
+                                                                            }
+                                                                        )
+                                                                    else section
+                                                                }
+                                                        )
+                                                    }
+                                                }
+                                            ) { Text("+ Par de trilhos", color = FioGold, fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = railList.size > 2,
+                                                onClick = {
+                                                    manualUndoStack = (
+                                                        manualUndoStack +
+                                                            listOf(layer.manualSections)
+                                                    ).takeLast(25)
+                                                    layerEdits = visibleLayerEdits.map { item ->
+                                                        if (item.sourceIndex != layer.sourceIndex) item
+                                                        else item.copy(
+                                                            manualSections =
+                                                                item.manualSections.mapIndexed { at, section ->
+                                                                    if (at == manualSectionIndex)
+                                                                        section.copy(rails = section.rails.dropLast(1))
+                                                                    else section
+                                                                }
+                                                        )
+                                                    }
+                                                }
+                                            ) { Text("− Último par", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                    }
+                                    if (manualEditorMessage.isNotBlank()) {
+                                        Text(
+                                            manualEditorMessage,
+                                            color = FioTextMuted, fontSize = 10.sp
+                                        )
+                                    }
+                                }
                                 if (layer.stitchMode != RasterLayerStitchMode.FILL) {
                                     Text(
                                         if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT)
                                             "Satin reto: faixas de 0,8 a 5,5 mm. " +
                                                 "Curvas, furos e ramos não são aceitos."
-                                        else "Satin curvo: faixa suave e contínua de 0,8 a 5,4 mm. " +
-                                                "Laços, interseções e ramificações exigem edição vetorial.",
+                                        else if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED)
+                                            "Satin curvo: faixa suave e contínua de 0,8 a 5,4 mm. " +
+                                                "Laços e ramificações exigem edição manual."
+                                        else "Satin manual: confira cada rail, evite cruzamentos " +
+                                            "e subdivida cada traço; requer validação de bordado.",
                                         color = FioTextMuted, fontSize = 10.sp
                                     )
                                     val pull = layer.satinPullCompensationMm
