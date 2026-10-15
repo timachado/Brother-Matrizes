@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "549433780395",
+    "project_id": "brother-matrizes---ti-machado",
+    "storage_bucket": "brother-matrizes---ti-machado.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:549433780395:android:0263107abc002b79dd2fee",
+        "android_client_info": {
+          "package_name": "com.timachado.brothermatrizes.qa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAohbON5TibPXZ-qgGc5wrisky-711NGSA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
