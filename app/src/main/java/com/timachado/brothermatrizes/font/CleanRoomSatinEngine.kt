@@ -290,15 +290,22 @@ internal object CleanRoomSatinEngine {
         val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm)
         if (restoredDots.isNotEmpty()) {
             result.removeAll { path ->
-                val middle = path.firstOrNull()?.middle
-                middle != null && restoredDots.any { dot ->
-                    middle.x in dot.left..dot.right &&
-                        middle.y in dot.top..dot.bottom
+                // Só remover um trajeto que pertence INTEIRAMENTE ao acento
+                // restaurado. A checagem apenas da primeira barra podia
+                // eliminar uma rota que continuava na haste da letra.
+                path.isNotEmpty() && restoredDots.any { dot ->
+                    path.all { rail ->
+                        val middle = rail.middle
+                        middle.x in dot.left..dot.right &&
+                            middle.y in dot.top..dot.bottom
+                    }
                 }
             }
-            // Um pingo superior é finalizado ANTES de descer a haste:
-            // nunca voltar para o topo depois de concluir a letra.
-            result.addAll(0, restoredDots.map { it.rails })
+            // Nunca iniciar o nome por um acento situado no meio da palavra.
+            // A sequência principal aprovada (começo do M em "Maria") vem
+            // primeiro; os pequenos componentes desconectados recebem JUMP
+            // e são concluídos depois, sem alterar a ordem das barras Satin.
+            result.addAll(restoredDots.map { it.rails })
         }
         return PlannedGlyph(
             result, orderedRoutes.sumOf { it.size }, duplicates,
