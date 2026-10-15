@@ -1,0 +1,147 @@
+name: Brother Matrizes 1.10.8 - assinatura comercial NetFontes
+
+on:
+  push:
+    branches: [build/official-1.10.8-netfontes-signing-check]
+    paths: [.github/workflows/official-1108-netfontes-sign.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout base comercial 1.10.8
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Garantir versao original e pesquisa NetFontes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 184' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
+          grep -Fq 'NetFontesNavigationRules.searchUrl(term)' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          grep -Fq 'R.drawable.ic_ms_search_rounded' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          test -s app/src/main/res/drawable/ic_ms_search_rounded.xml
+      - name: Preparar identidade visual comercial
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes unitarios e build RELEASE
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease --stacktrace
+      - name: Verificar APK comercial nao assinado
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$src"
+          info="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$src" | head -n1)"
+          echo "$info"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='184'"* ]]
+          [[ "$info" == *"versionName='1.10.8'"* ]]
+          sha256sum "$src" > app/build/outputs/apk/release/app-release-unsigned.sha256
+      - name: Guardar APK RELEASE sem assinatura - nao instalar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.8-NetFontes-UNSIGNED-NAO-INSTALAR
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/app-release-unsigned.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  sign-with-original-certificate:
+    needs: verify-and-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Java 17 para apksigner
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Recuperar build aprovada
+        uses: actions/download-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.8-NetFontes-UNSIGNED-NAO-INSTALAR
+          path: candidate
+      - name: Confirmar disponibilizacao segura da chave original
+        shell: bash
+        env:
+          RELEASE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          RELEASE_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in RELEASE_B64 RELEASE_STORE_PASS RELEASE_ALIAS RELEASE_KEY_PASS; do
+            if [ -z "${!value:-}" ]; then
+              echo "::error::Assinatura bloqueada: configure os quatro secrets da chave comercial ORIGINAL no GitHub Actions, sem envia-los pelo chat."
+              exit 1
+            fi
+          done
+      - name: Assinar e validar mesmo certificado comercial
+        shell: bash
+        env:
+          RELEASE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          RELEASE_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s' "$RELEASE_B64" | base64 -d > "$tmp/original.jks"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p dist
+          "$tools/zipalign" -P 16 -f 4 candidate/app-release-unsigned.apk "$tmp/aligned.apk"
+          signed=dist/Brother-Matrizes-1.10.8-NetFontes-COMERCIAL-ASSINADO.apk
+          "$tools/apksigner" sign --ks "$tmp/original.jks" --ks-key-alias "$RELEASE_ALIAS" \
+            --ks-pass env:RELEASE_STORE_PASS --key-pass env:RELEASE_KEY_PASS \
+            --out "$signed" "$tmp/aligned.apk"
+          "$tools/apksigner" verify --verbose --print-certs "$signed" > dist/assinatura-apk.txt
+          cat dist/assinatura-apk.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' dist/assinatura-apk.txt
+          fingerprint="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' dist/assinatura-apk.txt | head -n 1)"
+          test "$fingerprint" = 'fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' || {
+            echo "::error::Certificado divergente do original comercial; distribuicao bloqueada."
+            exit 1
+          }
+          info="$("$tools/aapt" dump badging "$signed" | head -n1)"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='184'"* ]]
+          [[ "$info" == *"versionName='1.10.8'"* ]]
+          sha256sum "$signed" > dist/APK-SHA256.txt
+      - name: Armazenar candidato comercial verificado SEM publicar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.8-NetFontes-ASSINADO-HOMOLOGACAO
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
