@@ -98,6 +98,12 @@ internal object CleanRoomSatinEngine {
             ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED ||
                 com.timachado.brothermatrizes.BuildConfig.ENABLE_IMPORTED_TATAMI_QA
             ) && spacing == 0f
+        if (useQaTatami) {
+            check(!ImportedGlyphSequenceSafety.EXPERIMENTAL_ROUTE_BLOCKED) {
+                "Tatami experimental 1.10.12-QA bloqueado: percurso e ordem da agulha " +
+                    "incompatíveis com bordado Satin. Não exporte nem execute esta matriz."
+            }
+        }
         val outlines = if (useQaTatami) {
             ImportedFontFullRunExtractor.extract(
                 font = font,
