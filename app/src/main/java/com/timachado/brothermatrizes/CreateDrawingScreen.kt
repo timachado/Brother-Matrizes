@@ -28,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +62,9 @@ import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinRails
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.SatinRailPair
+import com.timachado.brothermatrizes.core.project.RasterEditProject
+import com.timachado.brothermatrizes.core.project.RasterEditProjectStore
+import com.timachado.brothermatrizes.core.project.RasterEditProjectSummary
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -137,12 +141,19 @@ fun CreateDrawingScreen(
     var invertRaster by remember { mutableStateOf(false) }
     var multiColorEnabled by remember { mutableStateOf(false) }
     var maxRasterColors by remember { mutableIntStateOf(2) }
-    var layerEdits by remember(imagePixels, maxRasterColors) {
+    var layerEdits by remember {
         mutableStateOf<List<ColorLayerEdit>>(emptyList())
     }
-    var selectedLayerSource by remember(imagePixels, maxRasterColors) {
+    var selectedLayerSource by remember {
         mutableIntStateOf(0)
     }
+    var savedRasterProjectId by remember { mutableStateOf<String?>(null) }
+    var rasterProjectTitle by remember { mutableStateOf("Meu bordado") }
+    var rasterProjectMessage by remember { mutableStateOf("") }
+    var savedRasterProjects by remember {
+        mutableStateOf<List<RasterEditProjectSummary>>(emptyList())
+    }
+    var rasterProjectListOpen by remember { mutableStateOf(false) }
     var manualEditEnabled by remember(imagePixels, maxRasterColors, selectedLayerSource) {
         mutableStateOf(false)
     }
@@ -304,12 +315,18 @@ fun CreateDrawingScreen(
     ) { uri ->
         if (uri != null) {
             imagePixels = null
+            layerEdits = emptyList()
+            selectedLayerSource = 0
+            savedRasterProjectId = null
+            rasterProjectMessage = ""
+            rasterProjectListOpen = false
             imageMessage = "Lendo imagem com segurança..."
             scope.launch {
                 val loaded = withContext(Dispatchers.IO) {
                     RasterImageDecoder.decode(context.contentResolver, uri)
                 }
                 imagePixels = loaded.getOrNull()
+                loaded.getOrNull()?.let { rasterProjectTitle = it.label.take(120).ifBlank { "Meu bordado" } }
                 imageMessage = loaded.fold(
                     onSuccess = { "${it.label} • ${it.width} × ${it.height} px" },
                     onFailure = { it.message ?: "Não foi possível importar a imagem." }
@@ -818,6 +835,144 @@ fun CreateDrawingScreen(
                         modifier = Modifier.padding(top = 6.dp)
                     )
                     Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Projetos editáveis Satin (armazenamento local)",
+                        color = FioText, fontWeight = FontWeight.SemiBold
+                    )
+                    if (imagePixels != null && multiColorEnabled) {
+                        OutlinedTextField(
+                            value = rasterProjectTitle,
+                            onValueChange = { rasterProjectTitle = it.take(120) },
+                            label = { Text("Nome do projeto") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = imagePixels != null && multiColorEnabled &&
+                                separatedArtwork != null && rasterProjectTitle.isNotBlank(),
+                            onClick = {
+                                val pixels = imagePixels ?: return@OutlinedButton
+                                val project = RasterEditProject(
+                                    title = rasterProjectTitle.trim(),
+                                    image = pixels,
+                                    widthMm = widthMm,
+                                    maxColors = maxRasterColors,
+                                    outputFormat = outputFormat,
+                                    hoopProfile = hoopProfile,
+                                    layers = visibleLayerEdits
+                                )
+                                val originalId = savedRasterProjectId
+                                scope.launch {
+                                    val saved = withContext(Dispatchers.IO) {
+                                        RasterEditProjectStore.save(context, project, originalId)
+                                    }
+                                    saved.fold(
+                                        onSuccess = {
+                                            savedRasterProjectId = it
+                                            rasterProjectMessage = "Projeto editável salvo no aparelho."
+                                        },
+                                        onFailure = {
+                                            rasterProjectMessage =
+                                                it.message ?: "Não foi possível salvar o projeto."
+                                        }
+                                    )
+                                }
+                            }
+                        ) {
+                            Text(
+                                if (savedRasterProjectId != null) "Salvar alterações"
+                                else "Salvar projeto", color = FioGold, fontSize = 11.sp
+                            )
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    val list = withContext(Dispatchers.IO) {
+                                        RasterEditProjectStore.list(context)
+                                    }
+                                    list.fold(
+                                        onSuccess = {
+                                            savedRasterProjects = it
+                                            rasterProjectListOpen = !rasterProjectListOpen
+                                            rasterProjectMessage =
+                                                if (it.isEmpty()) "Nenhum projeto Satin salvo."
+                                                else ""
+                                        },
+                                        onFailure = {
+                                            rasterProjectMessage =
+                                                it.message ?: "Não foi possível listar projetos."
+                                        }
+                                    )
+                                }
+                            }
+                        ) { Text("Reabrir projetos", color = FioGold, fontSize = 11.sp) }
+                    }
+                    if (savedRasterProjectId != null) {
+                        TextButton(
+                            onClick = {
+                                savedRasterProjectId = null
+                                rasterProjectMessage =
+                                    "Próximo salvamento criará outro projeto editável."
+                            }
+                        ) { Text("Salvar uma cópia como novo projeto", color = FioGold) }
+                    }
+                    if (rasterProjectListOpen) {
+                        Text(
+                            "Projetos deste aparelho (30 mais recentes)",
+                            color = FioTextMuted, fontSize = 10.sp
+                        )
+                        savedRasterProjects.take(30).forEach { saved ->
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                onClick = {
+                                    scope.launch {
+                                        val opened = withContext(Dispatchers.IO) {
+                                            RasterEditProjectStore.load(context, saved.id)
+                                        }
+                                        opened.fold(
+                                            onSuccess = { project ->
+                                                imagePixels = project.image
+                                                imageMessage = "${project.image.label} • projeto reaberto"
+                                                maxRasterColors = project.maxColors
+                                                multiColorEnabled = true
+                                                layerEdits = project.layers
+                                                selectedLayerSource =
+                                                    project.layers.firstOrNull()?.sourceIndex ?: 0
+                                                widthMm = project.widthMm
+                                                outputFormat = project.outputFormat
+                                                hoopProfile = project.hoopProfile ?: HoopProfile.H100X100
+                                                rasterProjectTitle = project.title
+                                                savedRasterProjectId = saved.id
+                                                rasterProjectListOpen = false
+                                                rasterProjectMessage =
+                                                    "Trilhos, cores e seções restaurados."
+                                            },
+                                            onFailure = {
+                                                rasterProjectMessage =
+                                                    it.message ?: "Falha ao abrir o projeto."
+                                            }
+                                        )
+                                    }
+                                }
+                            ) {
+                                Text(saved.title, color = FioGold, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                    if (rasterProjectMessage.isNotBlank()) {
+                        Text(
+                            rasterProjectMessage,
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = { multiColorEnabled = !multiColorEnabled },
                         modifier = Modifier.fillMaxWidth()
@@ -1146,6 +1301,128 @@ fun CreateDrawingScreen(
                                                 enabled = manualSectionIndex < layer.manualSections.lastIndex,
                                                 onClick = { manualSectionIndex++ }
                                             ) { Text("Seção ›", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = manualSectionIndex > 0,
+                                                onClick = {
+                                                    val index = manualSectionIndex
+                                                    manualUndoStack = (
+                                                        manualUndoStack + listOf(layer.manualSections)
+                                                    ).takeLast(25)
+                                                    val order = layer.manualSections.toMutableList()
+                                                    val other = order[index - 1]
+                                                    order[index - 1] = order[index]
+                                                    order[index] = other
+                                                    layerEdits = visibleLayerEdits.map { item ->
+                                                        if (item.sourceIndex == layer.sourceIndex)
+                                                            item.copy(manualSections = order)
+                                                        else item
+                                                    }
+                                                    manualSectionIndex--
+                                                }
+                                            ) { Text("↑ Ordem", color = FioGold, fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = manualSectionIndex < layer.manualSections.lastIndex,
+                                                onClick = {
+                                                    val index = manualSectionIndex
+                                                    manualUndoStack = (
+                                                        manualUndoStack + listOf(layer.manualSections)
+                                                    ).takeLast(25)
+                                                    val order = layer.manualSections.toMutableList()
+                                                    val other = order[index + 1]
+                                                    order[index + 1] = order[index]
+                                                    order[index] = other
+                                                    layerEdits = visibleLayerEdits.map { item ->
+                                                        if (item.sourceIndex == layer.sourceIndex)
+                                                            item.copy(manualSections = order)
+                                                        else item
+                                                    }
+                                                    manualSectionIndex++
+                                                }
+                                            ) { Text("↓ Ordem", color = FioGold, fontSize = 10.sp) }
+                                            OutlinedButton(
+                                                modifier = Modifier.weight(1f),
+                                                enabled = layer.manualSections.size > 1,
+                                                onClick = {
+                                                    manualUndoStack = (
+                                                        manualUndoStack + listOf(layer.manualSections)
+                                                    ).takeLast(25)
+                                                    val remaining =
+                                                        layer.manualSections.filterIndexed { index, _ ->
+                                                            index != manualSectionIndex
+                                                        }
+                                                    layerEdits = visibleLayerEdits.map { item ->
+                                                        if (item.sourceIndex == layer.sourceIndex)
+                                                            item.copy(manualSections = remaining)
+                                                        else item
+                                                    }
+                                                    manualSectionIndex =
+                                                        manualSectionIndex.coerceAtMost(remaining.lastIndex)
+                                                    manualEditorMessage = "Seção retirada desta matriz."
+                                                }
+                                            ) { Text("Excluir", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                        Text(
+                                            "Mover seção inteira (1% da arte)",
+                                            color = FioTextMuted, fontSize = 10.sp
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            listOf(
+                                                Triple("←", -0.01f, 0f),
+                                                Triple("→", 0.01f, 0f),
+                                                Triple("↑", 0f, -0.01f),
+                                                Triple("↓", 0f, 0.01f)
+                                            ).forEach { (name, dx, dy) ->
+                                                OutlinedButton(
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = {
+                                                        val current = layer.manualSections
+                                                            .getOrNull(manualSectionIndex)
+                                                        if (current != null) {
+                                                            val shifted = current.rails.map { rail ->
+                                                                rail.copy(
+                                                                    ax = rail.ax + dx, ay = rail.ay + dy,
+                                                                    bx = rail.bx + dx, by = rail.by + dy
+                                                                )
+                                                            }
+                                                            if (shifted.all { rail ->
+                                                                listOf(
+                                                                    rail.ax, rail.ay, rail.bx, rail.by
+                                                                ).all { it in 0f..1f }
+                                                            }) {
+                                                                manualUndoStack = (
+                                                                    manualUndoStack +
+                                                                        listOf(layer.manualSections)
+                                                                ).takeLast(25)
+                                                                layerEdits = visibleLayerEdits.map { item ->
+                                                                    if (item.sourceIndex != layer.sourceIndex) item
+                                                                    else item.copy(
+                                                                        manualSections =
+                                                                            item.manualSections.mapIndexed { i, section ->
+                                                                                if (i == manualSectionIndex)
+                                                                                    section.copy(rails = shifted)
+                                                                                else section
+                                                                            }
+                                                                    )
+                                                                }
+                                                                manualEditorMessage = ""
+                                                            } else {
+                                                                manualEditorMessage =
+                                                                    "O movimento sairia da arte. Ajuste os trilhos."
+                                                            }
+                                                        }
+                                                    }
+                                                ) { Text(name, color = FioGold, fontSize = 11.sp) }
+                                            }
                                         }
                                         val railList = layer.manualSections
                                             .getOrNull(manualSectionIndex)?.rails ?: emptyList()
