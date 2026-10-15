@@ -1,0 +1,46 @@
+name: Brother - QA do contorno TTF OTF sem alterar simulacao
+
+on:
+  push:
+    branches: [fix/brother-1108-satin-glyph-geometry-20261014]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  glyph-geometry:
+    name: Geometria de glifos, Satin original e testes Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Validar isolamento rigoroso do simulador 1.10.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 184' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = "46b58e9ab7b10414970bc47542b7ee5072609646"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = "f51abd96933338b53ee2cf7393f1594aeb726da5"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = "bb5760d057127c68c3370157c6aaddf2aa46ec06"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/StitchThreadSegments.kt)" = "40d8aac9e51fffd2e99ec63fb8b402edb7b4ba40"
+          grep -Fq 'ImportedGlyphVoidGuard.preventVoidConnections(' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'originalLetterCounterCannotBecomeSewnConnection' app/src/test/java/com/timachado/brothermatrizes/font/ImportedGlyphVoidGuardTest.kt
+      - name: Compilar APK debug e testar a geometria
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
