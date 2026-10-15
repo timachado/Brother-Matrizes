@@ -206,29 +206,39 @@ internal object AndroidSkiaOutlineExtractor {
                 textOffset += glyphText.length
             }
 
+        // A Biblioteca usa TextView: o Android desenha o run COMPLETO.
+        // getTextPath de cada letra isolada perde ligaturas, kerning de
+        // substituição, conexões cursivas e marcas posicionadas pelo GSUB/GPOS.
+        // Só usar a silhueta do run inteiro quando não existe espaçamento
+        // manual; neste caso, preservar os anéis e os seus furos sem recortes.
+        val shapedGlyphs = if (spacingUnits == 0f && codePoints.size in 2..24) {
+            extractCompleteRun(paint, text, codePoints)
+        } else null
+        val preparedGlyphs = shapedGlyphs?.takeIf { it.isNotEmpty() } ?: rawGlyphs
+
         require(
-            rawGlyphs.isNotEmpty()
+            preparedGlyphs.isNotEmpty()
         ) {
             "A fonte não gerou glifos vetoriais bordáveis."
         }
 
         val minX =
-            rawGlyphs.minOf {
+            preparedGlyphs.minOf {
                 it.left
             }
 
         val maxX =
-            rawGlyphs.maxOf {
+            preparedGlyphs.maxOf {
                 it.right
             }
 
         val minY =
-            rawGlyphs.minOf {
+            preparedGlyphs.minOf {
                 it.top
             }
 
         val maxY =
-            rawGlyphs.maxOf {
+            preparedGlyphs.maxOf {
                 it.bottom
             }
 
@@ -265,7 +275,7 @@ internal object AndroidSkiaOutlineExtractor {
                 .toFloat()
 
         val transformed =
-            rawGlyphs.map {
+            preparedGlyphs.map {
                     glyph ->
                 glyph.contours.map {
                     contour ->
@@ -305,6 +315,58 @@ internal object AndroidSkiaOutlineExtractor {
                 maxY -
                     minY
         )
+    }
+
+    private fun extractCompleteRun(
+        paint: Paint,
+        text: String,
+        codePoints: IntArray
+    ): List<RawGlyph>? {
+        val path = Path()
+        paint.getTextPath(text, 0, text.length, 0f, 0f, path)
+        if (path.isEmpty) return null
+        val contours = sampleContours(path)
+        if (contours.isEmpty()) return null
+
+        val centers = mutableListOf<Float>()
+        var utf16Index = 0
+        codePoints.forEach { cp ->
+            val before = paint.getRunAdvance(
+                text, 0, text.length, 0, text.length, false, utf16Index
+            )
+            utf16Index += Character.charCount(cp)
+            val after = paint.getRunAdvance(
+                text, 0, text.length, 0, text.length, false, utf16Index
+            )
+            centers += (before + after) * 0.5f
+        }
+        if (centers.any { !it.isFinite() }) return null
+
+        val bounds = contours.map { polygon ->
+            ImportedOpenTypeContourGroups.Box(
+                left = polygon.minOf { it.x },
+                top = polygon.minOf { it.y },
+                right = polygon.maxOf { it.x },
+                bottom = polygon.maxOf { it.y }
+            )
+        }
+        val owners = ImportedOpenTypeContourGroups.owners(bounds, centers)
+        val grouped = List(centers.size) { mutableListOf<List<Point>>() }
+        contours.forEachIndexed { index, polygon ->
+            grouped[owners[index]] += polygon
+        }
+        // A atribuição define somente a ORDEM dos glifos para o Satin.
+        // NÃO corta nem ajusta os pontos vetoriais de nenhum anel.
+        return grouped.mapNotNull { rings ->
+            if (rings.isEmpty()) null else {
+                val p = rings.flatten()
+                RawGlyph(
+                    contours = rings,
+                    left = p.minOf { it.x }, top = p.minOf { it.y },
+                    right = p.maxOf { it.x }, bottom = p.maxOf { it.y }
+                )
+            }
+        }
     }
 
     private fun measuredCapHeight(
@@ -368,13 +430,12 @@ internal object AndroidSkiaOutlineExtractor {
                     0f &&
                 length.isFinite()
             ) {
+                // Contornos importados: refinar curvas sem alterar o motor Satin.
+                // Limite impede alocação descontrolada em fontes ornamentais.
                 val sampleCount =
                     max(
                         8,
-                        ceil(
-                            length /
-                                2f
-                        ).toInt()
+                        ceil(length / 0.85f).toInt().coerceAtMost(12_000)
                     )
 
                 val points =
