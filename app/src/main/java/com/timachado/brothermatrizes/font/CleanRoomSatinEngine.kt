@@ -101,16 +101,27 @@ internal object CleanRoomSatinEngine {
         outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
-            val plan = planContours(
-                contours,
-                densityMm = options.satinDensityMm,
-                pullMm = options.satinPullCompensationMm
-            )
-            require(plan.rails.isNotEmpty()) {
-                "A fonte não produziu uma faixa Satin segura na letra " +
-                    (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
+            if (ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED) {
+                // Planejador em homologação: desativado por padrão.
+                // Nunca altera o simulador ou o comportamento oficial.
+                val candidate = ImportedGlyphTatamiAdapter.digitize(contours)
+                require(candidate.any { it.command == StitchCommand.STITCH }) {
+                    "A fonte não gerou pontadas de preenchimento válidas na letra " +
+                        (glyphIndex + 1) + "."
+                }
+                points.addAll(candidate)
+            } else {
+                val plan = planContours(
+                    contours,
+                    densityMm = options.satinDensityMm,
+                    pullMm = options.satinPullCompensationMm
+                )
+                require(plan.rails.isNotEmpty()) {
+                    "A fonte não produziu uma faixa Satin segura na letra " +
+                        (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
+                }
+                stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
             }
-            stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
             sewnGlyphs++
         }
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
