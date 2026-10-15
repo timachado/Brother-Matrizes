@@ -9,6 +9,15 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.testTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
@@ -16,6 +25,7 @@ import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
+import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
@@ -81,6 +91,41 @@ class ImageToEmbroideryInstrumentedQaTest {
         composeRule.onNodeWithText("Importar PNG, JPG ou WebP").assertExists()
         composeRule.onNodeWithText("Origem").assertDoesNotExist()
         composeRule.onNodeWithText("Gerar matriz").assertExists()
+    }
+
+    @Test
+    fun cropCanvasDragUpdatesSelectedAreaOnAndroid() {
+        val w = 90
+        val h = 60
+        val source = RasterImagePixels(
+            w, h, IntArray(w * h) { 0xFF191919.toInt() }, "Gesto de recorte"
+        )
+        var latest = RasterCropBounds()
+        composeRule.setContent {
+            var crop by remember { mutableStateOf(RasterCropBounds()) }
+            RasterPhotoCropCanvas(
+                photo = source,
+                selection = crop,
+                onSelection = { selected ->
+                    crop = selected
+                    latest = selected
+                },
+                modifier = Modifier.testTag("photo-crop-canvas")
+            )
+        }
+        composeRule.onNodeWithTag("photo-crop-canvas").performTouchInput {
+            swipe(
+                start = Offset(size.width * .34f, size.height * .25f),
+                end = Offset(size.width * .68f, size.height * .75f),
+                durationMillis = 800
+            )
+        }
+        composeRule.runOnIdle {
+            assertTrue(latest.left in 0f..0.5f)
+            assertTrue(latest.right in 0.5f..1f)
+            assertTrue(latest.right - latest.left > .15f)
+            assertTrue(latest.bottom - latest.top > .35f)
+        }
     }
 
     @Test
