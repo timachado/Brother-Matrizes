@@ -52,6 +52,8 @@ class ImportedGlyphFailureReproductionTest {
             localRails.isNotEmpty() && localStitches.isNotEmpty())
         assertTrue("Dot must not disappear in full run.",
             globalRails.isNotEmpty() && globalStitches.isNotEmpty())
+        assertTrue("Pingo do i precisa de pelo menos 3 faixas em alturas diferentes no texto completo.",
+            globalRails.map { it.middle.y.roundToInt() }.distinct().size >= 3)
     }
 
     @Test
@@ -66,7 +68,12 @@ class ImportedGlyphFailureReproductionTest {
             CleanRoomSatinEngine.PlannedGlyph(
                 rails = listOf(listOf(first, second)),
                 sampledEdges = 2,
-                duplicateRailsDiscarded = 0
+                duplicateRailsDiscarded = 0,
+                // O raster de uma faixa isolada à esquerda e outra à direita
+                // contém um vão de 60 unidades entre 30 e 90.
+                connectorInsideInk = { a, b ->
+                    !(a.x <= 30f && b.x >= 90f)
+                }
             )
         )
         val stitchedConnector = stitched.any {
@@ -84,4 +91,34 @@ class ImportedGlyphFailureReproductionTest {
         assertTrue("Não costurar travessia vazia: usar JUMP.",
             jumpedConnector && !stitchedConnector)
     }
+    @Test
+    fun realMaskDetectsGapThroughHoleWithoutDiscardingSatinRails() {
+        // Vazado interior: o caminho de deslocamento não deve costurar o furo.
+        val contours = listOf(
+            rect(0f, 0f, 125f, 115f),
+            rect(35f, 30f, 55f, 55f).asReversed()
+        )
+        val plan = CleanRoomSatinEngine.planContours(
+            contours, densityMm = 0.4f, pullMm = 0f
+        )
+        val inside = plan.connectorInsideInk ?: error("Sem verificador de tinta")
+        assertTrue("Percurso dentro da letra deve continuar costurado.",
+            inside(CleanRoomSatinEngine.V(15f, 14f),
+                CleanRoomSatinEngine.V(105f, 14f)))
+        org.junit.Assert.assertFalse("Percurso sobre vazado requer JUMP.",
+            inside(CleanRoomSatinEngine.V(20f, 55f),
+                CleanRoomSatinEngine.V(104f, 55f)))
+    }
+
+    @Test
+    fun nearSatinBarsStayStitchedWithoutExcessiveJumpCommands() {
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(rect(0f, 0f, 18f, 110f)), densityMm = 0.4f
+        )
+        val points = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        assertTrue(points.count { it.command == StitchCommand.STITCH } >= 20)
+        assertTrue("O guard não deve inserir saltos a cada barra Satin.",
+            points.count { it.command == StitchCommand.JUMP } <= 3)
+    }
+
 }
