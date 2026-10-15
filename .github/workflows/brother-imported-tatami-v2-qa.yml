@@ -39,4 +39,4 @@ jobs:
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = '46b58e9ab7b10414970bc47542b7ee5072609646'
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = 'f51abd96933338b53ee2cf7393f1594aeb726da5'
       - name: Executar testes e compilar Android (nao publicar)
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:compileDebugAndroidTestKotlin
