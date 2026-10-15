@@ -10,6 +10,20 @@ import kotlin.math.abs
  * letra. Nenhum ponto da fonte é deslocado, inventado ou descartado.
  */
 internal object ImportedOpenTypeContourGroups {
+    /**
+     * Entrega o run inteiro ao rasterizador como UMA unidade topológica.
+     * Dividir por centros de avanço não preserva o preenchimento non-zero
+     * quando contornos cursivos se sobrepõem entre letras adjacentes.
+     * A ordem, a orientação e todos os pontos de cada anel são intocados.
+     */
+    fun <T> completeRun(contours: List<List<T>>): List<List<List<T>>> {
+        if (contours.isEmpty()) return emptyList()
+        require(contours.all { it.size >= 3 }) {
+            "Contorno vetorial inválido para rasterização."
+        }
+        return listOf(contours)
+    }
+
     data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
         val centerX: Float get() = (left + right) * 0.5f
         val area: Float get() = (right - left).coerceAtLeast(0f) *
