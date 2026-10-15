@@ -22,7 +22,9 @@ data class SatinRailPair(
 )
 
 data class ManualSatinSection(
-    val rails: List<SatinRailPair>
+    val rails: List<SatinRailPair>,
+    /** União explícita com a seção anterior: só aceita extremidades a <= 1,5 mm. */
+    val connectToPrevious: Boolean = false
 )
 
 object ManualSatinRails {
@@ -138,7 +140,10 @@ object ManualSatinRails {
             )
         }
 
-        for (section in sections) {
+        for ((sectionIndex, section) in sections.withIndex()) {
+            require(sectionIndex > 0 || !section.connectToPrevious) {
+                "A primeira seção não pode conectar-se a uma seção anterior."
+            }
             val rails = section.rails
             require(rails.size in 2..100) { "Cada seção precisa de 2 a 100 trilhos." }
             rails.forEach { r ->
@@ -214,10 +219,31 @@ object ManualSatinRails {
                 sampled += (a - adjust) to (b + adjust)
             }
             val previous = result.lastOrNull()
-            if (previous != null) {
+            val connecting = section.connectToPrevious
+            val entryA = sampled.first().first
+            val entryB = sampled.first().second
+            // União somente mediante pedido explícito e proximidade mensurada.
+            // Nunca costurar inadvertidamente entre letras/ilhas separadas.
+            val entryOnA = if (connecting) {
+                require(previous != null) {
+                    "A conexão requer uma seção de bordado anterior."
+                }
+                val current = P(previous.xUnits.toDouble(), previous.yUnits.toDouble())
+                val distanceA = norm(entryA - current)
+                val distanceB = norm(entryB - current)
+                require(minOf(distanceA, distanceB) <= 15.0) {
+                    "União Satin excede 1,5 mm. Aproxime as pontas ou desligue Conectar."
+                }
+                distanceA <= distanceB
+            } else true
+
+            if (previous != null && !connecting) {
                 point(P(previous.xUnits.toDouble(), previous.yUnits.toDouble()), StitchCommand.TRIM)
             }
-            if (centerUnderlay) {
+            // Underlay central individual exige JUMP até a outra extremidade:
+            // ao conectar, omitimos o underlay desta seção para não quebrar
+            // a costura contínua com um deslocamento oculto.
+            if (centerUnderlay && !connecting) {
                 val reversed = sampled.asReversed()
                 val c0 = (reversed.first().first + reversed.first().second) * 0.5
                 point(c0, StitchCommand.JUMP)
@@ -233,10 +259,16 @@ object ManualSatinRails {
                     at = end
                 }
             }
-            point(sampled.first().first, StitchCommand.JUMP)
-            var lastStitch = sampled.first().first
+            val entry = if (entryOnA) entryA else entryB
+            if (connecting) {
+                val current = P(previous!!.xUnits.toDouble(), previous.yUnits.toDouble())
+                if (norm(entry - current) >= 1.0) point(entry, StitchCommand.STITCH)
+            } else {
+                point(entry, StitchCommand.JUMP)
+            }
+            var lastStitch = entry
             for (i in sampled.indices) {
-                val destination = if (i % 2 == 0)
+                val destination = if ((i % 2 == 0) == entryOnA)
                     sampled[i].second else sampled[i].first
                 val delta = norm(destination - lastStitch)
                 require(delta <= 78.0) {
