@@ -35,6 +35,12 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"sb_publishable_K7JQ8O5fNgZjhEGSQsoZdQ_W4TLRHY4\""
         )
+        // Planejador de fontes sob QA explícito; false em TODAS as builds normais.
+        // Ativação somente com -PbrotherTatamiQa=true em compilação de testes.
+        buildConfigField(
+            "boolean", "ENABLE_IMPORTED_TATAMI_QA",
+            (providers.gradleProperty("brotherTatamiQa").orNull == "true").toString()
+        )
         // Local beta preview quota for imports only. No purchase or Pro unlock.
         // Disable and migrate quotas before launching commercial sales.
         buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "true")
