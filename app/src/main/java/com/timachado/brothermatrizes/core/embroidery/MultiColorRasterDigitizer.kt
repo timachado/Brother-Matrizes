@@ -16,6 +16,14 @@ import kotlin.math.sqrt
  * com deslocamento alternado ("Tatami-like"); Satin e underlay profissional
  * continuam fora do escopo desta etapa.
  */
+/** Edição não destrutiva: índice da cor detectada, ordem, visibilidade e parâmetros locais. */
+data class ColorLayerEdit(
+    val sourceIndex: Int,
+    val enabled: Boolean = true,
+    val threadColor: Int? = null,
+    val rowSpacingMm: Float? = null
+)
+
 data class MultiColorRasterOptions(
     val widthMm: Float = 60f,
     val maxColors: Int = 2,
@@ -23,7 +31,8 @@ data class MultiColorRasterOptions(
     val hoopProfile: HoopProfile? = HoopProfile.H100X100,
     val rowSpacingMm: Float = 0.5f,
     val stitchLengthMm: Float = 2.8f,
-    val backgroundTolerance: Int = 72
+    val backgroundTolerance: Int = 72,
+    val layers: List<ColorLayerEdit> = emptyList()
 )
 
 data class SeparatedColorArtwork(
@@ -177,8 +186,45 @@ object MultiColorRasterDigitizer {
     fun generate(
         source: RasterImagePixels,
         options: MultiColorRasterOptions
+    ): Result<EmbroideryDesign> =
+        separate(source, options).fold(
+            onSuccess = { generateSeparated(source, it, options) },
+            onFailure = { Result.failure(it) }
+        )
+
+    /** Reutiliza a separação em cache do editor ao ajustar cores ou ordem. */
+    fun generateSeparated(
+        source: RasterImagePixels,
+        art: SeparatedColorArtwork,
+        options: MultiColorRasterOptions
     ): Result<EmbroideryDesign> = runCatching {
-        val art = separate(source, options).getOrThrow()
+        validate(source, options)
+        require(art.pixels.size == source.width * source.height &&
+            art.colors.isNotEmpty() && art.colors.size <= options.maxColors &&
+            art.minX >= 0 && art.minY >= 0 &&
+            art.maxX < source.width && art.maxY < source.height &&
+            art.minX <= art.maxX && art.minY <= art.maxY) {
+            "Camadas de imagem inválidas."
+        }
+        val layers = if (options.layers.isEmpty()) {
+            art.colors.indices.map { ColorLayerEdit(sourceIndex = it) }
+        } else options.layers
+        require(layers.size == art.colors.size &&
+            layers.map { it.sourceIndex }.toSet() == art.colors.indices.toSet()) {
+            "Lista de camadas diferente das cores detectadas."
+        }
+        layers.forEach { layer ->
+            require(layer.threadColor == null || layer.threadColor in 0..0xFFFFFF) {
+                "Cor de linha inválida."
+            }
+            require(layer.rowSpacingMm == null || layer.rowSpacingMm in 0.4f..1f) {
+                "Espaçamento de pontos inválido."
+            }
+        }
+        val activeLayers = layers.filter { it.enabled }
+        require(activeLayers.isNotEmpty()) {
+            "Ative pelo menos uma camada antes de gerar a matriz."
+        }
         val croppedWidth = art.maxX - art.minX + 1
         val croppedHeight = art.maxY - art.minY + 1
         val unitsPerPixel = options.widthMm * 10f / croppedWidth
@@ -190,13 +236,13 @@ object MultiColorRasterDigitizer {
             (designHeight / 2f - (pixel - art.minY + .5f) * unitsPerPixel).roundToInt()
 
         val out = ArrayList<EmbroideryPoint>()
-        val verticalStep = options.rowSpacingMm * 10f
         val maxStitchLength = options.stitchLengthMm * 10f
         var lastX = 0
         var lastY = 0
         var hasStitched = false
 
-        for (colorIndex in art.colors.indices) {
+        for ((colorIndex, layer) in activeLayers.withIndex()) {
+            val verticalStep = (layer.rowSpacingMm ?: options.rowSpacingMm) * 10f
             var layerStitched = false
             var row = 0
             var yUnitsFromTop = 0f
@@ -208,11 +254,11 @@ object MultiColorRasterDigitizer {
                 var x = art.minX
                 while (x <= art.maxX) {
                     while (x <= art.maxX &&
-                        art.pixels[y * source.width + x] != colorIndex) x++
+                        art.pixels[y * source.width + x] != layer.sourceIndex) x++
                     if (x > art.maxX) break
                     val start = x
                     while (x <= art.maxX &&
-                        art.pixels[y * source.width + x] == colorIndex) x++
+                        art.pixels[y * source.width + x] == layer.sourceIndex) x++
                     if (x - start >= 2 && (x - start - 1) * unitsPerPixel >= 8f) {
                         spans += start to x - 1
                     }
@@ -268,7 +314,7 @@ object MultiColorRasterDigitizer {
             }
         }
         require(hasStitched && out.size > 10) { "Desenho sem pontos suficientes." }
-        out += EmbroideryPoint(lastX, lastY, StitchCommand.END, art.colors.lastIndex)
+        out += EmbroideryPoint(lastX, lastY, StitchCommand.END, activeLayers.lastIndex)
         val useful = out.filter { it.command != StitchCommand.END }
         val format = options.outputFormat.uppercase()
         val matrix = EmbroideryDesign(
@@ -285,7 +331,7 @@ object MultiColorRasterDigitizer {
             colorChanges = out.count { it.command == StitchCommand.COLOR_CHANGE },
             endFound = true,
             sourceBytes = ByteArray(0),
-            threadColors = art.colors,
+            threadColors = activeLayers.map { it.threadColor ?: art.colors[it.sourceIndex] },
             isModified = true,
             hoopProfile = options.hoopProfile
         )
