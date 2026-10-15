@@ -42,6 +42,8 @@ jobs:
           grep -Fq 'Buscar fonte no ${source.displayName}' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
           grep -Fq 'ic_ms_search_rounded' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
           test -s app/src/main/res/drawable/ic_ms_search_rounded.xml
+          grep -Fq 'NetFontesNavigationRules.searchUrl(term)' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          grep -Fq 'https://www.netfontes.com/search/' app/src/main/java/com/timachado/brothermatrizes/font/NetFontesNavigationRules.kt
       - name: Preparar identidade visual
         run: bash scripts/prepare_brand_assets.sh
       - name: Testes unitarios Android
