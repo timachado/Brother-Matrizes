@@ -54,6 +54,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDigitizer
 import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -128,6 +130,8 @@ fun CreateDrawingScreen(
     var imageMessage by remember { mutableStateOf("Nenhuma imagem importada.") }
     var threshold by remember { mutableFloatStateOf(140f) }
     var invertRaster by remember { mutableStateOf(false) }
+    var multiColorEnabled by remember { mutableStateOf(false) }
+    var maxRasterColors by remember { mutableIntStateOf(2) }
 
     var freehandPaths by remember {
         mutableStateOf<
@@ -350,20 +354,32 @@ fun CreateDrawingScreen(
 
     val rasterResult = remember(
         imagePixels, widthMm, threshold, invertRaster, color,
-        outputFormat, hoopProfile
+        outputFormat, hoopProfile, multiColorEnabled, maxRasterColors
     ) {
         imagePixels?.let {
-            RasterImageDigitizer.generate(
-                it,
-                RasterImageOptions(
-                    widthMm = widthMm,
-                    threshold = threshold.toInt(),
-                    invert = invertRaster,
-                    threadColor = color,
-                    outputFormat = outputFormat,
-                    hoopProfile = hoopProfile
+            if (multiColorEnabled) {
+                MultiColorRasterDigitizer.generate(
+                    it,
+                    MultiColorRasterOptions(
+                        widthMm = widthMm,
+                        maxColors = maxRasterColors,
+                        outputFormat = outputFormat,
+                        hoopProfile = hoopProfile
+                    )
                 )
-            )
+            } else {
+                RasterImageDigitizer.generate(
+                    it,
+                    RasterImageOptions(
+                        widthMm = widthMm,
+                        threshold = threshold.toInt(),
+                        invert = invertRaster,
+                        threadColor = color,
+                        outputFormat = outputFormat,
+                        hoopProfile = hoopProfile
+                    )
+                )
+            }
         }
     }
 
@@ -714,6 +730,36 @@ fun CreateDrawingScreen(
                         modifier = Modifier.padding(top = 6.dp)
                     )
                     Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = { multiColorEnabled = !multiColorEnabled },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (multiColorEnabled) "● Multicor (experimental)"
+                            else "○ Monocromático — ativar multicor",
+                            color = FioGold
+                        )
+                    }
+                    if (multiColorEnabled) {
+                        OutlinedButton(
+                            onClick = { maxRasterColors = if (maxRasterColors == 4) 2 else maxRasterColors + 1 },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Quantidade máxima: $maxRasterColors cores",
+                                color = FioGold
+                            )
+                        }
+                        Text(
+                            "Usa a cor predominante das bordas para detectar o fundo. " +
+                                "Recorte somente o logo; cada cor recebe sua própria " +
+                                "camada de pontos e troca de linha. Para nome cursivo " +
+                                "fino, prefira criar como texto com fonte adequada.",
+                            color = FioTextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (!multiColorEnabled) {
                     Text("Contraste do desenho: ${threshold.toInt()}",
                         color = FioText, fontWeight = FontWeight.SemiBold)
                     Slider(
@@ -731,8 +777,13 @@ fun CreateDrawingScreen(
                             color = FioGold
                         )
                     }
+                    }
                     Text(
-                        "Digitalização experimental de uma cor com preenchimento corrido. " +
+                        if (multiColorEnabled)
+                            "Multicor experimental com faixas de preenchimento. " +
+                                "Ainda exige acabamento Satin, underlay e testes em tecido."
+                        else
+                            "Digitalização experimental de uma cor com preenchimento corrido. " +
                             "Recorte apenas o logo, preferencialmente com fundo uniforme " +
                             "ou transparente. Não converte fotos complexas em bordado " +
                             "profissional. Confira a prévia, o bastidor e teste em tecido.",
