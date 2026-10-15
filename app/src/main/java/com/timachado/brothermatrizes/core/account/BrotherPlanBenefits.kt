@@ -125,7 +125,8 @@ internal object BrotherPlanBenefits {
         "Enviar pacote ao RAR" to "5 envios/mês",
         "Buscar matrizes no Telegram" to "10 pesquisas/mês",
         "Importar fontes TTF, OTF ou ZIP" to "3 fontes/mês",
-        "Pesquisar fontes no DaFont" to "10 pesquisas/mês"
+        "Pesquisar fontes no DaFont" to "10 pesquisas/mês",
+        "Pesquisar fontes no NetFontes" to "Busca no site; importar usa 3 fontes/mês"
     )
 
     val comparison: List<Comparison> = listOf(
@@ -137,6 +138,7 @@ internal object BrotherPlanBenefits {
         Comparison("Enviar pacotes ao RAR", "5 envios/mês", "Sem cota mensal do Gratuito"),
         Comparison("Buscar matrizes no Telegram", "10 buscas/mês", "Sem cota mensal do Gratuito"),
         Comparison("Pesquisar fontes no DaFont", "10 buscas/mês", "Sem cota mensal do Gratuito"),
+        Comparison("Pesquisar fontes no NetFontes", "Busca no site; importar até 3 fontes/mês", "Busca no site; importação sem cota mensal do Gratuito"),
         Comparison("Abrir formatos aceitos pelo aplicativo", "Disponível conforme formato", "Disponível conforme formato"),
         Comparison("Editor, visualização e simulação", "Disponível", "Disponível"),
         Comparison("Exportar e compartilhar trabalhos", "Disponível conforme formato", "Disponível conforme formato"),
