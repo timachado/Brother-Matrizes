@@ -11,8 +11,12 @@ import kotlin.math.hypot
 class ImportedGlyphTatamiPlannerTest {
     private fun box(x0: Float, y0: Float, x1: Float, y1: Float, reversed: Boolean = false):
         List<ImportedGlyphTatamiPlanner.P> {
-        val p = ImportedGlyphTatamiPlanner
-        val ring = listOf(p.P(x0, y0), p.P(x1, y0), p.P(x1, y1), p.P(x0, y1))
+        val ring = listOf(
+            ImportedGlyphTatamiPlanner.P(x0, y0),
+            ImportedGlyphTatamiPlanner.P(x1, y0),
+            ImportedGlyphTatamiPlanner.P(x1, y1),
+            ImportedGlyphTatamiPlanner.P(x0, y1)
+        )
         return if (reversed) ring.reversed() else ring
     }
 
