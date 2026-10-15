@@ -6,6 +6,8 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryStressPolicy
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.MachineFinishing
+import com.timachado.brothermatrizes.core.embroidery.MachineFinishingSettings
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -169,13 +171,28 @@ internal object CleanRoomSatinEngine {
             hoopProfile = options.hoopProfile,
             fabricProfile = options.fabricProfile
         )
-        EmbroideryStressPolicy.requireGeneratedSafe(design)
+        // Acabamento aprovado do próprio Brother Matrizes, aplicado somente
+        // ao planejador experimental: tie-in/off e TRIM para saltos longos.
+        // A geometria, o simulador e o gerador Satin oficial ficam intactos.
+        val finished = if (useQaTatami) {
+            MachineFinishing.apply(
+                design,
+                MachineFinishingSettings(
+                    tieInEnabled = true,
+                    tieOffEnabled = true,
+                    autoTrimLongJumps = true,
+                    trimJumpThresholdMm = 6f,
+                    optimizeTravel = true
+                )
+            ).design
+        } else design
+        EmbroideryStressPolicy.requireGeneratedSafe(finished)
         if (options.enforceHoop && options.hoopProfile != null) {
-            require(HoopValidator.validate(design, options.hoopProfile).fits) {
+            require(HoopValidator.validate(finished, options.hoopProfile).fits) {
                 "O bordado ultrapassa o bastidor selecionado."
             }
         }
-        design
+        finished
     }
 
     internal fun planContours(
