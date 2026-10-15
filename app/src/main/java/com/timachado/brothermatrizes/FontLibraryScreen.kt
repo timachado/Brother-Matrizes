@@ -43,6 +43,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.font.ImportedFont
 import com.timachado.brothermatrizes.font.ImportedFontStore
 import com.timachado.brothermatrizes.font.FontArchiveImporter
+import com.timachado.brothermatrizes.font.FontCatalogSource
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
@@ -90,7 +91,7 @@ fun FontLibraryScreen(
         }
     }
 
-    var browserOpen by remember { mutableStateOf(false) }
+    var browserSource by remember { mutableStateOf<FontCatalogSource?>(null) }
     var fontZipUri by remember { mutableStateOf<android.net.Uri?>(null) }
     val zipPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -137,14 +138,16 @@ fun FontLibraryScreen(
         }
     }
 
-    if (browserOpen) {
+    val activeCatalog = browserSource
+    if (activeCatalog != null) {
         DaFontBrowserScreen(
+            source = activeCatalog,
             onBack = {
                 importedFonts = ImportedFontStore.list(context)
-                browserOpen = false
+                browserSource = null
             },
             onArchiveReady = { uri ->
-                browserOpen = false
+                browserSource = null
                 fontZipUri = uri
             },
             onRequireGoogle = onRequireGoogle
@@ -251,7 +254,7 @@ fun FontLibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { guardedPicker { browserOpen = true } },
+                onClick = { guardedPicker { browserSource = FontCatalogSource.DAFONT } },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FioSurfaceAlt,
@@ -259,18 +262,26 @@ fun FontLibraryScreen(
                 )
             ) { Text("Buscar no DaFont") }
             Button(
-                onClick = {
-                    guardedPicker {
-                        zipPicker.launch(arrayOf("application/zip", "application/octet-stream"))
-                    }
-                },
+                onClick = { guardedPicker { browserSource = FontCatalogSource.NETFONTES } },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FioSurfaceAlt,
                     contentColor = FioText
                 )
-            ) { Text("Importar ZIP") }
+            ) { Text("Buscar no NetFontes") }
         }
+        Button(
+            onClick = {
+                guardedPicker {
+                    zipPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = FioSurfaceAlt,
+                contentColor = FioText
+            )
+        ) { Text("Importar ZIP") }
 
         Text(
             "A fonte TTF/OTF fica salva somente neste aparelho e disponível em Criar Nome até você excluir. Ela não é enviada nem sincronizada com sua conta Brother Matrizes. Limite: 12 MB por fonte.",
