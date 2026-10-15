@@ -1,0 +1,139 @@
+name: Brother Matrizes 1.10.13-RECOVERY - recuperar motor oficial 1.10.8 sem publicar
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/brother-11013-recovery-private-sign.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-safe-recovery-113-sign
+  cancel-in-progress: false
+
+jobs:
+  signed-qa:
+    name: Recuperacao 1.10.8 - testar e assinar sem distribuicao
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: brother-release-signing
+    steps:
+      - name: Checkout EXATO da release oficial sem Tatami experimental
+        uses: actions/checkout@v4
+        with:
+          ref: 19ca60e13ead6177aba7362a0ed526cd3beba7c7
+          persist-credentials: false
+
+      - name: Confirmar release base autorizada
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = '19ca60e13ead6177aba7362a0ed526cd3beba7c7'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: SDK Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Verificar identidade comercial e motor original
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 184' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = '46b58e9ab7b10414970bc47542b7ee5072609646'
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = 'f51abd96933338b53ee2cf7393f1594aeb726da5'
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = 'bb5760d057127c68c3370157c6aaddf2aa46ec06'
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/StitchThreadSegments.kt)" = '40d8aac9e51fffd2e99ec63fb8b402edb7b4ba40'
+
+      - name: Alterar numero da versao APENAS no workspace temporario do CI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f = Path("app/build.gradle.kts")
+          s = f.read_text()
+          assert s.count('versionCode = 184') == 1
+          assert s.count('versionName = "1.10.8"') == 1
+          s = s.replace('versionCode = 184', 'versionCode = 189')
+          s = s.replace('versionName = "1.10.8"', 'versionName = "1.10.13-RECOVERY"')
+          f.write_text(s)
+          PY
+          grep -Fq 'versionCode = 189' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.13-RECOVERY"' app/build.gradle.kts
+
+      - name: Compilar release oficial recuperada sem Tatami experimental
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease
+
+      - name: Assinar recuperacao com certificado original e validar pacote
+        shell: bash
+        env:
+          RELEASE_JKS_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for key in RELEASE_JKS_B64 RELEASE_STORE_PASS RELEASE_KEY_ALIAS RELEASE_KEY_PASS; do
+            test -n "${!key:-}" || { echo "::error::Assinatura comercial indisponivel no QA."; exit 1; }
+          done
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s' "$RELEASE_JKS_B64" | base64 -d > "$tmp/original.jks"
+          unsigned="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$unsigned"
+          android_tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$android_tools/zipalign" -f -p 4 "$unsigned" "$tmp/aligned.apk"
+          mkdir -p dist
+          export RELEASE_STORE_PASS RELEASE_KEY_PASS
+          signed="dist/Brother-Matrizes-1.10.13-RECOVERY-BASE-1108-NAO-PUBLICAR.apk"
+          "$android_tools/apksigner" sign --ks "$tmp/original.jks" \
+            --ks-key-alias "$RELEASE_KEY_ALIAS" \
+            --ks-pass env:RELEASE_STORE_PASS \
+            --key-pass env:RELEASE_KEY_PASS \
+            --out "$signed" "$tmp/aligned.apk"
+          "$android_tools/zipalign" -c -p 4 "$signed"
+          audit="$("$android_tools/apksigner" verify --verbose --print-certs "$signed")"
+          printf '%s\n' "$audit" | grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true'
+          printf '%s\n' "$audit" | grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true'
+          cert="$(printf '%s\n' "$audit" | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\1/p' | tr '[:upper:]' '[:lower:]')"
+          test "$cert" = 'fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' || {
+            echo "::error::Certificado diferente do Brother Matrizes oficial."; exit 1;
+          }
+          package_info="$("$android_tools/aapt" dump badging "$signed" | head -n1)"
+          [[ "$package_info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$package_info" == *"versionCode='189'"* ]]
+          [[ "$package_info" == *"versionName='1.10.13-RECOVERY'"* ]]
+          sha256sum "$signed" > dist/Brother-1.10.13-RECOVERY-SHA256.txt
+          printf '%s\n' "RECOVERY do motor original 1.10.8 com versionCode 189. Nao publicar no site, nao atualizar Supabase, manifestos, GitHub Releases ou clientes." > dist/LEIA-ME-NAO-PUBLICAR.txt
+
+      - name: Disponibilizar recuperacao privada como artefato temporario
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.13-RECOVERY-ASSINADO-NAO-PUBLICAR
+          path: |
+            dist/Brother-Matrizes-1.10.13-RECOVERY-BASE-1108-NAO-PUBLICAR.apk
+            dist/Brother-1.10.13-RECOVERY-SHA256.txt
+            dist/LEIA-ME-NAO-PUBLICAR.txt
+          if-no-files-found: error
+          retention-days: 2
