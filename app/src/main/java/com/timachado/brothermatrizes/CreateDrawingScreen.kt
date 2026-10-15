@@ -1372,7 +1372,7 @@ fun CreateDrawingScreen(
                                                         layerEdits = visibleLayerEdits.map {
                                                             if (it.sourceIndex == layer.sourceIndex)
                                                                 it.copy(manualSections =
-                                                                    it.manualSections + last)
+                                                                    it.manualSections + last.copy(connectToPrevious = false))
                                                             else it
                                                         }
                                                         manualSectionIndex = layer.manualSections.size
@@ -1419,7 +1419,9 @@ fun CreateDrawingScreen(
                                                     order[index] = other
                                                     layerEdits = visibleLayerEdits.map { item ->
                                                         if (item.sourceIndex == layer.sourceIndex)
-                                                            item.copy(manualSections = order)
+                                                            item.copy(manualSections = order.map {
+                                                                it.copy(connectToPrevious = false)
+                                                            })
                                                         else item
                                                     }
                                                     manualSectionIndex--
@@ -1439,7 +1441,9 @@ fun CreateDrawingScreen(
                                                     order[index] = other
                                                     layerEdits = visibleLayerEdits.map { item ->
                                                         if (item.sourceIndex == layer.sourceIndex)
-                                                            item.copy(manualSections = order)
+                                                            item.copy(manualSections = order.map {
+                                                                it.copy(connectToPrevious = false)
+                                                            })
                                                         else item
                                                     }
                                                     manualSectionIndex++
@@ -1458,7 +1462,11 @@ fun CreateDrawingScreen(
                                                         }
                                                     layerEdits = visibleLayerEdits.map { item ->
                                                         if (item.sourceIndex == layer.sourceIndex)
-                                                            item.copy(manualSections = remaining)
+                                                            item.copy(manualSections = remaining.mapIndexed { idx, section ->
+                                                                if (idx == 0)
+                                                                    section.copy(connectToPrevious = false)
+                                                                else section
+                                                            })
                                                         else item
                                                     }
                                                     manualSectionIndex =
