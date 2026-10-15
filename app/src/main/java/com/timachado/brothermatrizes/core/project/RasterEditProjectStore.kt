@@ -7,6 +7,7 @@ import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
+import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
 import com.timachado.brothermatrizes.core.embroidery.SatinRailPair
 import com.timachado.brothermatrizes.core.storage.AtomicFileWriter
@@ -24,6 +25,14 @@ import java.util.zip.CRC32
  * NÃO altera o ProjectCodec (.flp) antigo nem substitui a biblioteca de PES.
  * Cada documento contém pixels ARGB originais, opções e TODAS as seções Satin.
  */
+/** Photo original and crop parameters, so reopen can redo photo preparation. */
+data class RasterEditPhotoSource(
+    val original: RasterImagePixels,
+    val crop: RasterCropBounds = RasterCropBounds(),
+    val removeEdgeBackground: Boolean = false,
+    val backgroundTolerance: Int = 55
+)
+
 data class RasterEditProject(
     val title: String,
     val image: RasterImagePixels,
@@ -31,7 +40,8 @@ data class RasterEditProject(
     val maxColors: Int,
     val outputFormat: String,
     val hoopProfile: HoopProfile?,
-    val layers: List<ColorLayerEdit>
+    val layers: List<ColorLayerEdit>,
+    val photoSource: RasterEditPhotoSource? = null
 )
 
 data class RasterEditProjectSummary(
@@ -42,7 +52,7 @@ data class RasterEditProjectSummary(
 
 object RasterEditProjectCodec {
     private const val MAGIC = 0x42524D52 // BRMR
-    private const val VERSION = 2
+    private const val VERSION = 3
     const val MAX_BYTES = 4_000_000
     private const val MAX_SECTIONS = 80
     private const val MAX_RAILS = 100
@@ -56,6 +66,21 @@ object RasterEditProjectCodec {
             image.argb.size == image.width * image.height &&
             image.label.length <= 250) {
             "Imagem inválida ou grande demais para salvar."
+        }
+        project.photoSource?.let { photo ->
+            val original = photo.original
+            require(original.width in 8..512 && original.height in 8..512 &&
+                original.argb.size == original.width * original.height &&
+                original.label.length <= 250) {
+                "Foto original inválida para persistência."
+            }
+            val crop = photo.crop
+            require(listOf(crop.left, crop.top, crop.right, crop.bottom).all {
+                it.isFinite() && it in 0f..1f
+            } && crop.left < crop.right && crop.top < crop.bottom &&
+                photo.backgroundTolerance in 12..110) {
+                "Dados de preparação da fotografia inválidos."
+            }
         }
         require(project.widthMm.isFinite() && project.widthMm in 10f..200f &&
             project.maxColors in 2..4 &&
@@ -137,6 +162,22 @@ object RasterEditProjectCodec {
                         out.writeFloat(r.by)
                     }
                 }
+            }
+            // Version 3 adds an OPTIONAL original photo after the V1/V2 data;
+            // no modification of established layer/Satin ordering.
+            val photo = project.photoSource
+            out.writeBoolean(photo != null)
+            if (photo != null) {
+                out.writeUTF(photo.original.label)
+                out.writeInt(photo.original.width)
+                out.writeInt(photo.original.height)
+                for (pixel in photo.original.argb) out.writeInt(pixel)
+                out.writeFloat(photo.crop.left)
+                out.writeFloat(photo.crop.top)
+                out.writeFloat(photo.crop.right)
+                out.writeFloat(photo.crop.bottom)
+                out.writeBoolean(photo.removeEdgeBackground)
+                out.writeInt(photo.backgroundTolerance)
             }
         }
         val payload = raw.toByteArray()
@@ -223,6 +264,24 @@ object RasterEditProjectCodec {
                     manualSections = sections
                 )
             }
+            val source = if (version >= 3 && input.readBoolean()) {
+                val sourceLabel = input.readUTF()
+                val sourceW = input.readInt()
+                val sourceH = input.readInt()
+                require(sourceW in 8..512 && sourceH in 8..512) {
+                    "Dimensões da foto original inválidas."
+                }
+                val sourceArgb = IntArray(sourceW * sourceH) { input.readInt() }
+                RasterEditPhotoSource(
+                    original = RasterImagePixels(sourceW, sourceH, sourceArgb, sourceLabel),
+                    crop = RasterCropBounds(
+                        left = input.readFloat(), top = input.readFloat(),
+                        right = input.readFloat(), bottom = input.readFloat()
+                    ),
+                    removeEdgeBackground = input.readBoolean(),
+                    backgroundTolerance = input.readInt()
+                )
+            } else null
             require(input.available() == 0) { "Dados excedentes no projeto." }
             RasterEditProject(
                 title = title,
@@ -231,7 +290,8 @@ object RasterEditProjectCodec {
                 maxColors = maxColors,
                 outputFormat = format,
                 hoopProfile = hoop,
-                layers = layers
+                layers = layers,
+                photoSource = source
             ).also { validate(it) }
         }
     }
