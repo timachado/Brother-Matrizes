@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
+import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -41,7 +43,9 @@ internal fun RasterPhotoCropCanvas(
     photo: RasterImagePixels,
     selection: RasterCropBounds,
     onSelection: (RasterCropBounds) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    candidates: List<RasterArtworkCandidate> = emptyList(),
+    onCandidateTap: (Int) -> Unit = {}
 ) {
     val bitmap = remember(photo) {
         Bitmap.createBitmap(photo.argb, photo.width, photo.height,
@@ -49,6 +53,8 @@ internal fun RasterPhotoCropCanvas(
     }
     val currentOnSelection by rememberUpdatedState(onSelection)
     val currentSelection by rememberUpdatedState(selection)
+    val currentCandidates by rememberUpdatedState(candidates)
+    val currentCandidateTap by rememberUpdatedState(onCandidateTap)
     fun area(w: Float, h: Float): CropPreviewArea {
         val scale = min(w / photo.width, h / photo.height)
         val pw = photo.width * scale
@@ -58,7 +64,25 @@ internal fun RasterPhotoCropCanvas(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(205.dp)
+            .height(280.dp)
+            .pointerInput(photo, candidates) {
+                detectTapGestures { at ->
+                    val a = area(size.width.toFloat(), size.height.toFloat())
+                    val n = a.normalized(at)
+                    val selectedCandidate = currentCandidates
+                        .filter { c ->
+                            n.x in c.bounds.left..c.bounds.right &&
+                                n.y in c.bounds.top..c.bounds.bottom
+                        }
+                        .minByOrNull {
+                            (it.bounds.right - it.bounds.left) *
+                                (it.bounds.bottom - it.bounds.top)
+                        }
+                    if (selectedCandidate != null) {
+                        currentCandidateTap(selectedCandidate.id)
+                    }
+                }
+            }
             .pointerInput(photo) {
                 var initial: Offset? = null
                 detectDragGestures(
@@ -93,6 +117,20 @@ internal fun RasterPhotoCropCanvas(
             dstOffset = IntOffset(a.left.roundToInt(), a.top.roundToInt()),
             dstSize = IntSize(a.width.roundToInt(), a.height.roundToInt())
         )
+        for (candidate in currentCandidates) {
+            val b = candidate.bounds
+            val left = a.left + b.left * a.width
+            val top = a.top + b.top * a.height
+            drawRect(
+                Color(0xFF3CE0CF).copy(alpha = .80f),
+                topLeft = Offset(left, top),
+                size = Size(
+                    max(1f, (b.right - b.left) * a.width),
+                    max(1f, (b.bottom - b.top) * a.height)
+                ),
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
         val crop = currentSelection
         val x0 = a.left + crop.left * a.width
         val y0 = a.top + crop.top * a.height
