@@ -56,6 +56,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImageDigitizer
 import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
+import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
+import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
@@ -149,6 +151,8 @@ fun CreateDrawingScreen(
     var originalPhotoAvailable by remember { mutableStateOf(false) }
     var photoPreview by remember { mutableStateOf<PreparedRasterPhoto?>(null) }
     var photoPreviewBusy by remember { mutableStateOf(false) }
+    var artworkCandidates by remember { mutableStateOf<List<RasterArtworkCandidate>>(emptyList()) }
+    var selectedCandidateId by remember { mutableIntStateOf(0) }
     var photoPreviewRevision by remember { mutableIntStateOf(0) }
     var rasterCropBounds by remember { mutableStateOf(RasterCropBounds()) }
     var photoRemoveBackground by remember { mutableStateOf(true) }
@@ -391,6 +395,8 @@ fun CreateDrawingScreen(
             originalPhotoAvailable = false
             photoPreview = null
             photoPreviewRevision++
+            artworkCandidates = emptyList()
+            selectedCandidateId = 0
             rasterCropBounds = RasterCropBounds()
             photoPreparationMessage = ""
             layerEdits = emptyList()
@@ -407,6 +413,12 @@ fun CreateDrawingScreen(
                 originalPhotoAvailable = loaded.isSuccess
                 imagePixels = if (imageToEmbroideryTool) null else loaded.getOrNull()
                 photoPreview = null
+                artworkCandidates = loaded.getOrNull()?.let { pixels ->
+                    withContext(Dispatchers.Default) {
+                        RasterArtworkCandidates.detect(pixels)
+                    }
+                } ?: emptyList()
+                selectedCandidateId = 0
                 loaded.getOrNull()?.let { rasterProjectTitle = it.label.take(120).ifBlank { "Meu bordado" } }
                 imageMessage = loaded.fold(
                     onSuccess = { "${it.label} • ${it.width} × ${it.height} px" },
@@ -625,11 +637,45 @@ fun CreateDrawingScreen(
             }
         }
 
+        // For images, the original photograph and touch targets live OUTSIDE
+        // the vertical settings scroller, so swiping the artwork won't scroll
+        // the settings instead of selecting the region.
+        if (imageToEmbroideryTool && originalPhotoPixels != null && imagePixels == null) {
+            val source = originalPhotoPixels!!
+            Text(
+                "Toque em um elemento identificado ou arraste para recortar",
+                color = FioTextMuted,
+                fontSize = 11.sp
+            )
+            RasterPhotoCropCanvas(
+                photo = source,
+                selection = rasterCropBounds,
+                candidates = artworkCandidates,
+                onCandidateTap = { id ->
+                    artworkCandidates.firstOrNull { it.id == id }?.let { detected ->
+                        selectedCandidateId = id
+                        rasterCropBounds = detected.bounds
+                        photoPreview = null
+                        photoPreviewRevision++
+                        photoPreparationMessage =
+                            "Elemento $id selecionado. Confira e visualize o recorte."
+                    }
+                },
+                onSelection = {
+                    selectedCandidateId = 0
+                    rasterCropBounds = it
+                    photoPreview = null
+                    photoPreviewRevision++
+                }
+            )
+        }
+
         Box(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .weight(.82f)
+                    .weight(if (imageToEmbroideryTool && originalPhotoPixels != null &&
+                        imagePixels == null) .12f else .82f)
                     .background(
                         Color(
                             0xFF071017
@@ -733,7 +779,9 @@ fun CreateDrawingScreen(
             } else {
                 Text(
                     if (sourceMode == DrawingSourceMode.IMAGE)
-                        "Importe uma imagem para visualizar os pontos."
+                        if (originalPhotoPixels != null)
+                            "Confirme o recorte abaixo para visualizar os pontos."
+                        else "Importe uma imagem para visualizar os pontos."
                     else "Importe um SVG para visualizar.",
                     modifier =
                         Modifier.align(
@@ -919,15 +967,48 @@ fun CreateDrawingScreen(
                             fontSize = 11.sp
                         )
                         Spacer(Modifier.height(6.dp))
-                        RasterPhotoCropCanvas(
-                            photo = originalPhoto,
-                            selection = rasterCropBounds,
-                            onSelection = {
-                                rasterCropBounds = it
-                                photoPreview = null
-                                photoPreviewRevision++
-                                photoPreviewBusy = false
+                        Text(
+                            "Elementos identificados: ${artworkCandidates.size}",
+                            color = FioText,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            if (artworkCandidates.isEmpty())
+                                "Não encontrei regiões confiáveis automaticamente. " +
+                                    "Use o recorte manual na imagem acima."
+                            else "Regiões sugeridas pelo contraste da foto. " +
+                                "Selecione qual elemento deseja bordar primeiro. " +
+                                "Confira o recorte: não é reconhecimento automático de logos.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                        artworkCandidates.forEach { detected ->
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    selectedCandidateId = detected.id
+                                    rasterCropBounds = detected.bounds
+                                    imagePixels = null
+                                    photoPreview = null
+                                    photoPreviewRevision++
+                                    photoPreviewBusy = false
+                                    photoPreparationMessage =
+                                        "Elemento ${detected.id} será preparado primeiro."
+                                }
+                            ) {
+                                Text(
+                                    if (selectedCandidateId == detected.id)
+                                        "● Elemento ${detected.id} • preparar primeiro"
+                                    else "○ Elemento ${detected.id} • selecionar",
+                                    color = FioGold, fontSize = 11.sp
+                                )
                             }
+                        }
+                        Text(
+                            "Precisa corrigir? Arraste sobre a imagem acima. " +
+                                "O elemento escolhido define por onde começar, " +
+                                "não a ordem automática dos pontos da máquina.",
+                            color = FioTextMuted,
+                            fontSize = 10.sp
                         )
                         Row(
                             Modifier.fillMaxWidth(),
@@ -1273,6 +1354,10 @@ fun CreateDrawingScreen(
                                                     (project.photoSource?.backgroundTolerance ?: 55).toFloat()
                                                 photoPreview = null
                                                 photoPreviewRevision++
+                                                artworkCandidates = withContext(Dispatchers.Default) {
+                                                    RasterArtworkCandidates.detect(originalPhotoPixels!!)
+                                                }
+                                                selectedCandidateId = 0
                                                 photoPreparationMessage =
                                                     if (originalPhotoAvailable)
                                                         "Foto e recorte originais recuperados."
