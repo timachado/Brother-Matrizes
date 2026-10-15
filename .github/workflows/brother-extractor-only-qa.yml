@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - fix/brother-1108-extractor-only-20261015
+  pull_request:
+    branches:
+      - release/brother-matrizes-1.10.8
   workflow_dispatch:
 
 permissions:
