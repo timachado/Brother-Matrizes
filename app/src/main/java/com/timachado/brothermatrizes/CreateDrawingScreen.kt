@@ -839,6 +839,12 @@ fun CreateDrawingScreen(
                         "Projetos editáveis Satin (armazenamento local)",
                         color = FioText, fontWeight = FontWeight.SemiBold
                     )
+                    Text(
+                        "Arquivos editáveis ficam apenas neste aparelho. O backup " +
+                            "tradicional da Biblioteca ainda não inclui estes projetos.",
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
                     if (imagePixels != null && multiColorEnabled) {
                         OutlinedTextField(
                             value = rasterProjectTitle,
