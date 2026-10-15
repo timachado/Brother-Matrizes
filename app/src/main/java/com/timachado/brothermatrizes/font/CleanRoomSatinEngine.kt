@@ -94,7 +94,10 @@ internal object CleanRoomSatinEngine {
         // divide anéis cursivos entre letras. O Satin oficial segue intacto.
         // Com espaçamento manual, manter o caminho oficial até haver
         // modelagem vetorial específica para esse caso.
-        val useQaTatami = ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED && spacing == 0f
+        val useQaTatami = (
+            ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED ||
+                com.timachado.brothermatrizes.BuildConfig.ENABLE_IMPORTED_TATAMI_QA
+            ) && spacing == 0f
         val outlines = if (useQaTatami) {
             ImportedFontFullRunExtractor.extract(
                 font = font,
