@@ -52,11 +52,25 @@ internal object ImportedGlyphVoidGuard {
                 inside[iy * width + ix]
         }
 
+        private fun nearOriginalInk(x: Float, y: Float): Boolean {
+            if (occupied(x, y)) return true
+            // Antialias, hastes subpixel e compensação de repuxo não podem
+            // transformar uma costura genuína em salto por erro de raster.
+            for (dy in -2..2) for (dx in -2..2) {
+                if (occupied(x + dx * step, y + dy * step)) return true
+            }
+            return false
+        }
+
         fun crossesVoid(ax: Float, ay: Float, bx: Float, by: Float): Boolean {
             val distance = hypot((bx - ax).toDouble(), (by - ay).toDouble()).toFloat()
             // A tolerância preserva repuxo, bordas e transições pequenas do
             // Satin existente; só agir em vazados fisicamente relevantes.
             if (distance < 13f) return false
+            // Só classificar como ligação indevida se os DOIS lados estão
+            // associados a áreas bordáveis da fonte. Evita perder hastes
+            // finas cuja máscara caiu abaixo da resolução da grade.
+            if (!nearOriginalInk(ax, ay) || !nearOriginalInk(bx, by)) return false
             val start = 3f
             val end = distance - 3f
             val count = ceil((end - start) / step).toInt()
