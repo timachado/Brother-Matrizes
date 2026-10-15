@@ -1,8 +1,8 @@
-name: Brother Matrizes QA Parallel APK
+name: Brother Matrizes QA Object Selection APK
 
 on:
   push:
-    branches: ["qa/parallel-install-image-bordado-20261015"]
+    branches: ["qa/object-select-imagem-bordado-20261015"]
   workflow_dispatch:
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qa"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qaobjects"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryCanvas.kt EmbroideryDisplay.kt; do
@@ -47,6 +47,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Instalacao-Paralela
+          name: Brother-Matrizes-QA-Selecao-Elementos
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
