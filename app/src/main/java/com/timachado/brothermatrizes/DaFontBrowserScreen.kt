@@ -21,8 +21,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -55,6 +59,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import org.json.JSONObject
 
 /**
  * Browser for the official DaFont and NetFontes websites, without scraping
@@ -208,7 +213,67 @@ fun DaFontBrowserScreen(
     }
 
     fun searchFont() {
-        scope.launch { meteredSearch(DaFontNavigationRules.searchUrl(query.trim())) }
+        val term = query.trim()
+        if (term.isBlank()) {
+            message = "Digite o nome da fonte para pesquisar."
+            return
+        }
+        if (source == FontCatalogSource.DAFONT) {
+            scope.launch { meteredSearch(DaFontNavigationRules.searchUrl(term)) }
+            return
+        }
+        // O NetFontes recebe a busca pelo formulario oficial exibido no WebView.
+        // Nao inventamos uma URL ou API de pesquisa; o proprio site envia a consulta.
+        val web = browser
+        if (web == null || pageLoading || !source.isOfficialPage(web.url.orEmpty())) {
+            message = "Aguarde o NetFontes carregar antes de pesquisar."
+            return
+        }
+        keyboard?.hide()
+        focusManager.clearFocus()
+        searching = true
+        val safeTerm = JSONObject.quote(term)
+        web.evaluateJavascript(
+            """
+            (function() {
+              var term = $safeTerm;
+              var fields = Array.from(document.querySelectorAll('input[type="search"], input[type="text"], input:not([type])'));
+              var target = fields.find(function(el) {
+                return /busca|fonte|pesquis|search/i.test(
+                  (el.placeholder || '') + ' ' + (el.name || '') + ' ' +
+                  (el.id || '') + ' ' + (el.getAttribute('aria-label') || '')
+                );
+              }) || fields.find(function(el) { return !!el.form; });
+              if (!target || !target.form) return 'NO_SEARCH_FORM';
+              target.focus();
+              var setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+              setter.call(target, term);
+              target.dispatchEvent(new Event('input', {bubbles: true}));
+              target.dispatchEvent(new Event('change', {bubbles: true}));
+              var form = target.form;
+              var buttons = Array.from(form.querySelectorAll('button, input[type="submit"]'));
+              var submit = buttons.find(function(el) {
+                return /busca|pesquis|search/i.test((el.innerText || '') + ' ' + (el.value || ''));
+              }) || buttons.find(function(el) { return el.type === 'submit'; });
+              if (submit) {
+                submit.click();
+              } else if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+              } else {
+                form.submit();
+              }
+              return 'SUBMITTED';
+            })();
+            """.trimIndent()
+        ) { result ->
+            searching = false
+            if (result == "\"SUBMITTED\"") {
+                message = "Pesquisa enviada ao NetFontes."
+            } else {
+                message = "A busca do NetFontes não está disponível nesta página. " +
+                    "Use a pesquisa do próprio site ou abra no navegador."
+            }
+        }
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
@@ -227,28 +292,34 @@ fun DaFontBrowserScreen(
                 }
             }) { Text("Abrir no navegador") }
         }
-        if (source == FontCatalogSource.DAFONT) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it.take(90) },
-                    label = { Text("Buscar fonte no DaFont") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { searchFont() })
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it.take(90) },
+                label = { Text("Buscar fonte no ${source.displayName}") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { searchFont() })
+            )
+            Button(onClick = ::searchFont, enabled = !searching) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ms_search_rounded),
+                    contentDescription = null,
+                    modifier = Modifier.size(19.dp)
                 )
-                Button(onClick = ::searchFont) { Text("Buscar") }
+                Spacer(Modifier.width(6.dp))
+                Text("Buscar")
             }
         }
         Text(
             if (source == FontCatalogSource.DAFONT)
                 "DaFont • Prévia e categorias no site. Licenças pertencem aos autores."
             else
-                "NetFontes • Pesquise na barra do site abaixo. Confira as condições de uso.",
+                "NetFontes • Pesquise acima ou navegue por categorias. Confira a licença da fonte.",
             color = FioTextMuted,
             modifier = Modifier.padding(vertical = 6.dp)
         )
