@@ -45,7 +45,7 @@ class BrotherPlanBenefitsTest {
 
     @Test fun limitesGratuitosReproduzemPoliticaComCompartilhamento() {
         val rows = BrotherPlanBenefits.monthlyFreeLimits.toMap()
-        assertEquals(7, rows.size)
+        assertEquals(8, rows.size)
         assertEquals("5/mês", rows["Abrir/importar matrizes DST, JEF e PES"])
         assertEquals("Compartilha as 5 importações", rows["Abrir matrizes pelo WinRAR"])
         assertEquals("Compartilha as 5 importações", rows["Importar matrizes do Telegram ou Arquivos"])
@@ -53,6 +53,8 @@ class BrotherPlanBenefitsTest {
         assertEquals("10 pesquisas/mês", rows["Buscar matrizes no Telegram"])
         assertEquals("3 fontes/mês", rows["Importar fontes TTF, OTF ou ZIP"])
         assertEquals("10 pesquisas/mês", rows["Pesquisar fontes no DaFont"])
+        assertEquals("Busca no site; importar usa 3 fontes/mês", rows["Pesquisar fontes no NetFontes"])
+        assertTrue(BrotherPlanBenefits.comparison.any { it.name == "Pesquisar fontes no NetFontes" && it.free.contains("3 fontes/mês") })
         assertTrue(BrotherPlanBenefits.comparison.any {
             it.name == "Buscar matrizes no Telegram" && it.pro.contains("Sem cota")
         })

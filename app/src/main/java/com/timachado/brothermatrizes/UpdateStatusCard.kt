@@ -216,10 +216,29 @@ fun UpdateStatusCard() {
                     "Nenhuma atualização foi publicada neste canal.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
-                is BrotherUpdateClient.Result.Error -> Text(
-                    "Não conseguimos verificar agora. Tente novamente em instantes.",
-                    color = FioTextMuted, fontSize = 11.sp
-                )
+                is BrotherUpdateClient.Result.Error -> {
+                    Text(
+                        result.message,
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/timachado/Brother-Matrizes/releases/latest")
+                                    ).addCategory(Intent.CATEGORY_BROWSABLE)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Consultar versões oficiais")
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
