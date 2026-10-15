@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: brother-tatami-v2-qa-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   test-android:
     name: Testes unitarios e compilacao debug sem distribuir
