@@ -71,3 +71,46 @@ precisa ser analisada em cada caso.
 **Próximo bloqueio técnico:** validar a extração Android Skia de cada
 TTF/OTF, o comportamento visual no APK e a exportação/reabertura em
 PES/JEF/DST. Manter a flag desativada.
+
+## QA de 15/10/2026 — fontes reais e acabamento
+
+Fontes extraídas localmente dos ZIPs fornecidos pelo desenvolvedor, sem
+publicá-las no GitHub. `MARIA` em aproximadamente 43 mm de altura,
+planejador Kotlin recompilado no ambiente de diagnóstico:
+
+| Fonte | Comandos geométricos | Saltos | IoU raster estimado | Saltos acima de 12 mm |
+|---|---:|---:|---:|---:|
+| Anak Manja TTF | 6.353 | 92 | 97,05% | 9 |
+| Anak Manja OTF | 6.335 | 91 | 97,03% | 8 |
+| Love 11 TTF | 3.954 | 42 | 93,41% | 10 |
+| Bertilda TTF | 3.795 | 39 | 93,13% | 11 |
+| Bertilda OTF | 3.785 | 49 | 93,04% | 13 |
+
+Todos os STITCH medidos ficaram abaixo de 3 mm. Foram detectados deslocamentos
+JUMP de até 93,7 mm **sem corte no stream bruto do planejador**, portanto foi
+necessário aplicar somente no caminho QA o `MachineFinishing` existente com
+`trimJumpThresholdMm = 6f`, tie-in/out ativados e cortes automáticos.
+
+Os resultados de IoU são comparações raster aproximadas em JVM/fontTools,
+**não** equivalem ao bordado físico nem garantem shaping Skia idêntico.
+
+### Teste end-to-end protegido
+
+- `-PbrotherTatamiQa=true` faz `BuildConfig.ENABLE_IMPORTED_TATAMI_QA`
+  valer `true` apenas na compilação explicitamente solicitada.
+- Sem a propriedade, todas as compilações normais mantêm o novo fluxo
+  **desabilitado**, a versão 1.10.8 e o Satin oficial.
+- O emulador API 35 executa agora `CleanRoomSatinEngine.generate` com
+  fonte real do sistema e exige `machineFinishing`, STITCHs e corte de
+  deslocamentos longos.
+- Foram adicionados testes unitários de TRIM e conversão PES/JEF/DST
+  após acabamento.
+- **Não habilitar no APK comercial** sem CI integral aprovado, revisão
+  visual em Android com os TTF/OTF reais e bordado de teste físico.
+
+### Pontos ainda necessários
+
+1. Provar fidelidade dos glifos reais no Android (fontes não enviadas ao CI).
+2. Validar em máquina os arremates e a densidade de preenchimento.
+3. Projetar seleção **Satin para traços finos / Tatami para regiões largas**.
+4. Separar disponibilização de APK de QA dos canais públicos da versão comercial.
