@@ -62,8 +62,8 @@ class ImportedGlyphTatamiPlannerTest {
         assertTrue(stitches.isNotEmpty())
         assertEquals(StitchCommand.JUMP, stitches.first().command)
         assertTrue(stitches.any { it.command == StitchCommand.STITCH })
-        assertFalse(stitches.any { it.command == StitchCommand.END ||
-            it.command == StitchCommand.TRIM || it.command == StitchCommand.COLOR_CHANGE })
+        assertTrue(stitches.all { it.command == StitchCommand.STITCH ||
+            it.command == StitchCommand.JUMP })
         assertFalse("Não ativar o QA sem homologação", ImportedGlyphTatamiAdapter.QA_ONLY_ENABLED)
     }
 }
