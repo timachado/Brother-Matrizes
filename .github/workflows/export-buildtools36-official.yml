@@ -1,0 +1,36 @@
+name: Preparar Android Build Tools 36 para assinatura LOCAL
+
+on:
+  push:
+    branches: [build/official-1.10.8-netfontes-signing-check]
+    paths: [.github/workflows/export-buildtools36-official.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Instalar Build Tools Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "build-tools;36.0.0"
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          test -s "$sdk/lib/apksigner.jar"
+          test -x "$sdk/zipalign"
+          mkdir -p tooling/lib tooling/lib64
+          cp "$sdk/apksigner" "$sdk/zipalign" "$sdk/aapt" tooling/
+          cp "$sdk/lib/apksigner.jar" tooling/lib/
+          cp -a "$sdk/lib64/." tooling/lib64/
+      - name: Exportar somente ferramentas publicas (SEM chave ou senha)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-BuildTools36-LOCAL-SIGNING-ONLY
+          path: tooling/
+          if-no-files-found: error
+          retention-days: 1
