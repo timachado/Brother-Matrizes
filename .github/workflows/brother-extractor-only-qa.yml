@@ -1,8 +1,8 @@
-name: Brother - glifos TTF OTF sem alterar motor
+name: Brother - Satin importado protegido e simulador intocado
 on:
   push:
     branches:
-      - fix/brother-1108-extractor-only-20261015
+      - fix/brother-1108-imported-satin-gap-dot-20261015
   pull_request:
     branches:
       - release/brother-matrizes-1.10.8
@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt)" = "a398a02a598d775b63c4b328c2125aa84bf808c0"
+          test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt)" = "cca0787e793178df405d404c7a0d764d162ac5c3"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = "46b58e9ab7b10414970bc47542b7ee5072609646"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = "f51abd96933338b53ee2cf7393f1594aeb726da5"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = "bb5760d057127c68c3370157c6aaddf2aa46ec06"
@@ -43,15 +43,17 @@ jobs:
           grep -Fq 'versionCode = 184' app/build.gradle.kts
           grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
           grep -Fq 'extractCompleteRun(paint, text)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
+          grep -Fq 'connectorInsideInk = { a, b -> raster.connectorIsFilled(a, b) }' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'longestStemRun' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
           grep -Fq 'ImportedOpenTypeContourGroups.completeRun(contours)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
           ! grep -Fq 'ImportedOpenTypeContourGroups.owners(' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
           test ! -e app/src/main/java/com/timachado/brothermatrizes/font/ImportedGlyphRailCoverage.kt
           test ! -e app/src/main/java/com/timachado/brothermatrizes/font/ImportedGlyphVoidGuard.kt
       - name: Build e testes JVM
         run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
-      - name: APK de diagnostico somente (nao assinado comercialmente)
+      - name: APK isolado de homologacao (nao assinado comercialmente)
         uses: actions/upload-artifact@v4
         with:
-          name: brother-1108-glifos-extrator-debug
+          name: brother-1108-satin-importado-qa-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
