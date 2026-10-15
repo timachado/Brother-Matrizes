@@ -69,15 +69,18 @@ class ImportedGlyphFailureReproductionTest {
                 duplicateRailsDiscarded = 0
             )
         )
-        val connectorStitches = stitched.filter {
-            it.command == StitchCommand.STITCH &&
-                it.yUnits == 50 && it.xUnits in 31..89
+        val stitchedConnector = stitched.any {
+            it.command == StitchCommand.STITCH && it.xUnits == 90 && it.yUnits == 50
         }
-        println("DIAG-VOID-CONNECTOR crossings=${connectorStitches.size} " +
+        val jumpedConnector = stitched.any {
+            it.command == StitchCommand.JUMP && it.xUnits == 90 && it.yUnits == 50
+        }
+        println("DIAG-VOID-CONNECTOR stitched=${stitchedConnector} " +
+            "jumped=${jumpedConnector} " +
             "commands=${stitched.joinToString { it.command.toString() + ':' + it.xUnits }}")
-        // A existência da costura de travessia é observação do motor atual;
-        // não é um requisito correto. Não publicar como homologação.
-        assertTrue("Reprodução do conector indevido na implementação atual.",
-            connectorStitches.isNotEmpty())
+        // A travessia STITCH sem JUMP é um defeito da implementação atual;
+        // é documentada aqui, não aprovada como comportamento desejável.
+        assertTrue("Reprodução da conexão costurada sobre vazio.",
+            stitchedConnector && !jumpedConnector)
     }
 }
