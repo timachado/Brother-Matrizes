@@ -2,7 +2,7 @@ name: Brother Image-to-PES QA
 
 on:
   push:
-    branches: ["feature/image-to-stitches-pes-20261015"]
+    branches: ["feature/image-to-stitches-pes-20261015", "feature/multicolor-digitization-20261015"]
   workflow_dispatch:
 
 permissions:
