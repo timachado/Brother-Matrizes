@@ -45,6 +45,9 @@ jobs:
           grep -Fq 'extractCompleteRun(paint, text)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
           grep -Fq 'connectorInsideInk = { a, b -> raster.connectorIsFilled(a, b) }' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
           grep -Fq 'longestStemRun' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'result.addAll(restoredDots.map { it.rails })' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          ! grep -Fq 'result.addAll(0, restoredDots.map { it.rails })' app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt
+          grep -Fq 'completeRunStartsAtCapitalMBeforeRestoredDotOverI' app/src/test/java/com/timachado/brothermatrizes/font/ImportedGlyphFailureReproductionTest.kt
           grep -Fq 'ImportedOpenTypeContourGroups.completeRun(contours)' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
           ! grep -Fq 'ImportedOpenTypeContourGroups.owners(' app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt
           test ! -e app/src/main/java/com/timachado/brothermatrizes/font/ImportedGlyphRailCoverage.kt
