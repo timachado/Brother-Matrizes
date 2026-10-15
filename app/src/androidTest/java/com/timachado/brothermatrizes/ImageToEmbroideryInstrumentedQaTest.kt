@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.getValue
@@ -113,8 +114,8 @@ class ImageToEmbroideryInstrumentedQaTest {
         }
         composeRule.onNodeWithTag("photo-crop-canvas").performTouchInput {
             swipe(
-                start = Offset(size.width * .34f, size.height * .25f),
-                end = Offset(size.width * .68f, size.height * .75f),
+                start = percentOffset(.34f, .25f),
+                end = percentOffset(.68f, .75f),
                 durationMillis = 800
             )
         }
