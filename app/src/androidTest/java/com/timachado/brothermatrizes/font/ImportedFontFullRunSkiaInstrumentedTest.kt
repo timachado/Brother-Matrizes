@@ -77,6 +77,45 @@ class ImportedFontFullRunSkiaInstrumentedTest {
     }
 
     @Test
+    fun fullRunFeedsTatamiAndKeepsBothStemsOfM() {
+        val font = ImportedFont(
+            id = "system-m-qa",
+            displayName = "Android system font QA",
+            fileName = fontFile.name,
+            extension = "ttf",
+            absolutePath = fontFile.absolutePath
+        )
+        val source = ImportedFontFullRunExtractor.extract(
+            font = font, text = "M",
+            targetCapHeightUnits = 170f, rotationDegrees = 0f
+        )
+        val commands = ImportedGlyphTatamiAdapter.digitize(
+            source.glyphPolygons.single().map { ring ->
+                ring.map { CleanRoomSatinEngine.V(it.x, it.y) }
+            }
+        )
+        val sewn = commands.filter {
+            it.command == com.timachado.brothermatrizes.core.embroidery.StitchCommand.STITCH
+        }
+        assertTrue("Tatami não produziu costuras para M", sewn.size > 30)
+        val minX = sewn.minOf { it.xUnits }
+        val maxX = sewn.maxOf { it.xUnits }
+        val minY = sewn.minOf { it.yUnits }
+        val maxY = sewn.maxOf { it.yUnits }
+        val width = maxX - minX
+        val height = maxY - minY
+        assertTrue("A base da primeira haste desapareceu",
+            sewn.any { it.xUnits < minX + width * 0.22f &&
+                it.yUnits > minY + height * 0.7f })
+        assertTrue("A base da segunda haste desapareceu",
+            sewn.any { it.xUnits > minX + width * 0.78f &&
+                it.yUnits > minY + height * 0.7f })
+        assertTrue("O topo da segunda haste desapareceu",
+            sewn.any { it.xUnits > minX + width * 0.78f &&
+                it.yUnits < minY + height * 0.3f })
+    }
+
+    @Test
     fun wholeShapedWordsMatchNativeAndroidTextPaths() {
         val imported = ImportedFont(
             id = "system-font-qa",
