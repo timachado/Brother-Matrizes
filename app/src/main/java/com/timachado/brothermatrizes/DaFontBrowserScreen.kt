@@ -51,6 +51,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.timachado.brothermatrizes.font.DaFontNavigationRules
 import com.timachado.brothermatrizes.font.FontCatalogSource
+import com.timachado.brothermatrizes.font.NetFontesNavigationRules
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
@@ -59,7 +60,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import org.json.JSONObject
 
 /**
  * Browser for the official DaFont and NetFontes websites, without scraping
@@ -222,57 +222,23 @@ fun DaFontBrowserScreen(
             scope.launch { meteredSearch(DaFontNavigationRules.searchUrl(term)) }
             return
         }
-        // O NetFontes recebe a busca pelo formulario oficial exibido no WebView.
-        // Nao inventamos uma URL ou API de pesquisa; o proprio site envia a consulta.
+        val destination = NetFontesNavigationRules.searchUrl(term)
         val web = browser
-        if (web == null || pageLoading || !source.isOfficialPage(web.url.orEmpty())) {
+        if (web == null || !source.isOfficialPage(web.url.orEmpty())) {
             message = "Aguarde o NetFontes carregar antes de pesquisar."
             return
         }
         keyboard?.hide()
         focusManager.clearFocus()
-        searching = true
-        val safeTerm = JSONObject.quote(term)
-        web.evaluateJavascript(
-            """
-            (function() {
-              var term = $safeTerm;
-              var fields = Array.from(document.querySelectorAll('input[type="search"], input[type="text"], input:not([type])'));
-              var target = fields.find(function(el) {
-                return /busca|fonte|pesquis|search/i.test(
-                  (el.placeholder || '') + ' ' + (el.name || '') + ' ' +
-                  (el.id || '') + ' ' + (el.getAttribute('aria-label') || '')
-                );
-              }) || fields.find(function(el) { return !!el.form; });
-              if (!target || !target.form) return 'NO_SEARCH_FORM';
-              target.focus();
-              var setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-              setter.call(target, term);
-              target.dispatchEvent(new Event('input', {bubbles: true}));
-              target.dispatchEvent(new Event('change', {bubbles: true}));
-              var form = target.form;
-              var buttons = Array.from(form.querySelectorAll('button, input[type="submit"]'));
-              var submit = buttons.find(function(el) {
-                return /busca|pesquis|search/i.test((el.innerText || '') + ' ' + (el.value || ''));
-              }) || buttons.find(function(el) { return el.type === 'submit'; });
-              if (submit) {
-                submit.click();
-              } else if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-              } else {
-                form.submit();
-              }
-              return 'SUBMITTED';
-            })();
-            """.trimIndent()
-        ) { result ->
-            searching = false
-            if (result == "\"SUBMITTED\"") {
-                message = "Pesquisa enviada ao NetFontes."
-            } else {
-                message = "A busca do NetFontes não está disponível nesta página. " +
-                    "Use a pesquisa do próprio site ou abra no navegador."
-            }
+        runCatching {
+            web.loadUrl(destination)
+        }.onSuccess {
+            pageLoading = true
+            failedPage = false
+            displayedPage = destination
+            message = "Pesquisando no catálogo oficial NetFontes."
+        }.onFailure {
+            message = "Não foi possível iniciar a pesquisa. Tente novamente."
         }
     }
 
