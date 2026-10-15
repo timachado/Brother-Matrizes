@@ -1043,7 +1043,8 @@ fun CreateDrawingScreen(
                                         if (layer.manualSections.isEmpty()) {
                                             val suggested = ManualSatinRails.suggest(
                                                 separatedArtwork, imagePixels!!.width,
-                                                imagePixels!!.height, layer.sourceIndex
+                                                imagePixels!!.height, layer.sourceIndex,
+                                                widthMm
                                             )
                                             val first = suggested.getOrNull()
                                             if (first != null) {
