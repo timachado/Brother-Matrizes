@@ -116,9 +116,13 @@ class ImportedFontFullRunSkiaInstrumentedTest {
     }
 
     @Test
-    fun qaFullGeneratorProducesFinishedPesDesign() {
+    fun qaGeneratorFailsClosedWhileSequenceIsNotValidated() {
         assertTrue(
-            "Este teste só executa com -PbrotherTatamiQa=true",
+            "A regressão deve permanecer bloqueada",
+            ImportedGlyphSequenceSafety.EXPERIMENTAL_ROUTE_BLOCKED
+        )
+        assertTrue(
+            "Este teste instrumentado usa o opt-in de pesquisa do CI",
             com.timachado.brothermatrizes.BuildConfig.ENABLE_IMPORTED_TATAMI_QA
         )
         val font = ImportedFont(
@@ -136,39 +140,11 @@ class ImportedFontFullRunSkiaInstrumentedTest {
             satinDensityMm = 0.4f,
             outputFormat = "PES"
         )
-        val result = CleanRoomSatinEngine.generate(
-            font, "MARIA", settings, "qa")
-            .getOrThrow()
-        assertTrue("Não houve pontadas no pipeline QA",
-            result.points.any {
-                it.command == com.timachado.brothermatrizes.core.embroidery.StitchCommand.STITCH
-            })
-        assertTrue("O acabamento nativo não foi aplicado ao planejador QA",
-            result.machineFinishing?.autoTrimLongJumps == true)
-        val sewn = result.points.filter {
-            it.command == com.timachado.brothermatrizes.core.embroidery.StitchCommand.STITCH
-        }
-        assertTrue("Poucas pontadas para uma palavra inteira", sewn.size > 200)
-        assertEquals(
-            com.timachado.brothermatrizes.core.embroidery.StitchCommand.END,
-            result.points.last().command
-        )
-        var previous = result.points.firstOrNull()
-        for (next in result.points.drop(1)) {
-            val prev = previous ?: break
-            val distance = kotlin.math.hypot(
-                (next.xUnits - prev.xUnits).toDouble(),
-                (next.yUnits - prev.yUnits).toDouble()
-            ) / 10.0
-            if (next.command ==
-                com.timachado.brothermatrizes.core.embroidery.StitchCommand.JUMP &&
-                distance >= 6.0) {
-                assertEquals("Um salto longo ficou sem corte",
-                    com.timachado.brothermatrizes.core.embroidery.StitchCommand.TRIM,
-                    prev.command)
-            }
-            previous = next
-        }
+        val result = CleanRoomSatinEngine.generate(font, "MARIA", settings, "qa")
+        assertTrue("O gerador Tatami condenado não pode produzir arquivo",
+            result.isFailure)
+        assertTrue("O bloqueio deve explicar a regressão de percurso",
+            result.exceptionOrNull()?.message.orEmpty().contains("bloqueado"))
     }
 
     @Test
