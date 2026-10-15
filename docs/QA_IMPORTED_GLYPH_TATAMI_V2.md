@@ -41,3 +41,33 @@ no Android; a seleção Satin/Tatami ainda precisa de validação.
 
 **Somente após aprovação manual** poderá haver candidato instalável
 com versionCode superior e assinatura comercial original.
+
+## Execução verificada nesta homologação
+
+GitHub Actions da branch, commit `fc40940598b581af3ba602a23672e849b640d3ae`:
+- Run: https://github.com/timachado/Brother-Matrizes/actions/runs/38673890433
+- Resultado: **SUCCESS**, checagem de base/simulador, `:app:testDebugUnitTest` e `:app:assembleDebug`.
+- Nenhuma release ou APK comercial foi publicado.
+
+## Fontes reais — reprodução Kotlin/JVM local
+
+Fonte original em ZIP enviada pelo usuário. Contornos extraídos por `fontTools`
+em JVM local, não pelo `AndroidSkiaOutlineExtractor`. Os números descrevem
+**somente o planejador experimental**, não o APK Android nem a qualidade de
+costura numa máquina real.
+
+| Fonte | M: comandos / saltos | MARIA: comandos / saltos |
+|---|---:|---:|
+| Anak Manja TTF | 1.768 / 20 | 6.353 / 92 |
+| Anak Manja OTF | 1.764 / 14 | 6.335 / 91 |
+| Love TTF | 1.341 / 12 | 3.954 / 42 |
+| Bertilda TTF | 1.280 / 15 | 3.795 / 39 |
+| Bertilda OTF | 1.279 / 14 | 3.785 / 49 |
+
+O número de saltos NÃO é o único critério para aprovação; a qualidade de
+topologia, fidelidade dos glifos, underlay, trims, sobreposições e acabamento
+precisa ser analisada em cada caso.
+
+**Próximo bloqueio técnico:** validar a extração Android Skia de cada
+TTF/OTF, o comportamento visual no APK e a exportação/reabertura em
+PES/JEF/DST. Manter a flag desativada.
