@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.timachado.brothermatrizes.font.DaFontNavigationRules
+import com.timachado.brothermatrizes.font.FontCatalogSource
 import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
@@ -62,6 +63,7 @@ import java.util.Locale
  */
 @Composable
 fun DaFontBrowserScreen(
+    source: FontCatalogSource = FontCatalogSource.DAFONT,
     onBack: () -> Unit,
     onArchiveReady: (Uri) -> Unit,
     onRequireGoogle: () -> Unit
@@ -75,12 +77,15 @@ fun DaFontBrowserScreen(
     }
     val pending = remember { mutableStateListOf<Long>() }
     var query by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf(
-        "Pesquise ou navegue por categorias. Confira a licença informada pelo autor."
+    var message by remember(source) { mutableStateOf(
+        if (source == FontCatalogSource.DAFONT)
+            "Pesquise ou navegue por categorias. Confira a licença informada pelo autor."
+        else
+            "Use a busca do próprio NetFontes ou navegue por categorias. Confira a licença da fonte."
     ) }
     var browser by remember { mutableStateOf<WebView?>(null) }
     var pageLoading by remember { mutableStateOf(false) }
-    var displayedPage by remember { mutableStateOf(DaFontNavigationRules.HOME) }
+    var displayedPage by remember(source) { mutableStateOf(source.homeUrl) }
     var failedPage by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
     var meteredSearchUrl by remember { mutableStateOf("") }
@@ -115,7 +120,7 @@ fun DaFontBrowserScreen(
                         it.read(prefix)
                     } ?: 0
                     check(count == 4 && DaFontNavigationRules.looksLikeZip(prefix)) {
-                        "O DaFont retornou uma página em vez de um ZIP. " +
+                        "O ${source.displayName} retornou uma página em vez de um ZIP. " +
                             "Tente novamente ou baixe a fonte no navegador."
                     }
                     uri
@@ -209,35 +214,40 @@ fun DaFontBrowserScreen(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = ::goBack) { Text("‹ Voltar") }
             TextButton(onClick = {
-                browser?.loadUrl(DaFontNavigationRules.HOME)
+                browser?.loadUrl(source.homeUrl)
                 query = ""
-                message = "Navegando pelo catálogo oficial DaFont."
+                message = "Navegando pelo catálogo oficial ${source.displayName}."
             }) { Text("Categorias") }
             TextButton(onClick = {
-                val target = displayedPage.takeIf(DaFontNavigationRules::isOfficialPage)
-                    ?: DaFontNavigationRules.HOME
+                val target = displayedPage.takeIf(source::isOfficialPage)
+                    ?: source.homeUrl
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                 }
             }) { Text("Abrir no navegador") }
         }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it.take(90) },
-                label = { Text("Buscar fonte no DaFont") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { searchFont() })
-            )
-            Button(onClick = ::searchFont) { Text("Buscar") }
+        if (source == FontCatalogSource.DAFONT) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it.take(90) },
+                    label = { Text("Buscar fonte no DaFont") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { searchFont() })
+                )
+                Button(onClick = ::searchFont) { Text("Buscar") }
+            }
         }
         Text(
-            "DaFont • Prévia e categorias no site. Licenças pertencem aos autores.",
+            if (source == FontCatalogSource.DAFONT)
+                "DaFont • Prévia e categorias no site. Licenças pertencem aos autores."
+            else
+                "NetFontes • Pesquise na barra do site abaixo. Confira as condições de uso.",
             color = FioTextMuted,
             modifier = Modifier.padding(vertical = 6.dp)
         )
@@ -265,7 +275,7 @@ fun DaFontBrowserScreen(
                         ) {
                             pageLoading = true
                             failedPage = false
-                            if (url != null && DaFontNavigationRules.isOfficialPage(url)) {
+                            if (url != null && source.isOfficialPage(url)) {
                                 displayedPage = url
                             }
                         }
@@ -273,7 +283,7 @@ fun DaFontBrowserScreen(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             pageLoading = false
                             if (!failedPage && url != null &&
-                                DaFontNavigationRules.isOfficialPage(url)) {
+                                source.isOfficialPage(url)) {
                                 displayedPage = url
                             }
                         }
@@ -284,7 +294,7 @@ fun DaFontBrowserScreen(
                             if (request?.isForMainFrame == true) {
                                 failedPage = true
                                 pageLoading = false
-                                message = "Não foi possível carregar o DaFont. " +
+                                message = "Não foi possível carregar o ${source.displayName}. " +
                                     "Verifique a conexão ou toque em Abrir no navegador."
                             }
                         }
@@ -297,7 +307,7 @@ fun DaFontBrowserScreen(
                                 (errorResponse?.statusCode ?: 200) >= 400) {
                                 failedPage = true
                                 pageLoading = false
-                                message = "O site DaFont respondeu HTTP " +
+                                message = "O site ${source.displayName} respondeu HTTP " +
                                     (errorResponse?.statusCode ?: 0) +
                                     ". Abra o link no navegador para continuar."
                             }
@@ -307,8 +317,9 @@ fun DaFontBrowserScreen(
                             view: WebView?, request: WebResourceRequest?
                         ): Boolean {
                             val url = request?.url ?: return true
-                            if (DaFontNavigationRules.isOfficialPage(url.toString())) {
-                                if (request.isForMainFrame &&
+                            if (source.isOfficialPage(url.toString())) {
+                                if (source == FontCatalogSource.DAFONT &&
+                                    request.isForMainFrame &&
                                     url.path == "/search.php" &&
                                     !url.getQueryParameter("q").isNullOrBlank()) {
                                     val address = url.toString()
@@ -329,14 +340,14 @@ fun DaFontBrowserScreen(
                             return true
                         }
                     }
-                    setDownloadListener { url, _, _, _, _ ->
-                        if (!DaFontNavigationRules.isOfficialDownload(url)) {
+                    setDownloadListener { url, userAgent, _, _, _ ->
+                        if (!source.isOfficialDownload(url)) {
                             message = "Por segurança, abra downloads de outros sites no navegador."
                         } else {
                             runCatching {
                                 val address = Uri.parse(url)
                                 val request = DownloadManager.Request(address)
-                                    .setTitle("Fonte DaFont para Brother Matrizes")
+                                    .setTitle("Fonte ${source.displayName} para Brother Matrizes")
                                     .setDescription("Download solicitado pelo usuário")
                                     .setMimeType("application/zip")
                                     .setNotificationVisibility(
@@ -344,8 +355,13 @@ fun DaFontBrowserScreen(
                                     )
                                     .setDestinationInExternalFilesDir(
                                         ctx, Environment.DIRECTORY_DOWNLOADS,
-                                        "dafont-" + System.currentTimeMillis() + ".zip"
+                                        source.filePrefix + "-" + System.currentTimeMillis() + ".zip"
                                     )
+                                // Preserve browser session on sites requiring a cookie to download.
+                                if (userAgent.isNotBlank()) request.addRequestHeader("User-Agent", userAgent)
+                                android.webkit.CookieManager.getInstance().getCookie(url)
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let { request.addRequestHeader("Cookie", it) }
                                 val id = downloadManager.enqueue(request)
                                 pending.add(id)
                                 message = "Download iniciado. Ao concluir, escolha as fontes " +
@@ -383,7 +399,7 @@ fun DaFontBrowserScreen(
                             }
                         }
                     }
-                    loadUrl("https://www.dafont.com/pt/")
+                    loadUrl(source.homeUrl)
                     browser = this
                 }
             }
