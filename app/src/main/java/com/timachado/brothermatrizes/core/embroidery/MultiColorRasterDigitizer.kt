@@ -257,7 +257,7 @@ object MultiColorRasterDigitizer {
         for ((colorIndex, layer) in activeLayers.withIndex()) {
             if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT ||
                 layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
-                val satin = if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
+                val satin = (if (layer.stitchMode == RasterLayerStitchMode.SATIN_CURVED) {
                     RasterCurvedSatin.generate(
                         source = source,
                         art = art,
@@ -277,7 +277,7 @@ object MultiColorRasterDigitizer {
                     densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
                     compensationMm = layer.satinPullCompensationMm,
                     centerUnderlay = layer.satinCenterUnderlay
-                ).getOrElse { error ->
+                )).getOrElse { error ->
                     throw IllegalArgumentException(
                         "Camada ${layer.sourceIndex + 1}: " +
                             (error.message ?: "não é compatível com o Satin selecionado."),
