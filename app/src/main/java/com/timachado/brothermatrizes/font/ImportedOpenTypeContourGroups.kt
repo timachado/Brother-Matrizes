@@ -34,18 +34,15 @@ internal object ImportedOpenTypeContourGroups {
         }.toMutableList()
         // Anéis aninhados (buracos/contraformas e seus próprios vazados)
         // herdam a mesma letra do contorno mais exterior.
-        val indices = boxes.indices.sortedByDescending { boxes[it].area }
-        for (outer in indices) {
-            for (inner in indices) {
-                if (outer != inner && boxes[outer].encloses(boxes[inner])) {
-                    val isSmallestContaining = indices.none { middle ->
-                        middle != outer && middle != inner &&
-                            boxes[outer].encloses(boxes[middle]) &&
-                            boxes[middle].encloses(boxes[inner])
-                    }
-                    if (isSmallestContaining) direct[inner] = direct[outer]
-                }
-            }
+        // O(n²) em vez de O(n³): uma fonte decorativa pode ter centenas
+        // de pequenos anéis. Escolher só o contorno exterior mais próximo.
+        val parent = IntArray(boxes.size) { inner ->
+            boxes.indices
+                .filter { it != inner && boxes[it].encloses(boxes[inner]) }
+                .minByOrNull { boxes[it].area } ?: -1
+        }
+        boxes.indices.sortedByDescending { boxes[it].area }.forEach { index ->
+            if (parent[index] >= 0) direct[index] = direct[parent[index]]
         }
         return direct
     }
