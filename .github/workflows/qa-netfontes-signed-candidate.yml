@@ -18,7 +18,6 @@ jobs:
     name: Compilar e assinar candidata nao-publica
     runs-on: ubuntu-latest
     timeout-minutes: 55
-    environment: brother-release-signing
     steps:
       - name: Checkout seguro
         uses: actions/checkout@v4
