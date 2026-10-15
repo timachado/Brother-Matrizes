@@ -57,6 +57,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
+import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -922,9 +923,97 @@ fun CreateDrawingScreen(
                                 ) {
                                     Text("Restaurar cor detectada", color = FioGold)
                                 }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Tipo de ponto da camada",
+                                    color = FioText, fontWeight = FontWeight.SemiBold
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(stitchMode = RasterLayerStitchMode.FILL)
+                                                else it
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            if (layer.stitchMode == RasterLayerStitchMode.FILL)
+                                                "● Preenchimento" else "Preenchimento",
+                                            color = FioGold, fontSize = 10.sp
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(stitchMode =
+                                                        RasterLayerStitchMode.SATIN_STRAIGHT)
+                                                else it
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            if (layer.stitchMode ==
+                                                RasterLayerStitchMode.SATIN_STRAIGHT)
+                                                "● Satin reto" else "Satin reto",
+                                            color = FioGold, fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                                if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT) {
+                                    Text(
+                                        "Use somente em faixas retas de 0,8 a 5,5 mm. " +
+                                            "Furos, curvas ou letras ramificadas são rejeitados " +
+                                            "para evitar um bordado inválido.",
+                                        color = FioTextMuted, fontSize = 10.sp
+                                    )
+                                    val pull = layer.satinPullCompensationMm
+                                    Text(
+                                        "Compensação lateral: " +
+                                            String.format(Locale("pt", "BR"), "%.2f mm", pull),
+                                        color = FioText, fontSize = 11.sp
+                                    )
+                                    Slider(
+                                        value = pull,
+                                        onValueChange = { next ->
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(satinPullCompensationMm = next)
+                                                else it
+                                            }
+                                        },
+                                        valueRange = 0f..0.3f
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            layerEdits = visibleLayerEdits.map {
+                                                if (it.sourceIndex == layer.sourceIndex)
+                                                    it.copy(satinCenterUnderlay =
+                                                        !it.satinCenterUnderlay)
+                                                else it
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            if (layer.satinCenterUnderlay)
+                                                "● Sustentação central ativa"
+                                            else "○ Ativar sustentação central",
+                                            color = FioGold, fontSize = 11.sp
+                                        )
+                                    }
+                                }
                                 val spacing = layer.rowSpacingMm ?: 0.5f
                                 Text(
-                                    "Espaçamento entre fileiras: " +
+                                    (if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT)
+                                        "Passo Satin: " else "Espaçamento entre fileiras: ") +
                                         String.format(Locale("pt", "BR"), "%.2f mm", spacing),
                                     color = FioText, fontSize = 11.sp
                                 )
@@ -939,9 +1028,9 @@ fun CreateDrawingScreen(
                                     valueRange = 0.4f..1f
                                 )
                                 Text(
-                                    "Ajuste experimental de preenchimento. " +
-                                        "Valores menores aumentam a densidade; " +
-                                        "não substituem estabilização e teste no tecido.",
+                                    "Etapa experimental: valores menores aumentam a densidade. " +
+                                        "Revise pontos, bastidor e acabamento; " +
+                                        "teste em tecido antes de produzir.",
                                     color = FioTextMuted, fontSize = 10.sp
                                 )
                             }

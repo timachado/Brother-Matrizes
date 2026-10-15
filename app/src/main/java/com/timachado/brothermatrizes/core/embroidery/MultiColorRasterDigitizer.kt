@@ -16,12 +16,21 @@ import kotlin.math.sqrt
  * com deslocamento alternado ("Tatami-like"); Satin e underlay profissional
  * continuam fora do escopo desta etapa.
  */
+/** Tipos de costura para cada cor isolada da arte. */
+enum class RasterLayerStitchMode {
+    FILL,
+    SATIN_STRAIGHT
+}
+
 /** Edição não destrutiva: índice da cor detectada, ordem, visibilidade e parâmetros locais. */
 data class ColorLayerEdit(
     val sourceIndex: Int,
     val enabled: Boolean = true,
     val threadColor: Int? = null,
-    val rowSpacingMm: Float? = null
+    val rowSpacingMm: Float? = null,
+    val stitchMode: RasterLayerStitchMode = RasterLayerStitchMode.FILL,
+    val satinPullCompensationMm: Float = 0.15f,
+    val satinCenterUnderlay: Boolean = true
 )
 
 data class MultiColorRasterOptions(
@@ -220,6 +229,9 @@ object MultiColorRasterDigitizer {
             require(layer.rowSpacingMm == null || layer.rowSpacingMm in 0.4f..1f) {
                 "Espaçamento de pontos inválido."
             }
+            require(layer.satinPullCompensationMm in 0f..0.3f) {
+                "Compensação Satin deve ficar entre 0 e 0,3 mm."
+            }
         }
         val activeLayers = layers.filter { it.enabled }
         require(activeLayers.isNotEmpty()) {
@@ -242,6 +254,37 @@ object MultiColorRasterDigitizer {
         var hasStitched = false
 
         for ((colorIndex, layer) in activeLayers.withIndex()) {
+            if (layer.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT) {
+                val satin = RasterStraightSatin.generate(
+                    source = source,
+                    art = art,
+                    sourceColorIndex = layer.sourceIndex,
+                    outputColorIndex = colorIndex,
+                    widthMm = options.widthMm,
+                    densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
+                    compensationMm = layer.satinPullCompensationMm,
+                    centerUnderlay = layer.satinCenterUnderlay
+                ).getOrElse { error ->
+                    throw IllegalArgumentException(
+                        "Camada ${layer.sourceIndex + 1}: " +
+                            (error.message ?: "não é compatível com Satin reto."),
+                        error
+                    )
+                }
+                if (hasStitched) {
+                    out += EmbroideryPoint(lastX, lastY, StitchCommand.TRIM, colorIndex - 1)
+                    out += EmbroideryPoint(lastX, lastY, StitchCommand.COLOR_CHANGE, colorIndex)
+                }
+                out.addAll(satin)
+                require(out.size <= MAX_STITCHES) {
+                    "Logo muito complexo. Reduza cores ou dimensões."
+                }
+                val last = satin.last()
+                lastX = last.xUnits
+                lastY = last.yUnits
+                hasStitched = true
+                continue
+            }
             val verticalStep = (layer.rowSpacingMm ?: options.rowSpacingMm) * 10f
             var layerStitched = false
             var row = 0
