@@ -42,7 +42,7 @@ data class RasterEditProjectSummary(
 
 object RasterEditProjectCodec {
     private const val MAGIC = 0x42524D52 // BRMR
-    private const val VERSION = 1
+    private const val VERSION = 2
     const val MAX_BYTES = 4_000_000
     private const val MAX_SECTIONS = 80
     private const val MAX_RAILS = 100
@@ -82,7 +82,10 @@ object RasterEditProjectCodec {
             require(layer.manualSections.size <= MAX_SECTIONS) {
                 "Número máximo de seções ultrapassado."
             }
-            for (section in layer.manualSections) {
+            for ((sectionIndex, section) in layer.manualSections.withIndex()) {
+                require(!section.connectToPrevious || sectionIndex > 0) {
+                    "A primeira seção não pode ativar conexão."
+                }
                 require(section.rails.size in 2..MAX_RAILS) {
                     "Cada seção deve ter de 2 a 100 pares de trilhos."
                 }
@@ -126,6 +129,7 @@ object RasterEditProjectCodec {
                 out.writeInt(layer.manualSections.size)
                 for (section in layer.manualSections) {
                     out.writeInt(section.rails.size)
+                    out.writeBoolean(section.connectToPrevious)
                     for (r in section.rails) {
                         out.writeFloat(r.ax)
                         out.writeFloat(r.ay)
@@ -161,8 +165,12 @@ object RasterEditProjectCodec {
             "Projeto corrompido: integridade não confirmada."
         }
         return DataInputStream(ByteArrayInputStream(bytes, 0, payloadSize)).use { input ->
-            require(input.readInt() == MAGIC && input.readInt() == VERSION) {
+            require(input.readInt() == MAGIC) {
                 "Arquivo não é um projeto Satin editável compatível."
+            }
+            val version = input.readInt()
+            require(version in 1..VERSION) {
+                "Versão de projeto Satin ainda não suportada."
             }
             val title = input.readUTF()
             val label = input.readUTF()
@@ -193,12 +201,16 @@ object RasterEditProjectCodec {
                 val sections = (0 until sectionCount).map {
                     val pairCount = input.readInt()
                     require(pairCount in 2..MAX_RAILS) { "Quantidade de pares inválida." }
-                    ManualSatinSection((0 until pairCount).map {
-                        SatinRailPair(
-                            input.readFloat(), input.readFloat(),
-                            input.readFloat(), input.readFloat()
-                        )
-                    })
+                    val joinPrevious = if (version >= 2) input.readBoolean() else false
+                    ManualSatinSection(
+                        rails = (0 until pairCount).map {
+                            SatinRailPair(
+                                input.readFloat(), input.readFloat(),
+                                input.readFloat(), input.readFloat()
+                            )
+                        },
+                        connectToPrevious = joinPrevious
+                    )
                 }
                 ColorLayerEdit(
                     sourceIndex = sourceIndex,
@@ -226,7 +238,8 @@ object RasterEditProjectCodec {
 
     fun readTitle(file: File): String =
         DataInputStream(file.inputStream().buffered()).use { input ->
-            require(input.readInt() == MAGIC && input.readInt() == VERSION) {
+            require(input.readInt() == MAGIC &&
+                input.readInt() in 1..VERSION) {
                 "Projeto incompatível."
             }
             input.readUTF().also {
