@@ -78,9 +78,10 @@ class ImportedGlyphFailureReproductionTest {
         println("DIAG-VOID-CONNECTOR stitched=${stitchedConnector} " +
             "jumped=${jumpedConnector} " +
             "commands=${stitched.joinToString { it.command.toString() + ':' + it.xUnits }}")
-        // A travessia STITCH sem JUMP é um defeito da implementação atual;
-        // é documentada aqui, não aprovada como comportamento desejável.
-        assertTrue("Reprodução da conexão costurada sobre vazio.",
-            stitchedConnector && !jumpedConnector)
+        // Critério de homologação: não deve costurar atravessando o vazio.
+        // O código comercial atualmente FALHA este requisito. O teste
+        // permanece vermelho até a correção ser autorizada e validada.
+        assertTrue("Não costurar travessia vazia: usar JUMP.",
+            jumpedConnector && !stitchedConnector)
     }
 }
