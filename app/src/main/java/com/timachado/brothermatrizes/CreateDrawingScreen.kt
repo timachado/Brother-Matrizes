@@ -65,6 +65,9 @@ import com.timachado.brothermatrizes.core.embroidery.SatinRailPair
 import com.timachado.brothermatrizes.core.project.RasterEditProject
 import com.timachado.brothermatrizes.core.project.RasterEditProjectStore
 import com.timachado.brothermatrizes.core.project.RasterEditProjectSummary
+import com.timachado.brothermatrizes.core.project.RasterEditProjectBackupStore
+import com.timachado.brothermatrizes.core.project.RasterEditProjectBackupCodec
+import com.timachado.brothermatrizes.core.storage.SafeInputReader
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.HoopValidator
@@ -154,6 +157,7 @@ fun CreateDrawingScreen(
         mutableStateOf<List<RasterEditProjectSummary>>(emptyList())
     }
     var rasterProjectListOpen by remember { mutableStateOf(false) }
+    var pendingSatinBackup by remember { mutableStateOf<ByteArray?>(null) }
     var manualEditEnabled by remember(imagePixels, maxRasterColors, selectedLayerSource) {
         mutableStateOf(false)
     }
@@ -309,6 +313,57 @@ fun CreateDrawingScreen(
                     )
             }
         }
+
+    val satinBackupExporter = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        val bytes = pendingSatinBackup
+        pendingSatinBackup = null
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val stream = context.contentResolver.openOutputStream(uri, "w")
+                            ?: error("Não foi possível criar o arquivo do backup.")
+                        stream.use { it.write(bytes) }
+                    }
+                }
+                rasterProjectMessage = saved.fold(
+                    onSuccess = { "Backup Satin ZIP exportado. Guarde uma cópia segura." },
+                    onFailure = { it.message ?: "Falha ao exportar o backup." }
+                )
+            }
+        }
+    }
+    val satinBackupImporter = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val input = context.contentResolver.openInputStream(uri)
+                            ?: error("Não foi possível abrir o backup.")
+                        val bytes = input.use {
+                            SafeInputReader.readBytes(
+                                it, RasterEditProjectBackupCodec.MAX_ARCHIVE_BYTES
+                            )
+                        }
+                        RasterEditProjectBackupStore.restoreAll(context, bytes).getOrThrow()
+                    }
+                }
+                result.fold(
+                    onSuccess = { count ->
+                        rasterProjectMessage = "$count projeto(s) Satin restaurado(s). Use Reabrir projetos."
+                        rasterProjectListOpen = false
+                    },
+                    onFailure = {
+                        rasterProjectMessage = it.message ?: "Backup Satin inválido."
+                    }
+                )
+            }
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -845,6 +900,44 @@ fun CreateDrawingScreen(
                         color = FioTextMuted,
                         fontSize = 10.sp
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    val backup = withContext(Dispatchers.IO) {
+                                        RasterEditProjectBackupStore.exportAll(context)
+                                    }
+                                    backup.fold(
+                                        onSuccess = { bytes ->
+                                            pendingSatinBackup = bytes
+                                            satinBackupExporter.launch("brother-matrizes-satin.zip")
+                                        },
+                                        onFailure = {
+                                            rasterProjectMessage = it.message
+                                                ?: "Não foi possível criar o backup ZIP."
+                                        }
+                                    )
+                                }
+                            }
+                        ) { Text("Exportar backup ZIP", color = FioGold, fontSize = 11.sp) }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                satinBackupImporter.launch(
+                                    arrayOf("application/zip", "application/octet-stream", "*/*")
+                                )
+                            }
+                        ) { Text("Restaurar backup ZIP", color = FioGold, fontSize = 11.sp) }
+                    }
+                    Text(
+                        "Salve suas edições antes do backup. O ZIP contém todos os " +
+                            "projetos Satin já salvos, sem afetar a biblioteca PES.",
+                        color = FioTextMuted, fontSize = 10.sp
+                    )
                     if (imagePixels != null && multiColorEnabled) {
                         OutlinedTextField(
                             value = rasterProjectTitle,
@@ -1373,6 +1466,43 @@ fun CreateDrawingScreen(
                                                     manualEditorMessage = "Seção retirada desta matriz."
                                                 }
                                             ) { Text("Excluir", color = FioGold, fontSize = 10.sp) }
+                                        }
+                                        if (manualSectionIndex > 0) {
+                                            val currentSection = layer.manualSections
+                                                .getOrNull(manualSectionIndex)
+                                            if (currentSection != null) {
+                                                OutlinedButton(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    onClick = {
+                                                        manualUndoStack = (
+                                                            manualUndoStack + listOf(layer.manualSections)
+                                                        ).takeLast(25)
+                                                        layerEdits = visibleLayerEdits.map { item ->
+                                                            if (item.sourceIndex != layer.sourceIndex) item
+                                                            else item.copy(
+                                                                manualSections = item.manualSections
+                                                                    .mapIndexed { idx, section ->
+                                                                        if (idx == manualSectionIndex)
+                                                                            section.copy(
+                                                                                connectToPrevious =
+                                                                                    !section.connectToPrevious
+                                                                            )
+                                                                        else section
+                                                                    }
+                                                            )
+                                                        }
+                                                        manualEditorMessage =
+                                                            "Conexão só é permitida com pontas a até 1,5 mm."
+                                                    }
+                                                ) {
+                                                    Text(
+                                                        if (currentSection.connectToPrevious)
+                                                            "● Conectar à seção anterior"
+                                                        else "○ Conectar à seção anterior (até 1,5 mm)",
+                                                        color = FioGold, fontSize = 11.sp
+                                                    )
+                                                }
+                                            }
                                         }
                                         Text(
                                             "Mover seção inteira (1% da arte)",
