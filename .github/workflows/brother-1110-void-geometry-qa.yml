@@ -34,8 +34,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'versionCode = 184' app/build.gradle.kts
-          grep -Fq 'versionName = "1.10.8"' app/build.gradle.kts
+          grep -Fq 'versionCode = 186' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.10"' app/build.gradle.kts
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/MachineSimulationCanvas.kt)" = "46b58e9ab7b10414970bc47542b7ee5072609646"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/SimulatorScreen.kt)" = "f51abd96933338b53ee2cf7393f1594aeb726da5"
           test "$(git hash-object app/src/main/java/com/timachado/brothermatrizes/EmbroideryCanvas.kt)" = "bb5760d057127c68c3370157c6aaddf2aa46ec06"
