@@ -121,4 +121,42 @@ class ImportedGlyphFailureReproductionTest {
             points.count { it.command == StitchCommand.JUMP } <= 3)
     }
 
+
+    @Test
+    fun completeRunStartsAtCapitalMBeforeRestoredDotOverI() {
+        // Regressão do print de 15/10: o pingo do i era injetado em
+        // result[0] e a simulação começava em x≈92, antes do M em x≈0.
+        val capitalM = rect(0f, -55f, 28f, 150f)
+        val iStem = rect(90f, 0f, 15f, 90f)
+        val iDot = rect(92f, -27f, 11f, 9f)
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(capitalM, iStem, iDot), densityMm = 0.4f, pullMm = 0.2f
+        )
+        val points = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        val firstMove = points.firstOrNull()
+            ?: error("O motor não criou pontos")
+        assertTrue(
+            "Início do nome deve permanecer no M, não no pingo do i.",
+            firstMove.command == StitchCommand.JUMP && firstMove.xUnits in -12..42
+        )
+        val firstMStitch = points.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in -12..45 && it.yUnits in -57..0
+        }
+        val firstDotStitch = points.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in 88..107 && it.yUnits in -29..-16
+        }
+        assertTrue("M e ponto do i devem continuar presentes.",
+            firstMStitch >= 0 && firstDotStitch >= 0)
+        assertTrue("Não reordenar o pingo antes da primeira letra.",
+            firstMStitch < firstDotStitch)
+        val dotHeights = plan.rails.flatten()
+            .filter { it.middle.x in 88f..107f &&
+                it.middle.y in -29f..-16f }
+            .map { it.middle.y.roundToInt() }.distinct()
+        assertTrue("Não reverter o preenchimento restaurado do pingo.",
+            dotHeights.size >= 3)
+    }
+
 }
