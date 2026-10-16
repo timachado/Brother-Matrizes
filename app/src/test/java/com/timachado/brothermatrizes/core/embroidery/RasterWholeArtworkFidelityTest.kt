@@ -84,6 +84,26 @@ class RasterWholeArtworkFidelityTest {
         )
     }
 
+    @Test fun grayscalePhotographicGradientCannotPretendToBeFlatColorLogo() {
+        val w=160;val h=100
+        val pixels=IntArray(w*h) { index ->
+            val x=index%w;val y=index/w
+            if (x in 20..139 && y in 18..83) {
+                val shade=30 + (x-20)*190/119
+                (0xff shl 24) or (shade shl 16) or
+                    (shade shl 8) or shade
+            } else white
+        }
+        val gradient=RasterImagePixels(w,h,pixels,"fotografia monocromática")
+        assertTrue(
+            RasterArtworkComplexityAudit.examine(gradient)
+                .requiresMultiTechniqueReview
+        )
+        assertTrue(RasterAutomaticLogoPreview.create(
+            gradient,90f,HoopProfile.H130X180
+        ).isFailure)
+    }
+
     @Test fun importedPESDoesNotPassTheQAOnlyArtworkGate() {
         val source=artwork()
         val design=RasterAutomaticLogoPreview.create(
