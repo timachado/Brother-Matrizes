@@ -1,0 +1,87 @@
+name: Brother Matrizes - manifesto OTA apos release comercial validada
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-sync:
+    if: ${{ github.event.release.tag_name == 'v1.10.9' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout da linha comercial
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android Build Tools 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Baixar o APK que acabou de ser publicado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-check
+          gh release download v1.10.9 \
+            --pattern 'Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk' \
+            --dir release-check
+          test -s release-check/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk
+      - name: Validar hash, certificado e identidade Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=release-check/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk
+          expected='3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5'
+          actual="$(sha256sum "$apk" | cut -d' ' -f1)"
+          [[ "$actual" == "$expected" ]] || { echo "::error::APK publicado diverge do assinado e aprovado"; exit 1; }
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/zipalign" -P 16 -c 4 "$apk"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$apk" > release-check/apk-verification.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' release-check/apk-verification.txt
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' release-check/apk-verification.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' release-check/apk-verification.txt
+          info="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='185'"* ]]
+          [[ "$info" == *"versionName='1.10.9'"* ]]
+          echo 'APK comercial oficial aprovado para OTA.'
+      - name: Atualizar espelho oficial somente apos validacao
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_sha='3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5'
+          old_version="$(jq -r '.versionCode' updates/stable.json)"
+          if [[ "$old_version" -gt 185 ]]; then
+            echo "::error::Manifesto ja tem versao superior. Nao sobrescrever."
+            exit 1
+          fi
+          url='https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk'
+          published="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq --arg url "$url" --arg hash "$apk_sha" --arg pub "$published" \
+            '.versionName="1.10.9" | .versionCode=185 | .downloadUrl=$url | .sha256=$hash | .publishedAt=$pub | .releaseNotes="Brother Matrizes 1.10.9 — NetFontes com busca e lupa, limites no plano Gratuito e correcoes na consulta de atualizacoes. Base comercial 1.10.8 preservada."' \
+            updates/stable.json > updates/stable.json.next
+          mv updates/stable.json.next updates/stable.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/stable.json
+          if git diff --cached --quiet; then
+            echo 'Manifesto ja atualizado; nenhuma mudanca.'
+            exit 0
+          fi
+          git commit -m 'release(ota): publicar manifesto estavel 1.10.9 apos verificar APK comercial'
+          git push origin HEAD:main
