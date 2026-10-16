@@ -38,6 +38,8 @@ internal fun ImageSatinObjectEditorPanel(
     onPart: (Int) -> Unit,
     onSection: (Int) -> Unit,
     onChange: (List<ManualSatinSection>) -> Unit,
+    onAuto: () -> Unit,
+    autoBusy: Boolean,
     onReset: () -> Unit
 ) {
     val item = objects.getOrNull(active) ?: return
@@ -63,9 +65,9 @@ internal fun ImageSatinObjectEditorPanel(
             }
         }
         Text(
-            "Arraste os pontos dourados e azuis até as bordas da costura. " +
-                "Para curvas, adicione pares; para ramificações, use outra seção. " +
-                "A prévia será recusada se cruzar vazios ou não cobrir a forma.",
+            "Linha ciano: contorno vetorial; laranja: furo. " +
+                "O guia automático só atende faixas simples, sem furos ou ramos. " +
+                "Confira e ajuste os trilhos dourados e azuis antes de simular.",
             color = FioTextMuted, fontSize = 12.sp
         )
         ManualSatinRailCanvas(
@@ -73,6 +75,7 @@ internal fun ImageSatinObjectEditorPanel(
             imageWidth = imageWidth,
             colorIndex = 0,
             section = section,
+            vectorContours = item.vectorContours,
             onBeginDrag = {},
             onEdit = { edited ->
                 onChange(sections.toMutableList().apply { set(activeIndex, edited) })
@@ -136,14 +139,25 @@ internal fun ImageSatinObjectEditorPanel(
                 onSection((activeIndex - 1).coerceAtLeast(0))
             }) { Text("− Seção", color = FioGold, fontSize = 12.sp) }
         }
+        OutlinedButton(
+            onClick = onAuto,
+            enabled = !autoBusy && item.vectorContours.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (autoBusy) "Analisando geometria…"
+                else "Sugerir trilhos pelos contornos",
+                color = FioGold, fontSize = 13.sp
+            )
+        }
         OutlinedButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
             Text("Reiniciar guia desta parte", color = FioGold, fontSize = 12.sp)
         }
         Text(
             if (touched) {
-                "Trilhos alterados. Toque em Simular bordado para validar só esta parte."
+                "Trilhos revisados: a simulação continua restrita a esta parte."
             } else {
-                "Guia inicial: ajuste os trilhos antes de tentar simular."
+                "Sugestão não homologada: arraste algum trilho após conferir os contornos."
             },
             color = FioTextMuted, fontSize = 11.sp
         )
