@@ -26,48 +26,44 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
-import com.timachado.brothermatrizes.core.embroidery.HoopProfile
-import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
-import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
-import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
-import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
-import com.timachado.brothermatrizes.core.embroidery.RasterVerticalVisualPreview
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
+import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
+import com.timachado.brothermatrizes.core.embroidery.RasterArtworkAutoCrop
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
+import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
-import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
- * Simple, image-first entrypoint, patterned after Abrir Matrizes.
- * Opens Android's image/files picker immediately; no huge stitch settings or
- * unsafe horizontal raster-to-PES export on the first screen.
- *
- * Reuses existing decoder, artwork proposals and crop/background preparation.
- * Original commercial matrix import and SimulatorScreen are untouched.
+ * Preserves the image and selected hoop when navigating back from the
+ * real SimulatorScreen. Never persists an experimental raster as PES.
  */
-/** State survives temporary navigation into the unmodified original simulator. */
 class SimpleImageSession {
     val photoState = mutableStateOf<RasterImagePixels?>(null)
     val candidatesState = mutableStateOf<List<RasterArtworkCandidate>>(emptyList())
@@ -76,10 +72,32 @@ class SimpleImageSession {
     val preparedState = mutableStateOf<PreparedRasterPhoto?>(null)
     val revisionState = mutableIntStateOf(0)
     val hoopState = mutableStateOf(HoopProfile.H100X100)
-    val widthMmState = mutableStateOf(60f)
+    /** Fraction of available working area, independent of current hoop. */
+    val fillState = mutableStateOf(.92f)
     val displayModeState = mutableStateOf(EmbroideryDisplayMode.REALISTIC)
     val showConnectionsState = mutableStateOf(false)
     var pickerLaunched = false
+}
+
+private fun imageStagePlaceholder(
+    photo: RasterImagePixels,
+    hoop: HoopProfile,
+    widthMm: Float
+): EmbroideryDesign {
+    val heightMm = ImageHoopSizing.heightMm(photo.width, photo.height, widthMm)
+    val halfW = (widthMm * 5f).roundToInt()
+    val halfH = (heightMm * 5f).roundToInt()
+    // Empty! The original EmbroideryCanvas draws the real original hoop,
+    // while its new optional overlay draws IMAGE pixels, not stitch commands.
+    return EmbroideryDesign(
+        fileName = "preview-arte-sem-matriz",
+        format = "QA_ARTWORK",
+        label = "Imagem preparada • não digitalizada",
+        points = emptyList(),
+        bounds = EmbroideryBounds(-halfW, halfW, -halfH, halfH),
+        stitchCount = 0, jumpCount = 0, colorChanges = 0,
+        endFound = false, sourceBytes = ByteArray(0), hoopProfile = hoop
+    )
 }
 
 @Composable
@@ -95,81 +113,54 @@ fun SimpleImageToEmbroideryScreen(
     var selectedId by session.selectedIdState
     var crop by session.cropState
     var prepared by session.preparedState
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
     var revision by session.revisionState
     var hoop by session.hoopState
-    var widthMm by session.widthMmState
+    var fill by session.fillState
     var displayMode by session.displayModeState
     var showConnections by session.showConnectionsState
-    var showDisplaySettings by remember { mutableStateOf(false) }
-    var showHoopPicker by remember { mutableStateOf(false) }
 
-    fun selectHoop(option: HoopProfile) {
-        hoop = option
-        prepared?.let { raster ->
-            val max = ImageHoopSizing.maximumWidthMm(
-                raster.image.width, raster.image.height, hoop
-            )
-            if (max >= 10f) widthMm = widthMm.coerceAtMost(max)
-        }
-    }
+    var choosing by remember { mutableStateOf(false) }
+    var preparing by remember { mutableStateOf(false) }
+    var simulating by remember { mutableStateOf(false) }
+    var showHoops by remember { mutableStateOf(false) }
+    var showDisplay by remember { mutableStateOf(false) }
+    var showCrop by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
 
-    if (showHoopPicker) {
-        ImageHoopPicker(
-            selected = hoop,
-            onChoose = { selectHoop(it); showHoopPicker = false },
-            onDismiss = { showHoopPicker = false }
-        )
-    }
-
-    if (showDisplaySettings) {
-        // Same DisplaySettingsSheet used by Abrir Matrizes.
-        DisplaySettingsSheet(
-            displayMode = displayMode,
-            onDisplayModeChange = { displayMode = it },
-            hoop = hoop,
-            onHoopChange = { selectHoop(it) },
-            showConnections = showConnections,
-            onShowConnectionsChange = { showConnections = it },
-            onDismiss = { showDisplaySettings = false }
-        )
-    }
-
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             revision++
             val request = revision
             photo = null
-            prepared = null
             candidates = emptyList()
+            prepared = null
             crop = RasterCropBounds(0f, 0f, 1f, 1f)
             selectedId = 0
-            busy = true
+            showCrop = false
+            choosing = true
             message = ""
             scope.launch {
                 val loaded = withContext(Dispatchers.IO) {
                     RasterImageDecoder.decode(context.contentResolver, uri)
                 }
-                val detected = loaded.getOrNull()?.let {
-                    withContext(Dispatchers.Default) {
-                        RasterArtworkCandidates.detect(it)
-                    }
+                val image = loaded.getOrNull()
+                val matches = image?.let {
+                    withContext(Dispatchers.Default) { RasterArtworkCandidates.detect(it) }
                 } ?: emptyList()
-                if (request == revision) {
-                    photo = loaded.getOrNull()
-                    candidates = detected
-                    busy = false
+                val detectedBounds = image?.let {
+                    withContext(Dispatchers.Default) { RasterArtworkAutoCrop.detect(it) }
+                }
+                if (revision == request) {
+                    photo = image
+                    candidates = matches
+                    crop = detectedBounds ?: RasterCropBounds(0f, 0f, 1f, 1f)
+                    choosing = false
                     message = loaded.exceptionOrNull()?.message.orEmpty()
                 }
             }
         }
     }
 
-    // Same native Android document selection flow used by "Abrir Matrizes":
-    // Recentes, Imagens, local storage and compatible cloud providers.
     LaunchedEffect(session) {
         if (!session.pickerLaunched) {
             session.pickerLaunched = true
@@ -177,320 +168,243 @@ fun SimpleImageToEmbroideryScreen(
         }
     }
 
-    fun chooseRegion(region: RasterCropBounds, id: Int) {
-        revision++
-        crop = region
-        selectedId = id
+    // No "Preparar imagem" intermediate page. Every import/selection change
+    // automatically prepares the image for immediate original-hoop display.
+    LaunchedEffect(photo, crop) {
+        val input = photo ?: return@LaunchedEffect
+        preparing = true
         prepared = null
+        message = ""
+        try {
+            val newArt = withContext(Dispatchers.Default) {
+                val hasAlpha = input.argb.any { (it ushr 24) < 128 }
+                RasterPhotoPreparation.prepare(
+                    original = input,
+                    bounds = crop,
+                    removeEdgeBackground = !hasAlpha,
+                    tolerance = 55
+                )
+            }
+            newArt.fold(
+                onSuccess = { prepared = it },
+                onFailure = { message = it.message ?: "Não foi possível separar a arte." }
+            )
+        } finally {
+            preparing = false
+        }
+    }
+
+    fun choose(part: RasterCropBounds, id: Int) {
+        revision++
+        selectedId = id
+        crop = part
         message = ""
     }
 
+    val stageImage = prepared?.image ?: photo
+    val maxWidth = stageImage?.let {
+        ImageHoopSizing.maximumWidthMm(it.width, it.height, hoop)
+    } ?: 0f
+    val widthMm = maxWidth * fill
+    val heightMm = stageImage?.let {
+        ImageHoopSizing.heightMm(it.width, it.height, widthMm.coerceAtLeast(.1f))
+    } ?: 0f
+    val fitted = stageImage != null &&
+        widthMm >= 10f &&
+        ImageHoopSizing.fits(stageImage.width, stageImage.height, widthMm, hoop)
+    val placeholder = remember(stageImage, hoop, widthMm) {
+        stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
+    }
+
+    if (showHoops) {
+        ImageHoopPicker(
+            selected = hoop,
+            onChoose = { hoop = it; showHoops = false; message = "" },
+            onDismiss = { showHoops = false }
+        )
+    }
+    if (showDisplay) {
+        DisplaySettingsSheet(
+            displayMode = displayMode,
+            onDisplayModeChange = { displayMode = it },
+            hoop = hoop,
+            onHoopChange = { hoop = it },
+            showConnections = showConnections,
+            onShowConnectionsChange = { showConnections = it },
+            onDismiss = { showDisplay = false }
+        )
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FioBackground)
-            .padding(horizontal = 16.dp)
+        Modifier.fillMaxSize().background(FioBackground)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TextButton(onClick = onBack) {
-                Text("‹ Voltar", color = FioGold)
-            }
-            Column(modifier = Modifier.padding(top = 10.dp)) {
-                Text(
-                    "Imagem para Bordado",
-                    color = FioText,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Escolha uma foto, logo ou desenho",
-                    color = FioTextMuted,
-                    fontSize = 12.sp
-                )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
+            Column {
+                Text("Imagem para Bordado", color = FioText, fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold)
+                Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
             }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = { showHoopPicker = true }
-            ) {
-                Text("Bastidor: ${hoop.displayName} ▾", color = FioGold, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(modifier = Modifier.weight(1f), onClick = { showHoops = true }) {
+                Text(hoop.displayName + " ▾", color = FioGold, fontSize = 12.sp)
             }
-            OutlinedButton(onClick = { showDisplaySettings = true }) {
+            OutlinedButton(onClick = { showDisplay = true }) {
                 Text("Exibição", color = FioGold, fontSize = 12.sp)
             }
         }
-        Spacer(Modifier.height(8.dp))
 
-        val source = photo
-        if (source != null) {
-            // The touch-sensitive image stays OUTSIDE the vertically
-            // scrollable controls: swipe does not fight the page scrolling.
-            RasterPhotoCropCanvas(
-                photo = source,
-                selection = crop,
-                candidates = candidates,
-                onSelection = { chooseRegion(it, 0) },
-                canvasHeight = 210.dp,
-                onCandidateTap = { id ->
-                    candidates.firstOrNull { it.id == id }?.let {
-                        chooseRegion(it.bounds, id)
-                    }
-                }
+        if (stageImage != null && placeholder != null) {
+            // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
+            // overlay. Empty design: no fake stitch or PES is fabricated.
+            EmbroideryCanvas(
+                design = placeholder,
+                hoop = hoop,
+                displayMode = displayMode,
+                showConnections = showConnections,
+                rasterArtwork = stageImage,
+                rasterWidthMm = widthMm,
+                modifier = Modifier.fillMaxWidth().height(350.dp)
             )
-        }
+            Text(
+                "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
+                color = FioTextMuted, fontSize = 11.sp
+            )
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (source == null) {
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    "Abra uma imagem da galeria ou dos arquivos do celular.",
-                    color = FioText,
-                    fontSize = 16.sp
-                )
-                Button(
-                    onClick = { picker.launch(arrayOf("image/*")) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = FioGold)
-                ) {
-                    Text("Abrir imagem", color = FioBackground)
-                }
-            } else {
-                Text(
-                    "Arte selecionada • toque para recortar ou escolha uma parte",
-                    color = FioTextMuted,
-                    fontSize = 12.sp
-                )
+            Text(
+                "Arte: ${widthMm.roundToInt()} × ${heightMm.roundToInt()} mm • " +
+                    "Bastidor: ${hoop.displayName}",
+                color = FioText, fontWeight = FontWeight.SemiBold
+            )
+            Slider(
+                value = fill.coerceIn(.2f, 1f),
+                onValueChange = { fill = it },
+                valueRange = .2f..1f
+            )
+            Text(
+                "Deslize para ajustar a arte no bastidor; ao trocar de bastidor, " +
+                    "o tamanho é recalculado automaticamente.",
+                color = FioTextMuted, fontSize = 11.sp
+            )
+            if (candidates.isNotEmpty()) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = { chooseRegion(RasterCropBounds(0f, 0f, 1f, 1f), 0) }
-                    ) {
-                        Text(
-                            if (selectedId == 0) "● Imagem inteira" else "Imagem inteira",
-                            color = FioGold
-                        )
+                    OutlinedButton(onClick = { choose(RasterCropBounds(0f, 0f, 1f, 1f), 0) }) {
+                        Text(if (selectedId == 0) "● Logo inteiro" else "Logo inteiro",
+                            color = FioGold)
                     }
                     candidates.forEach { region ->
-                        OutlinedButton(
-                            onClick = { chooseRegion(region.bounds, region.id) }
-                        ) {
+                        OutlinedButton(onClick = { choose(region.bounds, region.id) }) {
                             Text(
-                                if (selectedId == region.id)
-                                    "● Parte ${region.id}" else "Parte ${region.id}",
+                                if (selectedId == region.id) "● Parte ${region.id}"
+                                else "Parte ${region.id}",
                                 color = FioGold
                             )
                         }
                     }
                 }
-                if (candidates.isEmpty()) {
-                    Text(
-                        "Se necessário, arraste na imagem para marcar a logo.",
-                        color = FioTextMuted,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !busy,
-                    colors = ButtonDefaults.buttonColors(containerColor = FioGold),
-                    onClick = {
-                        val photoAtStart = source
-                        val cropAtStart = crop
-                        revision++
-                        val request = revision
-                        prepared = null
-                        busy = true
-                        message = ""
-                        scope.launch {
-                            val hasAlpha = photoAtStart.argb.count {
-                                (it ushr 24) < 128
-                            } > photoAtStart.argb.size / 80
-                            val result = withContext(Dispatchers.Default) {
-                                RasterPhotoPreparation.prepare(
-                                    original = photoAtStart,
-                                    bounds = cropAtStart,
-                                    removeEdgeBackground = !hasAlpha,
-                                    tolerance = 55
-                                )
-                            }
-                            if (request == revision && photo === photoAtStart) {
-                                busy = false
-                                result.fold(
-                                    onSuccess = {
-                                        prepared = it
-                                    },
-                                    onFailure = {
-                                        message = it.message ?: "Não foi possível preparar essa foto."
-                                    }
-                                )
-                            }
+            }
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { showCrop = !showCrop }
+            ) {
+                Text(if (showCrop) "Concluir recorte" else "Ajustar recorte", color = FioGold)
+            }
+            if (showCrop) {
+                RasterPhotoCropCanvas(
+                    photo = photo ?: stageImage, selection = crop,
+                    candidates = candidates,
+                    onSelection = { choose(it, 0) },
+                    onCandidateTap = { id ->
+                        candidates.firstOrNull { it.id == id }?.let {
+                            choose(it.bounds, id)
                         }
-                    }
-                ) {
-                    Text("Preparar imagem", color = FioBackground, fontWeight = FontWeight.Bold)
-                }
-
-                prepared?.let { result ->
-                    val image = result.image
-                    val maximum = ImageHoopSizing.maximumWidthMm(
-                        image.width, image.height, hoop
-                    )
-                    val fits = ImageHoopSizing.fits(
-                        image.width, image.height, widthMm, hoop
-                    )
-                    val estimatedHeight = ImageHoopSizing.heightMm(
-                        image.width, image.height, widthMm
-                    )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(FioSurface, RoundedCornerShape(14.dp))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "Prévia da arte selecionada",
-                            color = FioText,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        RasterPreparedImagePreview(result.image)
-                        Text(
-                            "Tamanho da arte: ${widthMm.toInt()} × ${estimatedHeight.toInt()} mm",
-                            color = FioText,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (maximum >= 10f) {
-                            Slider(
-                                value = widthMm.coerceIn(10f, maximum),
-                                onValueChange = { widthMm = it },
-                                valueRange = 10f..maximum
-                            )
-                        }
-                        Text(
-                            if (fits)
-                                "Dentro da área útil do bastidor ${hoop.displayName}."
-                            else
-                                "A arte ultrapassa a área útil do bastidor; reduza o tamanho ou selecione outro.",
-                            color = if (fits) FioTextMuted else Color(0xFFFFBE91),
-                            fontSize = 12.sp
-                        )
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy && fits && maximum >= 10f,
-                            colors = ButtonDefaults.buttonColors(containerColor = FioGold),
-                            onClick = {
-                                val sourceRaster = result.image
-                                val selectedHoop = hoop
-                                val selectedWidthMm = widthMm
-                                val selectedDisplayMode = displayMode
-                                val selectedConnections = showConnections
-                                revision++
-                                val request = revision
-                                busy = true
-                                message = ""
-                                scope.launch {
-                                    val generated = withContext(Dispatchers.Default) {
-                                        runCatching {
-                                            val opts = MultiColorRasterOptions(
-                                                widthMm = selectedWidthMm,
-                                                maxColors = 2,
-                                                hoopProfile = selectedHoop,
-                                                verticalSatinPreviewOnly = true
-                                            )
-                                            val artwork = MultiColorRasterDigitizer
-                                                .separate(sourceRaster, opts).getOrThrow()
-                                            val satinOpts = opts.copy(
-                                                layers = artwork.colors.indices.map { color ->
-                                                    ColorLayerEdit(
-                                                        sourceIndex = color,
-                                                        stitchMode = RasterLayerStitchMode.SATIN_STRAIGHT,
-                                                        satinCenterUnderlay = false,
-                                                        satinPullCompensationMm = 0.1f
-                                                    )
-                                                }
-                                            )
-                                            // Strict Satin first. A complex logo cannot
-                                            // be silently rejected with a dead button:
-                                            // show a clearly labeled vertical-only
-                                            // VISUAL TRACE in the original simulator.
-                                            MultiColorRasterDigitizer.generateSeparated(
-                                                sourceRaster, artwork, satinOpts
-                                            ).getOrElse {
-                                                RasterVerticalVisualPreview.create(
-                                                    sourceRaster, artwork,
-                                                    selectedWidthMm, selectedHoop
-                                                ).getOrThrow()
-                                            }
-                                        }
-                                    }
-                                    if (request == revision && prepared === result) {
-                                        busy = false
-                                        generated.fold(
-                                            onSuccess = {
-                                                onSimulate(it, selectedHoop, selectedDisplayMode, selectedConnections)
-                                            },
-                                            onFailure = {
-                                                message = "Satin vertical não disponível para esta forma. " +
-                                                    (it.message ?: "Selecione uma parte mais simples.")
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        ) {
-                            Text("▶ Simular bordado", color = FioBackground, fontWeight = FontWeight.Bold)
-                        }
-                        Text(
-                            if (result.removedBackgroundPixels > 0)
-                                "Fundo separado: ${result.removedBackgroundPixels} pixels removidos."
-                            else "Imagem já recortada ou com fundo transparente.",
-                            color = FioTextMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { picker.launch(arrayOf("image/*")) }
-                ) {
-                    Text("Escolher outra imagem", color = FioGold)
-                }
-
-                Text(
-                    "Prévia no simulador original: formas complexas são ilustradas por " +
-                        "linhas verticais e NÃO representam Satin final. " +
-                        "Exportação PES e envio à máquina bloqueados.",
-                    color = Color(0xFFFFBE91),
-                    fontSize = 12.sp
+                    },
+                    canvasHeight = 250.dp
                 )
             }
-
-            if (busy) {
-                CircularProgressIndicator(color = FioGold)
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !preparing && !simulating && fitted && prepared != null,
+                colors = ButtonDefaults.buttonColors(containerColor = FioGold),
+                onClick = {
+                    val selected = prepared?.image ?: return@Button
+                    val selectedHoop = hoop
+                    val selectedWidth = widthMm
+                    val chosenMode = displayMode
+                    val chosenConnections = showConnections
+                    val currentRevision = revision
+                    simulating = true
+                    message = ""
+                    scope.launch {
+                        val design = withContext(Dispatchers.Default) {
+                            runCatching {
+                                val opts = MultiColorRasterOptions(
+                                    widthMm = selectedWidth, maxColors = 2,
+                                    hoopProfile = selectedHoop,
+                                    verticalSatinPreviewOnly = true
+                                )
+                                val art = MultiColorRasterDigitizer.separate(
+                                    selected, opts
+                                ).getOrThrow()
+                                val satin = opts.copy(layers = art.colors.indices.map {
+                                    ColorLayerEdit(
+                                        sourceIndex = it,
+                                        stitchMode = RasterLayerStitchMode.SATIN_STRAIGHT,
+                                        satinCenterUnderlay = false
+                                    )
+                                })
+                                MultiColorRasterDigitizer.generateSeparated(
+                                    selected, art, satin
+                                ).getOrThrow()
+                            }
+                        }
+                        if (revision == currentRevision) {
+                            simulating = false
+                            design.fold(
+                                onSuccess = {
+                                    onSimulate(it, selectedHoop, chosenMode, chosenConnections)
+                                },
+                                onFailure = {
+                                    message = "Ainda não há trajetória Satin vertical válida " +
+                                        "para esta arte. Selecione uma parte simples ou reconstrua " +
+                                        "as letras em Satin. Nenhuma simulação falsa foi gerada."
+                                }
+                            )
+                        }
+                    }
+                }
+            ) {
+                Text("▶ Simular pontos Satin", color = FioBackground,
+                    fontWeight = FontWeight.Bold)
             }
-            if (message.isNotBlank()) {
-                Text(message, color = Color(0xFFFFBE91), fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(20.dp))
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { picker.launch(arrayOf("image/*")) }
+            ) { Text("Escolher outra imagem", color = FioGold) }
+            Text(
+                "Somente trajetórias Satin reais são animadas pelo simulador " +
+                    "original. O desenho sobre o bastidor é uma prévia da imagem, " +
+                    "não uma matriz PES. Exportação e envio à máquina bloqueados.",
+                color = FioTextMuted, fontSize = 11.sp
+            )
+        } else {
+            Text("Abra uma imagem da galeria ou dos arquivos do celular.",
+                color = FioText)
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { picker.launch(arrayOf("image/*")) },
+                colors = ButtonDefaults.buttonColors(containerColor = FioGold)
+            ) { Text("Abrir imagem", color = FioBackground) }
         }
+        if (choosing || preparing || simulating) CircularProgressIndicator(color = FioGold)
+        if (message.isNotEmpty()) Text(message, color = Color(0xFFFFBE91), fontSize = 12.sp)
+        Spacer(Modifier.height(18.dp))
     }
 }

@@ -2,7 +2,7 @@ name: Brother Matrizes QA Object Selection APK
 
 on:
   push:
-    branches: ["qa/image-hoop-preview-ux-fix-20261016"]
+    branches: ["qa/native-hoop-live-preview-20261016"]
   workflow_dispatch:
 
 permissions:
@@ -34,10 +34,10 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qahoopfix"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qanativeimage"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
-          for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryCanvas.kt EmbroideryDisplay.kt; do
+          for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
             git diff origin/main --exit-code -- "app/src/main/java/com/timachado/brothermatrizes/$file"
           done
       - name: Unit tests
@@ -47,6 +47,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Corrigido-Preview
+          name: Brother-Matrizes-QA-Visual-Bastidor
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

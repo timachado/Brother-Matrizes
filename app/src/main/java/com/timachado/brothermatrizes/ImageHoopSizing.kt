@@ -4,19 +4,31 @@ import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import kotlin.math.min
 
 /**
- * Preview-only dimensions, using the SAME usable hoop margins defined by
- * HoopProfile in the commercial app. Does not certify stitch safety.
+ * Same orientation rule as the original EmbroideryCanvas: rotate the
+ * REFERENCE HOOP (not the raster) for landscape art in a portrait hoop.
+ * This class controls preview placement, not machine safety.
  */
 internal object ImageHoopSizing {
-    fun maximumWidthMm(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Float {
+    private fun frame(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Pair<Float, Float> {
         require(imageWidth > 0 && imageHeight > 0) { "Imagem inválida." }
-        return min(
-            200f,
-            min(
-                hoop.usableWidthMm,
-                hoop.usableHeightMm * imageWidth.toFloat() / imageHeight
-            )
-        )
+        val rotated = hoop.widthMm != hoop.heightMm &&
+            (imageWidth > imageHeight) != (hoop.widthMm > hoop.heightMm)
+        return if (rotated) {
+            hoop.usableHeightMm to hoop.usableWidthMm
+        } else {
+            hoop.usableWidthMm to hoop.usableHeightMm
+        }
+    }
+
+    fun maximumWidthMm(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Float {
+        val (safeW, safeH) = frame(imageWidth, imageHeight, hoop)
+        return min(200f, min(safeW, safeH * imageWidth.toFloat() / imageHeight))
+    }
+
+    /** Change hoop -> fit artwork again, including growing it in larger hoops. */
+    fun recommendedWidthMm(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Float {
+        return (maximumWidthMm(imageWidth, imageHeight, hoop) * .92f)
+            .coerceAtLeast(1f)
     }
 
     fun heightMm(imageWidth: Int, imageHeight: Int, widthMm: Float): Float {
@@ -24,9 +36,10 @@ internal object ImageHoopSizing {
         return widthMm * imageHeight.toFloat() / imageWidth
     }
 
-    fun fits(imageWidth: Int, imageHeight: Int, widthMm: Float, hoop: HoopProfile): Boolean =
-        widthMm.isFinite() &&
-            widthMm > 0f &&
-            widthMm <= hoop.usableWidthMm &&
-            heightMm(imageWidth, imageHeight, widthMm) <= hoop.usableHeightMm
+    fun fits(imageWidth: Int, imageHeight: Int, widthMm: Float, hoop: HoopProfile): Boolean {
+        if (!widthMm.isFinite() || widthMm <= 0f) return false
+        val (safeW, safeH) = frame(imageWidth, imageHeight, hoop)
+        return widthMm <= safeW &&
+            heightMm(imageWidth, imageHeight, widthMm) <= safeH
+    }
 }

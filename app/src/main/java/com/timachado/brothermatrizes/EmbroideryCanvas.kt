@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -15,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.PathEffect
@@ -23,7 +26,10 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPreviewOptimizer
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
@@ -78,8 +84,18 @@ fun EmbroideryCanvas(
     hoop: HoopProfile? = null,
     displayMode: EmbroideryDisplayMode =
         EmbroideryDisplayMode.REALISTIC,
-    showConnections: Boolean = false
+    showConnections: Boolean = false,
+    /** Raster overlay for image preparation ONLY: NOT stitches or a PES matrix. */
+    rasterArtwork: RasterImagePixels? = null,
+    rasterWidthMm: Float = 0f
 ) {
+    val rasterBitmap: ImageBitmap? = remember(rasterArtwork) {
+        rasterArtwork?.let {
+            Bitmap.createBitmap(
+                it.argb, it.width, it.height, Bitmap.Config.ARGB_8888
+            ).asImageBitmap()
+        }
+    }
     var zoom by remember(
         design.fileName,
         design.isModified
@@ -217,6 +233,36 @@ fun EmbroideryCanvas(
                 showConnections =
                     showConnections
             )
+            // Same native canvas / grid / hoop mapping used by Abrir Matrizes.
+            // This renders IMAGE PIXELS, never synthetic embroidery points.
+            if (hoop != null && rasterBitmap != null && rasterArtwork != null &&
+                rasterWidthMm > 0f && rasterWidthMm.isFinite()) {
+                val landscapeArt = rasterArtwork.width > rasterArtwork.height
+                val landscapeHoop = hoop.widthMm > hoop.heightMm
+                val rotateHoop = hoop.widthMm != hoop.heightMm &&
+                    landscapeArt != landscapeHoop
+                val frameW = (if (rotateHoop) hoop.heightMm else hoop.widthMm) * 10f
+                val frameH = (if (rotateHoop) hoop.widthMm else hoop.heightMm) * 10f
+                val paddingPx = 36.dp.toPx()
+                val scale = minOf(
+                    (size.width - 2f * paddingPx) / frameW,
+                    (size.height - 2f * paddingPx) / frameH
+                ).coerceAtLeast(.01f)
+                val bitmapWidthPx = (rasterWidthMm * 10f * scale).toInt().coerceAtLeast(1)
+                val bitmapHeightPx = (bitmapWidthPx.toFloat() *
+                    rasterArtwork.height / rasterArtwork.width).toInt().coerceAtLeast(1)
+                drawImage(
+                    image = rasterBitmap,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(rasterArtwork.width, rasterArtwork.height),
+                    dstOffset = IntOffset(
+                        ((size.width - bitmapWidthPx) / 2f).toInt(),
+                        ((size.height - bitmapHeightPx) / 2f).toInt()
+                    ),
+                    dstSize = IntSize(bitmapWidthPx, bitmapHeightPx),
+                    alpha = .99f
+                )
+            }
         }
     }
 }
