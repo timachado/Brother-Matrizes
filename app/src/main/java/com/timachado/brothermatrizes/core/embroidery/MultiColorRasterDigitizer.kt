@@ -115,17 +115,77 @@ object MultiColorRasterDigitizer {
             "Imagem sem desenho isolado: remova o fundo e recorte somente o logo."
         }
         val sortedBins = bins.entries.sortedByDescending { it.value }
-        // Centros de cor distintos, ignorando tons intermediários de anti-aliasing.
+        // In experimental QA only: verify that a small color actually forms
+        // a compact 8-connected region. A scattered camera-noise bin with
+        // six pixels must NOT become a new embroidery thread.
+        val compactFineBins = HashSet<Int>()
+        if (options.preserveFineDetails) {
+            fun binOf(p: Int): Int =
+                ((((p ushr 16) and 255) / 8) shl 10) or
+                    (((((p ushr 8) and 255) / 8)) shl 5) or
+                    ((p and 255) / 8)
+            val visited = BooleanArray(n)
+            val queue = IntArray(n)
+            for (root in 0 until n) {
+                if (!active[root] || visited[root]) continue
+                val bin = binOf(source.argb[root])
+                if (bin in compactFineBins) continue
+                var head = 0
+                var tail = 1
+                visited[root] = true
+                queue[0] = root
+                while (head < tail) {
+                    val i = queue[head++]
+                    val x = i % source.width
+                    val y = i / source.width
+                    for (dy in -1..1) for (dx in -1..1) {
+                        if (dx == 0 && dy == 0) continue
+                        val nx = x+dx
+                        val ny = y+dy
+                        if (nx !in 0 until source.width ||
+                            ny !in 0 until source.height) continue
+                        val next = ny*source.width+nx
+                        if (active[next] && !visited[next] &&
+                            binOf(source.argb[next]) == bin) {
+                            visited[next] = true
+                            queue[tail++] = next
+                        }
+                    }
+                }
+                if (tail >= 4) compactFineBins += bin
+            }
+        }
+        // Keep the commercial/default palette seeding exactly as before.
+        // QA first selects substantial colors, then uses any remaining
+        // slots for coherent accents of >=4 connected pixels.
         val seeds = ArrayList<Int>()
-        for ((bin, count) in sortedBins) {
-            if (count < max(3, ink / 500)) continue
+        val normalSeedThreshold = max(3, ink / 500)
+        val primaryThreshold = max(10, ink / 200)
+        fun seed(bin: Int) {
             val p = rgb(
                 ((bin ushr 10) and 31) * 8 + 4,
                 ((bin ushr 5) and 31) * 8 + 4,
                 (bin and 31) * 8 + 4
             )
-            if (seeds.none { distance(it, p) < 70 }) seeds += p
-            if (seeds.size == options.maxColors) break
+            if (seeds.size < options.maxColors &&
+                seeds.none { distance(it, p) < 70 }) seeds += p
+        }
+        if (options.preserveFineDetails) {
+            for ((bin, count) in sortedBins) {
+                if (count >= primaryThreshold) seed(bin)
+                if (seeds.size == options.maxColors) break
+            }
+            if (seeds.size < options.maxColors) {
+                for ((bin, count) in sortedBins) {
+                    if (count >= 4 && bin in compactFineBins) seed(bin)
+                    if (seeds.size == options.maxColors) break
+                }
+            }
+        } else {
+            for ((bin, count) in sortedBins) {
+                if (count >= normalSeedThreshold) seed(bin)
+                if (seeds.size == options.maxColors) break
+            }
         }
         require(seeds.isNotEmpty()) {
             "Não foi possível reconhecer as cores do desenho."
@@ -167,7 +227,8 @@ object MultiColorRasterDigitizer {
             hist[nearest]++
         }
         val selected = seeds.indices
-            .filter { hist[it] >= max(10, ink / 200) }
+            .filter { hist[it] >= if (options.preserveFineDetails) 4
+                else max(10, ink / 200) }
             .sortedByDescending { hist[it] }
         require(selected.isNotEmpty()) {
             "Os detalhes são pequenos demais para digitalização."

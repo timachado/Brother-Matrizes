@@ -43,23 +43,42 @@ class RasterSourceRetentionAuditTest {
         assertEquals(0,report.largestDamagedDetailPixels)
     }
 
-    @Test fun tinyThirdColorDetailCannotSilentlyDisappear() {
+    @Test fun tinyThirdColorAccentIsPreservedForLaterDigitizing() {
         val img=logo(accentPixels=true)
-        val report=RasterSourceRetentionAudit.inspect(img).getOrThrow()
-        assertFalse("Small bright accent must not be silently removed",
-            report.preservesDetails)
-        assertTrue(report.largestDamagedDetailPixels>=4)
-        assertTrue(report.omittedForegroundPixels +
-            report.heavilyRecoloredPixels>=4)
-        val denied=RasterSourceRetentionAudit.requirePreserved(img)
-        assertTrue(denied.isFailure)
-        assertTrue(denied.exceptionOrNull()?.message.orEmpty()
-            .contains("detalhes"))
-        // The integrated complete-logo compositor must also fail closed
-        // even if the remaining two large bands can be stitched properly.
+        val segmented=MultiColorRasterDigitizer.separate(
+            img,MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        // Same pixel patch, original location and genuinely distinct third
+        // color. An ink dot's existence is not proof it can be embroidered.
+        assertEquals(3,segmented.colors.size)
+        val accentIndex=segmented.pixels[42*160+121]
+        assertTrue(accentIndex>=0)
+        assertTrue(segmented.colors[accentIndex]!=segmented.colors[
+            segmented.pixels[24*160+30]
+        ])
+        val report=RasterSourceRetentionAudit
+            .requirePreserved(img).getOrThrow()
+        assertTrue(report.preservesDetails)
+        assertEquals(0,report.omittedForegroundPixels)
+        assertEquals(0,report.heavilyRecoloredPixels)
+        // Six pixels at this scale cannot yet be digitized as a tested
+        // stitch geometry. The whole-logo composer MUST still fail closed.
         assertTrue(RasterAutomaticLogoPreview.create(
             img,90f,HoopProfile.H130X180
         ).isFailure)
+    }
+
+    @Test fun commercialDefaultSegmentationBehaviorRemainsUnchanged() {
+        val img=logo(accentPixels=true)
+        val legacy=MultiColorRasterDigitizer.separate(
+            img, MultiColorRasterOptions(maxColors=4)
+        ).getOrThrow()
+        // Legacy algorithm filters thread groups under ten pixels.
+        // The new preservation policy is isolated behind the QA option.
+        assertEquals(-1,legacy.pixels[42*160+121])
+        assertEquals(2,legacy.colors.size)
     }
 
     @Test fun singleIsolatedNoisePixelDoesNotBlockAnOtherwiseCleanLogo() {
@@ -69,6 +88,41 @@ class RasterSourceRetentionAuditTest {
         assertTrue("One off-color image pixel is not a punctuation object",
             report.preservesDetails)
         assertTrue(report.largestDamagedDetailPixels<4)
+        val segmented=MultiColorRasterDigitizer.separate(
+            logo(noisePixel=true),
+            MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        assertEquals(2,segmented.colors.size)
+    }
+
+    @Test fun sixScatteredNoisePixelsDoNotCreateFalseThirdThread() {
+        val w=160
+        val h=100
+        val noise=listOf(
+            118 to 13, 124 to 21, 129 to 37,
+            116 to 48, 137 to 78, 142 to 91
+        )
+        val img=RasterImagePixels(w,h,IntArray(w*h) { i ->
+            val x=i%w
+            val y=i/w
+            when {
+                x in 15..99 && y in 20..29 -> navy
+                x in 17..101 && y in 61..70 -> gold
+                noise.any { it.first==x && it.second==y } -> accent
+                else -> white
+            }
+        },"QA dispersed noise")
+        val segmented=MultiColorRasterDigitizer.separate(
+            img,MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        assertEquals(2,segmented.colors.size)
+        // Scattered noise may be rejected by the retention check if it
+        // exceeds the total loss budget, but it must never be promoted to
+        // a third physical thread or joined into one stitch island.
     }
 
     @Test fun segmentedAndOriginalPixelLengthsMustMatch() {
