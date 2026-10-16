@@ -43,23 +43,42 @@ class RasterSourceRetentionAuditTest {
         assertEquals(0,report.largestDamagedDetailPixels)
     }
 
-    @Test fun tinyThirdColorDetailCannotSilentlyDisappear() {
+    @Test fun tinyThirdColorAccentIsPreservedForLaterDigitizing() {
         val img=logo(accentPixels=true)
-        val report=RasterSourceRetentionAudit.inspect(img).getOrThrow()
-        assertFalse("Small bright accent must not be silently removed",
-            report.preservesDetails)
-        assertTrue(report.largestDamagedDetailPixels>=4)
-        assertTrue(report.omittedForegroundPixels +
-            report.heavilyRecoloredPixels>=4)
-        val denied=RasterSourceRetentionAudit.requirePreserved(img)
-        assertTrue(denied.isFailure)
-        assertTrue(denied.exceptionOrNull()?.message.orEmpty()
-            .contains("detalhes"))
-        // The integrated complete-logo compositor must also fail closed
-        // even if the remaining two large bands can be stitched properly.
+        val segmented=MultiColorRasterDigitizer.separate(
+            img,MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        // Same pixel patch, original location and genuinely distinct third
+        // color. An ink dot's existence is not proof it can be embroidered.
+        assertEquals(3,segmented.colors.size)
+        val accentIndex=segmented.pixels[42*160+121]
+        assertTrue(accentIndex>=0)
+        assertTrue(segmented.colors[accentIndex]!=segmented.colors[
+            segmented.pixels[24*160+30]
+        ])
+        val report=RasterSourceRetentionAudit
+            .requirePreserved(img).getOrThrow()
+        assertTrue(report.preservesDetails)
+        assertEquals(0,report.omittedForegroundPixels)
+        assertEquals(0,report.heavilyRecoloredPixels)
+        // Six pixels at this scale cannot yet be digitized as a tested
+        // stitch geometry. The whole-logo composer MUST still fail closed.
         assertTrue(RasterAutomaticLogoPreview.create(
             img,90f,HoopProfile.H130X180
         ).isFailure)
+    }
+
+    @Test fun commercialDefaultSegmentationBehaviorRemainsUnchanged() {
+        val img=logo(accentPixels=true)
+        val legacy=MultiColorRasterDigitizer.separate(
+            img, MultiColorRasterOptions(maxColors=4)
+        ).getOrThrow()
+        // Legacy algorithm filters thread groups under ten pixels.
+        // The new preservation policy is isolated behind the QA option.
+        assertEquals(-1,legacy.pixels[42*160+121])
+        assertEquals(2,legacy.colors.size)
     }
 
     @Test fun singleIsolatedNoisePixelDoesNotBlockAnOtherwiseCleanLogo() {
@@ -69,6 +88,13 @@ class RasterSourceRetentionAuditTest {
         assertTrue("One off-color image pixel is not a punctuation object",
             report.preservesDetails)
         assertTrue(report.largestDamagedDetailPixels<4)
+        val segmented=MultiColorRasterDigitizer.separate(
+            logo(noisePixel=true),
+            MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        assertEquals(2,segmented.colors.size)
     }
 
     @Test fun segmentedAndOriginalPixelLengthsMustMatch() {
