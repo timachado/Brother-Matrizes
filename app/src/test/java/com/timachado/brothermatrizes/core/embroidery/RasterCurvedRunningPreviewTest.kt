@@ -39,8 +39,10 @@ class RasterCurvedRunningPreviewTest {
     }
 
     private fun bluePart(source:RasterImagePixels):RasterSatinObject =
+        // Palette clustering may return a color equivalent to, but not
+        // bit-for-bit identical to, the source pixel RGB.
         RasterSatinObjectEditor.detect(source).getOrThrow()
-            .first { it.color==blue }
+            .first { it.mask.minY==20 }
 
     @Test fun onePixelCurvedUProducesRealNeedleDownStitches() {
         val image=picture()
