@@ -50,6 +50,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPre
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinTopologyPlanner
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -454,22 +455,42 @@ fun SimpleImageToEmbroideryScreen(
                                 message = ""
                                 scope.launch {
                                     val proposal = withContext(Dispatchers.Default) {
-                                        RasterAutoSatinRails.propose(
+                                        val single = RasterAutoSatinRails.propose(
                                             picture, activePart, currentWidth
                                         )
+                                        val sections = single.fold(
+                                            onSuccess = { Result.success(listOf(it)) },
+                                            onFailure = {
+                                                RasterSatinTopologyPlanner.propose(
+                                                    picture, activePart, currentWidth
+                                                )
+                                            }
+                                        )
+                                        sections.mapCatching { draft ->
+                                            // Numerical preview gate, not a
+                                            // stitch-out guarantee. Refuse
+                                            // geometry that cannot pass the
+                                            // original editable-rail validator.
+                                            RasterSatinObjectEditor.preview(
+                                                picture, activePart, draft,
+                                                currentWidth, hoop
+                                            ).getOrThrow()
+                                            draft
+                                        }
                                     }
                                     proposingRails = false
                                     if (stamp == revision &&
                                         satinParts.getOrNull(satinPartIndex)?.id == partId
                                     ) {
                                         proposal.fold(
-                                            onSuccess = { guide ->
+                                            onSuccess = { guides ->
                                                 satinSections = satinSections +
-                                                    (partId to listOf(guide))
+                                                    (partId to guides)
                                                 satinTouched = satinTouched - partId
                                                 satinSectionIndex = 0
-                                                message = "Sugestão criada pelo contorno. " +
-                                                    "Confira e ajuste os trilhos antes de simular."
+                                                message = "Foram propostas ${guides.size} " +
+                                                    "seções pelos contornos. Confira e ajuste " +
+                                                    "os trilhos antes de simular esta parte."
                                             },
                                             onFailure = {
                                                 message = it.message ?:
