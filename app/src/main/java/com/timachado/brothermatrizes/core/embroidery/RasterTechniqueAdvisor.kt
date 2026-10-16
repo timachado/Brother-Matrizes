@@ -222,8 +222,15 @@ internal object RasterTechniqueAdvisor {
                 .fold(
                     onSuccess = { Result.success(listOf(it)) },
                     onFailure = {
-                        RasterSatinTopologyPlanner.propose(
+                        RasterVariableWidthSatinSections.propose(
                             image, part, widthMm
+                        ).fold(
+                            onSuccess = { Result.success(it) },
+                            onFailure = {
+                                RasterSatinTopologyPlanner.propose(
+                                    image, part, widthMm
+                                )
+                            }
                         )
                     }
                 )
