@@ -20,6 +20,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
@@ -45,7 +46,8 @@ internal fun RasterPhotoCropCanvas(
     onSelection: (RasterCropBounds) -> Unit,
     modifier: Modifier = Modifier,
     candidates: List<RasterArtworkCandidate> = emptyList(),
-    onCandidateTap: (Int) -> Unit = {}
+    onCandidateTap: (Int) -> Unit = {},
+    canvasHeight: Dp = 280.dp
 ) {
     val bitmap = remember(photo) {
         Bitmap.createBitmap(photo.argb, photo.width, photo.height,
@@ -64,7 +66,7 @@ internal fun RasterPhotoCropCanvas(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(canvasHeight)
             .pointerInput(photo, candidates) {
                 detectTapGestures { at ->
                     val a = area(size.width.toFloat(), size.height.toFloat())
