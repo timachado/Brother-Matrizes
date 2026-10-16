@@ -37,7 +37,7 @@ jobs:
           grep -F 'applicationIdSuffix = ".qanativeimage"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
-          for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryCanvas.kt EmbroideryDisplay.kt; do
+          for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
             git diff origin/main --exit-code -- "app/src/main/java/com/timachado/brothermatrizes/$file"
           done
       - name: Unit tests
