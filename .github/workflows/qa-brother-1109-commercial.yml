@@ -1,0 +1,71 @@
+name: QA Brother Matrizes 1.10.9 COMERCIAL
+
+on:
+  push:
+    branches:
+      - release/brother-matrizes-1.10.9-comercial-netfontes
+    paths: [.github/workflows/qa-brother-1109-commercial.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Conferir identidade comercial e versao
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 185' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.9"' app/build.gradle.kts
+          grep -Fq 'NetFontesNavigationRules.searchUrl(term)' app/src/main/java/com/timachado/brothermatrizes/DaFontBrowserScreen.kt
+          grep -Fq 'Pesquisar fontes no NetFontes' app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherPlanBenefits.kt
+          test -f updates/stable.json
+          test -f app/src/main/java/com/timachado/brothermatrizes/UpdateStatusCard.kt
+      - name: Preparar marca oficial
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes unitarios
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Compilar release NAO-ASSINADA para assinatura local
+        run: gradle --no-daemon :app:assembleRelease --stacktrace
+      - name: Conferir APK
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$apk"
+          info="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | head -n1)"
+          echo "$info"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='185'"* ]]
+          [[ "$info" == *"versionName='1.10.9'"* ]]
+          sha256sum "$apk" > app/build/outputs/apk/release/APK-UNSIGNED-SHA256.txt
+      - name: Preservar candidato para assinatura segura LOCAL
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.9-RELEASE-UNSIGNED-NOT-INSTALLABLE
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/APK-UNSIGNED-SHA256.txt
+          retention-days: 7
+          if-no-files-found: error
