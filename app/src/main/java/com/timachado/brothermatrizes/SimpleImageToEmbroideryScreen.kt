@@ -50,6 +50,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
+import com.timachado.brothermatrizes.core.embroidery.RasterAdaptiveVerticalSatinPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -360,9 +361,24 @@ fun SimpleImageToEmbroideryScreen(
                                         satinCenterUnderlay = false
                                     )
                                 })
-                                MultiColorRasterDigitizer.generateSeparated(
+                                // Try strict Satin columns first. When the
+                                // entire logo has disconnected letters/holes,
+                                // segment into local vertical Satin rail pairs.
+                                // Both routes are READ-ONLY, not exportable PES.
+                                val preview = MultiColorRasterDigitizer.generateSeparated(
                                     selected, art, satin
-                                ).getOrThrow()
+                                ).getOrElse {
+                                    RasterAdaptiveVerticalSatinPreview.create(
+                                        selected, art, selectedWidth, selectedHoop
+                                    ).getOrThrow()
+                                }
+                                preview.copy(
+                                    fileName = "SATIN-REVISAO-SEM-EXPORTACAO.qa",
+                                    format = "QA_SATIN_REVIEW",
+                                    label = "Satin experimental — revisar antes de bordar",
+                                    sourceBytes = ByteArray(0),
+                                    isModified = true
+                                )
                             }
                         }
                         if (revision == currentRevision) {
@@ -372,9 +388,9 @@ fun SimpleImageToEmbroideryScreen(
                                     onSimulate(it, selectedHoop, chosenMode, chosenConnections)
                                 },
                                 onFailure = {
-                                    message = "Ainda não há trajetória Satin vertical válida " +
-                                        "para esta arte. Selecione uma parte simples ou reconstrua " +
-                                        "as letras em Satin. Nenhuma simulação falsa foi gerada."
+                                    message = "Não foi possível criar uma sequência Satin vertical " +
+                                        "nesta imagem. Selecione uma parte mais nítida ou menor. " +
+                                        (design.exceptionOrNull()?.message ?: "Confira a arte.")
                                 }
                             )
                         }
@@ -389,9 +405,9 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = { picker.launch(arrayOf("image/*")) }
             ) { Text("Escolher outra imagem", color = FioGold) }
             Text(
-                "Somente trajetórias Satin reais são animadas pelo simulador " +
-                    "original. O desenho sobre o bastidor é uma prévia da imagem, " +
-                    "não uma matriz PES. Exportação e envio à máquina bloqueados.",
+                "O simulador original mostra pontos Satin verticais experimentais " +
+                    "calculados em seções. A imagem no bastidor ainda não é uma " +
+                    "matriz aprovada. Exportação PES e envio à máquina bloqueados.",
                 color = FioTextMuted, fontSize = 11.sp
             )
         } else {
