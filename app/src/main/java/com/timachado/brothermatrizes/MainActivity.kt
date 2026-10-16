@@ -2229,11 +2229,14 @@ private fun BrotherMatrizesApp(
                     SimpleImageToEmbroideryScreen(
                         onBack = { goBack() },
                         session = imageSession,
-                        onSimulate = { design ->
-                            // Read-only original SimulatorScreen; never make an
-                            // experimental Satin preview the active/exportable PES.
+                        onSimulate = { design, hoop, mode, connections ->
+                            // Same SimulatorScreen and DisplaySettings values
+                            // as Abrir Matrizes; QA preview remains read-only.
                             screen = Screen.Simulator(
-                                design,
+                                design = design,
+                                displayMode = mode,
+                                referenceHoop = hoop,
+                                showConnections = connections,
                                 qaRasterPreviewOnly = true
                             )
                         }
