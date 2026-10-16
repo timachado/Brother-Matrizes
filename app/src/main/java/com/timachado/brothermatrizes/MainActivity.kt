@@ -2451,7 +2451,10 @@ private fun BrotherMatrizesApp(
                         )
                         if (current.qaRasterPreviewOnly) {
                             Text(
-                                text = RasterEmbroideryApproval.WARNING,
+                                text = if (current.design.format == "QA_PREVIEW")
+                                    "PRÉVIA ILUSTRATIVA — NÃO É MATRIZ SATIN. " +
+                                        "Linhas verticais demonstrativas. NÃO ENVIAR À MÁQUINA."
+                                else RasterEmbroideryApproval.WARNING,
                                 color = Color(0xFF151515),
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
