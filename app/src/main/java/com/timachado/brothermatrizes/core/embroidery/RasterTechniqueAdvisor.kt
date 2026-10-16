@@ -7,7 +7,7 @@ package com.timachado.brothermatrizes.core.embroidery
  * commands are synthesized for them.
  */
 internal enum class RasterTechnique {
-    SATIN_QA, FILL_NEEDS_DIGITIZING, RUNNING_NEEDS_DIGITIZING, MANUAL_REVIEW
+    SATIN_QA, RUNNING_QA, FILL_NEEDS_DIGITIZING, RUNNING_NEEDS_DIGITIZING, MANUAL_REVIEW
 }
 
 internal data class RasterTechniqueCandidate(
@@ -27,7 +27,10 @@ internal data class RasterTechniqueReport(
     /** A plan is not a PES, even when all suggested sections are Satin. */
     val needsDigitizing: Boolean get() =
         sourceComplex || warnings.isNotEmpty() ||
-            candidates.any { it.technique != RasterTechnique.SATIN_QA }
+            candidates.any {
+                it.technique != RasterTechnique.SATIN_QA &&
+                    it.technique != RasterTechnique.RUNNING_QA
+            }
 
     fun brief(): String = buildString {
         if (sourceComplex) append("Arte multitécnica detectada. ")
@@ -41,10 +44,14 @@ internal data class RasterTechniqueReport(
             val running = candidates.count {
                 it.technique == RasterTechnique.RUNNING_NEEDS_DIGITIZING
             }
+            val runningQA = candidates.count {
+                it.technique == RasterTechnique.RUNNING_QA
+            }
             val manual = candidates.size - satin - fill - running
             append("${candidates.size} partes: ")
             append("${satin} Satin QA; ${fill} preenchimento pendente; ")
-            append("${running} contorno pendente; ${manual} revisão manual.")
+            append("${runningQA} contorno QA; ${running} contorno pendente; ")
+            append("${manual} revisão manual.")
         }
         if (needsDigitizing) {
             append(" Não é uma matriz PES pronta para máquina.")
@@ -112,9 +119,27 @@ internal object RasterTechniqueAdvisor {
             // Very thin/short components need an outline/run path, not a
             // physically invalid Satin column.
             if (minSpan < .8f || part.pixelCount < 8) {
+                val running = RasterRunningOutlinePreview.create(
+                    image, part, widthMm, hoop
+                ).getOrNull()
+                if (running != null) {
+                    val quality = RasterStitchFidelityAudit.compare(
+                        image, part, running, widthMm
+                    ).getOrNull()
+                    if (quality != null && quality.coverage >= .72 &&
+                        quality.offInkFraction <= .15
+                    ) {
+                        return@map item(
+                            RasterTechnique.RUNNING_QA,
+                            "Ponto corrido real com geometria 2D verificada; " +
+                                "ainda não homologado em tecido."
+                        )
+                    }
+                }
                 return@map item(
                     RasterTechnique.RUNNING_NEEDS_DIGITIZING,
-                    "Traço fino: estudar ponto corrido e compensação."
+                    "Traço fino sem trajetória contínua validada. " +
+                        "Revisar contorno."
                 )
             }
             // A solid wide area needs underlay and Tatami/Fill selection.

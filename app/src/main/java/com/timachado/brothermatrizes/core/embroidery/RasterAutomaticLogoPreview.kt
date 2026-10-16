@@ -52,34 +52,53 @@ internal object RasterAutomaticLogoPreview {
         var previous: EmbroideryPoint? = null
 
         for ((index, part) in parts.withIndex()) {
-            // The straight/curved vector suggestion is preferred for strokes.
-            // Closed O and branched T need independent topology sections.
-            val simple = RasterAutoSatinRails.propose(source, part, widthMm)
-            val candidate = simple.fold(
-                onSuccess = { Result.success(listOf(it)) },
-                onFailure = {
-                    RasterSatinTopologyPlanner.propose(source, part, widthMm)
+            // Thin line: create actual RUNNING stitch coordinates rather than
+            // misclassifying a sub-millimetre outline as a Satin column.
+            // A rejected line NEVER falls back to an inappropriate fill.
+            val minSpan = minOf(
+                part.mask.maxX - part.mask.minX + 1,
+                part.mask.maxY - part.mask.minY + 1
+            ) * widthMm / source.width
+            val running = minSpan < .8f
+            val individual = if (running) {
+                RasterRunningOutlinePreview.create(
+                    source, part, widthMm, hoop
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index + 1}: contorno fino incompatível. " +
+                            (reason.message ?: "Revisão necessária.")
+                    )
                 }
-            )
-            val sections = candidate.getOrElse { reason ->
-                throw IllegalArgumentException(
-                    "Elemento ${index + 1} de ${parts.size}: " +
-                        (reason.message ?: "contorno ainda não compatível.") +
-                        " Não foi gerado um bordado incompleto."
+            } else {
+                val simple = RasterAutoSatinRails.propose(source, part, widthMm)
+                val candidate = simple.fold(
+                    onSuccess = { Result.success(listOf(it)) },
+                    onFailure = {
+                        RasterSatinTopologyPlanner.propose(source, part, widthMm)
+                    }
                 )
-            }
-            val individual = RasterSatinObjectEditor.preview(
-                source, part, sections, widthMm, hoop,
-                minimumCoverage = .90f
-            ).getOrElse { reason ->
-                throw IllegalArgumentException(
-                    "Elemento ${index + 1} de ${parts.size}: " +
-                        (reason.message ?: "pontos fora da arte.") +
-                        " Revise os trilhos desta parte."
-                )
+                val sections = candidate.getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index + 1} de ${parts.size}: " +
+                            (reason.message ?: "contorno ainda não compatível.") +
+                            " Não foi gerado um bordado incompleto."
+                    )
+                }
+                RasterSatinObjectEditor.preview(
+                    source, part, sections, widthMm, hoop,
+                    minimumCoverage = .90f
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index + 1} de ${parts.size}: " +
+                            (reason.message ?: "pontos fora da arte.") +
+                            " Revise os trilhos desta parte."
+                    )
+                }
             }
             require(individual.sourceBytes.isEmpty() &&
-                individual.format == "QA_SATIN_REVIEW" && individual.isModified &&
+                individual.format in setOf(
+                    "QA_SATIN_REVIEW", "QA_RUNNING_REVIEW"
+                ) && individual.isModified &&
                 individual.stitchCount > 0 && individual.endFound) {
                 "O elemento ${index + 1} não passou pela validação QA."
             }
@@ -93,7 +112,10 @@ internal object RasterAutomaticLogoPreview {
                         (error.message ?: "Revise a matriz.")
                 )
             }
-            require(fidelity.coverage >= .78 && fidelity.offInkFraction <= .10) {
+            val requiredCoverage = if (running) .72 else .78
+            val allowedOutside = if (running) .15 else .10
+            require(fidelity.coverage >= requiredCoverage &&
+                fidelity.offInkFraction <= allowedOutside) {
                 "Elemento ${index + 1}: bordado não corresponde ao desenho " +
                     "(cobertura ${(fidelity.coverage * 100).toInt()}%, " +
                     "pontos fora ${(fidelity.offInkFraction * 100).toInt()}%). " +
@@ -178,8 +200,8 @@ internal object RasterAutomaticLogoPreview {
         }
         EmbroideryDesign(
             fileName = "LOGO-AUTO-REVISAO.qa",
-            format = "QA_AUTO_SATIN",
-            label = "Prévia automática de ${parts.size} elementos Satin — NÃO enviar à máquina",
+            format = "QA_AUTO_STITCH",
+            label = "Prévia automática de ${parts.size} elementos validados — NÃO enviar à máquina",
             points = output,
             bounds = b,
             stitchCount = output.count { it.command == StitchCommand.STITCH },
