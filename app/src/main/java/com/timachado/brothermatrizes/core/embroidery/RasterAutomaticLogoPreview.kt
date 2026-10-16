@@ -82,9 +82,13 @@ internal object RasterAutomaticLogoPreview {
                     )
                 }
             } else 0
-            // Large shapes with holes are routed to a separate shape-aware
-            // fill planner, never through narrow Satin fallback.
-            val shapedFill = counterCount==0 &&
+            // Only a medium-width ring is a candidate for segmented Satin.
+            // Fine closed outlines keep their RUNNING route; thick areas
+            // with small inner voids keep their existing shape-aware Tatami
+            // route. Do not let the presence of a counter alone choose Satin.
+            val counterSatin = counterCount>0 &&
+                minSpan>=7f && inkFraction in .30f.. .72f
+            val shapedFill = !counterSatin &&
                 minSpan >= 7f && inkFraction >= .64f && !thick
             // A U-shaped hairline has a large bounding box, even though
             // it must be sewn as one running path rather than filled/Satin.
@@ -115,7 +119,7 @@ internal object RasterAutomaticLogoPreview {
                 "Elemento ${index + 1}: região larga e descontínua exige " +
                     "revisão das ilhas e da ordem de preenchimento."
             }
-            val individual = if (counterCount>0) {
+            val individual = if (counterSatin) {
                 val sections=RasterSatinTopologyPlanner.propose(
                     source,part,widthMm
                 ).getOrElse { reason ->
