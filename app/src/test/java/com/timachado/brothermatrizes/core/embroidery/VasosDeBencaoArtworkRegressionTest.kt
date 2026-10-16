@@ -73,6 +73,39 @@ class VasosDeBencaoArtworkRegressionTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun realVasosReferenceRejectsAVisualOverlayMasqueradingAsStitches() {
+        val realArtwork = imageFromUploadedArtwork()
+        // Intentionally tiny legitimate sequence: unlike a screenshot of
+        // the complete JPG over a hoop, this exposes the actual missing ink.
+        val points = listOf(
+            EmbroideryPoint(-50,0,StitchCommand.JUMP,0),
+            EmbroideryPoint(0,0,StitchCommand.STITCH,0),
+            EmbroideryPoint(50,0,StitchCommand.STITCH,0),
+            EmbroideryPoint(50,0,StitchCommand.END,0)
+        )
+        val fakeWholeImage = EmbroideryDesign(
+            fileName = "não-é-PES.qa",
+            format = "QA_AUTO_STITCH",
+            label = "Trajetória parcial versus fotografia real",
+            points = points,
+            bounds = EmbroideryBounds(-50,50,0,0),
+            stitchCount = 2, jumpCount = 1, colorChanges = 0,
+            endFound = true, sourceBytes = ByteArray(0),
+            threadColors = listOf(0xff173c5c.toInt()),
+            isModified = true,
+            hoopProfile = HoopProfile.H130X180
+        )
+        val comparison = RasterWholeArtworkFidelity.inspect(
+            realArtwork, fakeWholeImage, 85f
+        ).getOrThrow()
+        assertTrue(
+            "Uma linha de pontos não pode representar todo o logo",
+            comparison.coverage < .15
+        )
+        assertTrue(comparison.significantColorMinimumCoverage < .15)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun plainOneColorBandIsNotMistakenForThisComplexArtwork() {
         val w = 96
         val h = 96
