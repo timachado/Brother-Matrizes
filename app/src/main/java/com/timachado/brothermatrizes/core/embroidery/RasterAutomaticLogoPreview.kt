@@ -247,6 +247,9 @@ internal object RasterAutomaticLogoPreview {
             hoopProfile = hoop
         )
         RasterNeedleRiskAudit.inspect(assembled, hoop).getOrThrow()
+        // A full logo may overlay separately valid layers of different
+        // thread colors. Screen the ASSEMBLED sewing order, not only parts.
+        RasterColorLayerOverlapAudit.inspect(assembled).getOrThrow()
         assembled
     }
 }
