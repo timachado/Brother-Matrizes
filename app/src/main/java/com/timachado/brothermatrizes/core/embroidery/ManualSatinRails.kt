@@ -92,11 +92,13 @@ object ManualSatinRails {
         imageAspectRatio: Float,
         densityMm: Float,
         pullCompensationMm: Float,
-        centerUnderlay: Boolean
+        centerUnderlay: Boolean,
+        /** QA image-object editor only; existing callers keep 10 mm minimum. */
+        qaSmallObjectPreview: Boolean = false
     ): Result<List<EmbroideryPoint>> = runCatching {
         require(sections.isNotEmpty() && sections.size <= 80 &&
             outputColorIndex in 0..3 &&
-            widthMm in 10f..200f &&
+            widthMm in (if (qaSmallObjectPreview) .8f else 10f)..200f &&
             imageAspectRatio.isFinite() && imageAspectRatio in 0.03f..20f &&
             densityMm in 0.35f..1f && pullCompensationMm in 0f..0.3f) {
             "Configuração dos trilhos Satin inválida."

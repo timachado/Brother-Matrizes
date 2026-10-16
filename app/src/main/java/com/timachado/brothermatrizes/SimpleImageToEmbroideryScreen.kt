@@ -47,6 +47,9 @@ import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
+import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -73,6 +76,14 @@ class SimpleImageSession {
     val fillState = mutableStateOf(.92f)
     val displayModeState = mutableStateOf(EmbroideryDisplayMode.REALISTIC)
     val showConnectionsState = mutableStateOf(false)
+    // Non-exportable Satin draft belongs to the selected photo/crop.
+    // Kept across a trip to SimulatorScreen; never attached to a PES.
+    val satinEditorOpenState = mutableStateOf(false)
+    val satinPartsState = mutableStateOf<List<RasterSatinObject>>(emptyList())
+    val satinPartIndexState = mutableIntStateOf(0)
+    val satinSectionsState = mutableStateOf<Map<Int, List<ManualSatinSection>>>(emptyMap())
+    val satinTouchedState = mutableStateOf<Set<Int>>(emptySet())
+    val satinSectionIndexState = mutableIntStateOf(0)
     var pickerLaunched = false
 }
 
@@ -115,6 +126,12 @@ fun SimpleImageToEmbroideryScreen(
     var fill by session.fillState
     var displayMode by session.displayModeState
     var showConnections by session.showConnectionsState
+    var satinEditorOpen by session.satinEditorOpenState
+    var satinParts by session.satinPartsState
+    var satinPartIndex by session.satinPartIndexState
+    var satinSections by session.satinSectionsState
+    var satinTouched by session.satinTouchedState
+    var satinSectionIndex by session.satinSectionIndexState
 
     var choosing by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
@@ -133,6 +150,12 @@ fun SimpleImageToEmbroideryScreen(
             prepared = null
             crop = RasterCropBounds(0f, 0f, 1f, 1f)
             selectedId = 0
+            satinEditorOpen = false
+            satinParts = emptyList()
+            satinSections = emptyMap()
+            satinTouched = emptySet()
+            satinPartIndex = 0
+            satinSectionIndex = 0
             showCrop = false
             choosing = true
             message = ""
@@ -167,8 +190,11 @@ fun SimpleImageToEmbroideryScreen(
 
     // No "Preparar imagem" intermediate page. Every import/selection change
     // automatically prepares the image for immediate original-hoop display.
-    LaunchedEffect(photo, crop) {
+    LaunchedEffect(photo, crop, revision) {
         val input = photo ?: return@LaunchedEffect
+        // Preserve the validated source/crop and manual rails when returning
+        // from the ORIGINAL simulator; choose()/picker invalidate explicitly.
+        if (prepared != null) return@LaunchedEffect
         preparing = true
         prepared = null
         message = ""
@@ -194,6 +220,13 @@ fun SimpleImageToEmbroideryScreen(
     fun choose(part: RasterCropBounds, id: Int) {
         revision++
         selectedId = id
+        prepared = null
+        satinEditorOpen = false
+        satinParts = emptyList()
+        satinSections = emptyMap()
+        satinTouched = emptySet()
+        satinPartIndex = 0
+        satinSectionIndex = 0
         crop = part
         message = ""
     }
@@ -211,6 +244,22 @@ fun SimpleImageToEmbroideryScreen(
         ImageHoopSizing.fits(stageImage.width, stageImage.height, widthMm, hoop)
     val placeholder = remember(stageImage, hoop, widthMm) {
         stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
+    }
+
+    fun selectSatinPart(index: Int) {
+        val image = prepared?.image ?: return
+        val item = satinParts.getOrNull(index) ?: return
+        if (satinSections[item.id] == null) {
+            val initial = RasterSatinObjectEditor.suggest(image, item, widthMm)
+            if (initial.isFailure) {
+                message = initial.exceptionOrNull()?.message ?: "Não foi possível iniciar esta parte."
+                return
+            }
+            satinSections = satinSections + (item.id to listOf(initial.getOrThrow()))
+        }
+        satinPartIndex = index
+        satinSectionIndex = 0
+        message = ""
     }
 
     if (showHoops) {
@@ -326,6 +375,87 @@ fun SimpleImageToEmbroideryScreen(
                     canvasHeight = 250.dp
                 )
             }
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !preparing && !simulating && prepared != null,
+                onClick = {
+                    if (satinEditorOpen) {
+                        satinEditorOpen = false
+                    } else if (satinParts.isNotEmpty()) {
+                        // Reopen without erasing rail edits made for this photo.
+                        satinEditorOpen = true
+                        selectSatinPart(satinPartIndex)
+                    } else {
+                        val image = prepared?.image ?: return@OutlinedButton
+                        val revisionAtStart = revision
+                        preparing = true
+                        message = ""
+                        scope.launch {
+                            val result = withContext(Dispatchers.Default) {
+                                RasterSatinObjectEditor.detect(image)
+                            }
+                            if (revisionAtStart == revision) {
+                                preparing = false
+                                result.fold(
+                                    onSuccess = { pieces ->
+                                        satinParts = pieces
+                                        satinSections = emptyMap()
+                                        satinTouched = emptySet()
+                                        satinPartIndex = 0
+                                        satinSectionIndex = 0
+                                        satinEditorOpen = true
+                                        selectSatinPart(0)
+                                    },
+                                    onFailure = {
+                                        message = it.message ?: "Não foi possível separar os elementos."
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    if (satinEditorOpen) "Fechar edição Satin"
+                    else "Reconstruir contornos Satin",
+                    color = FioGold
+                )
+            }
+            if (satinEditorOpen) {
+                val activePart = satinParts.getOrNull(satinPartIndex)
+                if (activePart != null) {
+                    val activeSections = satinSections[activePart.id].orEmpty()
+                    ImageSatinObjectEditorPanel(
+                        objects = satinParts,
+                        active = satinPartIndex,
+                        sections = activeSections,
+                        sectionIndex = satinSectionIndex,
+                        imageWidth = prepared?.image?.width ?: stageImage.width,
+                        reviewedCount = satinTouched.size,
+                        touched = activePart.id in satinTouched,
+                        onPart = { selectSatinPart(it) },
+                        onSection = { satinSectionIndex = it },
+                        onChange = { changed ->
+                            satinSections = satinSections + (activePart.id to changed)
+                            satinTouched = satinTouched + activePart.id
+                        },
+                        onReset = {
+                            prepared?.image?.let { image ->
+                                RasterSatinObjectEditor.suggest(
+                                    image, activePart, widthMm
+                                ).onSuccess { initial ->
+                                    satinSections = satinSections +
+                                        (activePart.id to listOf(initial))
+                                    satinTouched = satinTouched - activePart.id
+                                    satinSectionIndex = 0
+                                }.onFailure {
+                                    message = it.message ?: "Não foi possível reiniciar os trilhos."
+                                }
+                            }
+                        }
+                    )
+                }
+            }
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !preparing && !simulating && fitted && prepared != null,
@@ -337,14 +467,42 @@ fun SimpleImageToEmbroideryScreen(
                     val chosenMode = displayMode
                     val chosenConnections = showConnections
                     val currentRevision = revision
+                    // Snapshot rail edits: the background operation must not
+                    // mix draft changes or silently switch to raster filling.
+                    val selectedPart = if (satinEditorOpen) {
+                        satinParts.getOrNull(satinPartIndex)
+                    } else null
+                    val selectedSections = selectedPart?.let {
+                        satinSections[it.id].orEmpty()
+                    }.orEmpty()
+                    val isReviewed = selectedPart?.id in satinTouched
+                    val editing = satinEditorOpen
                     simulating = true
                     message = ""
                     scope.launch {
-                        val design = withContext(Dispatchers.Default) {
-                            RasterGeometryAwareSatinPreview.create(
-                                selected, selectedWidth, selectedHoop
-                            )
-                        }
+                        val design: Result<EmbroideryDesign> =
+                            withContext(Dispatchers.Default) {
+                                if (editing) {
+                                    if (selectedPart == null || !isReviewed ||
+                                        selectedSections.isEmpty()
+                                    ) {
+                                        Result.failure(
+                                            IllegalArgumentException(
+                                                "Ajuste os trilhos desta parte antes de simular."
+                                            )
+                                        )
+                                    } else {
+                                        RasterSatinObjectEditor.preview(
+                                            selected, selectedPart, selectedSections,
+                                            selectedWidth, selectedHoop
+                                        )
+                                    }
+                                } else {
+                                    RasterGeometryAwareSatinPreview.create(
+                                        selected, selectedWidth, selectedHoop
+                                    )
+                                }
+                            }
                         if (revision == currentRevision) {
                             simulating = false
                             design.fold(
@@ -369,9 +527,9 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = { picker.launch(arrayOf("image/*")) }
             ) { Text("Escolher outra imagem", color = FioGold) }
             Text(
-                "Simulação somente para contornos Satin que passaram na validação " +
-                    "geométrica. Letras e logos complexos precisam de trilhos editáveis. " +
-                    "Exportação PES e envio à máquina permanecem bloqueados.",
+                "Simular bordado reproduz os pontos da parte em edição, não o logo " +
+                    "completo. O editor exige ajuste dos trilhos e valida cruzamentos " +
+                    "de vazios. PES e envio à máquina continuam bloqueados.",
                 color = FioTextMuted, fontSize = 11.sp
             )
         } else {
