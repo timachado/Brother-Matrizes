@@ -46,7 +46,9 @@ internal object RasterStitchFidelityAudit {
             source.argb.size == component.mask.pixels.size &&
             fullWidthMm.isFinite() && fullWidthMm in 10f..200f &&
             design.points.isNotEmpty() &&
-            design.format in setOf("QA_SATIN_REVIEW", "QA_RUNNING_REVIEW") &&
+            design.format in setOf(
+                "QA_SATIN_REVIEW", "QA_RUNNING_REVIEW", "QA_TATAMI_REVIEW"
+            ) &&
             design.sourceBytes.isEmpty()
         ) { "Origem ou trajetória QA inválida." }
 
