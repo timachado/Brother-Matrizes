@@ -413,6 +413,8 @@ fun SimpleImageToEmbroideryScreen(
                     val category = when (candidate.technique) {
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.SATIN_QA ->
                             "Satin (QA)"
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.RUNNING_QA ->
+                            "Ponto corrido (QA)"
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.FILL_NEEDS_DIGITIZING ->
                             "Preenchimento pendente"
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.RUNNING_NEEDS_DIGITIZING ->
