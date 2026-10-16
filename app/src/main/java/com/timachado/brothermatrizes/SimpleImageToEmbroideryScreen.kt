@@ -52,6 +52,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
 import com.timachado.brothermatrizes.core.embroidery.RasterNeedleRiskAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterPesTargetCompatibility
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueAdvisor
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueReport
@@ -673,6 +674,18 @@ fun SimpleImageToEmbroideryScreen(
                                 RasterNeedleRiskAudit.inspect(
                                     preview, selectedHoop
                                 ).getOrThrow()
+                                // A valid STITCH sequence cannot claim to be
+                                // universally machine-ready just because the
+                                // destination understands PES. Explicitly
+                                // assess the unknown machine target, without
+                                // enabling export or changing original PES.
+                                val compatibility =
+                                    RasterPesTargetCompatibility.assess(
+                                        preview, selectedHoop
+                                    ).getOrThrow()
+                                require(!compatibility.exportPermitted) {
+                                    "Exportação experimental não homologada."
+                                }
                                 preview
                             }
                         if (revision == currentRevision) {
@@ -703,7 +716,9 @@ fun SimpleImageToEmbroideryScreen(
                     "todos os elementos compatíveis e valida cada trajetória. " +
                     "Com editor: simula apenas a parte ajustada. Se algum trecho " +
                     "exigir outra técnica, a simulação completa será recusada. " +
-                    "Exportação PES e envio à máquina bloqueados.",
+                    "PES é um formato, não um perfil universal de máquina. " +
+                    "Compatibilidade com modelos específicos e exportação " +
+                    "permanecem bloqueadas até verificação técnica.",
                 color = FioTextMuted, fontSize = 11.sp
             )
         } else {
