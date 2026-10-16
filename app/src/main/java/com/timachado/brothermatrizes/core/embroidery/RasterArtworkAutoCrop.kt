@@ -44,8 +44,8 @@ object RasterArtworkAutoCrop {
             (right - left + 1) * (bottom - top + 1) > w * h * .92f) {
             return RasterCropBounds()
         }
-        val marginX = max(3, w / 35)
-        val marginY = max(3, h / 35)
+        val marginX = max(6, w / 12)
+        val marginY = max(6, h / 12)
         return RasterCropBounds(
             left = (left - marginX).coerceAtLeast(0).toFloat() / w,
             top = (top - marginY).coerceAtLeast(0).toFloat() / h,
