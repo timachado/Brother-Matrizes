@@ -97,6 +97,34 @@ class RasterSourceRetentionAuditTest {
         assertEquals(2,segmented.colors.size)
     }
 
+    @Test fun sixScatteredNoisePixelsDoNotCreateFalseThirdThread() {
+        val w=160
+        val h=100
+        val noise=listOf(
+            118 to 13, 124 to 21, 129 to 37,
+            116 to 48, 137 to 78, 142 to 91
+        )
+        val img=RasterImagePixels(w,h,IntArray(w*h) { i ->
+            val x=i%w
+            val y=i/w
+            when {
+                x in 15..99 && y in 20..29 -> navy
+                x in 17..101 && y in 61..70 -> gold
+                noise.any { it.first==x && it.second==y } -> accent
+                else -> white
+            }
+        },"QA dispersed noise")
+        val segmented=MultiColorRasterDigitizer.separate(
+            img,MultiColorRasterOptions(
+                maxColors=4,preserveFineDetails=true
+            )
+        ).getOrThrow()
+        assertEquals(2,segmented.colors.size)
+        // Scattered noise may be rejected by the retention check if it
+        // exceeds the total loss budget, but it must never be promoted to
+        // a third physical thread or joined into one stitch island.
+    }
+
     @Test fun segmentedAndOriginalPixelLengthsMustMatch() {
         val bad=RasterImagePixels(
             160,100,IntArray(15) { navy },"invalid input"
