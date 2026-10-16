@@ -70,9 +70,26 @@ internal object RasterAutomaticLogoPreview {
             val thick = minSpan >= 7f && part.pixelCount == widthPx * heightPx
             val inkFraction = part.pixelCount.toFloat() /
                 (widthPx * heightPx).coerceAtLeast(1)
-            // Large shapes with holes are routed to a separate shape-aware
-            // fill planner, never through narrow Satin fallback.
-            val shapedFill = minSpan >= 7f && inkFraction >= .64f && !thick
+            // A thick letter O/P/B is NOT a generic filled blob. Detect
+            // internal holes from the source mask first and require Satin
+            // sections whose final needle path avoids the empty counter.
+            val counterCount = if (widthPx>=8 && heightPx>=8 &&
+                minSpan>=.8f) {
+                RasterCounterSatinGate.count(source,part).getOrElse {
+                    reason -> throw IllegalArgumentException(
+                        "Elemento ${index+1}: contraforma ambígua: " +
+                            (reason.message ?: "revisar letra.")
+                    )
+                }
+            } else 0
+            // Only a medium-width ring is a candidate for segmented Satin.
+            // Fine closed outlines keep their RUNNING route; thick areas
+            // with small inner voids keep their existing shape-aware Tatami
+            // route. Do not let the presence of a counter alone choose Satin.
+            val counterSatin = counterCount>0 &&
+                minSpan>=7f && inkFraction in .30f.. .72f
+            val shapedFill = !counterSatin &&
+                minSpan >= 7f && inkFraction >= .64f && !thick
             // A U-shaped hairline has a large bounding box, even though
             // it must be sewn as one running path rather than filled/Satin.
             val curvedRunning = if (!running && inkFraction < .45f) {
@@ -89,18 +106,51 @@ internal object RasterAutomaticLogoPreview {
             // classifying every 45-64% region as unfillable Tatami. Only
             // bypass this guard after the topology-aware Satin candidate
             // actually produced complete, locally valid sections.
-            val candidateTapered = if (minSpan >= 7f &&
+            val candidateTapered = if (counterCount==0 &&
+                minSpan >= 7f &&
                 inkFraction >= .45f && inkFraction < .64f) {
                 RasterVariableWidthSatinSections.propose(
                     source, part, widthMm
                 ).getOrNull()
             } else null
-            require(!(minSpan >= 7f && inkFraction >= .45f &&
-                inkFraction < .64f) || candidateTapered != null) {
+            require(counterCount>0 ||
+                !(minSpan >= 7f && inkFraction >= .45f &&
+                    inkFraction < .64f) || candidateTapered != null) {
                 "Elemento ${index + 1}: região larga e descontínua exige " +
                     "revisão das ilhas e da ordem de preenchimento."
             }
-            val individual = if (shapedFill) {
+            val individual = if (counterSatin) {
+                val sections=RasterSatinTopologyPlanner.propose(
+                    source,part,widthMm
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index+1}: letra com ${counterCount} " +
+                            "contraforma(s) ainda exige digitalização " +
+                            "Satin assistida. " +
+                            (reason.message ?: "Planejamento não disponível.")
+                    )
+                }
+                val candidate=RasterSatinObjectEditor.preview(
+                    source,part,sections,widthMm,hoop,
+                    minimumCoverage=.90f
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index+1}: seções Satin da letra " +
+                            "não alcançam a cobertura exigida. " +
+                            (reason.message ?: "Corrija os trilhos.")
+                    )
+                }
+                RasterCounterSatinGate.inspect(
+                    source,part,candidate,widthMm
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index+1}: proteção da contraforma " +
+                            "reprovada. " +
+                            (reason.message ?: "Pontada cruzou o vazio.")
+                    )
+                }
+                candidate
+            } else if (shapedFill) {
                 RasterTatamiShapePreview.create(
                     source, part, widthMm, hoop
                 ).getOrElse { reason ->

@@ -153,6 +153,47 @@ internal object RasterTechniqueAdvisor {
                         "Revisar contorno."
                 )
             }
+            // Mirror the whole-logo planner: medium-width letters with
+            // internal counters must not be described as generic Tatami.
+            val counterCount = if (w>=8 && h>=8 && minSpan>=.8f) {
+                RasterCounterSatinGate.count(image,part).getOrNull()
+            } else 0
+            val counterSatin = counterCount != null &&
+                counterCount>0 && minSpan>=7f &&
+                inkDensity in .30f.. .72f
+            if (counterSatin) {
+                val stitched=RasterSatinTopologyPlanner.propose(
+                    image,part,widthMm
+                ).getOrNull()?.let { sections ->
+                    RasterSatinObjectEditor.preview(
+                        image,part,sections,widthMm,hoop,
+                        minimumCoverage=.90f
+                    ).getOrNull()
+                }
+                val report=stitched?.let {
+                    RasterCounterSatinGate.inspect(
+                        image,part,it,widthMm
+                    ).getOrNull()
+                }
+                val accuracy=if(report!=null) {
+                    RasterStitchFidelityAudit.compare(
+                        image,part,stitched!!,widthMm
+                    ).getOrNull()
+                } else null
+                return@map if (accuracy!=null &&
+                    accuracy.coverage>=.78 &&
+                    accuracy.offInkFraction<=.10) {
+                    item(
+                        RasterTechnique.SATIN_QA,
+                        "Letra com contraforma: seções Satin e pontadas " +
+                            "reais verificadas, sem exportação PES."
+                    )
+                } else item(
+                    RasterTechnique.MANUAL_REVIEW,
+                    "Letra com contraforma: Satin segmentado não foi " +
+                        "homologado; revisar os trilhos manualmente."
+                )
+            }
             // Wide ink regions receive real Tatami geometry only when a
             // scanned path can be audited against the original component.
             // Non-rectangular shapes and counters use separate clipped runs,
