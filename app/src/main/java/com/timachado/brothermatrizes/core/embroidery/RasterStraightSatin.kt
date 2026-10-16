@@ -38,7 +38,8 @@ internal object RasterStraightSatin {
         widthMm: Float,
         densityMm: Float,
         compensationMm: Float,
-        centerUnderlay: Boolean
+        centerUnderlay: Boolean,
+        verticalNeedleDirectionOnly: Boolean = false
     ): Result<List<EmbroideryPoint>> = runCatching {
         require(source.width in 8..512 && source.height in 8..512) {
             "Imagem fora do intervalo seguro."
@@ -110,6 +111,15 @@ internal object RasterStraightSatin {
             // Exigir faixa predominante — não aplicar Satin automático em blocos.
             val vertical = heightPx >= widthPx * 2.4f
             val horizontal = widthPx >= heightPx * 2.4f
+            // Satin vertical means stitches cross the shape vertically:
+            // horizontal-axis columns ONLY. Never substitute horizontal
+            // needle sweeps or raster fill in this experimental preview.
+            if (verticalNeedleDirectionOnly) {
+                require(horizontal) {
+                    "Este elemento não forma uma coluna Satin com pontos verticais. " +
+                        "Selecione uma parte mais simples; sem preenchimento horizontal."
+                }
+            }
             require(vertical || horizontal) {
                 "A cor contém área larga/ramificada. Use Preenchimento ou redesenhe a coluna."
             }

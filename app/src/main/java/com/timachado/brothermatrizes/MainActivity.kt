@@ -390,6 +390,8 @@ private fun BrotherMatrizesApp(
             Screen.Home
         )
     }
+    // Keep the chosen photo when opening the original simulator and returning.
+    var imageSession by remember { mutableStateOf(SimpleImageSession()) }
 
     var recent by remember {
         mutableStateOf<
@@ -1873,6 +1875,7 @@ private fun BrotherMatrizesApp(
                                 Screen.CreateName
                         },
                         onImageToEmbroidery = {
+                            imageSession = SimpleImageSession()
                             screen = Screen.ImageToEmbroidery
                         },
                         onFonts = {
@@ -2223,7 +2226,18 @@ private fun BrotherMatrizesApp(
                     // Same one-tap native Android files picker UX as Abrir Matrizes.
                     // The original Open Matriz/PES route is left untouched.
                     // This image-first screen cannot export unapproved raster stitches.
-                    SimpleImageToEmbroideryScreen(onBack = { goBack() })
+                    SimpleImageToEmbroideryScreen(
+                        onBack = { goBack() },
+                        session = imageSession,
+                        onSimulate = { design ->
+                            // Read-only original SimulatorScreen; never make an
+                            // experimental Satin preview the active/exportable PES.
+                            screen = Screen.Simulator(
+                                design,
+                                qaRasterPreviewOnly = true
+                            )
+                        }
+                    )
                 }
 
                 Screen.CreateDrawing -> {
