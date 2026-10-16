@@ -332,7 +332,9 @@ private sealed interface Screen {
             ),
         val showConnections:
             Boolean =
-            false
+            false,
+        // Read-only QA presentation of an unapproved raster trajectory.
+        val qaRasterPreviewOnly: Boolean = false
     ) : Screen
 
     data class Converter(
@@ -734,7 +736,10 @@ private fun BrotherMatrizesApp(
                     Screen.Home
 
                 is Screen.Simulator ->
-                    Screen.Viewer(
+                    if (current.qaRasterPreviewOnly) {
+                        // No Viewer/export for unapproved raster points.
+                        Screen.ImageToEmbroidery
+                    } else Screen.Viewer(
                         design =
                             current.design,
                         displayMode =
@@ -2216,13 +2221,21 @@ private fun BrotherMatrizesApp(
                     CreateDrawingScreen(
                         onBack = { goBack() },
                         imageToEmbroideryTool = true,
-                        onCreate = { created ->
-                            activateDesign(created)
-                            screen = Screen.Viewer(created)
+                        onCreate = {
+                            // Defense in depth: never save/share/transfer experimental paths.
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Exportação bloqueada: pontos da imagem não homologados."
+                                )
+                            }
                         },
                         onSimulate = { created ->
-                            activateDesign(created)
-                            screen = Screen.Simulator(created)
+                            // The exact original SimulatorScreen, but in read-only QA.
+                            // Do not activate as recent or persist in ActiveDesignStore.
+                            screen = Screen.Simulator(
+                                created,
+                                qaRasterPreviewOnly = true
+                            )
                         }
                     )
                 }
