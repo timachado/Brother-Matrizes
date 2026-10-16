@@ -42,11 +42,12 @@ jobs:
           done
       - name: Unit tests
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
-      - name: Report failed topology tests
+      - name: Report failed embroidery QA tests
         if: failure()
         shell: bash
         run: |
           find app/build/test-results/testDebugUnitTest -name 'TEST-*Topology*.xml' -type f -print -exec sed -n '1,125p' {} \; || true
+          find app/build/test-results/testDebugUnitTest -name 'TEST-*VariableWidth*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
       - name: Build isolated Android QA APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Upload APK for QA only
