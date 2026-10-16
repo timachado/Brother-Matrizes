@@ -26,6 +26,17 @@ internal object RasterGeometryAwareSatinPreview {
             widthMm.isFinite() && widthMm in 10f..200f) {
             "Imagem ou dimensão incompatível."
         }
+        // Prevent the original simulator from receiving a plausible-looking
+        // but incomplete all-Satin digitization of a shaded, multi-element
+        // logo (e.g. Vasos de Bênção). Keep partial/manual digitization
+        // available while a multi-technique engine is under development.
+        val audit = RasterArtworkComplexityAudit.examine(source)
+        require(!audit.requiresMultiTechniqueReview) {
+            "Esta imagem requer múltiplas técnicas de bordado: Satin para " +
+                "letras, preenchimento para áreas largas e pontos de contorno " +
+                "para detalhes finos. Um JPG não possui os pontos de um PES. " +
+                "Revise os elementos antes de usar Simular bordado."
+        }
         val totalHeightMm = widthMm * source.height / source.width.toFloat()
         require(widthMm <= hoop.usableWidthMm &&
             totalHeightMm <= hoop.usableHeightMm) {
