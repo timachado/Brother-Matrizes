@@ -44,7 +44,9 @@ data class MultiColorRasterOptions(
     val rowSpacingMm: Float = 0.5f,
     val stitchLengthMm: Float = 2.8f,
     val backgroundTolerance: Int = 72,
-    val layers: List<ColorLayerEdit> = emptyList()
+    val layers: List<ColorLayerEdit> = emptyList(),
+    /** Only for image-to-bordado QA; classic raster generation remains unchanged. */
+    val preserveFineDetails: Boolean = false
 )
 
 data class SeparatedColorArtwork(
@@ -185,12 +187,18 @@ object MultiColorRasterDigitizer {
             top = minOf(top, y)
             bottom = maxOf(bottom, y)
         }
+        // Correct a pixel erroneously assigned to another thread color *inside*
+        // a solid neighborhood (e.g., orange camera noise on white letters).
+        // Never bridge a transparent gap, erase isolated strokes or alter edges.
+        val cleaned = RasterPaletteFidelity.cleanIsolatedColorBleed(
+            labels, source.width, source.height, selected.size
+        )
         require(right - left >= 2 && bottom - top >= 2) {
             "Desenho muito fino. Use arte com mais resolução."
         }
         SeparatedColorArtwork(
             colors = selected.map { seeds[it] },
-            pixels = labels,
+            pixels = cleaned,
             minX = left, maxX = right, minY = top, maxY = bottom
         )
     }
@@ -347,9 +355,16 @@ object MultiColorRasterDigitizer {
                     val start = x
                     while (x <= art.maxX &&
                         art.pixels[y * source.width + x] == layer.sourceIndex) x++
-                    if (x - start >= 2 && (x - start - 1) * unitsPerPixel >= 8f) {
-                        spans += start to x - 1
+                    val spanMm10 = (x - start) * unitsPerPixel
+                    // Legacy mode keeps the previous 0.8mm/2px threshold.
+                    // Fine-detail QA mode also preserves 0.4mm single-pixel
+                    // strokes instead of dropping letters of small labels.
+                    val keepSpan = if (options.preserveFineDetails) {
+                        spanMm10 >= 4f
+                    } else {
+                        x - start >= 2 && (x - start - 1) * unitsPerPixel >= 8f
                     }
+                    if (keepSpan) spans += start to x - 1
                 }
                 val reverse = row % 2 == 1
                 val ordered = if (reverse) spans.asReversed() else spans

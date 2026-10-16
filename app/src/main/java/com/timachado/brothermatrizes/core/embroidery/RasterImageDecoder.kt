@@ -10,7 +10,8 @@ import android.provider.OpenableColumns
 object RasterImageDecoder {
     private const val MAX_FILE_BYTES = 12L * 1024L * 1024L
     private const val MAX_SOURCE_SIDE = 12000
-    private const val MAX_PREVIEW_SIDE = 256
+    // 512px keeps thin lettering legible longer; max 512x512 is validated below.
+    private const val MAX_PREVIEW_SIDE = 512
 
     fun decode(resolver: ContentResolver, uri: Uri): Result<RasterImagePixels> =
         runCatching {
