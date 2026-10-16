@@ -83,6 +83,22 @@ internal object RasterAutomaticLogoPreview {
                 individual.stitchCount > 0 && individual.endFound) {
                 "O elemento ${index + 1} não passou pela validação QA."
             }
+            // A plausible-looking path is insufficient. Compare the ACTUAL
+            // sewn segments, not just the edit handles, with original ink.
+            val fidelity = RasterStitchFidelityAudit.compare(
+                source, part, individual, widthMm
+            ).getOrElse { error ->
+                throw IllegalArgumentException(
+                    "Elemento ${index + 1}: auditoria dos pontos falhou. " +
+                        (error.message ?: "Revise a matriz.")
+                )
+            }
+            require(fidelity.coverage >= .78 && fidelity.offInkFraction <= .10) {
+                "Elemento ${index + 1}: bordado não corresponde ao desenho " +
+                    "(cobertura ${(fidelity.coverage * 100).toInt()}%, " +
+                    "pontos fora ${(fidelity.offInkFraction * 100).toInt()}%). " +
+                    "Simulação do logo inteiro bloqueada."
+            }
             val points = individual.points.filter { it.command != StitchCommand.END }
             require(points.isNotEmpty() && points.first().command == StitchCommand.JUMP) {
                 "A parte ${index + 1} não possui deslocamento inicial seguro."
