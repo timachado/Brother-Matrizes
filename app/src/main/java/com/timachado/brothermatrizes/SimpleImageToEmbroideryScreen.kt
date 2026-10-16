@@ -190,7 +190,7 @@ fun SimpleImageToEmbroideryScreen(
 
     // No "Preparar imagem" intermediate page. Every import/selection change
     // automatically prepares the image for immediate original-hoop display.
-    LaunchedEffect(photo, crop) {
+    LaunchedEffect(photo, crop, revision) {
         val input = photo ?: return@LaunchedEffect
         // Preserve the validated source/crop and manual rails when returning
         // from the ORIGINAL simulator; choose()/picker invalidate explicitly.
@@ -381,6 +381,10 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = {
                     if (satinEditorOpen) {
                         satinEditorOpen = false
+                    } else if (satinParts.isNotEmpty()) {
+                        // Reopen without erasing rail edits made for this photo.
+                        satinEditorOpen = true
+                        selectSatinPart(satinPartIndex)
                     } else {
                         val image = prepared?.image ?: return@OutlinedButton
                         val revisionAtStart = revision
