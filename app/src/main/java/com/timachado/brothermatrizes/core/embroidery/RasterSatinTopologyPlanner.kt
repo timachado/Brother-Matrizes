@@ -40,6 +40,18 @@ object RasterSatinTopologyPlanner {
             widthMm.isFinite() && widthMm in 10f..200f) {
             "Imagem grande ou pequena demais para decomposição automática."
         }
+        // Exact orthogonal topology is safer than an approximated medial axis:
+        // a closed counter remains empty and a T stem stays its own section.
+        // Only accepts a pixel-perfect union of narrow rectangular bars.
+        val exact = RasterOrthogonalSatinPlanner.propose(source, item, widthMm)
+        if (exact.isSuccess) {
+            val verified = exact.getOrThrow()
+            RasterSatinObjectEditor.preview(
+                source, item, verified, widthMm,
+                HoopProfile.H130X180
+            ).getOrThrow()
+            return@runCatching verified
+        }
         // Refuse ambiguous diagonal edge contacts. Never silently invent topology.
         RasterVectorContours.trace(m, source.width).getOrThrow()
         val original = BooleanArray(w * h) { i ->
