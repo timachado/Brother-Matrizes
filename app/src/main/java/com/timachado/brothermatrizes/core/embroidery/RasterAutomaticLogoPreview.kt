@@ -250,6 +250,27 @@ internal object RasterAutomaticLogoPreview {
         // A full logo may overlay separately valid layers of different
         // thread colors. Screen the ASSEMBLED sewing order, not only parts.
         RasterColorLayerOverlapAudit.inspect(assembled).getOrThrow()
+        val whole = RasterWholeArtworkFidelity.inspect(
+            source, assembled, widthMm
+        ).getOrElse { reason ->
+            throw IllegalArgumentException(
+                "Fidelidade do logo completo não verificada: " +
+                    (reason.message ?: "Revisão necessária.")
+            )
+        }
+        // Explicitly inspect all source colors after composition. Passing
+        // every isolated part does NOT prove the final palette or positions.
+        require(whole.coverage >= .60 &&
+            whole.significantColorMinimumCoverage >= .50 &&
+            whole.offInkFraction <= .18 &&
+            whole.wrongColorFraction <= .12) {
+            "Simulação completa bloqueada: cobertura " +
+                "${(whole.coverage*100).toInt()}%, pior cor " +
+                "${(whole.significantColorMinimumCoverage*100).toInt()}%, " +
+                "costura fora da arte ${(whole.offInkFraction*100).toInt()}%, " +
+                "cor incorreta ${(whole.wrongColorFraction*100).toInt()}%. " +
+                "Revisar digitalização e ordem de cores."
+        }
         assembled
     }
 }
