@@ -1138,7 +1138,11 @@ fun CreateDrawingScreen(
                             RasterPreparedImagePreview(image = previewPhoto.image)
                             Text(
                                 "${previewPhoto.image.width} × ${previewPhoto.image.height} px • " +
-                                    "${previewPhoto.removedBackgroundPixels} pixels de fundo removidos",
+                                    (if (previewPhoto.removedBackgroundPixels == 0 &&
+                                        previewPhoto.transparentPixels > 0)
+                                        "Fundo já transparente, sem remoção adicional."
+                                    else
+                                        "${previewPhoto.removedBackgroundPixels} pixels de fundo removidos"),
                                 color = FioTextMuted, fontSize = 11.sp
                             )
                             Button(
