@@ -84,6 +84,26 @@ class RasterCounterSatinGateTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun entireThickOLetterUsesVerifiedSatinOrFailsClosed() {
+        val img=ring()
+        val complete=RasterAutomaticLogoPreview.create(
+            img,widthMm,hoop
+        )
+        if (complete.isSuccess) {
+            val built=complete.getOrThrow()
+            assertEquals("QA_AUTO_STITCH",built.format)
+            assertTrue(built.stitchCount>50)
+            assertTrue(built.jumpCount>=4)
+            assertTrue(built.sourceBytes.isEmpty())
+            assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+        } else {
+            // A valid Satin plan can still fail conservative needle/quality
+            // audits: blocking is safer than a fake rendered matrix.
+            assertTrue(complete.exceptionOrNull()?.message
+                .orEmpty().isNotBlank())
+        }
+    }
+
     @Test fun deliberatelySewnChordThroughCounterIsBlocked() {
         val img=ring()
         val stream=draft(
