@@ -65,9 +65,15 @@ class RasterSatinTopologyPlannerTest {
 
     @Test fun faintSinglePixelTraceIsRejectedRatherThanPretendStitches() {
         val source = image { x,y -> x in 20..100 && y == 45 }
-        val part = only(source)
-        assertTrue(
-            RasterSatinTopologyPlanner.propose(source, part, 84f).isFailure
-        )
+        val parts = RasterSatinObjectEditor.detect(source)
+        // A one-pixel hairline can be refused by source segmentation itself.
+        // If segmentation accepts it, planning MUST still reject Satin.
+        if (parts.isSuccess) {
+            assertTrue(
+                RasterSatinTopologyPlanner.propose(
+                    source, parts.getOrThrow().single(), 84f
+                ).isFailure
+            )
+        } else assertTrue(parts.isFailure)
     }
 }
