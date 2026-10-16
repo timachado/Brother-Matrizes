@@ -31,7 +31,7 @@ class RasterAutomaticLogoPreviewTest {
         val result = RasterAutomaticLogoPreview.create(
             art, 90f, HoopProfile.H130X180
         ).getOrThrow()
-        assertEquals("QA_AUTO_SATIN",result.format)
+        assertEquals("QA_AUTO_STITCH",result.format)
         assertEquals(0,result.colorChanges)
         assertTrue(result.stitchCount > 20)
         assertTrue(result.jumpCount >= 2)
