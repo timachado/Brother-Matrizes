@@ -123,12 +123,14 @@ object RasterSatinObjectEditor {
         item: RasterSatinObject,
         sections: List<ManualSatinSection>,
         fullWidthMm: Float,
-        hoop: HoopProfile
+        hoop: HoopProfile,
+        minimumCoverage: Float = .68f
     ): Result<EmbroideryDesign> = runCatching {
         require(source.width in 8..512 && source.height in 8..512 &&
             item.mask.pixels.size == source.argb.size &&
             sections.isNotEmpty() && sections.size <= 40 &&
-            fullWidthMm.isFinite() && fullWidthMm in 10f..200f) {
+            fullWidthMm.isFinite() && fullWidthMm in 10f..200f &&
+            minimumCoverage.isFinite() && minimumCoverage in .68f..1f) {
             "Arte, objeto ou trilhos inválidos."
         }
         val fullHeightMm = fullWidthMm * source.height / source.width.toFloat()
@@ -205,7 +207,8 @@ object RasterSatinObjectEditor {
                 (y + 1 < h && occupied[(y + 1) * w + x])
             ) matched++
         }
-        require(actualInk >= 8 && matched.toFloat() / actualInk >= .68f) {
+        require(actualInk >= 8 &&
+            matched.toFloat() / actualInk >= minimumCoverage) {
             "Os trilhos ainda não cobrem a maior parte deste elemento. " +
                 "Ajuste as bordas e acrescente seções."
         }

@@ -47,6 +47,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
+import com.timachado.brothermatrizes.core.embroidery.RasterAutomaticLogoPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
@@ -574,7 +575,11 @@ fun SimpleImageToEmbroideryScreen(
                                         )
                                     }
                                 } else {
-                                    RasterGeometryAwareSatinPreview.create(
+                                    // Only the real assembled STITCH/JUMP/TRIM
+                                    // paths reach the original SimulatorScreen.
+                                    // No raster overlay or fake whole-logo
+                                    // interpolation masquerades as stitches.
+                                    RasterAutomaticLogoPreview.create(
                                         selected, selectedWidth, selectedHoop
                                     )
                                 }
@@ -603,9 +608,11 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = { picker.launch(arrayOf("image/*")) }
             ) { Text("Escolher outra imagem", color = FioGold) }
             Text(
-                "Simular bordado reproduz os pontos da parte em edição, não o logo " +
-                    "completo. O editor exige ajuste dos trilhos e valida cruzamentos " +
-                    "de vazios. PES e envio à máquina continuam bloqueados.",
+                "Sem editor: Simular bordado tenta digitalizar automaticamente " +
+                    "todos os elementos compatíveis e valida cada trajetória. " +
+                    "Com editor: simula apenas a parte ajustada. Se algum trecho " +
+                    "exigir outra técnica, a simulação completa será recusada. " +
+                    "Exportação PES e envio à máquina bloqueados.",
                 color = FioTextMuted, fontSize = 11.sp
             )
         } else {
