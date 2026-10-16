@@ -25,6 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
+import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
+import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
+import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,18 +64,33 @@ import kotlinx.coroutines.withContext
  * Reuses existing decoder, artwork proposals and crop/background preparation.
  * Original commercial matrix import and SimulatorScreen are untouched.
  */
+/** State survives temporary navigation into the unmodified original simulator. */
+class SimpleImageSession {
+    val photoState = mutableStateOf<RasterImagePixels?>(null)
+    val candidatesState = mutableStateOf<List<RasterArtworkCandidate>>(emptyList())
+    val selectedIdState = mutableIntStateOf(0)
+    val cropState = mutableStateOf(RasterCropBounds(0f, 0f, 1f, 1f))
+    val preparedState = mutableStateOf<PreparedRasterPhoto?>(null)
+    val revisionState = mutableIntStateOf(0)
+    var pickerLaunched = false
+}
+
 @Composable
-fun SimpleImageToEmbroideryScreen(onBack: () -> Unit) {
+fun SimpleImageToEmbroideryScreen(
+    onBack: () -> Unit,
+    onSimulate: (EmbroideryDesign) -> Unit,
+    session: SimpleImageSession
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var photo by remember { mutableStateOf<RasterImagePixels?>(null) }
-    var candidates by remember { mutableStateOf<List<RasterArtworkCandidate>>(emptyList()) }
-    var selectedId by remember { mutableIntStateOf(0) }
-    var crop by remember { mutableStateOf(RasterCropBounds(0f, 0f, 1f, 1f)) }
-    var prepared by remember { mutableStateOf<PreparedRasterPhoto?>(null) }
+    var photo by session.photoState
+    var candidates by session.candidatesState
+    var selectedId by session.selectedIdState
+    var crop by session.cropState
+    var prepared by session.preparedState
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
-    var revision by remember { mutableIntStateOf(0) }
+    var revision by session.revisionState
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -106,8 +126,11 @@ fun SimpleImageToEmbroideryScreen(onBack: () -> Unit) {
 
     // Same native Android document selection flow used by "Abrir Matrizes":
     // Recentes, Imagens, local storage and compatible cloud providers.
-    LaunchedEffect(Unit) {
-        picker.launch(arrayOf("image/*"))
+    LaunchedEffect(session) {
+        if (!session.pickerLaunched) {
+            session.pickerLaunched = true
+            picker.launch(arrayOf("image/*"))
+        }
     }
 
     fun chooseRegion(region: RasterCropBounds, id: Int) {
@@ -286,6 +309,56 @@ fun SimpleImageToEmbroideryScreen(onBack: () -> Unit) {
                             fontWeight = FontWeight.SemiBold
                         )
                         RasterPreparedImagePreview(result.image)
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                            colors = ButtonDefaults.buttonColors(containerColor = FioGold),
+                            onClick = {
+                                val sourceRaster = result.image
+                                revision++
+                                val request = revision
+                                busy = true
+                                message = ""
+                                scope.launch {
+                                    val generated = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            val opts = MultiColorRasterOptions(
+                                                widthMm = 60f,
+                                                maxColors = 2,
+                                                verticalSatinPreviewOnly = true
+                                            )
+                                            val artwork = MultiColorRasterDigitizer
+                                                .separate(sourceRaster, opts).getOrThrow()
+                                            val satinOpts = opts.copy(
+                                                layers = artwork.colors.indices.map { color ->
+                                                    ColorLayerEdit(
+                                                        sourceIndex = color,
+                                                        stitchMode = RasterLayerStitchMode.SATIN_STRAIGHT,
+                                                        satinCenterUnderlay = false,
+                                                        satinPullCompensationMm = 0.1f
+                                                    )
+                                                }
+                                            )
+                                            MultiColorRasterDigitizer.generateSeparated(
+                                                sourceRaster, artwork, satinOpts
+                                            ).getOrThrow()
+                                        }
+                                    }
+                                    if (request == revision && prepared === result) {
+                                        busy = false
+                                        generated.fold(
+                                            onSuccess = { onSimulate(it) },
+                                            onFailure = {
+                                                message = "Satin vertical não disponível para esta forma. " +
+                                                    (it.message ?: "Selecione uma parte mais simples.")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("▶ Simular bordado", color = FioBackground, fontWeight = FontWeight.Bold)
+                        }
                         Text(
                             if (result.removedBackgroundPixels > 0)
                                 "Fundo separado: ${result.removedBackgroundPixels} pixels removidos."
@@ -303,9 +376,9 @@ fun SimpleImageToEmbroideryScreen(onBack: () -> Unit) {
                 }
 
                 Text(
-                    "A geração da matriz PES está temporariamente bloqueada " +
-                        "até validar o Satin vertical. Esta tela prepara e mostra " +
-                        "a arte; não produz pontos para enviar à máquina.",
+                    "Simulação somente visual no motor original. " +
+                        "Se a arte não permitir Satin vertical, o aplicativo avisará. " +
+                        "Exportação PES bloqueada: não envie matrizes QA para a máquina.",
                     color = Color(0xFFFFBE91),
                     fontSize = 12.sp
                 )
