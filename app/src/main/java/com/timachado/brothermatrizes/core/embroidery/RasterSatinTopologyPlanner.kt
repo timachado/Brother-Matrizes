@@ -203,7 +203,8 @@ object RasterSatinTopologyPlanner {
                 val backward = reach(x,y,-nx,-ny)
                 val spanMm = (forward+backward) * mmPerPixel
                 require(spanMm in .8..7.0) {
-                    "Largura fora do limite Satin; refine os contornos manualmente."
+                    "Largura Satin de ${"\$"}spanMm mm fora do limite nesta junção; " +
+                        "refine os contornos manualmente."
                 }
                 val ax = ((x - nx * backward) / w).toFloat().coerceIn(0f,1f)
                 val ay = ((y - ny * backward) / h).toFloat().coerceIn(0f,1f)
@@ -228,7 +229,16 @@ object RasterSatinTopologyPlanner {
                     val b = if (quarter == 3) path.lastIndex else (quarter+1)*step
                     build(path.subList(a,b+1))
                 }
-            } else build(path)
+            } else {
+                // Cut skeleton tails adjacent to a branch cluster. Otherwise
+                // the rail normal may include the T intersection's entire
+                // perpendicular arm as if it were one wide Satin column.
+                val trimStart = if (neighbors(path.first()).any { junction[it] }) 4 else 0
+                val trimEnd = if (neighbors(path.last()).any { junction[it] }) 4 else 0
+                if (path.size > trimStart + trimEnd + 7) {
+                    build(path.drop(trimStart).dropLast(trimEnd))
+                }
+            }
         }
         require(parts.isNotEmpty()) {
             "Nenhuma seção Satin com comprimento suficiente foi reconhecida."
