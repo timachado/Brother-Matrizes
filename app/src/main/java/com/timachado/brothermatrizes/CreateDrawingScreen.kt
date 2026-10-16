@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.RasterEmbroideryApproval
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDigitizer
 import com.timachado.brothermatrizes.core.embroidery.RasterImageOptions
@@ -2560,15 +2561,26 @@ fun CreateDrawingScreen(
                     )
                 )
 
+                if (RasterEmbroideryApproval.isReadOnlyPreview(imageToEmbroideryTool)) {
+                    Text(
+                        RasterEmbroideryApproval.WARNING,
+                        color = Color(0xFFFF9D83),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+
                 Button(
                     onClick = {
-                        preview?.let(
-                            onCreate
-                        )
+                        if (!RasterEmbroideryApproval.isReadOnlyPreview(imageToEmbroideryTool)) {
+                            preview?.let(onCreate)
+                        }
                     },
                     enabled =
                         preview != null &&
-                            fitsHoop,
+                            fitsHoop &&
+                            !RasterEmbroideryApproval.isReadOnlyPreview(imageToEmbroideryTool),
                     modifier =
                         Modifier
                             .fillMaxWidth(),
@@ -2582,9 +2594,10 @@ fun CreateDrawingScreen(
                             )
                 ) {
                     Text(
-                        "Gerar matriz",
-                        fontWeight =
-                            FontWeight.Bold
+                        if (RasterEmbroideryApproval.isReadOnlyPreview(imageToEmbroideryTool))
+                            "Exportação bloqueada — QA"
+                        else "Gerar matriz",
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
@@ -2608,7 +2621,9 @@ fun CreateDrawingScreen(
                             .fillMaxWidth()
                 ) {
                     Text(
-                        "▶ Simular desenho"
+                        if (RasterEmbroideryApproval.isReadOnlyPreview(imageToEmbroideryTool))
+                            "▶ Prévia no simulador original (sem exportar)"
+                        else "▶ Simular desenho"
                     )
                 }
             }

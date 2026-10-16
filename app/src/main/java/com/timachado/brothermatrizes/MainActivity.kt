@@ -9,6 +9,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.timachado.brothermatrizes.core.embroidery.RasterEmbroideryApproval
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -332,7 +336,9 @@ private sealed interface Screen {
             ),
         val showConnections:
             Boolean =
-            false
+            false,
+        // Read-only QA presentation of an unapproved raster trajectory.
+        val qaRasterPreviewOnly: Boolean = false
     ) : Screen
 
     data class Converter(
@@ -734,7 +740,10 @@ private fun BrotherMatrizesApp(
                     Screen.Home
 
                 is Screen.Simulator ->
-                    Screen.Viewer(
+                    if (current.qaRasterPreviewOnly) {
+                        // No Viewer/export for unapproved raster points.
+                        Screen.ImageToEmbroidery
+                    } else Screen.Viewer(
                         design =
                             current.design,
                         displayMode =
@@ -2216,13 +2225,21 @@ private fun BrotherMatrizesApp(
                     CreateDrawingScreen(
                         onBack = { goBack() },
                         imageToEmbroideryTool = true,
-                        onCreate = { created ->
-                            activateDesign(created)
-                            screen = Screen.Viewer(created)
+                        onCreate = {
+                            // Defense in depth: never save/share/transfer experimental paths.
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Exportação bloqueada: pontos da imagem não homologados."
+                                )
+                            }
                         },
                         onSimulate = { created ->
-                            activateDesign(created)
-                            screen = Screen.Simulator(created)
+                            // The exact original SimulatorScreen, but in read-only QA.
+                            // Do not activate as recent or persist in ActiveDesignStore.
+                            screen = Screen.Simulator(
+                                created,
+                                qaRasterPreviewOnly = true
+                            )
                         }
                     )
                 }
@@ -2423,19 +2440,31 @@ private fun BrotherMatrizesApp(
                 }
 
                 is Screen.Simulator -> {
-                    SimulatorScreen(
-                        design =
-                            current.design,
-                        displayMode =
-                            current.displayMode,
-                        referenceHoop =
-                            current.referenceHoop,
-                        showConnections =
-                            current.showConnections,
-                        onBack = {
-                            goBack()
+                    Box(Modifier.fillMaxSize()) {
+                        // Reuse the original simulator without editing its
+                        // drawing, stitch timing or machine semantics.
+                        SimulatorScreen(
+                            design = current.design,
+                            displayMode = current.displayMode,
+                            referenceHoop = current.referenceHoop,
+                            showConnections = current.showConnections,
+                            onBack = { goBack() }
+                        )
+                        if (current.qaRasterPreviewOnly) {
+                            Text(
+                                text = RasterEmbroideryApproval.WARNING,
+                                color = Color(0xFF151515),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 104.dp, start = 18.dp, end = 18.dp)
+                                    .background(
+                                        Color(0xFFFFB982),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .padding(9.dp)
+                            )
                         }
-                    )
+                    }
                 }
 
                 is Screen.Converter -> {
