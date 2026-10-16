@@ -36,12 +36,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
-import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
-import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkAutoCrop
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
@@ -49,7 +46,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
-import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
+import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -344,26 +341,9 @@ fun SimpleImageToEmbroideryScreen(
                     message = ""
                     scope.launch {
                         val design = withContext(Dispatchers.Default) {
-                            runCatching {
-                                val opts = MultiColorRasterOptions(
-                                    widthMm = selectedWidth, maxColors = 2,
-                                    hoopProfile = selectedHoop,
-                                    verticalSatinPreviewOnly = true
-                                )
-                                val art = MultiColorRasterDigitizer.separate(
-                                    selected, opts
-                                ).getOrThrow()
-                                val satin = opts.copy(layers = art.colors.indices.map {
-                                    ColorLayerEdit(
-                                        sourceIndex = it,
-                                        stitchMode = RasterLayerStitchMode.SATIN_STRAIGHT,
-                                        satinCenterUnderlay = false
-                                    )
-                                })
-                                MultiColorRasterDigitizer.generateSeparated(
-                                    selected, art, satin
-                                ).getOrThrow()
-                            }
+                            RasterGeometryAwareSatinPreview.create(
+                                selected, selectedWidth, selectedHoop
+                            )
                         }
                         if (revision == currentRevision) {
                             simulating = false
@@ -372,16 +352,16 @@ fun SimpleImageToEmbroideryScreen(
                                     onSimulate(it, selectedHoop, chosenMode, chosenConnections)
                                 },
                                 onFailure = {
-                                    message = "Ainda não há trajetória Satin vertical válida " +
-                                        "para esta arte. Selecione uma parte simples ou reconstrua " +
-                                        "as letras em Satin. Nenhuma simulação falsa foi gerada."
+                                    message = "Simulação não liberada: " +
+                                        (design.exceptionOrNull()?.message ?:
+                                            "Não foi possível preservar o desenho original.")
                                 }
                             )
                         }
                     }
                 }
             ) {
-                Text("▶ Simular pontos Satin", color = FioBackground,
+                Text("▶ Simular bordado", color = FioBackground,
                     fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
@@ -389,9 +369,9 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = { picker.launch(arrayOf("image/*")) }
             ) { Text("Escolher outra imagem", color = FioGold) }
             Text(
-                "Somente trajetórias Satin reais são animadas pelo simulador " +
-                    "original. O desenho sobre o bastidor é uma prévia da imagem, " +
-                    "não uma matriz PES. Exportação e envio à máquina bloqueados.",
+                "Simulação somente para contornos Satin que passaram na validação " +
+                    "geométrica. Letras e logos complexos precisam de trilhos editáveis. " +
+                    "Exportação PES e envio à máquina permanecem bloqueados.",
                 color = FioTextMuted, fontSize = 11.sp
             )
         } else {
