@@ -125,7 +125,16 @@ internal object RasterAutomaticLogoPreview {
                 val candidate = simple.fold(
                     onSuccess = { Result.success(listOf(it)) },
                     onFailure = {
-                        RasterSatinTopologyPlanner.propose(source, part, widthMm)
+                        RasterVariableWidthSatinSections.propose(
+                            source, part, widthMm
+                        ).fold(
+                            onSuccess = { Result.success(it) },
+                            onFailure = {
+                                RasterSatinTopologyPlanner.propose(
+                                    source, part, widthMm
+                                )
+                            }
+                        )
                     }
                 )
                 val sections = candidate.getOrElse { reason ->
