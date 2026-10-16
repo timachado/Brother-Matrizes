@@ -74,7 +74,7 @@ class RasterTechniqueAdvisorTest {
             when {
                 x in 10..110 && y in 20..29 -> navy
                 x in 115..150 && y in 50..88 &&
-                    !(x in 135..140 && y in 70..78) -> gold
+                    (y !in 70..75 || x in 132..133) -> gold
                 else -> white
             }
         })
