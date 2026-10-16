@@ -50,6 +50,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPre
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
+import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinTopologyPlanner
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
@@ -235,6 +236,9 @@ fun SimpleImageToEmbroideryScreen(
     }
 
     val stageImage = prepared?.image ?: photo
+    val artworkAudit = remember(stageImage) {
+        stageImage?.let { RasterArtworkComplexityAudit.examine(it) }
+    }
     val maxWidth = stageImage?.let {
         ImageHoopSizing.maximumWidthMm(it.width, it.height, hoop)
     } ?: 0f
@@ -323,6 +327,16 @@ fun SimpleImageToEmbroideryScreen(
                 "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
                 color = FioTextMuted, fontSize = 11.sp
             )
+            if (artworkAudit?.requiresMultiTechniqueReview == true) {
+                Text(
+                    "Arte complexa: tons e detalhes exigem separar letras, " +
+                        "contornos e áreas de preenchimento. A imagem original " +
+                        "pode aparecer no bastidor, mas não é uma matriz PES. " +
+                        "A simulação do logo inteiro fica bloqueada até " +
+                        "existirem pontos reais validados por elemento.",
+                    color = FioGold, fontSize = 12.sp
+                )
+            }
 
             Text(
                 "Arte: ${widthMm.roundToInt()} × ${heightMm.roundToInt()} mm • " +
