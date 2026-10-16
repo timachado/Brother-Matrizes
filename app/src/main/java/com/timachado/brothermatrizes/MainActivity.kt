@@ -2220,28 +2220,10 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.ImageToEmbroidery -> {
-                    // Ferramentas > Imagem para Bordado abre diretamente
-                    // a digitalização raster; não altera Criar desenho/logo.
-                    CreateDrawingScreen(
-                        onBack = { goBack() },
-                        imageToEmbroideryTool = true,
-                        onCreate = {
-                            // Defense in depth: never save/share/transfer experimental paths.
-                            scope.launch {
-                                snackbar.showSnackbar(
-                                    "Exportação bloqueada: pontos da imagem não homologados."
-                                )
-                            }
-                        },
-                        onSimulate = { created ->
-                            // The exact original SimulatorScreen, but in read-only QA.
-                            // Do not activate as recent or persist in ActiveDesignStore.
-                            screen = Screen.Simulator(
-                                created,
-                                qaRasterPreviewOnly = true
-                            )
-                        }
-                    )
+                    // Same one-tap native Android files picker UX as Abrir Matrizes.
+                    // The original Open Matriz/PES route is left untouched.
+                    // This image-first screen cannot export unapproved raster stitches.
+                    SimpleImageToEmbroideryScreen(onBack = { goBack() })
                 }
 
                 Screen.CreateDrawing -> {
