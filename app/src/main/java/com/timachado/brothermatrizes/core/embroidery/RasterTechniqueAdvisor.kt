@@ -7,7 +7,7 @@ package com.timachado.brothermatrizes.core.embroidery
  * commands are synthesized for them.
  */
 internal enum class RasterTechnique {
-    SATIN_QA, RUNNING_QA, FILL_NEEDS_DIGITIZING, RUNNING_NEEDS_DIGITIZING, MANUAL_REVIEW
+    SATIN_QA, RUNNING_QA, TATAMI_RECT_QA, FILL_NEEDS_DIGITIZING, RUNNING_NEEDS_DIGITIZING, MANUAL_REVIEW
 }
 
 internal data class RasterTechniqueCandidate(
@@ -29,7 +29,8 @@ internal data class RasterTechniqueReport(
         sourceComplex || warnings.isNotEmpty() ||
             candidates.any {
                 it.technique != RasterTechnique.SATIN_QA &&
-                    it.technique != RasterTechnique.RUNNING_QA
+                    it.technique != RasterTechnique.RUNNING_QA &&
+                    it.technique != RasterTechnique.TATAMI_RECT_QA
             }
 
     fun brief(): String = buildString {
@@ -47,9 +48,14 @@ internal data class RasterTechniqueReport(
             val runningQA = candidates.count {
                 it.technique == RasterTechnique.RUNNING_QA
             }
-            val manual = candidates.size - satin - fill - running
+            val fillQA = candidates.count {
+                it.technique == RasterTechnique.TATAMI_RECT_QA
+            }
+            val manual = candidates.size - satin - fill - fillQA -
+                running - runningQA
             append("${candidates.size} partes: ")
-            append("${satin} Satin QA; ${fill} preenchimento pendente; ")
+            append("${satin} Satin QA; ${fillQA} Tatami retangular QA; ")
+            append("${fill} preenchimento pendente; ")
             append("${runningQA} contorno QA; ${running} contorno pendente; ")
             append("${manual} revisão manual.")
         }
@@ -142,12 +148,33 @@ internal object RasterTechniqueAdvisor {
                         "Revisar contorno."
                 )
             }
-            // A solid wide area needs underlay and Tatami/Fill selection.
-            // Do not pass it to arbitrary raster zigzag fallback.
-            if (minSpan > 7.0f && inkDensity >= .64f) {
+            // Only a perfectly solid rectangular mask gets an experimental
+            // Tatami draft; shaped fills still require a dedicated underlay
+            // and direction plan. The original machine PES remains blocked.
+            if (minSpan >= 7f && inkDensity >= .64f) {
+                if (part.pixelCount == w*h) {
+                    val preview = RasterTatamiRectanglePreview.create(
+                        image, part, widthMm, hoop
+                    ).getOrNull()
+                    val quality = preview?.let {
+                        RasterStitchFidelityAudit.compare(
+                            image, part, it, widthMm
+                        ).getOrNull()
+                    }
+                    if (quality != null && quality.coverage >= .76 &&
+                        quality.offInkFraction <= .10
+                    ) {
+                        return@map item(
+                            RasterTechnique.TATAMI_RECT_QA,
+                            "Tatami retangular com pontos verificáveis no " +
+                                "simulador. Sem entretela/underlay homologados."
+                        )
+                    }
+                }
                 return@map item(
                     RasterTechnique.FILL_NEEDS_DIGITIZING,
-                    "Área larga: estudar preenchimento e sustentação dos pontos."
+                    "Área larga: contornos irregulares, sustentação ou " +
+                        "preenchimento ainda exigem revisão."
                 )
             }
             // Geometry may still be a ring, branch, curved letter. The

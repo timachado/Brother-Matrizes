@@ -32,17 +32,18 @@ class RasterTechniqueAdvisorTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
-    @Test fun largeAreaNeedsFillInsteadOfFakeSatin() {
+    @Test fun rectangularLargeAreaCanBeQaTatamiNotPES() {
         val image = art({ x, y ->
             if (x in 25..100 && y in 15..80) gold else white
         })
         val result = RasterTechniqueAdvisor.assess(
             image, 90f, HoopProfile.H130X180
         ).getOrThrow()
-        assertEquals(RasterTechnique.FILL_NEEDS_DIGITIZING,
+        assertEquals(RasterTechnique.TATAMI_RECT_QA,
             result.candidates.single().technique)
-        assertTrue(result.needsDigitizing)
-        assertTrue(result.brief().contains("preenchimento"))
+        assertFalse(result.needsDigitizing)
+        assertTrue(result.brief().contains("Tatami retangular QA"))
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
     @Test fun narrowHairlineCanBeDigitizedAsQaRunningStitch() {
@@ -72,7 +73,8 @@ class RasterTechniqueAdvisorTest {
         val image = art({ x, y ->
             when {
                 x in 10..110 && y in 20..29 -> navy
-                x in 115..150 && y in 50..88 -> gold
+                x in 115..150 && y in 50..88 &&
+                    !(x in 135..140 && y in 70..78) -> gold
                 else -> white
             }
         })

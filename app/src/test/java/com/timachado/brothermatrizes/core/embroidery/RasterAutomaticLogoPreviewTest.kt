@@ -88,8 +88,10 @@ class RasterAutomaticLogoPreviewTest {
         val art = image { x,y ->
             when {
                 x in 15..95 && y in 23..31 -> navy
-                // Large solid shape must not be rendered as bogus narrow Satin.
-                x in 111..145 && y in 43..77 -> navy
+                // Irregular wide block with a counter is not safely
+                // supported by constrained QA Tatami or Satin.
+                x in 111..145 && y in 43..77 &&
+                    !(x in 120..134 && y in 52..67) -> navy
                 else -> 0xffffffff.toInt()
             }
         }

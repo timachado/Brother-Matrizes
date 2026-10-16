@@ -34,7 +34,8 @@ internal object RasterNeedleRiskAudit {
         runCatching {
             require(
                 design.format in setOf(
-                    "QA_AUTO_STITCH", "QA_SATIN_REVIEW", "QA_RUNNING_REVIEW"
+                    "QA_AUTO_STITCH", "QA_SATIN_REVIEW",
+                    "QA_RUNNING_REVIEW", "QA_TATAMI_REVIEW"
                 ) && design.sourceBytes.isEmpty() && design.isModified &&
                     design.points.size in 3..MAX_COMMANDS &&
                     design.hoopProfile == hoop

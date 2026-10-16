@@ -60,7 +60,30 @@ internal object RasterAutomaticLogoPreview {
                 part.mask.maxY - part.mask.minY + 1
             ) * widthMm / source.width
             val running = minSpan < .8f
-            val individual = if (running) {
+            val widthPx = part.mask.maxX - part.mask.minX + 1
+            val heightPx = part.mask.maxY - part.mask.minY + 1
+            val thick = minSpan >= 7f && part.pixelCount == widthPx * heightPx
+            val inkFraction = part.pixelCount.toFloat() /
+                (widthPx * heightPx).coerceAtLeast(1)
+            // Large mostly-solid forms containing holes are NOT letters
+            // eligible for an indiscriminate Satin fallback. Without an
+            // explicit segmented fill plan, refuse the whole-logo preview.
+            require(!(minSpan >= 7f && inkFraction >= .64f && !thick)) {
+                "Elemento ${index + 1}: bloco largo com vazios ou contornos " +
+                    "irregulares. Exige preenchimento segmentado e revisão; " +
+                    "nenhum ponto atravessará a contraforma automaticamente."
+            }
+            val individual = if (thick) {
+                RasterTatamiRectanglePreview.create(
+                    source, part, widthMm, hoop
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index + 1}: preenchimento Tatami " +
+                            "experimental recusado. " +
+                            (reason.message ?: "Revisão necessária.")
+                    )
+                }
+            } else if (running) {
                 RasterRunningOutlinePreview.create(
                     source, part, widthMm, hoop
                 ).getOrElse { reason ->
@@ -97,7 +120,7 @@ internal object RasterAutomaticLogoPreview {
             }
             require(individual.sourceBytes.isEmpty() &&
                 individual.format in setOf(
-                    "QA_SATIN_REVIEW", "QA_RUNNING_REVIEW"
+                    "QA_SATIN_REVIEW", "QA_RUNNING_REVIEW", "QA_TATAMI_REVIEW"
                 ) && individual.isModified &&
                 individual.stitchCount > 0 && individual.endFound) {
                 "O elemento ${index + 1} não passou pela validação QA."
@@ -112,7 +135,7 @@ internal object RasterAutomaticLogoPreview {
                         (error.message ?: "Revise a matriz.")
                 )
             }
-            val requiredCoverage = if (running) .72 else .78
+            val requiredCoverage = if (running) .72 else if (thick) .76 else .78
             val allowedOutside = if (running) .15 else .10
             require(fidelity.coverage >= requiredCoverage &&
                 fidelity.offInkFraction <= allowedOutside) {
