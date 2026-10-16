@@ -46,10 +46,8 @@ object RasterSatinTopologyPlanner {
         val exact = RasterOrthogonalSatinPlanner.propose(source, item, widthMm)
         if (exact.isSuccess) {
             val verified = exact.getOrThrow()
-            RasterSatinObjectEditor.preview(
-                source, item, verified, widthMm,
-                HoopProfile.H130X180
-            ).getOrThrow()
+            // The Android screen verifies full mask coverage using the
+            // user's actual hoop. Do not hardcode a hoop in geometry code.
             return@runCatching verified
         }
         // Refuse ambiguous diagonal edge contacts. Never silently invent topology.
