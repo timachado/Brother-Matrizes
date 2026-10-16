@@ -64,6 +64,12 @@ class VasosDeBencaoArtworkRegressionTest {
             result.exceptionOrNull()?.message.orEmpty()
                 .contains("múltiplas técnicas")
         )
+        // The new full-logo compositor must ALSO fail closed on the exact
+        // user-supplied complex reference, not just the older Satin route.
+        val automatic = RasterAutomaticLogoPreview.create(
+            actual, 85f, HoopProfile.H130X180
+        )
+        assertTrue(automatic.isFailure)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
