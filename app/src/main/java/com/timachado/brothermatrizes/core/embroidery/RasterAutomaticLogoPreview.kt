@@ -84,8 +84,19 @@ internal object RasterAutomaticLogoPreview {
                     source, part, widthMm, hoop
                 ).getOrNull()
             } else null
+            // A long, gently tapered Satin column has low density inside
+            // its bounding rectangle, but is NOT disconnected ink. Avoid
+            // classifying every 45-64% region as unfillable Tatami. Only
+            // bypass this guard after the topology-aware Satin candidate
+            // actually produced complete, locally valid sections.
+            val candidateTapered = if (minSpan >= 7f &&
+                inkFraction >= .45f && inkFraction < .64f) {
+                RasterVariableWidthSatinSections.propose(
+                    source, part, widthMm
+                ).getOrNull()
+            } else null
             require(!(minSpan >= 7f && inkFraction >= .45f &&
-                inkFraction < .64f)) {
+                inkFraction < .64f) || candidateTapered != null) {
                 "Elemento ${index + 1}: região larga e descontínua exige " +
                     "revisão das ilhas e da ordem de preenchimento."
             }
@@ -121,8 +132,14 @@ internal object RasterAutomaticLogoPreview {
             } else if (curvedRunning != null) {
                 curvedRunning
             } else {
-                val simple = RasterAutoSatinRails.propose(source, part, widthMm)
-                val candidate = simple.fold(
+                val simple = if (candidateTapered == null) {
+                    RasterAutoSatinRails.propose(source, part, widthMm)
+                } else Result.failure(
+                    IllegalArgumentException("Satin variável exige seções")
+                )
+                val candidate = if (candidateTapered != null) {
+                    Result.success(candidateTapered)
+                } else simple.fold(
                     onSuccess = { Result.success(listOf(it)) },
                     onFailure = {
                         RasterVariableWidthSatinSections.propose(
