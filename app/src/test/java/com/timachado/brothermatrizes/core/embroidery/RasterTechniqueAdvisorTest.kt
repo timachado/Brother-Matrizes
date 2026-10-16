@@ -45,7 +45,7 @@ class RasterTechniqueAdvisorTest {
         assertTrue(result.brief().contains("preenchimento"))
     }
 
-    @Test fun narrowHairlineIsAContourCandidateNotSatin() {
+    @Test fun narrowHairlineCanBeDigitizedAsQaRunningStitch() {
         val image = art({ x, y ->
             if (x in 20..119 && y in 43..45) navy else white
         })
@@ -53,9 +53,9 @@ class RasterTechniqueAdvisorTest {
             image, 25f, HoopProfile.H130X180
         ).getOrThrow()
         assertTrue(result.candidates.any {
-            it.technique == RasterTechnique.RUNNING_NEEDS_DIGITIZING
+            it.technique == RasterTechnique.RUNNING_QA
         })
-        assertTrue(result.needsDigitizing)
+        assertFalse(result.needsDigitizing)
     }
 
     @Test fun misfittingHoopCannotReceiveTechniques() {
