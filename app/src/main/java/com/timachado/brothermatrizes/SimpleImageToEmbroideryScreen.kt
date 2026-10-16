@@ -397,7 +397,7 @@ fun SimpleImageToEmbroideryScreen(
                     }
                 }
             ) {
-                Text("▶ Simular pontos Satin", color = FioBackground,
+                Text("▶ Simular bordado", color = FioBackground,
                     fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
