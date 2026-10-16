@@ -46,7 +46,9 @@ data class MultiColorRasterOptions(
     val backgroundTolerance: Int = 72,
     val layers: List<ColorLayerEdit> = emptyList(),
     /** Only for image-to-bordado QA; classic raster generation remains unchanged. */
-    val preserveFineDetails: Boolean = false
+    val preserveFineDetails: Boolean = false,
+    /** Preview only: Satin columns with vertical needle direction, never FILL. */
+    val verticalSatinPreviewOnly: Boolean = false
 )
 
 data class SeparatedColorArtwork(
@@ -233,6 +235,12 @@ object MultiColorRasterDigitizer {
             layers.map { it.sourceIndex }.toSet() == art.colors.indices.toSet()) {
             "Lista de camadas diferente das cores detectadas."
         }
+        if (options.verticalSatinPreviewOnly) {
+            require(layers.all { it.stitchMode == RasterLayerStitchMode.SATIN_STRAIGHT &&
+                !it.satinCenterUnderlay }) {
+                "Prévia vertical permite apenas Satin reto sem underlay horizontal."
+            }
+        }
         layers.forEach { layer ->
             require(layer.threadColor == null || layer.threadColor in 0..0xFFFFFF) {
                 "Cor de linha inválida."
@@ -316,7 +324,8 @@ object MultiColorRasterDigitizer {
                     widthMm = options.widthMm,
                     densityMm = layer.rowSpacingMm ?: options.rowSpacingMm,
                     compensationMm = layer.satinPullCompensationMm,
-                    centerUnderlay = layer.satinCenterUnderlay
+                    centerUnderlay = layer.satinCenterUnderlay,
+                    verticalNeedleDirectionOnly = options.verticalSatinPreviewOnly
                 )).getOrElse { error ->
                     throw IllegalArgumentException(
                         "Camada ${layer.sourceIndex + 1}: " +
