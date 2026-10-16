@@ -58,6 +58,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
+import com.timachado.brothermatrizes.core.embroidery.RasterStitchReadiness
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
@@ -495,6 +496,16 @@ fun CreateDrawingScreen(
         }
     }
     val separatedArtwork = separatedRaster?.getOrNull()
+    val stitchReadiness = remember(separatedArtwork, imagePixels, widthMm) {
+        val input = imagePixels
+        if (input != null && separatedArtwork != null && imageToEmbroideryTool) {
+            runCatching {
+                RasterStitchReadiness.inspect(
+                    separatedArtwork, input.width, input.height, widthMm
+                )
+            }.getOrNull()
+        } else null
+    }
     val visibleLayerEdits = if (
         separatedArtwork != null &&
         layerEdits.size == separatedArtwork.colors.size &&
@@ -524,7 +535,8 @@ fun CreateDrawingScreen(
                             maxColors = maxRasterColors,
                             outputFormat = outputFormat,
                             hoopProfile = hoopProfile,
-                            layers = visibleLayerEdits
+                            layers = visibleLayerEdits,
+                            preserveFineDetails = imageToEmbroideryTool
                         )
                     )
                 }
@@ -1179,6 +1191,38 @@ fun CreateDrawingScreen(
                         Text(
                             "2 • Refine as cores e a matriz nas camadas abaixo. " +
                                 "Fotos complexas exigem correção manual.",
+                            color = FioTextMuted,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            "Detalhes finos: preserve traços pequenos, mas confira " +
+                                "saltos e pontos na prévia. Para texto miúdo, prefira " +
+                                "recriar as letras com fonte apropriada.",
+                            color = FioTextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (stitchReadiness != null &&
+                        stitchReadiness.warnings.isNotEmpty()
+                    ) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Revisão de detalhes antes do PES",
+                            color = FioGold,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        stitchReadiness.warnings.forEach { warning ->
+                            Text(
+                                "• " + warning,
+                                color = Color(0xFFFFBE73),
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            "A prévia é experimental e não substitui o teste no tecido. " +
+                                "Se o texto perder continuidade, reconstrua-o com " +
+                                "fontes e trilhos Satin em vez de aumentar pontos cegamente.",
                             color = FioTextMuted,
                             fontSize = 11.sp
                         )
