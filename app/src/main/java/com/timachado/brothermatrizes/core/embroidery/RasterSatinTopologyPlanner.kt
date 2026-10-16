@@ -203,7 +203,7 @@ object RasterSatinTopologyPlanner {
                 val backward = reach(x,y,-nx,-ny)
                 val spanMm = (forward+backward) * mmPerPixel
                 require(spanMm in .8..7.0) {
-                    "Largura Satin de ${"\$"}spanMm mm fora do limite nesta junção; " +
+                    "Largura Satin de ${spanMm} mm fora do limite nesta junção; " +
                         "refine os contornos manualmente."
                 }
                 val ax = ((x - nx * backward) / w).toFloat().coerceIn(0f,1f)
