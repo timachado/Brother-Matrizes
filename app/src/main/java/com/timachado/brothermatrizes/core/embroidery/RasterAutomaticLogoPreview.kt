@@ -78,6 +78,8 @@ internal object RasterAutomaticLogoPreview {
             val curvedRunning = if (!running && inkFraction < .45f) {
                 RasterCurvedRunningPreview.create(
                     source, part, widthMm, hoop
+                ).getOrNull() ?: RasterBranchedRunningPreview.create(
+                    source, part, widthMm, hoop
                 ).getOrNull()
             } else null
             require(!(minSpan >= 7f && inkFraction >= .45f &&
