@@ -10,6 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.timachado.brothermatrizes.core.embroidery.RasterVectorContour
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -61,6 +64,7 @@ internal fun ManualSatinRailCanvas(
     imageWidth: Int,
     colorIndex: Int,
     section: ManualSatinSection,
+    vectorContours: List<RasterVectorContour> = emptyList(),
     onBeginDrag: () -> Unit,
     onEdit: (ManualSatinSection) -> Unit,
     modifier: Modifier = Modifier
@@ -147,6 +151,24 @@ internal fun ManualSatinRailCanvas(
                     size = Size(sx + .5f, sy + .5f)
                 )
             }
+        }
+        // Exact extracted pixel-edge loops, including counters (holes).
+        // These are references for rail placement, NEVER stitch commands.
+        for (loop in vectorContours) {
+            if (loop.vertices.size < 3) continue
+            val path = Path()
+            val first = loop.vertices.first()
+            path.moveTo(area.left + first.x * sx, area.top + first.y * sy)
+            for (i in 1 until loop.vertices.size) {
+                val p = loop.vertices[i]
+                path.lineTo(area.left + p.x * sx, area.top + p.y * sy)
+            }
+            path.close()
+            drawPath(
+                path = path,
+                color = if (loop.isHole) Color(0xFFFF9069) else Color(0xFF63D5E3),
+                style = Stroke(width = 1.8f)
+            )
         }
         val rails = section.rails
         for (i in rails.indices) {
