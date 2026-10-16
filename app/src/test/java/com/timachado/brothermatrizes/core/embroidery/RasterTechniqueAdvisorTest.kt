@@ -19,9 +19,9 @@ class RasterTechniqueAdvisorTest {
     private val white = 0xffffffff.toInt()
 
     @Test fun simpleSolidStrokeCanBeSatinButNeverMachinePES() {
-        val image = art { x, y ->
+        val image = art({ x, y ->
             if (x in 20..119 && y in 30..40) navy else white
-        }
+        })
         val result = RasterTechniqueAdvisor.assess(
             image, 85f, HoopProfile.H130X180
         ).getOrThrow()
@@ -33,9 +33,9 @@ class RasterTechniqueAdvisorTest {
     }
 
     @Test fun largeAreaNeedsFillInsteadOfFakeSatin() {
-        val image = art { x, y ->
+        val image = art({ x, y ->
             if (x in 25..100 && y in 15..80) gold else white
-        }
+        })
         val result = RasterTechniqueAdvisor.assess(
             image, 90f, HoopProfile.H130X180
         ).getOrThrow()
@@ -59,9 +59,9 @@ class RasterTechniqueAdvisorTest {
     }
 
     @Test fun misfittingHoopCannotReceiveTechniques() {
-        val image = art { x, y ->
+        val image = art({ x, y ->
             if (x in 20..119 && y in 30..40) navy else white
-        }
+        })
         assertTrue(
             RasterTechniqueAdvisor.assess(image, 180f, HoopProfile.H100X100)
                 .isFailure
@@ -69,13 +69,13 @@ class RasterTechniqueAdvisorTest {
     }
 
     @Test fun combinedArtDoesNotClaimEveryObjectIsAutomaticallyReady() {
-        val image = art { x, y ->
+        val image = art({ x, y ->
             when {
                 x in 10..110 && y in 20..29 -> navy
                 x in 115..150 && y in 50..88 -> gold
                 else -> white
             }
-        }
+        })
         val report = RasterTechniqueAdvisor.assess(
             image, 90f, HoopProfile.H130X180
         ).getOrThrow()
