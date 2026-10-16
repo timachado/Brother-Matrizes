@@ -32,6 +32,7 @@ import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
 import com.timachado.brothermatrizes.core.embroidery.RasterLayerStitchMode
+import com.timachado.brothermatrizes.core.embroidery.RasterVerticalVisualPreview
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -203,17 +204,16 @@ fun SimpleImageToEmbroideryScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "Bastidor: ${hoop.displayName}",
-                color = FioText,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 11.dp)
-            )
-            TextButton(onClick = { showDisplaySettings = true }) {
-                Text("Exibição", color = FioGold, fontWeight = FontWeight.Bold)
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = { showDisplaySettings = true }
+            ) {
+                Text("Bastidor: ${hoop.displayName} ▾", color = FioGold, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = { showDisplaySettings = true }) {
+                Text("Exibição", color = FioGold, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -227,6 +227,7 @@ fun SimpleImageToEmbroideryScreen(
                 selection = crop,
                 candidates = candidates,
                 onSelection = { chooseRegion(it, 0) },
+                canvasHeight = 210.dp,
                 onCandidateTap = { id ->
                     candidates.firstOrNull { it.id == id }?.let {
                         chooseRegion(it.bounds, id)
@@ -258,12 +259,7 @@ fun SimpleImageToEmbroideryScreen(
                 }
             } else {
                 Text(
-                    source.label,
-                    color = FioText,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "Toque na parte da arte que deseja preparar primeiro.",
+                    "Arte selecionada • toque para recortar ou escolha uma parte",
                     color = FioTextMuted,
                     fontSize = 12.sp
                 )
@@ -299,36 +295,6 @@ fun SimpleImageToEmbroideryScreen(
                         color = FioTextMuted,
                         fontSize = 12.sp
                     )
-                }
-
-                Text(
-                    "Escolher bastidor",
-                    color = FioText,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    HoopProfile.entries.forEach { option ->
-                        OutlinedButton(onClick = {
-                            hoop = option
-                            prepared?.let { result ->
-                                val allowed = ImageHoopSizing.maximumWidthMm(
-                                    result.image.width, result.image.height, option
-                                )
-                                if (allowed >= 10f) widthMm = widthMm.coerceAtMost(allowed)
-                            }
-                        }) {
-                            Text(
-                                if (hoop == option) "● ${option.displayName}"
-                                else option.displayName,
-                                color = if (hoop == option) FioGold else FioText
-                            )
-                        }
-                    }
                 }
 
                 Button(
@@ -451,9 +417,18 @@ fun SimpleImageToEmbroideryScreen(
                                                     )
                                                 }
                                             )
+                                            // Strict Satin first. A complex logo cannot
+                                            // be silently rejected with a dead button:
+                                            // show a clearly labeled vertical-only
+                                            // VISUAL TRACE in the original simulator.
                                             MultiColorRasterDigitizer.generateSeparated(
                                                 sourceRaster, artwork, satinOpts
-                                            ).getOrThrow()
+                                            ).getOrElse {
+                                                RasterVerticalVisualPreview.create(
+                                                    sourceRaster, artwork,
+                                                    selectedWidthMm, selectedHoop
+                                                ).getOrThrow()
+                                            }
                                         }
                                     }
                                     if (request == revision && prepared === result) {
@@ -490,9 +465,9 @@ fun SimpleImageToEmbroideryScreen(
                 }
 
                 Text(
-                    "Simulação somente visual no motor original. " +
-                        "Se a arte não permitir Satin vertical, o aplicativo avisará. " +
-                        "Exportação PES bloqueada: não envie matrizes QA para a máquina.",
+                    "Prévia no simulador original: formas complexas são ilustradas por " +
+                        "linhas verticais e NÃO representam Satin final. " +
+                        "Exportação PES e envio à máquina bloqueados.",
                     color = Color(0xFFFFBE91),
                     fontSize = 12.sp
                 )
