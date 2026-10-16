@@ -39,10 +39,12 @@ internal object RasterSewnMaskGate {
             part.mask.pixels.size == image.argb.size &&
             widthMm.isFinite() && widthMm in 10f..200f &&
             design.sourceBytes.isEmpty() && design.isModified &&
-            design.format == "QA_TATAMI_REVIEW" &&
+            design.format in setOf(
+                "QA_TATAMI_REVIEW", "QA_RUNNING_REVIEW"
+            ) &&
             design.points.size in 3..90_000
         ) {
-            "Auditoria de máscara exclusiva para Tatami QA sem arquivo PES."
+            "Auditoria aceita apenas Tatami ou ponto corrido QA sem PES."
         }
         val mmPerPixel = widthMm.toDouble() / image.width
         val unitsPerPixel = mmPerPixel * 10.0
@@ -104,7 +106,7 @@ internal object RasterSewnMaskGate {
                         require(inkAt(x,y)) {
                             "Ponto costurado ${index+1} atravessa área vazia " +
                                 "da imagem em ${floor(x).toInt()},${floor(y).toInt()}. " +
-                                "Simulação Tatami recusada."
+                                "Simulação da trajetória recusada."
                         }
                     }
                     position = command

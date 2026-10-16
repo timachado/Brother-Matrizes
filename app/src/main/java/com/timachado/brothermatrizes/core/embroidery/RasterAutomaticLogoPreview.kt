@@ -73,6 +73,13 @@ internal object RasterAutomaticLogoPreview {
             // Large shapes with holes are routed to a separate shape-aware
             // fill planner, never through narrow Satin fallback.
             val shapedFill = minSpan >= 7f && inkFraction >= .64f && !thick
+            // A U-shaped hairline has a large bounding box, even though
+            // it must be sewn as one running path rather than filled/Satin.
+            val curvedRunning = if (!running && inkFraction < .45f) {
+                RasterCurvedRunningPreview.create(
+                    source, part, widthMm, hoop
+                ).getOrNull()
+            } else null
             require(!(minSpan >= 7f && inkFraction >= .45f &&
                 inkFraction < .64f)) {
                 "Elemento ${index + 1}: região larga e descontínua exige " +
@@ -107,6 +114,8 @@ internal object RasterAutomaticLogoPreview {
                             (reason.message ?: "Revisão necessária.")
                     )
                 }
+            } else if (curvedRunning != null) {
+                curvedRunning
             } else {
                 val simple = RasterAutoSatinRails.propose(source, part, widthMm)
                 val candidate = simple.fold(
@@ -150,8 +159,10 @@ internal object RasterAutomaticLogoPreview {
                         (error.message ?: "Revise a matriz.")
                 )
             }
-            val requiredCoverage = if (running) .72 else if (thick || shapedFill) .76 else .78
-            val allowedOutside = if (running) .15 else .10
+            val isRunning = individual.format == "QA_RUNNING_REVIEW"
+            val requiredCoverage = if (isRunning) .72
+                else if (thick || shapedFill) .76 else .78
+            val allowedOutside = if (isRunning) .15 else .10
             require(fidelity.coverage >= requiredCoverage &&
                 fidelity.offInkFraction <= allowedOutside) {
                 "Elemento ${index + 1}: bordado não corresponde ao desenho " +
