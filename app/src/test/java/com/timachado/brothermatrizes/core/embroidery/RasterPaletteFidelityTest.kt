@@ -83,7 +83,7 @@ class RasterPaletteFidelityTest {
         val art=SeparatedColorArtwork(
             colors=listOf(0xFFFFFF),pixels=p,minX=8,maxX=74,minY=8,maxY=42
         )
-        val report=RasterStitchReadiness.inspect(art,w,h,30f)
+        val report=RasterStitchReadiness.inspect(art,w,h,20f)
         assertTrue(report.fineSegments>0)
         assertTrue(report.warnings.isNotEmpty())
         assertTrue(report.shortSegmentFraction>0.4f)
