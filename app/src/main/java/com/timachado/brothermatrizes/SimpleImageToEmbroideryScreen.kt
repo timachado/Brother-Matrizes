@@ -49,6 +49,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
+import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -139,6 +140,7 @@ fun SimpleImageToEmbroideryScreen(
     var showHoops by remember { mutableStateOf(false) }
     var showDisplay by remember { mutableStateOf(false) }
     var showCrop by remember { mutableStateOf(false) }
+    var proposingRails by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -438,6 +440,45 @@ fun SimpleImageToEmbroideryScreen(
                         onChange = { changed ->
                             satinSections = satinSections + (activePart.id to changed)
                             satinTouched = satinTouched + activePart.id
+                        },
+                        autoBusy = proposingRails,
+                        onAuto = {
+                            val picture = prepared?.image
+                            if (picture == null || proposingRails) {
+                                message = "Abra uma imagem antes de sugerir os trilhos."
+                            } else {
+                                val stamp = revision
+                                val partId = activePart.id
+                                val currentWidth = widthMm
+                                proposingRails = true
+                                message = ""
+                                scope.launch {
+                                    val proposal = withContext(Dispatchers.Default) {
+                                        RasterAutoSatinRails.propose(
+                                            picture, activePart, currentWidth
+                                        )
+                                    }
+                                    proposingRails = false
+                                    if (stamp == revision &&
+                                        satinParts.getOrNull(satinPartIndex)?.id == partId
+                                    ) {
+                                        proposal.fold(
+                                            onSuccess = { guide ->
+                                                satinSections = satinSections +
+                                                    (partId to listOf(guide))
+                                                satinTouched = satinTouched - partId
+                                                satinSectionIndex = 0
+                                                message = "Sugestão criada pelo contorno. " +
+                                                    "Confira e ajuste os trilhos antes de simular."
+                                            },
+                                            onFailure = {
+                                                message = it.message ?:
+                                                    "Este objeto exige edição manual de Satin."
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         },
                         onReset = {
                             prepared?.image?.let { image ->
