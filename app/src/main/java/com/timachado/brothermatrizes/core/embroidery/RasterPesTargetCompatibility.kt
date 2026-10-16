@@ -104,9 +104,25 @@ internal object RasterPesTargetCompatibility {
             "Contagem de pontos, saltos ou trocas de cor inconsistente."
         }
         require(design.threadColors.isNotEmpty() &&
-            design.points.all { it.colorIndex in design.threadColors.indices }
+            design.points.all { it.colorIndex in design.threadColors.indices } &&
+            design.points.none {
+                it.command == StitchCommand.SEQUIN ||
+                    it.command == StitchCommand.STOP
+            }
         ) {
-            "Mapeamento de cores incompatível."
+            "Mapeamento de cores ou comando não suportado."
+        }
+        val sewnAndTravel = design.points.filter {
+            it.command == StitchCommand.STITCH ||
+                it.command == StitchCommand.JUMP
+        }
+        require(sewnAndTravel.isNotEmpty() &&
+            design.bounds.minXUnits == sewnAndTravel.minOf { it.xUnits } &&
+            design.bounds.maxXUnits == sewnAndTravel.maxOf { it.xUnits } &&
+            design.bounds.minYUnits == sewnAndTravel.minOf { it.yUnits } &&
+            design.bounds.maxYUnits == sewnAndTravel.maxOf { it.yUnits }
+        ) {
+            "Limites declarados não correspondem às coordenadas dos pontos."
         }
         require(design.bounds.widthMm >= 0f &&
             design.bounds.heightMm >= 0f &&
