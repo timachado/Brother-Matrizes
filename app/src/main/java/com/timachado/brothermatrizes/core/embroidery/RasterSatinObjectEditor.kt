@@ -107,7 +107,7 @@ object RasterSatinObjectEditor {
         val objectWidthMm = fullWidthMm * w / source.width
         require(objectWidthMm >= 1f) { "Parte pequena demais. Aumente a arte." }
         ManualSatinRails.suggest(
-            item.mask, source.width, source.height, 0, objectWidthMm
+            item.mask, source.width, source.height, 0, max(10f, objectWidthMm)
         ).getOrThrow()
     }
 
@@ -212,7 +212,7 @@ object RasterSatinObjectEditor {
             widthMm = objectWidthMm,
             imageAspectRatio = objectWidthMm / objectHeightMm,
             densityMm = .5f, pullCompensationMm = .15f,
-            centerUnderlay = false
+            centerUnderlay = false, qaSmallObjectPreview = true
         ).getOrThrow()
         val cx = (mask.minX + mask.maxX + 1) / 2f
         val cy = (mask.minY + mask.maxY + 1) / 2f
