@@ -197,6 +197,8 @@ internal object RasterTechniqueAdvisor {
             if (inkDensity < .45f) {
                 val curved = RasterCurvedRunningPreview.create(
                     image, part, widthMm, hoop
+                ).getOrNull() ?: RasterBranchedRunningPreview.create(
+                    image, part, widthMm, hoop
                 ).getOrNull()
                 val quality = curved?.let {
                     RasterStitchFidelityAudit.compare(
@@ -207,7 +209,7 @@ internal object RasterTechniqueAdvisor {
                     quality.offInkFraction <= .15) {
                     return@map item(
                         RasterTechnique.RUNNING_QA,
-                        "Trajeto curvo aberto sem bifurcações: pontos corridos " +
+                        "Trajeto fino aberto ou com uma bifurcação: pontos corridos " +
                             "comparados à imagem; não homologado em máquina."
                     )
                 }
