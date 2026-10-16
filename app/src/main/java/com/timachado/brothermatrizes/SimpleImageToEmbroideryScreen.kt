@@ -103,6 +103,25 @@ fun SimpleImageToEmbroideryScreen(
     var displayMode by session.displayModeState
     var showConnections by session.showConnectionsState
     var showDisplaySettings by remember { mutableStateOf(false) }
+    var showHoopPicker by remember { mutableStateOf(false) }
+
+    fun selectHoop(option: HoopProfile) {
+        hoop = option
+        prepared?.let { raster ->
+            val max = ImageHoopSizing.maximumWidthMm(
+                raster.image.width, raster.image.height, hoop
+            )
+            if (max >= 10f) widthMm = widthMm.coerceAtMost(max)
+        }
+    }
+
+    if (showHoopPicker) {
+        ImageHoopPicker(
+            selected = hoop,
+            onChoose = { selectHoop(it); showHoopPicker = false },
+            onDismiss = { showHoopPicker = false }
+        )
+    }
 
     if (showDisplaySettings) {
         // Same DisplaySettingsSheet used by Abrir Matrizes.
@@ -110,15 +129,7 @@ fun SimpleImageToEmbroideryScreen(
             displayMode = displayMode,
             onDisplayModeChange = { displayMode = it },
             hoop = hoop,
-            onHoopChange = {
-                hoop = it
-                prepared?.let { raster ->
-                    val limit = ImageHoopSizing.maximumWidthMm(
-                        raster.image.width, raster.image.height, hoop
-                    )
-                    if (limit >= 10f) widthMm = widthMm.coerceAtMost(limit)
-                }
-            },
+            onHoopChange = { selectHoop(it) },
             showConnections = showConnections,
             onShowConnectionsChange = { showConnections = it },
             onDismiss = { showDisplaySettings = false }
@@ -208,7 +219,7 @@ fun SimpleImageToEmbroideryScreen(
         ) {
             OutlinedButton(
                 modifier = Modifier.weight(1f),
-                onClick = { showDisplaySettings = true }
+                onClick = { showHoopPicker = true }
             ) {
                 Text("Bastidor: ${hoop.displayName} ▾", color = FioGold, fontSize = 12.sp)
             }
