@@ -1,0 +1,49 @@
+name: Preparar GitHub Release comercial 1.10.9 (DRAFT)
+
+on:
+  push:
+    branches:
+      - release/brother-matrizes-1.10.9-comercial-netfontes
+    paths: [.github/workflows/prepare-brother-1109-release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Preparar release rascunho SEM publicar binario ausente
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.10.9 --json isDraft >/dev/null 2>&1; then
+            echo "Release 1.10.9 existente; nao publicar ou substituir arquivos."
+            exit 0
+          fi
+          cat > /tmp/brother-release-notes.txt <<'EOF'
+          # Brother Matrizes 1.10.9 — atualização comercial estável
+
+          Atualização derivada **exclusivamente** da versão comercial oficial 1.10.8.
+
+          - **Fontes:** NetFontes com busca e lupa equivalentes ao DaFont, download e importação de fontes nos formatos existentes.
+          - **Planos:** NetFontes incluído na lista e limites do Gratuito, compartilhando o limite já existente de importação de fontes.
+          - **Atualizações:** manifesto oficial de versão restaurado, consulta sem cache e link de recuperação às releases oficiais.
+          - **Preservação:** motor de bordado, simulador, licenças, pagamentos, projetos e assinatura comercial inalterados.
+
+          App `com.timachado.brothermatrizes`.
+          Versão `1.10.9`, código `185`, permitindo atualizar quem instalou código `184`.
+
+          **Segurança:** liberar este rascunho somente APÓS anexar e verificar o APK
+          assinado com a chave comercial original do Brother Matrizes.
+          Não distribuir APK debug, unsigned ou certificado diferente.
+          EOF
+          gh release create v1.10.9 --draft --target "${GITHUB_SHA}" \
+            --title "Brother Matrizes 1.10.9 — versão comercial oficial" \
+            --notes-file /tmp/brother-release-notes.txt
+          echo "Rascunho criado; nenhum arquivo distribuido."
