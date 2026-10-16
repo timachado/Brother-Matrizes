@@ -52,6 +52,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueAdvisor
+import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueReport
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinTopologyPlanner
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
@@ -83,6 +85,7 @@ class SimpleImageSession {
     // Non-exportable Satin draft belongs to the selected photo/crop.
     // Kept across a trip to SimulatorScreen; never attached to a PES.
     val satinEditorOpenState = mutableStateOf(false)
+    val techniqueReportState = mutableStateOf<RasterTechniqueReport?>(null)
     val satinPartsState = mutableStateOf<List<RasterSatinObject>>(emptyList())
     val satinPartIndexState = mutableIntStateOf(0)
     val satinSectionsState = mutableStateOf<Map<Int, List<ManualSatinSection>>>(emptyMap())
@@ -131,6 +134,7 @@ fun SimpleImageToEmbroideryScreen(
     var displayMode by session.displayModeState
     var showConnections by session.showConnectionsState
     var satinEditorOpen by session.satinEditorOpenState
+    var techniqueReport by session.techniqueReportState
     var satinParts by session.satinPartsState
     var satinPartIndex by session.satinPartIndexState
     var satinSections by session.satinSectionsState
@@ -144,6 +148,7 @@ fun SimpleImageToEmbroideryScreen(
     var showDisplay by remember { mutableStateOf(false) }
     var showCrop by remember { mutableStateOf(false) }
     var proposingRails by remember { mutableStateOf(false) }
+    var analyzingTechniques by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -156,6 +161,7 @@ fun SimpleImageToEmbroideryScreen(
             crop = RasterCropBounds(0f, 0f, 1f, 1f)
             selectedId = 0
             satinEditorOpen = false
+            techniqueReport = null
             satinParts = emptyList()
             satinSections = emptyMap()
             satinTouched = emptySet()
@@ -227,6 +233,7 @@ fun SimpleImageToEmbroideryScreen(
         selectedId = id
         prepared = null
         satinEditorOpen = false
+        techniqueReport = null
         satinParts = emptyList()
         satinSections = emptyMap()
         satinTouched = emptySet()
@@ -273,7 +280,12 @@ fun SimpleImageToEmbroideryScreen(
     if (showHoops) {
         ImageHoopPicker(
             selected = hoop,
-            onChoose = { hoop = it; showHoops = false; message = "" },
+            onChoose = {
+                hoop = it
+                techniqueReport = null
+                showHoops = false
+                message = ""
+            },
             onDismiss = { showHoops = false }
         )
     }
@@ -282,7 +294,7 @@ fun SimpleImageToEmbroideryScreen(
             displayMode = displayMode,
             onDisplayModeChange = { displayMode = it },
             hoop = hoop,
-            onHoopChange = { hoop = it },
+            onHoopChange = { hoop = it; techniqueReport = null },
             showConnections = showConnections,
             onShowConnectionsChange = { showConnections = it },
             onDismiss = { showDisplay = false }
@@ -346,7 +358,7 @@ fun SimpleImageToEmbroideryScreen(
             )
             Slider(
                 value = fill.coerceIn(.2f, 1f),
-                onValueChange = { fill = it },
+                onValueChange = { fill = it; techniqueReport = null },
                 valueRange = .2f..1f
             )
             Text(
@@ -354,6 +366,74 @@ fun SimpleImageToEmbroideryScreen(
                     "o tamanho é recalculado automaticamente.",
                 color = FioTextMuted, fontSize = 11.sp
             )
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !preparing && !simulating && !analyzingTechniques &&
+                    prepared != null && fitted,
+                onClick = {
+                    val image = prepared?.image ?: return@OutlinedButton
+                    val currentWidth = widthMm
+                    val chosenHoop = hoop
+                    val request = revision
+                    analyzingTechniques = true
+                    techniqueReport = null
+                    scope.launch {
+                        val assessment = withContext(Dispatchers.Default) {
+                            RasterTechniqueAdvisor.assess(
+                                image, currentWidth, chosenHoop
+                            )
+                        }
+                        analyzingTechniques = false
+                        if (request == revision && chosenHoop == hoop &&
+                            currentWidth == widthMm) {
+                            assessment.fold(
+                                onSuccess = { techniqueReport = it },
+                                onFailure = {
+                                    message = it.message ?:
+                                        "Não foi possível analisar as técnicas."
+                                }
+                            )
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    if (analyzingTechniques) "Analisando tipos de ponto..."
+                    else "Analisar técnicas de bordado",
+                    color = FioGold
+                )
+            }
+            techniqueReport?.let { report ->
+                Text(
+                    report.brief(),
+                    color = if (report.needsDigitizing) FioGold else FioText,
+                    fontSize = 12.sp
+                )
+                report.candidates.take(12).forEach { candidate ->
+                    val category = when (candidate.technique) {
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.SATIN_QA ->
+                            "Satin (QA)"
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.FILL_NEEDS_DIGITIZING ->
+                            "Preenchimento pendente"
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.RUNNING_NEEDS_DIGITIZING ->
+                            "Contorno pendente"
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.MANUAL_REVIEW ->
+                            "Revisão manual"
+                    }
+                    Text(
+                        "Parte ${candidate.partId}: $category — " +
+                            candidate.explanation,
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+                if (report.candidates.size > 12) {
+                    Text(
+                        "Mostradas 12 de ${report.candidates.size} partes.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                }
+            }
             if (candidates.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
