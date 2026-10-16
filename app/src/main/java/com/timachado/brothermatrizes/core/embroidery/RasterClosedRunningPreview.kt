@@ -61,7 +61,7 @@ internal object RasterClosedRunningPreview {
             if(x>0 && p-1 in ink)add(p-1)
             if(x<image.width-1 && p+1 in ink)add(p+1)
             if(y>0 && p-image.width in ink)add(p-image.width)
-            if(y<image.height-1 && p+image.width)add(p+image.width)
+            if(y<image.height-1 && p+image.width in ink)add(p+image.width)
         }
         require(ink.all { neighbors(it).size==2 }) {
             "Contorno possui ponta solta, bifurcação, traço grosso ou cruzamento."
