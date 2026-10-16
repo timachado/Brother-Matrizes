@@ -1,0 +1,43 @@
+name: Validar notas da release oficial 1.10.9
+on:
+  push:
+    branches: [release/brother-matrizes-1.10.9-comercial-netfontes]
+    paths: [.github/workflows/release-1109-metadata.yml]
+permissions:
+  contents: write
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Registrar identidade do APK na release draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release view v1.10.9 --json isDraft --jq .isDraft | grep -qx true
+          cat >/tmp/notes.md <<'EOF'
+          # Brother Matrizes 1.10.9 — versão comercial estável
+
+          Atualização baseada exclusivamente na versão oficial **1.10.8**.
+
+          - Pesquisa de fontes no **NetFontes** com lupa, ao lado do DaFont
+          - Informação do NetFontes no **plano gratuito**, preservando as cotas oficiais de importação de fontes
+          - Correção da consulta de **atualizações**, com manifesto oficial e mensagens de recuperação
+          - Motor de bordado, simulação, Google, licenças, planos, pagamentos e projetos preservados
+
+          **Android:** `com.timachado.brothermatrizes`
+          **Versão:** `1.10.9` (`versionCode 185`)
+          **Certificado comercial SHA-256:** `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`
+
+          **Arquivo único autorizado para publicação:**
+          `Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk`
+          **SHA-256 do APK:** `3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5`
+          **Tamanho:** 14.330.245 bytes.
+
+          Não publicar antes de anexar e verificar esse APK com assinatura original.
+          Nunca usar APK debug ou unsigned. Instalar sobre a versão comercial anterior sem desinstalar.
+          EOF
+          gh release edit v1.10.9 --notes-file /tmp/notes.md
+          echo 'Notas e checksum registrados; release permanece em rascunho.'
