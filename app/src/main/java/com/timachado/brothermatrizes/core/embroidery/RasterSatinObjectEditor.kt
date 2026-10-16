@@ -11,7 +11,8 @@ data class RasterSatinObject(
     val id: Int,
     val color: Int,
     val pixelCount: Int,
-    val mask: SeparatedColorArtwork
+    val mask: SeparatedColorArtwork,
+    val vectorContours: List<RasterVectorContour> = emptyList()
 )
 
 /**
@@ -80,14 +81,20 @@ object RasterSatinObjectEditor {
             val pixels = IntArray(labels.size) { index ->
                 if (labels[index] == component) 0 else -1
             }
+            val componentMask = SeparatedColorArtwork(
+                colors = listOf(separated.colors[colorIndex]), pixels = pixels,
+                minX = minX, maxX = maxX, minY = minY, maxY = maxY
+            )
             result += RasterSatinObject(
                 id = component + 1,
                 color = separated.colors[colorIndex],
                 pixelCount = tail,
-                mask = SeparatedColorArtwork(
-                    colors = listOf(separated.colors[colorIndex]), pixels = pixels,
-                    minX = minX, maxX = maxX, minY = minY, maxY = maxY
-                )
+                mask = componentMask,
+                // A diagonal junction might be ambiguous. Manual editing
+                // still works even when vectorization refuses it.
+                vectorContours = RasterVectorContours.trace(
+                    componentMask, source.width
+                ).getOrDefault(emptyList())
             )
         }
         require(result.isNotEmpty()) { "Nenhum elemento encontrado na imagem." }
@@ -145,8 +152,8 @@ object RasterSatinObjectEditor {
             return mask.pixels[(mask.minY + iy) * source.width + mask.minX + ix] == 0
         }
         fun at(u: Float, v: Float) =
-            ((u * (w - 1)).coerceIn(0f, (w - 1).toFloat())) to
-                ((v * (h - 1)).coerceIn(0f, (h - 1).toFloat()))
+            ((u * w - .5f).coerceIn(0f, (w - 1).toFloat())) to
+                ((v * h - .5f).coerceIn(0f, (h - 1).toFloat()))
         fun cross(a: SatinRailPair, b: SatinRailPair, t: Float) {
             val ax = a.ax + (b.ax - a.ax) * t
             val ay = a.ay + (b.ay - a.ay) * t
