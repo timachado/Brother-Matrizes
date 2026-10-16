@@ -85,7 +85,7 @@ class SimpleImageSession {
     // Non-exportable Satin draft belongs to the selected photo/crop.
     // Kept across a trip to SimulatorScreen; never attached to a PES.
     val satinEditorOpenState = mutableStateOf(false)
-    val techniqueReportState = mutableStateOf<RasterTechniqueReport?>(null)
+    internal val techniqueReportState = mutableStateOf<RasterTechniqueReport?>(null)
     val satinPartsState = mutableStateOf<List<RasterSatinObject>>(emptyList())
     val satinPartIndexState = mutableIntStateOf(0)
     val satinSectionsState = mutableStateOf<Map<Int, List<ManualSatinSection>>>(emptyMap())
