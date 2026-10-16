@@ -217,24 +217,59 @@ object RasterSatinTopologyPlanner {
         }
         for ((path, closed) in paths) {
             if (closed) {
-                // A loop around a counter may be divided at four arc-length
-                // intervals, avoiding a cross-hole "shortcut".
                 require(path.size >= 32) {
                     "Furo pequeno exige definição manual dos cantos."
                 }
-                val step = path.size / 4
-                require(step >= 8)
-                for (quarter in 0..3) {
-                    val a = quarter * step
-                    val b = if (quarter == 3) path.lastIndex else (quarter+1)*step
-                    build(path.subList(a,b+1))
+                // Find sharp turns in the medial-axis LOOP and leave a small
+                // unsewn gap around each corner, rather than interpolating
+                // chords through the counter of an O/B-like letter.
+                val n = path.size
+                val unsafe = BooleanArray(n)
+                val radius = 4
+                for (i in 0 until n) {
+                    val prev = path[(i - radius + n) % n]
+                    val cur = path[i]
+                    val next = path[(i + radius) % n]
+                    val ax = (cur % w - prev % w).toDouble()
+                    val ay = (cur / w - prev / w).toDouble()
+                    val bx = (next % w - cur % w).toDouble()
+                    val by = (next / w - cur / w).toDouble()
+                    val normA = hypot(ax,ay)
+                    val normB = hypot(bx,by)
+                    val cosine = if (normA > .01 && normB > .01) {
+                        (ax*bx + ay*by) / (normA*normB)
+                    } else 1.0
+                    if (cosine < .86) {
+                        for (j in -4..4) unsafe[(i+j+n)%n] = true
+                    }
+                }
+                if (unsafe.any { it }) {
+                    val firstUnsafe = unsafe.indexOfFirst { it }
+                    var segment = ArrayList<Int>()
+                    for (counter in 1..n) {
+                        val index = (firstUnsafe + counter) % n
+                        if (unsafe[index]) {
+                            if (segment.size >= 8) build(segment)
+                            segment = ArrayList()
+                        } else segment += path[index]
+                    }
+                    if (segment.size >= 8) build(segment)
+                } else {
+                    // Smooth loops without abrupt corners are split into
+                    // four reviewable arcs without connecting across holes.
+                    val step = n / 4
+                    for (quarter in 0..3) {
+                        val a = quarter * step
+                        val b = if (quarter == 3) path.lastIndex else (quarter+1)*step
+                        build(path.subList(a,b+1))
+                    }
                 }
             } else {
-                // Cut skeleton tails adjacent to a branch cluster. Otherwise
-                // the rail normal may include the T intersection's entire
-                // perpendicular arm as if it were one wide Satin column.
-                val trimStart = if (neighbors(path.first()).any { junction[it] }) 4 else 0
-                val trimEnd = if (neighbors(path.last()).any { junction[it] }) 4 else 0
+                // At a T intersection, the cross-section of the perpendicular
+                // stem is NOT the width of the arm. Leave the junction for
+                // manual reconstruction instead of an oversized fake Satin.
+                val trimStart = if (neighbors(path.first()).any { junction[it] }) 8 else 0
+                val trimEnd = if (neighbors(path.last()).any { junction[it] }) 8 else 0
                 if (path.size > trimStart + trimEnd + 7) {
                     build(path.drop(trimStart).dropLast(trimEnd))
                 }
