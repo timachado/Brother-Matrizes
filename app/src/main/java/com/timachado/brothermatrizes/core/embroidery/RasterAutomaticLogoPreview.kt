@@ -65,15 +65,25 @@ internal object RasterAutomaticLogoPreview {
             val thick = minSpan >= 7f && part.pixelCount == widthPx * heightPx
             val inkFraction = part.pixelCount.toFloat() /
                 (widthPx * heightPx).coerceAtLeast(1)
-            // Large mostly-solid forms containing holes are NOT letters
-            // eligible for an indiscriminate Satin fallback. Without an
-            // explicit segmented fill plan, refuse the whole-logo preview.
-            require(!(minSpan >= 7f && inkFraction >= .64f && !thick)) {
-                "Elemento ${index + 1}: bloco largo com vazios ou contornos " +
-                    "irregulares. Exige preenchimento segmentado e revisão; " +
-                    "nenhum ponto atravessará a contraforma automaticamente."
+            // Large shapes with holes are routed to a separate shape-aware
+            // fill planner, never through narrow Satin fallback.
+            val shapedFill = minSpan >= 7f && inkFraction >= .64f && !thick
+            require(!(minSpan >= 7f && inkFraction >= .45f &&
+                inkFraction < .64f)) {
+                "Elemento ${index + 1}: região larga e descontínua exige " +
+                    "revisão das ilhas e da ordem de preenchimento."
             }
-            val individual = if (thick) {
+            val individual = if (shapedFill) {
+                RasterTatamiShapePreview.create(
+                    source, part, widthMm, hoop
+                ).getOrElse { reason ->
+                    throw IllegalArgumentException(
+                        "Elemento ${index + 1}: Tatami com contornos/contraformas " +
+                            "não aprovado. " +
+                            (reason.message ?: "Revisão necessária.")
+                    )
+                }
+            } else if (thick) {
                 RasterTatamiRectanglePreview.create(
                     source, part, widthMm, hoop
                 ).getOrElse { reason ->
@@ -135,7 +145,7 @@ internal object RasterAutomaticLogoPreview {
                         (error.message ?: "Revise a matriz.")
                 )
             }
-            val requiredCoverage = if (running) .72 else if (thick) .76 else .78
+            val requiredCoverage = if (running) .72 else if (thick || shapedFill) .76 else .78
             val allowedOutside = if (running) .15 else .10
             require(fidelity.coverage >= requiredCoverage &&
                 fidelity.offInkFraction <= allowedOutside) {

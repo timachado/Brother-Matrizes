@@ -88,10 +88,10 @@ class RasterAutomaticLogoPreviewTest {
         val art = image { x,y ->
             when {
                 x in 15..95 && y in 23..31 -> navy
-                // Irregular wide block with a counter is not safely
-                // supported by constrained QA Tatami or Satin.
+                // A narrow neck in a wide shape is still unsupported.
+                // A hole by itself may be allowed when Tatami can be cut.
                 x in 111..145 && y in 43..77 &&
-                    !(x in 120..134 && y in 52..67) -> navy
+                    (y !in 60..65 || x in 126..127) -> navy
                 else -> 0xffffffff.toInt()
             }
         }
