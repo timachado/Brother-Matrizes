@@ -142,6 +142,9 @@ internal object RasterTatamiRectanglePreview {
         // Physical needle audit is a software screen only. A passed draft
         // remains non-exportable until machine-specific fabric QA.
         RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
+        // Validate the INTEGER commands after 0.1 mm quantization: no
+        // stitched line may pass through an original counter or empty pixel.
+        RasterSewnMaskGate.inspect(image, part, draft, fullWidthMm).getOrThrow()
         draft
     }
 }
