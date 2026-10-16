@@ -25,7 +25,7 @@ class RasterSatinTopologyPlannerTest {
         val part = only(source)
         val vector = RasterVectorContours.trace(part.mask, source.width).getOrThrow()
         assertEquals(1, vector.count { it.isHole })
-        val proposed = RasterSatinTopologyPlanner.propose(source, part, 84f)
+        val proposed = RasterSatinTopologyPlanner.propose(source, part, 70f)
         assertTrue("Closed ring should split into multiple rails: " +
             proposed.exceptionOrNull(), proposed.isSuccess)
         val sections = proposed.getOrThrow()
@@ -33,7 +33,7 @@ class RasterSatinTopologyPlannerTest {
         assertTrue(sections.all { !it.connectToPrevious })
         // Stitch geometry must never be submitted without image validation.
         val sim = RasterSatinObjectEditor.preview(
-            source,part,sections,84f,HoopProfile.H130X180
+            source,part,sections,70f,HoopProfile.H130X180
         )
         assertTrue("Ring preview has missing area or crosses holes: " +
             sim.exceptionOrNull(), sim.isSuccess)
@@ -47,14 +47,14 @@ class RasterSatinTopologyPlannerTest {
                 (x in 65..75 && y in 26..87)
         }
         val part = only(source)
-        val proposed = RasterSatinTopologyPlanner.propose(source,part,84f)
+        val proposed = RasterSatinTopologyPlanner.propose(source,part,70f)
         assertTrue("T junction must be planned: " + proposed.exceptionOrNull(),
             proposed.isSuccess)
         val rails = proposed.getOrThrow()
         assertTrue(rails.size >= 3)
         assertTrue(rails.all { !it.connectToPrevious })
         val sim = RasterSatinObjectEditor.preview(
-            source,part,rails,84f,HoopProfile.H130X180
+            source,part,rails,70f,HoopProfile.H130X180
         )
         assertTrue("T coverage must pass: " + sim.exceptionOrNull(),sim.isSuccess)
     }
