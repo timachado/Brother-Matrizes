@@ -69,7 +69,8 @@ internal object RasterAutomaticLogoPreview {
                 )
             }
             val individual = RasterSatinObjectEditor.preview(
-                source, part, sections, widthMm, hoop
+                source, part, sections, widthMm, hoop,
+                minimumCoverage = .90f
             ).getOrElse { reason ->
                 throw IllegalArgumentException(
                     "Elemento ${index + 1} de ${parts.size}: " +
