@@ -22,7 +22,7 @@ class RasterVariableWidthSatinSectionsTest {
                 uniform -> 4
                 sharp && y<52 -> 2
                 sharp -> 5
-                else -> 2+(y-14)*3/76
+                else -> 2+(y-14)*5/76
             }
             if(y in 14..90 && x in (80-radius)..(80+radius) &&
                 !(gap && y in 51..55 && x in 78..82)
