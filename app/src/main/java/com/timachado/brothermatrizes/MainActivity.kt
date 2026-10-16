@@ -9,6 +9,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.timachado.brothermatrizes.core.embroidery.RasterEmbroideryApproval
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -2436,19 +2440,31 @@ private fun BrotherMatrizesApp(
                 }
 
                 is Screen.Simulator -> {
-                    SimulatorScreen(
-                        design =
-                            current.design,
-                        displayMode =
-                            current.displayMode,
-                        referenceHoop =
-                            current.referenceHoop,
-                        showConnections =
-                            current.showConnections,
-                        onBack = {
-                            goBack()
+                    Box(Modifier.fillMaxSize()) {
+                        // Reuse the original simulator without editing its
+                        // drawing, stitch timing or machine semantics.
+                        SimulatorScreen(
+                            design = current.design,
+                            displayMode = current.displayMode,
+                            referenceHoop = current.referenceHoop,
+                            showConnections = current.showConnections,
+                            onBack = { goBack() }
+                        )
+                        if (current.qaRasterPreviewOnly) {
+                            Text(
+                                text = RasterEmbroideryApproval.WARNING,
+                                color = Color(0xFF151515),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 104.dp, start = 18.dp, end = 18.dp)
+                                    .background(
+                                        Color(0xFFFFB982),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .padding(9.dp)
+                            )
                         }
-                    )
+                    }
                 }
 
                 is Screen.Converter -> {
