@@ -68,7 +68,7 @@ class SimpleImageSession {
     val photoState = mutableStateOf<RasterImagePixels?>(null)
     val candidatesState = mutableStateOf<List<RasterArtworkCandidate>>(emptyList())
     val selectedIdState = mutableIntStateOf(0)
-    val cropState = mutableStateOf(RasterCropBounds())
+    val cropState = mutableStateOf(RasterCropBounds(0f, 0f, 1f, 1f))
     val preparedState = mutableStateOf<PreparedRasterPhoto?>(null)
     val revisionState = mutableIntStateOf(0)
     val hoopState = mutableStateOf(HoopProfile.H100X100)
@@ -134,7 +134,7 @@ fun SimpleImageToEmbroideryScreen(
             photo = null
             candidates = emptyList()
             prepared = null
-            crop = RasterCropBounds()
+            crop = RasterCropBounds(0f, 0f, 1f, 1f)
             selectedId = 0
             showCrop = false
             choosing = true
@@ -153,7 +153,7 @@ fun SimpleImageToEmbroideryScreen(
                 if (revision == request) {
                     photo = image
                     candidates = matches
-                    crop = detectedBounds ?: RasterCropBounds()
+                    crop = detectedBounds ?: RasterCropBounds(0f, 0f, 1f, 1f)
                     choosing = false
                     message = loaded.exceptionOrNull()?.message.orEmpty()
                 }
@@ -295,7 +295,7 @@ fun SimpleImageToEmbroideryScreen(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedButton(onClick = { choose(RasterCropBounds(), 0) }) {
+                    OutlinedButton(onClick = { choose(RasterCropBounds(0f, 0f, 1f, 1f), 0) }) {
                         Text(if (selectedId == 0) "● Logo inteiro" else "Logo inteiro",
                             color = FioGold)
                     }
