@@ -198,7 +198,7 @@ internal object RasterAutomaticLogoPreview {
         require(!RasterEmbroideryApproval.canExportFromImageTool()) {
             "O modo experimental não pode exportar matrizes PES."
         }
-        EmbroideryDesign(
+        val assembled = EmbroideryDesign(
             fileName = "LOGO-AUTO-REVISAO.qa",
             format = "QA_AUTO_STITCH",
             label = "Prévia automática de ${parts.size} elementos validados — NÃO enviar à máquina",
@@ -213,5 +213,7 @@ internal object RasterAutomaticLogoPreview {
             isModified = true,
             hoopProfile = hoop
         )
+        RasterNeedleRiskAudit.inspect(assembled, hoop).getOrThrow()
+        assembled
     }
 }

@@ -51,6 +51,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterAutomaticLogoPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
+import com.timachado.brothermatrizes.core.embroidery.RasterNeedleRiskAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueAdvisor
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueReport
@@ -665,6 +666,14 @@ fun SimpleImageToEmbroideryScreen(
                                         selected, selectedWidth, selectedHoop
                                     )
                                 }
+                            }.mapCatching { preview ->
+                                // Both edited and automatic images pass the
+                                // needle-pitch/hotspot gate before the existing
+                                // SimulatorScreen receives their commands.
+                                RasterNeedleRiskAudit.inspect(
+                                    preview, selectedHoop
+                                ).getOrThrow()
+                                preview
                             }
                         if (revision == currentRevision) {
                             simulating = false
