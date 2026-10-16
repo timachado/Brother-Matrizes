@@ -190,6 +190,28 @@ internal object RasterTechniqueAdvisor {
                         "contraforma complexa, densidade ou geometria irregular."
                 )
             }
+            // Do not treat a thin U-shaped open stroke as a large Satin
+            // letter just because its overall bounding box is tall/wide.
+            // A single unbranched 4-connected path can safely be PREVIEWED
+            // as running stitch, with needle coordinates checked on ink.
+            if (inkDensity < .45f) {
+                val curved = RasterCurvedRunningPreview.create(
+                    image, part, widthMm, hoop
+                ).getOrNull()
+                val quality = curved?.let {
+                    RasterStitchFidelityAudit.compare(
+                        image, part, it, widthMm
+                    ).getOrNull()
+                }
+                if (quality != null && quality.coverage >= .72 &&
+                    quality.offInkFraction <= .15) {
+                    return@map item(
+                        RasterTechnique.RUNNING_QA,
+                        "Trajeto curvo aberto sem bifurcações: pontos corridos " +
+                            "comparados à imagem; não homologado em máquina."
+                    )
+                }
+            }
             // Geometry may still be a ring, branch, curved letter. The
             // topology planner only supports conservative eligible cases.
             val proposed = RasterAutoSatinRails.propose(image, part, widthMm)
