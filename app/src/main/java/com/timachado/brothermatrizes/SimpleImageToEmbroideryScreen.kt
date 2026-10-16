@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterDigitizer
 import com.timachado.brothermatrizes.core.embroidery.MultiColorRasterOptions
 import com.timachado.brothermatrizes.core.embroidery.ColorLayerEdit
@@ -72,13 +74,17 @@ class SimpleImageSession {
     val cropState = mutableStateOf(RasterCropBounds(0f, 0f, 1f, 1f))
     val preparedState = mutableStateOf<PreparedRasterPhoto?>(null)
     val revisionState = mutableIntStateOf(0)
+    val hoopState = mutableStateOf(HoopProfile.H100X100)
+    val widthMmState = mutableStateOf(60f)
+    val displayModeState = mutableStateOf(EmbroideryDisplayMode.REALISTIC)
+    val showConnectionsState = mutableStateOf(false)
     var pickerLaunched = false
 }
 
 @Composable
 fun SimpleImageToEmbroideryScreen(
     onBack: () -> Unit,
-    onSimulate: (EmbroideryDesign) -> Unit,
+    onSimulate: (EmbroideryDesign, HoopProfile, EmbroideryDisplayMode, Boolean) -> Unit,
     session: SimpleImageSession
 ) {
     val context = LocalContext.current
@@ -91,6 +97,32 @@ fun SimpleImageToEmbroideryScreen(
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var revision by session.revisionState
+    var hoop by session.hoopState
+    var widthMm by session.widthMmState
+    var displayMode by session.displayModeState
+    var showConnections by session.showConnectionsState
+    var showDisplaySettings by remember { mutableStateOf(false) }
+
+    if (showDisplaySettings) {
+        // Same DisplaySettingsSheet used by Abrir Matrizes.
+        DisplaySettingsSheet(
+            displayMode = displayMode,
+            onDisplayModeChange = { displayMode = it },
+            hoop = hoop,
+            onHoopChange = {
+                hoop = it
+                prepared?.let { raster ->
+                    val limit = ImageHoopSizing.maximumWidthMm(
+                        raster.image.width, raster.image.height, hoop
+                    )
+                    if (limit >= 10f) widthMm = widthMm.coerceAtMost(limit)
+                }
+            },
+            showConnections = showConnections,
+            onShowConnectionsChange = { showConnections = it },
+            onDismiss = { showDisplaySettings = false }
+        )
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -169,7 +201,22 @@ fun SimpleImageToEmbroideryScreen(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                "Bastidor: ${hoop.displayName}",
+                color = FioText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 11.dp)
+            )
+            TextButton(onClick = { showDisplaySettings = true }) {
+                Text("Exibição", color = FioGold, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
 
         val source = photo
         if (source != null) {
@@ -254,6 +301,36 @@ fun SimpleImageToEmbroideryScreen(
                     )
                 }
 
+                Text(
+                    "Escolher bastidor",
+                    color = FioText,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HoopProfile.entries.forEach { option ->
+                        OutlinedButton(onClick = {
+                            hoop = option
+                            prepared?.let { result ->
+                                val allowed = ImageHoopSizing.maximumWidthMm(
+                                    result.image.width, result.image.height, option
+                                )
+                                if (allowed >= 10f) widthMm = widthMm.coerceAtMost(allowed)
+                            }
+                        }) {
+                            Text(
+                                if (hoop == option) "● ${option.displayName}"
+                                else option.displayName,
+                                color = if (hoop == option) FioGold else FioText
+                            )
+                        }
+                    }
+                }
+
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !busy,
@@ -296,6 +373,16 @@ fun SimpleImageToEmbroideryScreen(
                 }
 
                 prepared?.let { result ->
+                    val image = result.image
+                    val maximum = ImageHoopSizing.maximumWidthMm(
+                        image.width, image.height, hoop
+                    )
+                    val fits = ImageHoopSizing.fits(
+                        image.width, image.height, widthMm, hoop
+                    )
+                    val estimatedHeight = ImageHoopSizing.heightMm(
+                        image.width, image.height, widthMm
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -309,12 +396,36 @@ fun SimpleImageToEmbroideryScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         RasterPreparedImagePreview(result.image)
+                        Text(
+                            "Tamanho da arte: ${widthMm.toInt()} × ${estimatedHeight.toInt()} mm",
+                            color = FioText,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (maximum >= 10f) {
+                            Slider(
+                                value = widthMm.coerceIn(10f, maximum),
+                                onValueChange = { widthMm = it },
+                                valueRange = 10f..maximum
+                            )
+                        }
+                        Text(
+                            if (fits)
+                                "Dentro da área útil do bastidor ${hoop.displayName}."
+                            else
+                                "A arte ultrapassa a área útil do bastidor; reduza o tamanho ou selecione outro.",
+                            color = if (fits) FioTextMuted else Color(0xFFFFBE91),
+                            fontSize = 12.sp
+                        )
                         Button(
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy,
+                            enabled = !busy && fits && maximum >= 10f,
                             colors = ButtonDefaults.buttonColors(containerColor = FioGold),
                             onClick = {
                                 val sourceRaster = result.image
+                                val selectedHoop = hoop
+                                val selectedWidthMm = widthMm
+                                val selectedDisplayMode = displayMode
+                                val selectedConnections = showConnections
                                 revision++
                                 val request = revision
                                 busy = true
@@ -323,8 +434,9 @@ fun SimpleImageToEmbroideryScreen(
                                     val generated = withContext(Dispatchers.Default) {
                                         runCatching {
                                             val opts = MultiColorRasterOptions(
-                                                widthMm = 60f,
+                                                widthMm = selectedWidthMm,
                                                 maxColors = 2,
+                                                hoopProfile = selectedHoop,
                                                 verticalSatinPreviewOnly = true
                                             )
                                             val artwork = MultiColorRasterDigitizer
@@ -347,7 +459,9 @@ fun SimpleImageToEmbroideryScreen(
                                     if (request == revision && prepared === result) {
                                         busy = false
                                         generated.fold(
-                                            onSuccess = { onSimulate(it) },
+                                            onSuccess = {
+                                                onSimulate(it, selectedHoop, selectedDisplayMode, selectedConnections)
+                                            },
                                             onFailure = {
                                                 message = "Satin vertical não disponível para esta forma. " +
                                                     (it.message ?: "Selecione uma parte mais simples.")
