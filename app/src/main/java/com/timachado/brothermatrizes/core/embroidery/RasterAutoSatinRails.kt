@@ -25,8 +25,16 @@ object RasterAutoSatinRails {
     fun propose(
         image: RasterImagePixels,
         part: RasterSatinObject,
-        fullWidthMm: Float
+        fullWidthMm: Float,
+        /**
+         * Default behaviour is unchanged. Values above 2.35 are ONLY
+         * permitted for the isolated QA multi-section planner.
+         */
+        maxWidthRatio: Double = 2.35
     ): Result<ManualSatinSection> = runCatching {
+        require(maxWidthRatio in 2.35..3.5) {
+            "Variação de largura Satin fora do modo QA."
+        }
         require(image.width in 8..512 && image.height in 8..512 &&
             part.mask.pixels.size == image.argb.size &&
             fullWidthMm.isFinite() && fullWidthMm in 10f..200f) {
@@ -149,7 +157,7 @@ object RasterAutoSatinRails {
         }
         val narrow = widths.minOrNull() ?: 0.0
         val wide = widths.maxOrNull() ?: 0.0
-        require(narrow > .0 && wide / narrow <= 2.35) {
+        require(narrow > .0 && wide / narrow <= maxWidthRatio) {
             "Espessura muda demais: esta forma exige seções Satin separadas."
         }
         for (i in 1 until rails.size) {
