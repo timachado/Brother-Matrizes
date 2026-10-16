@@ -123,6 +123,10 @@ object ManualSatinRails {
             val a = points[max(0, i - 1)]
             val b = points[i]
             val c = points[i + 1]
+            // Do not allow Catmull-Rom corner overshoot to cross a letter's
+            // transparent counter in experimental image-to-Satin previews.
+            // Commercial/font pipelines retain their original spline curves.
+            if (qaSmallObjectPreview) return b + (c - b) * f
             val d = points[minOf(points.lastIndex, i + 2)]
             // Catmull-Rom de tensão 0,5; endpoints preservados.
             return (b * 2.0 + (c - a) * f +
