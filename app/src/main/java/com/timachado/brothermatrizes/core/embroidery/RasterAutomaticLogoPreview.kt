@@ -63,6 +63,16 @@ internal object RasterAutomaticLogoPreview {
             val widthPx = part.mask.maxX - part.mask.minX + 1
             val heightPx = part.mask.maxY - part.mask.minY + 1
             val thick = minSpan >= 7f && part.pixelCount == widthPx * heightPx
+            val inkFraction = part.pixelCount.toFloat() /
+                (widthPx * heightPx).coerceAtLeast(1)
+            // Large mostly-solid forms containing holes are NOT letters
+            // eligible for an indiscriminate Satin fallback. Without an
+            // explicit segmented fill plan, refuse the whole-logo preview.
+            require(!(minSpan >= 7f && inkFraction >= .64f && !thick)) {
+                "Elemento ${index + 1}: bloco largo com vazios ou contornos " +
+                    "irregulares. Exige preenchimento segmentado e revisão; " +
+                    "nenhum ponto atravessará a contraforma automaticamente."
+            }
             val individual = if (thick) {
                 RasterTatamiRectanglePreview.create(
                     source, part, widthMm, hoop
