@@ -417,6 +417,8 @@ fun SimpleImageToEmbroideryScreen(
                             "Satin (QA)"
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.RUNNING_QA ->
                             "Ponto corrido (QA)"
+                        com.timachado.brothermatrizes.core.embroidery.RasterTechnique.TATAMI_RECT_QA ->
+                            "Tatami retangular (QA)"
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.FILL_NEEDS_DIGITIZING ->
                             "Preenchimento pendente"
                         com.timachado.brothermatrizes.core.embroidery.RasterTechnique.RUNNING_NEEDS_DIGITIZING ->
