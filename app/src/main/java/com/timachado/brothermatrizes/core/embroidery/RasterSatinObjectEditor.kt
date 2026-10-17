@@ -124,7 +124,9 @@ object RasterSatinObjectEditor {
         sections: List<ManualSatinSection>,
         fullWidthMm: Float,
         hoop: HoopProfile,
-        minimumCoverage: Float = .68f
+        minimumCoverage: Float = .68f,
+        /** Opt-in underlay ONLY for a validated QA material-review preview. */
+        qaCenterUnderlay: Boolean = false
     ): Result<EmbroideryDesign> = runCatching {
         require(source.width in 8..512 && source.height in 8..512 &&
             item.mask.pixels.size == source.argb.size &&
@@ -222,7 +224,7 @@ object RasterSatinObjectEditor {
             widthMm = objectWidthMm,
             imageAspectRatio = objectWidthMm / objectHeightMm,
             densityMm = .5f, pullCompensationMm = .15f,
-            centerUnderlay = false, qaSmallObjectPreview = true
+            centerUnderlay = qaCenterUnderlay, qaSmallObjectPreview = true
         ).getOrThrow()
         val cx = (mask.minX + mask.maxX + 1) / 2f
         val cy = (mask.minY + mask.maxY + 1) / 2f
