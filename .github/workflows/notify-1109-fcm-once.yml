@@ -69,13 +69,57 @@ jobs:
           import os, json, base64, requests
           from google.oauth2 import service_account
           from google.auth.transport.requests import Request
-          raw=os.getenv("FCM_PRODUCTION") or os.getenv("FCM_SA") or os.getenv("FCM_SA_ALT") or os.getenv("FCM_BROTHER")
-          if not raw:
-              raw=base64.b64decode(os.environ["FCM_SA_B64"]).decode()
-          info=json.loads(raw)
+          candidates = [
+              ("BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON", os.getenv("FCM_PRODUCTION")),
+              ("FIREBASE_SERVICE_ACCOUNT_JSON", os.getenv("FCM_SA")),
+              ("FCM_SERVICE_ACCOUNT_JSON", os.getenv("FCM_SA_ALT")),
+              ("BROTHER_MATRIZES_FIREBASE_SERVICE_ACCOUNT_JSON", os.getenv("FCM_BROTHER")),
+              ("FIREBASE_SERVICE_ACCOUNT_JSON_BASE64", os.getenv("FCM_SA_B64")),
+          ]
+          def parse_secret(raw):
+              raw = raw.strip().lstrip("\\ufeff")
+              for candidate in (raw,):
+                  try:
+                      obj = json.loads(candidate)
+                      if isinstance(obj, str):
+                          obj = json.loads(obj)
+                      if isinstance(obj, dict):
+                          return obj
+                  except (ValueError, TypeError):
+                      pass
+              try:
+                  decoded = base64.b64decode("".join(raw.split()), validate=True).decode("utf-8-sig")
+                  obj = json.loads(decoded)
+                  if isinstance(obj, dict):
+                      return obj
+              except (ValueError, UnicodeDecodeError, TypeError):
+                  pass
+              return None
+          info = None
+          failures = []
           project="brother-matrizes---ti-machado"
-          if info.get("project_id")!=project:
-              raise SystemExit("Projeto Firebase divergente; push bloqueado.")
+          for label, raw in candidates:
+              if not raw:
+                  continue
+              candidate = parse_secret(raw)
+              if candidate is None:
+                  failures.append(label + ": conteúdo não é JSON de conta de serviço nem Base64 válido")
+                  continue
+              if candidate.get("type") != "service_account" or not all(
+                  candidate.get(field) for field in ("project_id", "private_key", "client_email", "token_uri")
+              ):
+                  failures.append(label + ": JSON não corresponde à conta de serviço Firebase Admin completa")
+                  continue
+              if candidate.get("project_id") != project:
+                  failures.append(label + ": projeto Firebase diferente de Brother Matrizes")
+                  continue
+              info = candidate
+              print("Credencial Firebase Admin válida encontrada em", label)
+              break
+          if info is None:
+              for item in failures:
+                  print("::warning::" + item)
+              raise SystemExit("Push NÃO ENVIADO: cadastre o arquivo JSON COMPLETO baixado de Firebase > Configurações > Contas de serviço > Gerar nova chave privada. Nunca envie a chave pelo chat.")
           creds=service_account.Credentials.from_service_account_info(
               info,scopes=["https://www.googleapis.com/auth/firebase.messaging"])
           creds.refresh(Request())
