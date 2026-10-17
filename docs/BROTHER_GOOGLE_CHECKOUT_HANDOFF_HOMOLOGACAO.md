@@ -34,14 +34,13 @@ cadastro ou login (vídeo enviado pelo desenvolvedor em 16/10/2026).
 `ENABLE_CHECKOUT_HANDOFF` fica falso por padrão e só pode ser habilitado
 no build de homologação com `-PbrotherCheckoutHandoff=true`.
 
-- Gere fora do repositório uma chave de **32 bytes aleatórios codificada em Base64**.
-  Nunca a envie no chat, commit, issue, APK ou JavaScript.
-- Configure `BROTHER_CHECKOUT_HANDOFF_KEY` como secret da Edge Function
-  Supabase **do projeto de login do app**, não do projeto do motor de bordado.
-- Configure **a mesma chave** em `wp-config.php`:
-  `define('BM_CHECKOUT_HANDOFF_KEY', '<sua-chave-base64>');`
-  antes da linha de parada da edição, fora do plugin.
-- Instale o plugin isolado `wordpress/brother-checkout-handoff` em homologação.
+- Instale uma única vez o plugin isolado `wordpress/brother-checkout-handoff` no WordPress.
+  Quando ativado, o plugin gera uma chave aleatória de 32 bytes e guarda como opção privada sem autoload.
+- No WordPress, entre em **Ferramentas → Brother — Checkout Google**. Confira que a chave foi criada e clique em **Mostrar ou ocultar** para copiá-la.
+  Não envie essa chave no chat, prints ou repositório. Como alternativa técnica, o plugin também aceita uma constante privada `BM_CHECKOUT_HANDOFF_KEY` no `wp-config.php`.
+- No Supabase do app (**projeto `dwpcddiramxlhavdmmyn`**), abra **Edge Function Secrets** e crie/atualize `BROTHER_CHECKOUT_HANDOFF_KEY` com o valor copiado do WordPress.
+  Esta chave jamais deve ser colocada no APK, no GitHub ou em JavaScript.
+- A Edge Function de homologação é `brother-checkout-handoff` e valida por conta própria o token do Google/Supabase via `auth.getUser`; o gateway está com `verify_jwt=false` para suportar chaves do tipo `sb_publishable_`, mas a função nega qualquer chamada sem JWT de usuário verificado. Ela não altera o checkout comercial em produção até que o APK seja explicitamente habilitado.
   Não substitua App Commerce Core, Efí, WooCommerce ou outros plugins.
 - Implante a função `supabase/functions/brother-checkout-handoff/index.ts`
   com JWT Auth habilitado e valide `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
