@@ -1,0 +1,42 @@
+name: QA final - 1.10.9 OTA GitHub direto
+on:
+  push:
+    branches: [qa/official-ota-direct-github-1109]
+    paths: [.github/workflows/qa-ota-direct-github-1109.yml]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Verificar manifesto publicado e rota de APK direto
+        run: |
+          python3 - <<'PY'
+          import json
+          m=json.load(open('updates/stable.json'))
+          assert m['versionName']=='1.10.9' and m['versionCode']==185
+          assert m['downloadApkUrl']==m['downloadUrl']
+          assert m['downloadApkUrl'].startswith('https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/')
+          assert m['sha256']=='3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5'
+          PY
+      - name: Preparar identidade oficial
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes unitarios Android
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
