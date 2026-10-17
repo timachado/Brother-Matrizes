@@ -38,9 +38,14 @@ class PesReadbackEvidenceTest {
         val file=MatrixConverter.convert(
             src,"PES","readback-unit-test"
         ).getOrThrow()
-        val result=PesReadbackEvidence.inspect(
+        val review=PesReadbackEvidence.inspect(
             src,file.fileName,file.bytes
-        ).getOrThrow()
+        )
+        assertTrue(
+            review.exceptionOrNull()?.message ?: "Releitura recusada sem mensagem",
+            review.isSuccess
+        )
+        val result=review.getOrThrow()
         assertEquals(src.stitchCount,result.originalStitches)
         assertTrue(result.reopenedStitches>=src.stitchCount)
         assertTrue(result.fileBytes>=512)
