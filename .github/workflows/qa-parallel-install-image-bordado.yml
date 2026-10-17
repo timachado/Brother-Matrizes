@@ -2,7 +2,7 @@ name: Brother Matrizes QA Object Selection APK
 
 on:
   push:
-    branches: ["qa/thick-counter-satin-gate-20261016"]
+    branches: ["qa/thread-length-density-preflight-20261016"]
   workflow_dispatch:
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qacounter"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qadensity"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -53,6 +53,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Satin-Contraformas
+          name: Brother-Matrizes-QA-Densidade-de-Linha
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
