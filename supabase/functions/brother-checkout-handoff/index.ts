@@ -63,8 +63,20 @@ Deno.serve(async (req: Request) => {
       return response({ error: "invalid_plan" }, 400);
     }
     const url = Deno.env.get("SUPABASE_URL") || "";
+    // Projects created in 2026 may expose only named publishable keys;
+    // never use a service_role or secret key for user authentication.
+    const namedKeys = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+    let defaultPublishable = "";
+    if (namedKeys) {
+      try {
+        const values = JSON.parse(namedKeys);
+        defaultPublishable = typeof values?.default === "string" ? values.default : "";
+      } catch {
+        defaultPublishable = "";
+      }
+    }
     const publicKey = Deno.env.get("SUPABASE_ANON_KEY") ||
-      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || defaultPublishable;
     const handoffKey = Deno.env.get("BROTHER_CHECKOUT_HANDOFF_KEY") || "";
     if (!url || !publicKey || !handoffKey) {
       return response({ error: "checkout_unavailable" }, 503);
