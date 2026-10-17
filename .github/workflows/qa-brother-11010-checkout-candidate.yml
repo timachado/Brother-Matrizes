@@ -61,3 +61,22 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk |
             grep -Fq "versionCode='186' versionName='1.10.10'"
           echo 'Homologação de compilação aprovada. Assinatura comercial aguarda autorização separada.'
+      - name: Preparar somente APK unsigned e ferramentas oficiais Android para assinatura LOCAL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/signing-tools
+          cp app/build/outputs/apk/release/app-release-unsigned.apk \
+            dist/Brother-Matrizes-1.10.10-CHECKOUT-UNSIGNED-NAO-INSTALAR.apk
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" dist/signing-tools/zipalign
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" dist/signing-tools/apksigner.jar
+          cp "$ANDROID_HOME/build-tools/36.0.0/aapt" dist/signing-tools/aapt
+          sha256sum dist/*.apk dist/signing-tools/* > dist/SHA256-DOWNLOAD-LOCAL.txt
+          echo "Somente APK sem assinatura e ferramentas publicas, nenhum segredo."
+      - name: Disponibilizar APK unsigned para assinatura local isolada
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.10-CHECKOUT-UNSIGNED-PARA-ASSINATURA-LOCAL
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
