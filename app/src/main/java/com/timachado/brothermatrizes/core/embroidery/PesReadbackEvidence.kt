@@ -85,7 +85,10 @@ internal object PesReadbackEvidence {
             source.bounds.heightMm-reopened.bounds.heightMm
         )
         require(preserved && widthDiff<=.3f && heightDiff<=.3f) {
-            "PES reabriu, mas perdeu pontos ou alterou orientação/dimensões."
+            "PES reabriu com diferença de geometria: " +
+                "stitchPreserved=$preserved; widthDeltaMm=$widthDiff; " +
+                "heightDeltaMm=$heightDiff; origem=$oldGeometry; " +
+                "releitura=$newGeometry."
         }
         // The PES container is offset to positive PEC coordinates by the
         // release converter; this check detects recentering to negatives.
