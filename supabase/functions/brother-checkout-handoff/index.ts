@@ -53,15 +53,21 @@ Deno.serve(async (req: Request) => {
   // and is correctly encoded. Does not reveal the key or grant a session.
   if (req.method === "GET" &&
       new URL(req.url).pathname.endsWith("/health")) {
-    let configured = false;
+    let diagnostic = "missing";
     try {
-      const value = Deno.env.get("BROTHER_CHECKOUT_HANDOFF_KEY") || "";
-      configured = value.length > 0 && fromBase64(value).length === 32;
+      const value = (Deno.env.get("BROTHER_CHECKOUT_HANDOFF_KEY") || "").trim();
+      if (value !== "") {
+        const bytes = fromBase64(value);
+        diagnostic = bytes.length === 32 ? "ready" : "incorrect_key_size";
+      }
     } catch {
-      configured = false;
+      diagnostic = "invalid_base64";
     }
-    return response({ service: "brother-checkout-handoff", ready: configured },
-      configured ? 200 : 503);
+    return response({
+      service: "brother-checkout-handoff",
+      ready: diagnostic === "ready",
+      diagnostic,
+    }, diagnostic === "ready" ? 200 : 503);
   }
   if (req.method !== "POST") return response({ error: "method_not_allowed" }, 405);
   const authorization = req.headers.get("Authorization") || "";
