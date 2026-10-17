@@ -1214,8 +1214,11 @@ fun SimpleImageToEmbroideryScreen(
                                             )
                                         )
                                     } else {
-                                        if (selectedPart.id == selectedAssistedId) {
-                                            val holes = elementPlan?.elements
+                                        // Fail as Result instead of throwing out of the
+                                        // coroutine and leaving simulating=true.
+                                        runCatching {
+                                            if (selectedPart.id == selectedAssistedId) {
+                                                val holes = elementPlan?.elements
                                                 ?.firstOrNull { it.id == selectedPart.id }
                                                 ?.enclosedHoles ?: error(
                                                     "Origem da máscara assistida indisponível."
@@ -1223,10 +1226,12 @@ fun SimpleImageToEmbroideryScreen(
                                             RasterSatinRailGeometryGate.inspect(
                                                 selected, selectedPart,
                                                 selectedSections, selectedWidth,
-                                                holes
-                                            ).getOrThrow()
-                                        }
-                                        RasterSatinObjectEditor.preview(
+                                                    holes
+                                                ).getOrThrow()
+                                            }
+                                        }.fold(
+                                            onSuccess = {
+                                                RasterSatinObjectEditor.preview(
                                             selected, selectedPart, selectedSections,
                                             selectedWidth, selectedHoop
                                         ).mapCatching { proposed ->
@@ -1259,7 +1264,10 @@ fun SimpleImageToEmbroideryScreen(
                                                 }
                                             }
                                             proposed
-                                        }
+                                                }
+                                            },
+                                            onFailure = { Result.failure(it) }
+                                        )
                                     }
                                 } else if (selectedArtworkComplex) {
                                     Result.failure(
