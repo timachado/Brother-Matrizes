@@ -50,6 +50,7 @@ class PesReadbackEvidenceTest {
         assertTrue(result.reopenedStitches>=src.stitchCount)
         assertTrue(result.fileBytes>=512)
         assertTrue(result.geometryPreserved)
+        assertTrue(result.stitchOrderPreserved)
         assertFalse(result.externalDecoderVerified)
         assertFalse(result.machineCertified)
         assertFalse(result.authorizesImagePesExport)
@@ -80,6 +81,34 @@ class PesReadbackEvidenceTest {
         assertTrue(PesReadbackEvidence.inspect(
             src,"renamed.dst",good.bytes
         ).isFailure)
+    }
+
+    @Test fun sameStitchLocationsInWrongExecutionOrderMustFail() {
+        val original=releasedPath()
+        val encoded=MatrixConverter.convert(
+            original,"PES","ordered-regression"
+        ).getOrThrow()
+        // All locations and bounding-box dimensions remain identical.
+        // A set-based comparison would pass this unsafe permutation.
+        val sequence=original.points.toMutableList()
+        val temp=sequence[2]
+        sequence[2]=sequence[3]
+        sequence[3]=temp
+        val reordered=original.copy(points=sequence)
+        assertEquals(
+            original.points.filter { it.command==StitchCommand.STITCH }
+                .map { it.xUnits to it.yUnits }.toSet(),
+            reordered.points.filter { it.command==StitchCommand.STITCH }
+                .map { it.xUnits to it.yUnits }.toSet()
+        )
+        val outcome=PesReadbackEvidence.inspect(
+            reordered,encoded.fileName,encoded.bytes
+        )
+        assertTrue("Order change must be detected",outcome.isFailure)
+        assertTrue(
+            outcome.exceptionOrNull()?.message
+                .orEmpty().contains("stitchOrderPreserved=false")
+        )
     }
 
     @Test fun changedOriginalGeometryCannotClaimMatchingReadback() {
