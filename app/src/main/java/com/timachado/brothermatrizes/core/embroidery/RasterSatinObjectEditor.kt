@@ -126,19 +126,13 @@ object RasterSatinObjectEditor {
         hoop: HoopProfile,
         minimumCoverage: Float = .68f,
         /** Opt-in underlay ONLY for a validated QA material-review preview. */
-        qaCenterUnderlay: Boolean = false,
-        /** Experimental parameter sweep; unchanged historical QA defaults. */
-        qaDensityMm: Float = .5f,
-        qaPullCompensationMm: Float = .15f
+        qaCenterUnderlay: Boolean = false
     ): Result<EmbroideryDesign> = runCatching {
         require(source.width in 8..512 && source.height in 8..512 &&
             item.mask.pixels.size == source.argb.size &&
             sections.isNotEmpty() && sections.size <= 40 &&
             fullWidthMm.isFinite() && fullWidthMm in 10f..200f &&
-            minimumCoverage.isFinite() && minimumCoverage in .68f..1f &&
-            qaDensityMm.isFinite() && qaDensityMm in .35f..1f &&
-            qaPullCompensationMm.isFinite() &&
-            qaPullCompensationMm in 0f.. .3f) {
+            minimumCoverage.isFinite() && minimumCoverage in .68f..1f) {
             "Arte, objeto ou trilhos inválidos."
         }
         val fullHeightMm = fullWidthMm * source.height / source.width.toFloat()
@@ -229,8 +223,7 @@ object RasterSatinObjectEditor {
             sections = sections, outputColorIndex = 0,
             widthMm = objectWidthMm,
             imageAspectRatio = objectWidthMm / objectHeightMm,
-            densityMm = qaDensityMm,
-            pullCompensationMm = qaPullCompensationMm,
+            densityMm = .5f, pullCompensationMm = .15f,
             centerUnderlay = qaCenterUnderlay, qaSmallObjectPreview = true
         ).getOrThrow()
         val cx = (mask.minX + mask.maxX + 1) / 2f
