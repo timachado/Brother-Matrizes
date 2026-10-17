@@ -39,8 +39,7 @@ class RasterUncoveredRegionAuditTest {
 
     private fun check(
         art: Pair<RasterImagePixels,RasterSatinObject>,
-        missing: (Int,Int) -> Boolean,
-        corrupt: Boolean=false
+        missing: (Int,Int) -> Boolean
     ): Result<RasterUncoveredRegionReport> {
         val (source,part)=art
         val mw=part.mask.maxX-part.mask.minX+1
@@ -57,7 +56,6 @@ class RasterUncoveredRegionAuditTest {
                 coverage[y*mw+x]=true;covered++
             }
         }
-        if(corrupt) coverage[0]=true
         val result=RasterStitchFidelity(
             inkPixels=ink,coveredInkPixels=covered,
             stitchSamples=200,offInkSamples=0,
@@ -101,8 +99,7 @@ class RasterUncoveredRegionAuditTest {
         assertEquals(1,report.uncoveredPixels)
         assertEquals(RasterGapReviewRoute.RUNNING_REVIEW,
             report.regions.single().suggestedReview)
-        assertTrue(report.summary().contains("Não é PES").not() ||
-            report.summary().contains("não gera pontos"))
+        assertTrue(report.summary().contains("não gera pontos"))
     }
 
     @Test fun emptyCounterInsideLetterIsNotReportedAsMissingInk() {
@@ -122,9 +119,7 @@ class RasterUncoveredRegionAuditTest {
             x in 20..110 && y in 10..82 &&
                 !(x in 42..90 && y in 30..65)
         }
-        val result=check(f,missing={_,_->false},corrupt=true)
-        // Top-left of the bounding mask belongs to ink in this fixture,
-        // so flip a true counter pixel below to exercise the guard separately.
+        // A fake sewn pixel inside the transparent counter must be rejected.
         val (source,part)=f
         val mw=part.mask.maxX-part.mask.minX+1
         val mh=part.mask.maxY-part.mask.minY+1
