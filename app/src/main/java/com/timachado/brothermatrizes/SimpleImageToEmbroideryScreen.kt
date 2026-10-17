@@ -52,6 +52,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
 import com.timachado.brothermatrizes.core.embroidery.RasterNeedleRiskAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterThreadDensityPreflight
 import com.timachado.brothermatrizes.core.embroidery.RasterPesTargetCompatibility
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueAdvisor
@@ -677,6 +678,12 @@ fun SimpleImageToEmbroideryScreen(
                                 // SimulatorScreen receives their commands.
                                 RasterNeedleRiskAudit.inspect(
                                     preview, selectedHoop
+                                ).getOrThrow()
+                                // Check the same-color thread accumulated
+                                // over a tiny patch of fabric, including
+                                // manual Satin sections selected for preview.
+                                RasterThreadDensityPreflight.inspect(
+                                    preview
                                 ).getOrThrow()
                                 // A valid STITCH sequence cannot claim to be
                                 // universally machine-ready just because the
