@@ -1,0 +1,144 @@
+name: Publicar Brother Matrizes 1.10.9 comercial — APK conferido
+
+on:
+  push:
+    branches: [release-tools/publish-brother-1109-verified]
+    paths: [.github/workflows/publish-brother-1109-verified.yml]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: public-brother-matrizes-1109-verified
+  cancel-in-progress: false
+
+jobs:
+  reconstruct-verify-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout temporario — NUNCA incluir a chave privada
+        uses: actions/checkout@v4
+        with:
+          ref: release-tools/publish-brother-1109-verified
+          persist-credentials: true
+      - name: Preparar Android Build Tools 36 e zstd
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "build-tools;36.0.0"
+          if ! command -v zstd >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y zstd; fi
+      - name: Java 17 para verificar apksigner
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Obter artefato exato do build aprovado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-input dist
+          gh run download 38983149709 \
+            --repo "$GH_REPO" \
+            --name Brother-Matrizes-1.10.9-RELEASE-UNSIGNED-NOT-INSTALLABLE \
+            --dir release-input
+          test -s release-input/app-release-unsigned.apk
+          echo '01635347865dafb95f3f02836f81e0559b30f9f7e7959c0222414db9c2099a01  release-input/app-release-unsigned.apk' | sha256sum -c -
+      - name: Reconstituir APK assinado SEM chave privada e verificar SHA exato
+        shell: bash
+        run: |
+          set -euo pipefail
+          signed=dist/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk
+          patch=dist/release-signature.patch.zst
+          base64 -d .github/release-assets/brother-1109-comercial-signature-patch.b64 > "$patch"
+          echo 'af697993479a8b6ed1d0bdcb0b45332d33e05ffc791e6dc0ea5279c801889057  dist/release-signature.patch.zst' | sha256sum -c -
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/zipalign" -P 16 -f 4 release-input/app-release-unsigned.apk dist/aligned.apk
+          echo '01635347865dafb95f3f02836f81e0559b30f9f7e7959c0222414db9c2099a01  dist/aligned.apk' | sha256sum -c -
+          zstd -d --patch-from=dist/aligned.apk "$patch" -o "$signed"
+          echo '3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5  dist/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk' | sha256sum -c -
+          test "$(stat -c %s "$signed")" -eq 14330245
+          "$sdk/zipalign" -P 16 -c 4 "$signed"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$signed" > dist/assinatura-verificada.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' dist/assinatura-verificada.txt
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' dist/assinatura-verificada.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' dist/assinatura-verificada.txt
+          info="$("$sdk/aapt" dump badging "$signed" | head -n1)"
+          echo "$info"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='185'"* ]]
+          [[ "$info" == *"versionName='1.10.9'"* ]]
+          echo 'Reconstrucao IDENTICA ao APK comercial assinado aprovado.'
+      - name: Anexar APK real a GitHub Release oficial ainda em rascunho
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release view v1.10.9 --json isDraft --jq .isDraft | grep -qx true
+          assets="$(gh api "repos/$GH_REPO/releases/tags/v1.10.9" --jq '.assets | length')"
+          test "$assets" = 0 || { echo "::error::Release tem outros arquivos; abortando sem sobrescrever."; exit 1; }
+          gh release upload v1.10.9 dist/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk
+          echo "APK comercial anexado; ainda nao anunciado."
+      - name: Conferir asset REAL no GitHub antes de liberar
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for n in 1 2 3 4 5; do
+            gh api "repos/$GH_REPO/releases/tags/v1.10.9" > dist/release.json
+            if jq -e --arg digest 'sha256:3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5' \
+                 '.draft == true and .tag_name == "v1.10.9" and (.assets | length == 1) and
+                  .assets[0].name == "Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk" and
+                  .assets[0].size == 14330245 and .assets[0].digest == $digest and
+                  .assets[0].state == "uploaded"' dist/release.json >/dev/null; then
+              echo 'Arquivo GitHub validado por digest, tamanho e nome.'
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "::error::GitHub nao confirmou digest do arquivo."
+          exit 1
+      - name: Publicar release verificada
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release edit v1.10.9 --draft=false --prerelease=false
+          gh release view v1.10.9 --json isDraft --jq .isDraft | grep -qx false
+          echo 'Release 1.10.9 foi publicada no GitHub com APK validado.'
+      - name: Anunciar OTA para todos os clientes 1.10.8 pelo manifesto GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch main
+          git reset --hard origin/main
+          test "$(jq -r .applicationId updates/stable.json)" = "com.timachado.brothermatrizes"
+          current="$(jq -r .versionCode updates/stable.json)"
+          if [ "$current" -gt 185 ]; then echo "::error::Manifesto superior a 185; abortando."; exit 1; fi
+          url='https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk'
+          digest='3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5'
+          date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq --arg url "$url" --arg digest "$digest" --arg published "$date" \
+            '.versionName = "1.10.9" | .versionCode = 185 | .downloadUrl = $url | .sha256 = $digest | .publishedAt = $published | .releaseNotes = "NetFontes: nova pesquisa com lupa no catálogo de fontes; Planos: informação do NetFontes e das cotas gratuitas de importação; Atualizações: correção da consulta e do canal oficial GitHub; Estabilidade: melhorias e correções sem alterações no motor de bordado, projetos ou licenças."' \
+            updates/stable.json > updates/stable.json.tmp
+          mv updates/stable.json.tmp updates/stable.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/stable.json
+          if git diff --cached --quiet; then echo 'Manifesto já corresponde ao APK oficial'; exit 0; fi
+          git commit -m 'release(ota): anunciar Brother Matrizes 1.10.9 estavel com release GitHub validada'
+          git push origin HEAD:main
+          echo 'Canal OTA ativo: aplicativo consulta GitHub e baixa APK direto da release.'
