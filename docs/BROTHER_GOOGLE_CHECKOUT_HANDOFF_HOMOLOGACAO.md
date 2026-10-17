@@ -1,3 +1,40 @@
+## Correção do desvio para Minha Conta — 17/10/2026
+
+O vídeo `1000378909.mp4` demonstrou que **a sessão de cliente WordPress foi criada
+corretamente**, mas `tiac_auth=checkout` enviou o usuário à página de conta e o
+botão público de Assinar Mensal apresentou outra confirmação de e-mail.
+O login integrado funcionava; **o destino pós-login estava errado**.
+
+A versão **0.1.1-rc2** do plugin corrige a navegação após o ticket para o carrinho
+e checkout reais do WooCommerce (`wc_get_checkout_url()`), usando apenas
+IDs oficiais confirmados publicamente no Store API:
+
+- `pro_monthly` → WooCommerce **329** (Brother Matrizes Mensal)
+- `pro_yearly` → **330** (Anual)
+- `pro_lifetime` → **331** (Vitalício padrão)
+- `pro_lifetime_launch` → **308** (Vitalício lançamento)
+
+Cada produto é conferido no servidor quanto a nome, tipo, preço válido,
+disponibilidade e estoque. A compra de outros aplicativos no mesmo site
+fica preservada: carrinhos com produtos distintos são rejeitados sem limpeza
+automática; nenhum preço, pedido, assinatura ou gateway é editado.
+
+**Instalação:** atualizar o plugin **Brother Matrizes — Login Integrado de
+Checkout** existente usando o ZIP 0.1.1-rc2 com substituição do plugin.
+O valor privado `bm_checkout_handoff_key_v1` fica em `wp_options` e
+é reutilizado; não apagar ou recriar a chave no Supabase.
+O APK QA **já instalado** pode repetir o teste sem nova compilação, porque
+emite exatamente os mesmos tickets e não escolhe a URL final.
+
+**Testes obrigatórios:** (1) entrar com Google no QA, (2) escolher plano,
+(3) confirmar que a página de destino é checkout com **o produto correto
+e preço WooCommerce atual**, (4) verificar oferta mensal/anual no Efí
+sem efetuar pagamento real, (5) confirmar que não houve acesso PRO
+antes da transação. Se a compra recorrente não for disponibilizada
+pelo Efí para produtos simples, não cobrar: investigar regras do
+Payment Mode Guard já instalado em homologação.
+
+---
 # Brother Matrizes — checkout integrado Google → WooCommerce (homologação)
 
 ## Problema reproduzido
