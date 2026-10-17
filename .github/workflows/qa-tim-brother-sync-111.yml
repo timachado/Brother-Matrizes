@@ -1,0 +1,98 @@
+name: QA plugin Brother Matrizes — sincronizacao GitHub 1.1.1
+
+on:
+  push:
+    branches: [fix/wordpress-github-auto-sync-111]
+    paths: [.github/workflows/qa-tim-brother-sync-111.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PHP e integridade do plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -v | head -n 1
+          php -l wordpress/tim-brother-sync/tim-brother-sync.php
+          php -l wordpress/tim-brother-sync/includes/app-commerce-core.php
+          grep -Fq 'Version: 1.1.1' wordpress/tim-brother-sync/tim-brother-sync.php
+          grep -Fq 'tim-brother-sync-site-v111' wordpress/tim-brother-sync/tim-brother-sync.php
+          grep -Fq 'TIM_BROTHER_SYNC_APP_POST_ID' wordpress/tim-brother-sync/tim-brother-sync.php
+          if grep -R -E 'private_key|service_role|BEGIN PRIVATE KEY' wordpress/tim-brother-sync/*.php wordpress/tim-brother-sync/includes; then
+            echo '::error::Segredo ou credencial presente no plugin'; exit 1
+          fi
+      - name: Testar manifesto direto GitHub, legado e URL rejeitada
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/test-brother-sync.php <<'PHP'
+          <?php
+          define('ABSPATH', '/tmp/');
+          define('MINUTE_IN_SECONDS', 60);
+          $GLOBALS['manifest_body'] = file_get_contents('updates/stable.json');
+          function get_transient($name) { return false; }
+          function set_transient($name, $data, $seconds) { return true; }
+          function wp_remote_get($url, $args) {
+              return array('response'=>array('code'=>200), 'body'=>$GLOBALS['manifest_body']);
+          }
+          function is_wp_error($x) { return false; }
+          function wp_remote_retrieve_response_code($x) { return $x['response']['code']; }
+          function wp_remote_retrieve_body($x) { return $x['body']; }
+          function add_filter($hook, $fn, $p=10, $n=1) { return true; }
+          function add_action($hook, $fn, $p=10, $n=1) { return true; }
+          function add_shortcode($name, $fn) { return true; }
+          require 'wordpress/tim-brother-sync/tim-brother-sync.php';
+          $base = json_decode(file_get_contents('updates/stable.json'),true);
+          if (!$base || $base['versionCode'] !== 185 || $base['versionName'] !== '1.10.9') {
+              throw new Exception('Base oficial inesperada');
+          }
+          $release = tim_brother_sync_latest();
+          if (!$release || $release['versionCode'] !== 185 ||
+              $release['downloadApkUrl'] !== $base['downloadUrl'] ||
+              $release['downloadUrl'] !== $base['downloadUrl']) {
+              throw new Exception('Falha para downloadUrl GitHub direto');
+          }
+          $legacy = $base;
+          $legacy['downloadUrl'] = TIM_BROTHER_SYNC_RELEASE_PAGE;
+          $GLOBALS['manifest_body'] = json_encode($legacy);
+          $release = tim_brother_sync_latest();
+          if (!$release || $release['downloadApkUrl'] !== $base['downloadUrl']) {
+              throw new Exception('Falha no contrato de manifesto antigo');
+          }
+          $bad = $base;
+          $bad['downloadUrl'] = 'https://invalid.example/download.apk';
+          $bad['downloadApkUrl'] = '';
+          $GLOBALS['manifest_body'] = json_encode($bad);
+          if (tim_brother_sync_latest() !== null) {
+              throw new Exception('URL não confiável foi aceita');
+          }
+          echo "QA: GitHub direto, contrato legado e URL hostil aprovados\n";
+          PHP
+          php /tmp/test-brother-sync.php
+      - name: Empacotar para substituicao segura do plugin existente
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wordpress
+          zip -X -r ../tim-brother-sync-1.1.1-github-direto.zip tim-brother-sync -x '*.DS_Store'
+          cd ..
+          unzip -t tim-brother-sync-1.1.1-github-direto.zip
+          sha256sum tim-brother-sync-1.1.1-github-direto.zip > tim-brother-sync-1.1.1-github-direto.sha256
+      - name: Preservar pacote validado
+        uses: actions/upload-artifact@v4
+        with:
+          name: tim-brother-sync-1.1.1-github-direto-VALIDADO
+          path: |
+            tim-brother-sync-1.1.1-github-direto.zip
+            tim-brother-sync-1.1.1-github-direto.sha256
+          retention-days: 10
+          if-no-files-found: error
