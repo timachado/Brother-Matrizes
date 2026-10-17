@@ -63,6 +63,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueReport
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinTopologyPlanner
 import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
+import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
+import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -274,6 +276,13 @@ fun SimpleImageToEmbroideryScreen(
     }
 
     val stageImage = prepared?.image ?: photo
+    // Visual comparison only. Never pass flattened preview pixels to the
+    // stitch composer, source-fidelity audits, or a PES encoder.
+    var flatStudy by remember(stageImage) {
+        mutableStateOf<RasterThreadTextureStudyReport?>(null)
+    }
+    var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
+    var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     val artworkAudit = remember(stageImage) {
         stageImage?.let { RasterArtworkComplexityAudit.examine(it) }
     }
@@ -362,12 +371,15 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = stageImage,
+                rasterArtwork = if (showFlatStudy) flatStudy?.flatPreview ?: stageImage
+                    else stageImage,
                 rasterWidthMm = widthMm,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
+                if (showFlatStudy && flatStudy != null)
+                    "Prévia técnica em cores planas (sem pontos de bordado)"
+                else "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
                 color = FioTextMuted, fontSize = 11.sp
             )
             regionalSampling?.let { evidence ->
@@ -398,6 +410,59 @@ fun SimpleImageToEmbroideryScreen(
                 )
             }
 
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = prepared != null && !preparing &&
+                    !simulating && !studyingTexture,
+                onClick = {
+                    if (flatStudy != null) {
+                        showFlatStudy = !showFlatStudy
+                    } else {
+                        val picture = prepared?.image
+                        if (picture == null) {
+                            message = "Importe uma imagem para avaliar a textura."
+                        } else {
+                            studyingTexture = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.Default) {
+                                    RasterThreadTextureStudy.inspect(picture)
+                                }
+                                if (prepared?.image === picture) {
+                                    result.fold(
+                                        onSuccess = {
+                                            flatStudy = it
+                                            showFlatStudy = true
+                                            message = ""
+                                        },
+                                        onFailure = {
+                                            message = it.message ?:
+                                                "Não foi possível estudar as cores da imagem."
+                                        }
+                                    )
+                                }
+                                studyingTexture = false
+                            }
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    when {
+                        studyingTexture -> "Analisando textura e cores..."
+                        flatStudy == null -> "Visualizar cores planas (QA)"
+                        showFlatStudy -> "Ver imagem original"
+                        else -> "Comparar cores planas (QA)"
+                    },
+                    color = FioGold
+                )
+            }
+            flatStudy?.let { study ->
+                Text(
+                    study.message(),
+                    color = FioTextMuted,
+                    fontSize = 11.sp
+                )
+            }
             Text(
                 "Arte: ${widthMm.roundToInt()} × ${heightMm.roundToInt()} mm • " +
                     "Bastidor: ${hoop.displayName}",
