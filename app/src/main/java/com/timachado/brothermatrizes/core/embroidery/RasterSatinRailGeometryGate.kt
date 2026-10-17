@@ -128,9 +128,6 @@ internal object RasterSatinRailGeometryGate {
                 // an A rail cannot cross its opposing B rail.
                 val d1 = railA[i+1] - railA[i]
                 val d2 = railB[i+1] - railB[i]
-                val side = railB[i] - railA[i]
-                val denom1 = d1.cross(side)
-                val denom2 = d2.cross(side)
                 // Check orientation against the next centerline. The main
                 // Satin generator independently checks local cross signs.
                 val across = (railB[i] - railA[i]).cross(step)
@@ -154,8 +151,6 @@ internal object RasterSatinRailGeometryGate {
                         "Lados A/B do Satin se cruzam dentro da seção."
                     }
                 }
-                @Suppress("UNUSED_VARIABLE")
-                val geometricScreen = denom1 + denom2
             }
             for (i in 0 until segments.lastIndex) {
                 val cos = (segments[i].dot(segments[i+1]) /
