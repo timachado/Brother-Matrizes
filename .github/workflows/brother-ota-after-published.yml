@@ -112,7 +112,7 @@ jobs:
           assert re.fullmatch('[a-f0-9]{64}', hash_)
           assert code >= int(manifest['versionCode'])
           if code == int(manifest['versionCode']):
-              assert manifest['sha256'] == hash_ and manifest['downloadUrl'] == url, (
+              assert manifest['sha256'] == hash_ and manifest['downloadUrl'] == url and manifest.get('downloadApkUrl') == url, (
                   'Versão já publicada com outro APK: alteração bloqueada')
               print('Release ja anunciada corretamente; nenhuma mudanca.')
           else:
@@ -120,7 +120,7 @@ jobs:
               bullets = [re.sub(r'[*_`]', '', x.strip()) for x in
                          re.findall(r'(?m)^\s*-\s+(.+)$', body)]
               notes = '; '.join(bullets[:6])[:1800]
-              manifest.update(versionName=version, versionCode=code, downloadUrl=url,
+              manifest.update(versionName=version, versionCode=code, downloadUrl=url, downloadApkUrl=url,
                               sha256=hash_, publishedAt=release['published_at'],
                               releaseNotes=notes or f'Brother Matrizes {version} — melhorias e correcoes.')
               manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
