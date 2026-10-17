@@ -80,6 +80,7 @@ internal object RasterThreadSequenceAudit {
                         val last = lastSewnPosition
                         require(
                             point.colorIndex == activeColor &&
+                                previousCommand == StitchCommand.STITCH &&
                                 stitchedSinceTrim && last != null &&
                                 point.xUnits == last.xUnits &&
                                 point.yUnits == last.yUnits
