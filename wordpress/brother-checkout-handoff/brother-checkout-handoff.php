@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brother Matrizes — Login Integrado de Checkout
  * Description: Handoff autenticado Google/Supabase → WooCommerce. Não altera preços, pedidos, licenças ou Efí.
- * Version: 0.1.1-rc2
+ * Version: 0.1.2-rc3
  * Author: T.I. Machado
  */
 if (!defined('ABSPATH')) exit;
@@ -103,7 +103,7 @@ function bm_checkout_official_product($plan) {
 }
 
 /** @return string|WP_Error Official HTTPS Woo checkout URL or a safe error. */
-function bm_checkout_prepare_woo_cart($plan) {
+function bm_checkout_prepare_woo_cart($plan, $replaceForeignCart=false) {
   $mapping = bm_checkout_official_product($plan);
   if (!$mapping) return new WP_Error('invalid_plan','Plano não autorizado.');
   if (!function_exists('WC') || !function_exists('wc_get_product') ||
@@ -137,15 +137,34 @@ function bm_checkout_prepare_woo_cart($plan) {
     return new WP_Error('wrong_product','Produto comercial não corresponde ao plano escolhido.');
   }
 
+  // Switching between Brother plans is safe and automatic. A stale monthly,
+  // yearly, lifetime or launch option must not block the chosen new plan.
+  // Never silently discard unrelated applications' products.
+  $brotherProductIds = array(308, 329, 330, 331);
   $already = false;
-  foreach ((array) $cart->get_cart() as $item) {
-    if ((int)($item['product_id'] ?? 0) !== (int)$productId) {
-      // Do not remove items, join unrelated purchases or change a cart
-      // that belongs to another application on the shared WordPress site.
-      return new WP_Error('other_cart_items',
-        'Seu carrinho contém outro produto. Conclua ou limpe esse carrinho no site antes de contratar este plano.');
+  $brotherOtherKeys = array();
+  $foreignKeys = array();
+  foreach ((array) $cart->get_cart() as $cartKey => $item) {
+    $lineId = (int)($item['product_id'] ?? 0);
+    if ($lineId === (int)$productId) {
+      $already = true;
+    } elseif (in_array($lineId, $brotherProductIds, true)) {
+      $brotherOtherKeys[] = $cartKey;
+    } else {
+      $foreignKeys[] = $cartKey;
     }
-    $already = true;
+  }
+  if ($foreignKeys && !$replaceForeignCart) {
+    return new WP_Error('other_cart_items',
+      'O carrinho tem outros produtos. Confirme a troca para comprar somente o plano escolhido.');
+  }
+  // Preflight completed. Remove other Brother plans, and ONLY upon explicit
+  // consent remove unrelated cart items.
+  foreach (array_merge($brotherOtherKeys, $replaceForeignCart ? $foreignKeys : array()) as $cartKey) {
+    if (!method_exists($cart, 'remove_cart_item') || !$cart->remove_cart_item($cartKey)) {
+      return new WP_Error('cart_replace_failed',
+        'Não foi possível preparar o carrinho para este plano.');
+    }
   }
   if (!$already && !$cart->add_to_cart($productId, 1)) {
     return new WP_Error('cart_add_failed','Não foi possível adicionar o plano ao carrinho.');
@@ -164,6 +183,104 @@ function bm_checkout_prepare_woo_cart($plan) {
   }
   return $checkout;
 }
+
+/**
+ * A second, explicitly confirmed action is required only when the existing
+ * cart contains non-Brother products. The selected plan lives in the private
+ * Woo session, never in a URL or a forged hidden POST field.
+ */
+function bm_checkout_pending_plan() {
+  if (!function_exists('WC') || !WC()->session) return '';
+  $pending=WC()->session->get('bm_checkout_pending_plan');
+  if (!is_array($pending) ||
+      !isset($pending['plan'],$pending['created']) ||
+      !bm_checkout_official_product($pending['plan']) ||
+      (int)$pending['created'] < time()-300 ||
+      (int)$pending['created'] > time()+10) {
+    WC()->session->__unset('bm_checkout_pending_plan');
+    return '';
+  }
+  return $pending['plan'];
+}
+
+function bm_checkout_review_page($plan) {
+  status_header(200);
+  nocache_headers();
+  header('Content-Type: text/html; charset=UTF-8');
+  header('Referrer-Policy: no-referrer');
+  header('X-Robots-Tag: noindex, nofollow');
+  $labels=array(
+    'pro_monthly'=>'PRO Mensal',
+    'pro_yearly'=>'PRO Anual',
+    'pro_lifetime'=>'PRO Vitalício',
+    'pro_lifetime_launch'=>'Vitalício de Lançamento'
+  );
+  $title=esc_html($labels[$plan]);
+  $action=esc_url(admin_url('admin-post.php'));
+  $nonce=wp_nonce_field('bm_checkout_replace_'.$plan,'bm_checkout_nonce',true,false);
+  $cartUrl=esc_url(function_exists('wc_get_cart_url')
+    ? wc_get_cart_url() : home_url('/carrinho/'));
+  echo '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">'
+     .'<meta name="viewport" content="width=device-width,initial-scale=1">'
+     .'<title>Confirmar compra — Brother Matrizes</title>'
+     .'<style>body{font-family:system-ui,sans-serif;background:#05152a;color:#edf6ff;'
+     .'min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}'
+     .'main{box-sizing:border-box;width:100%;max-width:490px;border:1px solid #245678;'
+     .'background:#0a2039;border-radius:20px;padding:25px}'
+     .'h1{font-size:1.5rem;margin:0 0 12px}p{line-height:1.6;color:#d4e6ef}'
+     .'button,a{display:block;box-sizing:border-box;width:100%;text-align:center;'
+     .'border-radius:11px;padding:14px;font:inherit;font-weight:650}'
+     .'button{background:#12a4f6;color:#042038;border:0;cursor:pointer}'
+     .'a{color:#bce7ff;margin-top:12px}</style></head><body><main>'
+     .'<h1>Confirmar plano '.$title.'</h1>'
+     .'<p>Há outro produto no seu carrinho. Para continuar com '
+     .'somente este plano do Brother Matrizes, precisamos substituí-lo.'
+     .' Isso não cancela pedidos já realizados.</p>'
+     .'<form method="post" action="'.$action.'">'
+     .'<input type="hidden" name="action" value="bm_checkout_replace_cart">'
+     .$nonce
+     .'<button type="submit">Continuar com '.$title.' e ir ao pagamento</button>'
+     .'</form><a href="'.$cartUrl.'">Manter e revisar meu carrinho</a>'
+     .'</main></body></html>';
+  exit;
+}
+
+// The confirmation GET must happen after the WordPress auth cookie becomes
+// available to the browser, so the WP nonce is tied to a real logged-in session.
+add_action('template_redirect',function() {
+  if (!isset($_GET['bm_checkout_review']) || !is_page('minha-conta')) return;
+  if (!is_user_logged_in()) {
+    wp_die('Faça login novamente pelo aplicativo.','Checkout seguro',array('response'=>403));
+  }
+  $plan=bm_checkout_pending_plan();
+  if (!$plan) {
+    wp_die('Solicitação expirada. Escolha o plano novamente no Brother Matrizes.',
+      'Checkout seguro',array('response'=>410));
+  }
+  bm_checkout_review_page($plan);
+},2);
+
+// Explicit user-clicked form. Only current logged-in customer's private Woo
+// session can authorize substitution; request is CSRF-protected.
+add_action('admin_post_bm_checkout_replace_cart',function() {
+  if (!is_user_logged_in()) {
+    wp_die('Entre pelo aplicativo antes de continuar.','Checkout seguro',array('response'=>403));
+  }
+  $plan=bm_checkout_pending_plan();
+  if (!$plan) {
+    wp_die('Confirmação expirada. Escolha o plano novamente.',
+      'Checkout seguro',array('response'=>410));
+  }
+  check_admin_referer('bm_checkout_replace_'.$plan,'bm_checkout_nonce');
+  $checkout=bm_checkout_prepare_woo_cart($plan,true);
+  if (is_wp_error($checkout)) {
+    wp_die(esc_html($checkout->get_error_message()),
+      'Não foi possível abrir o pagamento',array('response'=>409));
+  }
+  WC()->session->__unset('bm_checkout_pending_plan');
+  wp_safe_redirect($checkout,303);
+  exit;
+});
 
 add_action('bm_checkout_cleanup',function($name) {
   if (is_string($name) && preg_match('/^bm_checkout_used_[a-f0-9]{64}$/D',$name))
@@ -193,6 +310,16 @@ add_action('template_redirect',function() {
   // Minha Conta and could trigger an extra email confirmation screen.
   $checkout = bm_checkout_prepare_woo_cart($claim['plan']);
   if (is_wp_error($checkout)) {
+    if ($checkout->get_error_code() === 'other_cart_items' &&
+        function_exists('WC') && WC()->session) {
+      WC()->session->set('bm_checkout_pending_plan',
+        array('plan'=>$claim['plan'],'created'=>time()));
+      if (method_exists(WC()->session,'set_customer_session_cookie')) {
+        WC()->session->set_customer_session_cookie(true);
+      }
+      wp_safe_redirect(home_url('/minha-conta/?bm_checkout_review=1'),303);
+      exit;
+    }
     wp_die(esc_html($checkout->get_error_message()),
       'Não foi possível abrir o pagamento',
       array('response'=>409));
