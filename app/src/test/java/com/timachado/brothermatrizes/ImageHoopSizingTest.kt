@@ -29,6 +29,23 @@ class ImageHoopSizingTest {
         assertTrue(ImageHoopSizing.fits(300, 100, 200f, larger))
     }
 
+    @Test fun panobiancoLandscapeFitsEffective130By180Hoop() {
+        val hoop = HoopProfile.H130X180
+        val (usableW, usableH) = ImageHoopSizing.usableFrameMm(313, 238, hoop)
+        assertEquals(170f, usableW, .01f)
+        assertEquals(120f, usableH, .01f)
+        assertTrue(ImageHoopSizing.fits(313, 238, 145f, hoop))
+        assertFalse(ImageHoopSizing.fits(313, 238, 175f, hoop))
+    }
+
+    @Test fun portraitArtworkUsesRotatedUsableArea() {
+        val hoop = HoopProfile.H130X180
+        val (usableW, usableH) = ImageHoopSizing.usableFrameMm(238, 313, hoop)
+        assertEquals(120f, usableW, .01f)
+        assertEquals(170f, usableH, .01f)
+        assertFalse(ImageHoopSizing.fits(238, 313, 145f, hoop))
+    }
+
     @Test fun artworkMustHavePositiveSizeAndFitSelectedHoop() {
         assertFalse(ImageHoopSizing.fits(100, 100, Float.NaN, HoopProfile.H100X100))
         assertTrue(runCatching {
