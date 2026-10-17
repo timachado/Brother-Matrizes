@@ -83,31 +83,26 @@ jobs:
         run: |
           set -euo pipefail
           gh release view v1.10.9 --json isDraft --jq .isDraft | grep -qx true
-          assets="$(gh api "repos/$GH_REPO/releases/tags/v1.10.9" --jq '.assets | length')"
+          assets="$(gh release view v1.10.9 --json assets --jq '.assets | length')"
           test "$assets" = 0 || { echo "::error::Release tem outros arquivos; abortando sem sobrescrever."; exit 1; }
           gh release upload v1.10.9 dist/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk
           echo "APK comercial anexado; ainda nao anunciado."
-      - name: Conferir asset REAL no GitHub antes de liberar
+      - name: Conferir asset REAL da release em rascunho antes de liberar
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          for n in 1 2 3 4 5; do
-            gh api "repos/$GH_REPO/releases/tags/v1.10.9" > dist/release.json
-            if jq -e --arg digest 'sha256:3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5' \
-                 '.draft == true and .tag_name == "v1.10.9" and (.assets | length == 1) and
-                  .assets[0].name == "Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk" and
-                  .assets[0].size == 14330245 and .assets[0].digest == $digest and
-                  .assets[0].state == "uploaded"' dist/release.json >/dev/null; then
-              echo 'Arquivo GitHub validado por digest, tamanho e nome.'
-              exit 0
-            fi
-            sleep 4
-          done
-          echo "::error::GitHub nao confirmou digest do arquivo."
-          exit 1
+          gh release view v1.10.9 --json isDraft --jq .isDraft | grep -qx true
+          count="$(gh release view v1.10.9 --json assets --jq '.assets | length')"
+          test "$count" = 1 || { echo "::error::Numero de APKs publicados inesperado"; exit 1; }
+          asset="$(gh release view v1.10.9 --json assets --jq '.assets[0].name')"
+          test "$asset" = 'Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk'
+          mkdir -p verify-download
+          gh release download v1.10.9 --pattern "$asset" --dir verify-download
+          echo '3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5  verify-download/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk' | sha256sum -c -
+          echo 'O arquivo hospedado na release bate com o APK comercial original.'
       - name: Publicar release verificada
         shell: bash
         env:
