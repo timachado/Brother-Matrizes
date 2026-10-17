@@ -103,6 +103,22 @@ class VasosDeBencaoArtworkRegressionTest {
             comparison.coverage < .15
         )
         assertTrue(comparison.significantColorMinimumCoverage < .15)
+        // Use the new PR #137 report with a REAL (reduced-resolution)
+        // reference, not just synthetic rectangles. A sparse needle path
+        // must be a documented QA FAIL, regardless of parser metadata.
+        val dossier=RasterQaReadinessReportBuilder.collect(
+            fakeWholeImage,HoopProfile.H130X180,
+            realArtwork,85f
+        ).getOrThrow()
+        val fidelity=dossier.gates.first {
+            it.label.contains("Fidelidade global")
+        }
+        assertEquals(RasterQaGateStatus.FAIL,fidelity.status)
+        assertTrue(dossier.hasStaticFailures)
+        assertTrue(dossier.missingEvidence)
+        assertTrue(dossier.toMarkdown().contains("BLOQUEADO EM QA"))
+        assertFalse(dossier.exportPermitted)
+        assertFalse(dossier.machineCertified)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
