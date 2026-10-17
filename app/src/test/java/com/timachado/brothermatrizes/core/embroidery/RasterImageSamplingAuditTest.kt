@@ -98,6 +98,53 @@ class RasterImageSamplingAuditTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun lostDetailInSubtitleDoesNotBlockUnrelatedSelectedLogoRegion() {
+        val high = image(128, 128) { x, y ->
+            if ((x in 10..40 && y in 15..45) ||
+                (x in 100..101 && y in 100..101)) ink else white
+        }
+        val low = image(64, 64) { x, y ->
+            if (x in 5..20 && y in 7..22) ink else white
+        }
+        val full = RasterImageSamplingAudit.inspect(
+            high, low, 128, 128, hash
+        ).getOrThrow()
+        assertTrue(full.needsDetailReview)
+        val logoOnly = RasterImageSamplingAudit.inspectRegion(
+            full, RasterCropBounds(0f, 0f, .5f, .5f)
+        ).getOrThrow()
+        assertTrue(logoOnly.foregroundReferencePixels > 100)
+        assertEquals(0, logoOnly.potentiallyLostPixels)
+        assertFalse(logoOnly.needsDetailReview)
+        val subtitleOnly = RasterImageSamplingAudit.inspectRegion(
+            full, RasterCropBounds(.70f, .70f, 1f, 1f)
+        ).getOrThrow()
+        assertEquals(4, subtitleOnly.potentiallyLostPixels)
+        assertEquals(4, subtitleOnly.largestPotentiallyLostRegion)
+        assertTrue(subtitleOnly.needsDetailReview)
+        assertEquals(full.sha256, logoOnly.sha256)
+        assertEquals(full.sourceWidth, logoOnly.sourceWidth)
+        assertEquals("recorte selecionado", logoOnly.inspectedRegion)
+        assertFalse(logoOnly.isFullSourceProven)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun invalidCropCannotHideEvidenceOfMissingDetails() {
+        val high = image(128, 128) { x, y ->
+            if (x in 100..101 && y in 100..101) ink else white
+        }
+        val low = image(64, 64) { _, _ -> white }
+        val source = RasterImageSamplingAudit.inspect(
+            high, low, 128, 128, hash
+        ).getOrThrow()
+        assertTrue(RasterImageSamplingAudit.inspectRegion(
+            source, RasterCropBounds(Float.NaN, 0f, 1f, 1f)
+        ).isFailure)
+        assertTrue(RasterImageSamplingAudit.inspectRegion(
+            source, RasterCropBounds(1f, 0f, 0f, 1f)
+        ).isFailure)
+    }
+
     @Test fun sameResolutionWithAlteredColorIsDetected() {
         val reference = image(64, 64) { x, y ->
             if (x in 15..25 && y in 15..25) ink else white
