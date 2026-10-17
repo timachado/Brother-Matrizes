@@ -50,10 +50,34 @@ class PesReadbackEvidenceTest {
         assertTrue(result.reopenedStitches>=src.stitchCount)
         assertTrue(result.fileBytes>=512)
         assertTrue(result.geometryPreserved)
+        assertTrue(result.orderedStitchSequencePreserved)
         assertFalse(result.externalDecoderVerified)
         assertFalse(result.machineCertified)
         assertFalse(result.authorizesImagePesExport)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun productionPesWithSamePositionsInWrongOrderIsRejected() {
+        val source=releasedPath()
+        val altered=source.points.toMutableList()
+        val a=altered[2]
+        altered[2]=altered[3]
+        altered[3]=a
+        val reordered=source.copy(points=altered)
+        val encoded=MatrixConverter.convert(
+            reordered,"PES","reordered-sewing-path"
+        ).getOrThrow()
+        // Both pictures contain the same coordinate set: only the new
+        // monotonic STITCH order gate is expected to reject this stream.
+        assertEquals(
+            source.points.filter { it.command==StitchCommand.STITCH }
+                .map { it.xUnits to it.yUnits }.toSet(),
+            reordered.points.filter { it.command==StitchCommand.STITCH }
+                .map { it.xUnits to it.yUnits }.toSet()
+        )
+        assertTrue(PesReadbackEvidence.inspect(
+            source,encoded.fileName,encoded.bytes
+        ).isFailure)
     }
 
     @Test fun qaImageDesignCannotBePromotedIntoPesReadbackOrExport() {
