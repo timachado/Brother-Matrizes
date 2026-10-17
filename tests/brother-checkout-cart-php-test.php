@@ -32,6 +32,7 @@ class TestCart {
     $this->items[]=array('product_id'=>$id,'quantity'=>$qty);
     return 'inserted-cart-key';
   }
+  function remove_cart_item($key){if(!array_key_exists($key,$this->items))return false;unset($this->items[$key]);return true;}
   function calculate_totals(){$this->recalculations++;}
 }
 class TestSession {
@@ -80,6 +81,42 @@ require_result($r instanceof WP_Error && $r->get_error_code()==='other_cart_item
   'Existing unrelated-app cart must be protected');
 require_result($GLOBALS['wc']->cart->add===[],'Should never mix other app in cart');
 fresh_cart();
+// Another Brother plan is stale in cart: replace without requiring consent.
+fresh_cart();
+$GLOBALS['wc']->cart->items=[['product_id'=>329,'quantity'=>1]];
+$result=bm_checkout_prepare_woo_cart('pro_yearly');
+require_result($result===$GLOBALS['checkoutUrl'],'Switching Brother plans should open checkout');
+require_result(count($GLOBALS['wc']->cart->add)===1 &&
+  $GLOBALS['wc']->cart->add[0]===[330,1],'Expected yearly plan after replacing monthly');
+require_result(count($GLOBALS['wc']->cart->items)===1 &&
+  (int)array_values($GLOBALS['wc']->cart->items)[0]['product_id']===330,
+  'Old Brother plan must be removed');
+
+// Keep selected plan, remove another stale Brother plan, no duplicates.
+fresh_cart();
+$GLOBALS['wc']->cart->items=[
+  ['product_id'=>331,'quantity'=>1], ['product_id'=>308,'quantity'=>1]];
+$result=bm_checkout_prepare_woo_cart('pro_lifetime');
+require_result($result===$GLOBALS['checkoutUrl'],'Mixed Brother plan must be fixed');
+require_result(count($GLOBALS['wc']->cart->items)===1 &&
+  (int)array_values($GLOBALS['wc']->cart->items)[0]['product_id']===331 &&
+  $GLOBALS['wc']->cart->add===[], 'Already selected plan must not duplicate');
+
+// Third-party product requires explicit confirmation, no silent deletion.
+fresh_cart();
+$GLOBALS['wc']->cart->items=[['product_id'=>113,'quantity'=>1]];
+$result=bm_checkout_prepare_woo_cart('pro_monthly');
+require_result($result instanceof WP_Error &&
+  $result->get_error_code()==='other_cart_items',
+  'Third-party product should require explicit confirmation');
+require_result(count($GLOBALS['wc']->cart->items)===1,'Unrelated cart was modified');
+// Simulate the separate, CSRF-validated confirmation action from the user.
+$result=bm_checkout_prepare_woo_cart('pro_monthly',true);
+require_result($result===$GLOBALS['checkoutUrl'],'Consent must lead to checkout');
+require_result(count($GLOBALS['wc']->cart->items)===1 &&
+  (int)array_values($GLOBALS['wc']->cart->items)[0]['product_id']===329,
+  'Only authorized Brother product should remain after consent');
+
 $GLOBALS['products'][329]->name='Bíblia EBD Mensal';
 $r=bm_checkout_prepare_woo_cart('pro_monthly');
 require_result($r instanceof WP_Error && $r->get_error_code()==='wrong_product',
@@ -94,4 +131,4 @@ $GLOBALS['checkoutUrl']='https://evil.example/checkout/';
 $r=bm_checkout_prepare_woo_cart('pro_monthly');
 require_result($r instanceof WP_Error && $r->get_error_code()==='checkout_invalid',
   'Cross-origin checkout redirect must be rejected');
-echo "Checkout Google SSO: 4 planos verificados, sem mistura de carrinhos, sem duplicação, sem redirecionamento externo. OK\n";
+echo "Checkout Google SSO: 4 planos, troca de planos Brother, consentimento para itens externos, sem duplicacao e sem redirecionamento externo. OK\n";
