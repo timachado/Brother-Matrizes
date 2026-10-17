@@ -14,7 +14,12 @@ internal data class RasterStitchFidelity(
     val inkPixels: Int,
     val coveredInkPixels: Int,
     val stitchSamples: Int,
-    val offInkSamples: Int
+    val offInkSamples: Int,
+    // Internal QA evidence of the ACTUAL sewn segments. Only occupied pixels
+    // inside the original connected component are true. Not a stitch design.
+    val coveredMask: BooleanArray = BooleanArray(0),
+    val maskWidth: Int = 0,
+    val maskHeight: Int = 0
 ) {
     val coverage: Double get() =
         if (inkPixels == 0) 0.0 else coveredInkPixels.toDouble() / inkPixels
@@ -151,7 +156,8 @@ internal object RasterStitchFidelityAudit {
         require(totalInk > 0 && samples > 0)
         RasterStitchFidelity(
             inkPixels = totalInk, coveredInkPixels = covered,
-            stitchSamples = samples, offInkSamples = off
+            stitchSamples = samples, offInkSamples = off,
+            coveredMask = occupied, maskWidth = w, maskHeight = h
         )
     }
 }

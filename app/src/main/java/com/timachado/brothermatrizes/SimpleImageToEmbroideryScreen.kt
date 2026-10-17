@@ -71,6 +71,9 @@ import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedSatinDraftPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinRailGeometryGate
 import com.timachado.brothermatrizes.core.embroidery.RasterStitchFidelityAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionReport
+import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -314,6 +317,12 @@ fun SimpleImageToEmbroideryScreen(
     val fitted = stageImage != null &&
         widthMm >= 10f &&
         ImageHoopSizing.fits(stageImage.width, stageImage.height, widthMm, hoop)
+    var reviewingGaps by remember(stageImage, satinSections, satinPartIndex, widthMm, hoop) {
+        mutableStateOf(false)
+    }
+    var uncoveredReport by remember(stageImage, satinSections, satinPartIndex, widthMm, hoop) {
+        mutableStateOf<RasterUncoveredRegionReport?>(null)
+    }
     val placeholder = remember(stageImage, hoop, widthMm) {
         stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
     }
@@ -1009,6 +1018,103 @@ fun SimpleImageToEmbroideryScreen(
                             }
                         }
                     )
+                    if (assistedSatinElementId == activePart.id) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = prepared != null && fitted && !preparing &&
+                                !simulating && !reviewingGaps &&
+                                activePart.id in satinTouched &&
+                                satinSections[activePart.id].orEmpty().isNotEmpty(),
+                            onClick = {
+                                val picture = prepared?.image ?: return@OutlinedButton
+                                val id = activePart.id
+                                val item = activePart
+                                val sectionsSnapshot =
+                                    satinSections[id].orEmpty().toList()
+                                val holes = elementPlan?.elements
+                                    ?.firstOrNull { it.id == id }?.enclosedHoles
+                                val chosenHoop = hoop
+                                val chosenWidth = widthMm
+                                val stamp = revision
+                                reviewingGaps = true
+                                uncoveredReport = null
+                                message = ""
+                                scope.launch {
+                                    val audited = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            require(holes != null) {
+                                                "A origem dos vazados não foi localizada."
+                                            }
+                                            RasterSatinRailGeometryGate.inspect(
+                                                picture, item, sectionsSnapshot,
+                                                chosenWidth, holes
+                                            ).getOrThrow()
+                                            val stitches = RasterSatinObjectEditor.preview(
+                                                picture, item, sectionsSnapshot,
+                                                chosenWidth, chosenHoop
+                                            ).getOrThrow()
+                                            RasterAssistedSatinDraftPlanner.requireSafeCounterPath(
+                                                picture, item, stitches, chosenWidth
+                                            ).getOrThrow()
+                                            val fidelity = RasterStitchFidelityAudit.compare(
+                                                picture, item, stitches, chosenWidth
+                                            ).getOrThrow()
+                                            RasterUncoveredRegionAudit.inspect(
+                                                picture, item, fidelity, chosenWidth
+                                            ).getOrThrow()
+                                        }
+                                    }
+                                    reviewingGaps = false
+                                    if (stamp == revision &&
+                                        prepared?.image === picture &&
+                                        hoop == chosenHoop && widthMm == chosenWidth &&
+                                        satinParts.getOrNull(satinPartIndex)?.id == id &&
+                                        satinSections[id] == sectionsSnapshot) {
+                                        audited.fold(
+                                            onSuccess = { uncoveredReport = it },
+                                            onFailure = {
+                                                message = it.message ?:
+                                                    "Não foi possível conferir as lacunas."
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                if (reviewingGaps)
+                                    "Conferindo cobertura das pontadas..."
+                                else "Analisar lacunas Satin (QA)",
+                                color = FioGold
+                            )
+                        }
+                        uncoveredReport?.let { missing ->
+                            Text(
+                                missing.summary(), color = FioTextMuted,
+                                fontSize = 11.sp
+                            )
+                            missing.regions.take(8).forEach { region ->
+                                val routeName = when (region.suggestedReview) {
+                                    RasterGapReviewRoute.SATIN_REVIEW ->
+                                        "revisar largura e direção Satin"
+                                    RasterGapReviewRoute.RUNNING_REVIEW ->
+                                        "revisar ponto corrido"
+                                    RasterGapReviewRoute.TATAMI_REVIEW ->
+                                        "avaliar preenchimento Tatami"
+                                    RasterGapReviewRoute.MANUAL_REVIEW ->
+                                        "reconstrução manual de contornos"
+                                }
+                                Text(
+                                    "Região " + region.id + ": " +
+                                        region.pixelCount + " px sem costura, " +
+                                        "posição (" + region.minX + "," +
+                                        region.minY + ") — " + routeName +
+                                        ". Nenhum ponto foi gerado.",
+                                    color = FioTextMuted, fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
             Button(
@@ -1078,13 +1184,21 @@ fun SimpleImageToEmbroideryScreen(
                                                         selected, selectedPart,
                                                         proposed, selectedWidth
                                                     ).getOrThrow()
+                                                val gaps =
+                                                    RasterUncoveredRegionAudit.inspect(
+                                                        selected, selectedPart,
+                                                        fidelity, selectedWidth
+                                                    ).getOrThrow()
                                                 require(
                                                     fidelity.coverage >= .78 &&
                                                         fidelity.offInkFraction <= .10
                                                 ) {
-                                                    "Pontos Satin não cobrem a máscara " +
-                                                        "ou atravessam áreas vazias. " +
-                                                        "Ajuste os trilhos da letra."
+                                                    "Os trilhos deixam " +
+                                                        gaps.uncoveredPixels +
+                                                        " pixels sem cobertura em " +
+                                                        gaps.totalRegions + " regiões. " +
+                                                        "Revise Satin, Tatami ou corrido " +
+                                                        "antes de simular. Não é PES."
                                                 }
                                             }
                                             proposed
