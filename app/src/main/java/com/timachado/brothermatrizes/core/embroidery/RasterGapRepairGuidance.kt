@@ -146,7 +146,7 @@ internal object RasterGapRepairGuidance {
             report.regions.all { it.id in 1..report.totalRegions &&
                 it.pixelCount == regionCount[it.id] } &&
             report.regions.sumOf { it.pixelCount } +
-                report.unlistedGapPixels == report.uncoveredPixels
+                report.hiddenRegionPixels == report.uncoveredPixels
         ) { "Contagem de regiões não corresponde à tinta original." }
 
         // Multi-source shortest path on the original component ink only.
