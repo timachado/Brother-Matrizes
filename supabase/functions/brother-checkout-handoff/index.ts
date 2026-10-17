@@ -49,6 +49,20 @@ async function encryptTicket(payload: object, configuredKey: string): Promise<st
 }
 
 Deno.serve(async (req: Request) => {
+  // Non-sensitive diagnostics: confirms that the private handoff key exists
+  // and is correctly encoded. Does not reveal the key or grant a session.
+  if (req.method === "GET" &&
+      new URL(req.url).pathname.endsWith("/health")) {
+    let configured = false;
+    try {
+      const value = Deno.env.get("BROTHER_CHECKOUT_HANDOFF_KEY") || "";
+      configured = value.length > 0 && fromBase64(value).length === 32;
+    } catch {
+      configured = false;
+    }
+    return response({ service: "brother-checkout-handoff", ready: configured },
+      configured ? 200 : 503);
+  }
   if (req.method !== "POST") return response({ error: "method_not_allowed" }, 405);
   const authorization = req.headers.get("Authorization") || "";
   if (!/^Bearer [^\s]+$/.test(authorization)) {
