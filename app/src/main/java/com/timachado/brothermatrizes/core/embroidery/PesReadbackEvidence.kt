@@ -20,6 +20,7 @@ internal data class PesReadbackEvidenceReport(
     val originalHeightMm: Float,
     val reopenedHeightMm: Float,
     val geometryPreserved: Boolean,
+    val orderedStitchSequencePreserved: Boolean,
     val externalDecoderVerified: Boolean = false,
     val machineCertified: Boolean = false,
     val authorizesImagePesExport: Boolean = false
@@ -102,6 +103,15 @@ internal object PesReadbackEvidence {
                 "heightDeltaMm=$heightDiff; origem=$oldGeometry; " +
                 "releitura=$newGeometry."
         }
+        // Position sets alone cannot catch a reordered sewing path or
+        // omitted repeated needle penetrations. Check ordered multiplicity
+        // against the actual decoded STITCH sequence as a separate gate.
+        val ordered = PesOrderedStitchReadback.compare(
+            source, reopened
+        ).getOrThrow()
+        require(ordered.orderedNeedlePathPreserved) {
+            "PES perdeu a sequência original de pontadas."
+        }
         // The PES container is offset to positive PEC coordinates by the
         // release converter; this check detects recentering to negatives.
         require(reopened.bounds.minXUnits>=-1 &&
@@ -115,7 +125,8 @@ internal object PesReadbackEvidence {
             reopenedWidthMm=reopened.bounds.widthMm,
             originalHeightMm=source.bounds.heightMm,
             reopenedHeightMm=reopened.bounds.heightMm,
-            geometryPreserved=true
+            geometryPreserved=true,
+            orderedStitchSequencePreserved=true
         )
     }
 }
