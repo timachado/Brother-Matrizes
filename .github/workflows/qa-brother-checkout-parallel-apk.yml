@@ -36,11 +36,9 @@ jobs:
           set -euo pipefail
           mkdir -p app/src/debug
           jq --arg pkg "com.timachado.brothermatrizes.qa" '
-            .client |= map(
-              if .client_info.android_client_info.package_name == "com.timachado.brothermatrizes"
-              then .client_info.android_client_info.package_name = $pkg
-              else . end
-            )
+            .client += [(.client[] |
+              select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
           ' app/google-services.json > app/src/debug/google-services.json
           jq -e '.client[]|select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.qa")' app/src/debug/google-services.json >/dev/null
           grep -Fq 'applicationIdSuffix = ".qa"' app/build.gradle.kts
