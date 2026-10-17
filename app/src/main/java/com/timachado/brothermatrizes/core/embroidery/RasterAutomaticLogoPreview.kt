@@ -343,6 +343,9 @@ internal object RasterAutomaticLogoPreview {
             hoopProfile = hoop
         )
         RasterNeedleRiskAudit.inspect(assembled, hoop).getOrThrow()
+        // A needle-safe shape can still change thread without a TRIM/JUMP.
+        // Audit real command order before exposing the whole-artwork QA preview.
+        RasterThreadSequenceAudit.inspect(assembled).getOrThrow()
         // Endpoint hotspots and three-color overlap do not detect several
         // needle-down passes of the SAME color in a small area.
         RasterThreadDensityPreflight.inspect(assembled).getOrThrow()
