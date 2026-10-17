@@ -120,6 +120,60 @@ class RasterAssistedSatinDraftPlannerTest {
         ).isFailure)
     }
 
+    @Test fun editedSatinStitchCrossingLetterHoleFailsSecondAudit() {
+        val source = photo { x,y ->
+            if (x in 35..89 && y in 14..75 &&
+                !(x in 49..76 && y in 29..61)) orange else 0
+        }
+        val element = plan(source).elements.single()
+        val sourcePlan = plan(source)
+        val isolated = sourcePlan.isolate(element.id).getOrThrow()
+        val pixels = IntArray(source.argb.size) { index ->
+            if (isolated.argb[index] ushr 24 >= 180) 0 else -1
+        }
+        val item = RasterSatinObject(
+            id = element.id, color = orange, pixelCount = element.pixelCount,
+            mask = SeparatedColorArtwork(
+                colors = listOf(orange), pixels = pixels,
+                minX = element.minX, maxX = element.maxX,
+                minY = element.minY, maxY = element.maxY
+            )
+        )
+        // A single physically plausible 7.3 mm needle move that enters the
+        // letter's transparent core MUST be rejected independently of
+        // how the draft rails were generated.
+        val points = listOf(
+            EmbroideryPoint(-186, 28, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-113, 28, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-113, 28, StitchCommand.END, 0)
+        )
+        val unsafe = EmbroideryDesign(
+            fileName = "crossed-counter.qa",
+            format = "QA_SATIN_REVIEW",
+            label = "malicious stitch through empty letter",
+            points = points,
+            bounds = EmbroideryBounds(-186,-113,28,28),
+            stitchCount = 1,
+            jumpCount = 1,
+            colorChanges = 0,
+            endFound = true,
+            sourceBytes = ByteArray(0),
+            threadColors = listOf(orange),
+            isModified = true,
+            hoopProfile = HoopProfile.H130X180
+        )
+        val checked = RasterAssistedSatinDraftPlanner.requireSafeCounterPath(
+            source,item,unsafe,90f
+        )
+        assertTrue(checked.isFailure)
+        assertTrue(checked.exceptionOrNull()?.message.orEmpty().contains(
+            "contraforma", ignoreCase = true
+        ) || checked.exceptionOrNull()?.message.orEmpty().contains(
+            "atravessa", ignoreCase = true
+        ))
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun noStitchFileIsProducedByPreparingEditableRails() {
         val source = photo { x,y ->
             if (x in 20..89 && y in 25..48) orange else 0
