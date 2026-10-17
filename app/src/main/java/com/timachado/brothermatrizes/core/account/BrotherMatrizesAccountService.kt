@@ -461,6 +461,15 @@ object BrotherMatrizesAccountService {
         Unit
     }
 
+    /**
+     * Homologação: usa a sessão Google já confirmada pelo Supabase para gerar
+     * bilhete criptografado de curta duração. Não transmite senha ou token
+     * OAuth ao navegador/WordPress. O WooCommerce continua responsável pelo pagamento.
+     */
+    suspend fun handoffToCommercialCheckout(planCode: String): Result<String> = runCatching {
+        BrotherCheckoutHandoffClient.open(planCode, verifiedAccessToken())
+    }
+
     suspend fun openCheckout(planCode: String): Result<String> = runCatching {
         val token = client.auth.currentSessionOrNull()?.accessToken
             ?: error("Entre na sua conta primeiro.")
