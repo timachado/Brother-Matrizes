@@ -35,6 +35,10 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"sb_publishable_K7JQ8O5fNgZjhEGSQsoZdQ_W4TLRHY4\""
         )
+        // Off in commercial APK until WordPress plugin and Supabase exchange are live.
+        // Enable only for a reviewed QA build with -PbrotherCheckoutHandoff=true.
+        buildConfigField("boolean", "ENABLE_CHECKOUT_HANDOFF",
+            (providers.gradleProperty("brotherCheckoutHandoff").orNull == "true").toString())
         // Local beta preview quota for imports only. No purchase or Pro unlock.
         // Disable and migrate quotas before launching commercial sales.
         buildConfigField("boolean", "BETA_LOCAL_IMPORTS", "true")
