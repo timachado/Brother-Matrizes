@@ -45,6 +45,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
+import com.timachado.brothermatrizes.core.embroidery.RasterImageSamplingEvidence
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterAutomaticLogoPreview
@@ -76,6 +77,7 @@ import kotlin.math.roundToInt
  */
 class SimpleImageSession {
     val photoState = mutableStateOf<RasterImagePixels?>(null)
+    internal val samplingEvidenceState = mutableStateOf<RasterImageSamplingEvidence?>(null)
     val candidatesState = mutableStateOf<List<RasterArtworkCandidate>>(emptyList())
     val selectedIdState = mutableIntStateOf(0)
     val cropState = mutableStateOf(RasterCropBounds(0f, 0f, 1f, 1f))
@@ -130,6 +132,7 @@ fun SimpleImageToEmbroideryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var photo by session.photoState
+    var samplingEvidence by session.samplingEvidenceState
     var candidates by session.candidatesState
     var selectedId by session.selectedIdState
     var crop by session.cropState
@@ -164,6 +167,7 @@ fun SimpleImageToEmbroideryScreen(
             revision++
             val request = revision
             photo = null
+            samplingEvidence = null
             candidates = emptyList()
             prepared = null
             crop = RasterCropBounds(0f, 0f, 1f, 1f)
@@ -180,9 +184,9 @@ fun SimpleImageToEmbroideryScreen(
             message = ""
             scope.launch {
                 val loaded = withContext(Dispatchers.IO) {
-                    RasterImageDecoder.decode(context.contentResolver, uri)
+                    RasterImageDecoder.decodeWithSamplingEvidence(context.contentResolver, uri)
                 }
-                val image = loaded.getOrNull()
+                val image = loaded.getOrNull()?.image
                 val matches = image?.let {
                     withContext(Dispatchers.Default) { RasterArtworkCandidates.detect(it) }
                 } ?: emptyList()
@@ -191,6 +195,7 @@ fun SimpleImageToEmbroideryScreen(
                 }
                 if (revision == request) {
                     photo = image
+                    samplingEvidence = loaded.getOrNull()?.evidence
                     candidates = matches
                     crop = detectedBounds ?: RasterCropBounds(0f, 0f, 1f, 1f)
                     choosing = false
@@ -348,6 +353,22 @@ fun SimpleImageToEmbroideryScreen(
                 "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
                 color = FioTextMuted, fontSize = 11.sp
             )
+            samplingEvidence?.let { evidence ->
+                Text(
+                    "Origem: ${evidence.sourceWidth} × ${evidence.sourceHeight} px → " +
+                        "prévia: ${evidence.workingWidth} × ${evidence.workingHeight} px. " +
+                        "Comparação: ${evidence.referenceWidth} × ${evidence.referenceHeight} px.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                if (evidence.needsDetailReview) {
+                    Text(
+                        "A redução pode ter eliminado cores ou detalhes pequenos. " +
+                            "Revise a foto em maior definição antes de simular " +
+                            "o bordado automático.",
+                        color = FioGold, fontSize = 12.sp
+                    )
+                }
+            }
             if (artworkAudit?.requiresMultiTechniqueReview == true) {
                 Text(
                     "Arte complexa: tons e detalhes exigem separar letras, " +
@@ -638,6 +659,7 @@ fun SimpleImageToEmbroideryScreen(
                     val chosenMode = displayMode
                     val chosenConnections = showConnections
                     val currentRevision = revision
+                    val selectedSamplingEvidence = samplingEvidence
                     // Snapshot rail edits: the background operation must not
                     // mix draft changes or silently switch to raster filling.
                     val selectedPart = if (satinEditorOpen) {
@@ -668,6 +690,14 @@ fun SimpleImageToEmbroideryScreen(
                                             selectedWidth, selectedHoop
                                         )
                                     }
+                                } else if (selectedSamplingEvidence?.needsDetailReview == true) {
+                                    Result.failure(
+                                        IllegalArgumentException(
+                                            "Detalhes da foto foram potencialmente perdidos " +
+                                                "na redução de resolução. Use uma imagem " +
+                                                "mais nítida ou revisão assistida."
+                                        )
+                                    )
                                 } else {
                                     // Only the real assembled STITCH/JUMP/TRIM
                                     // paths reach the original SimulatorScreen.
@@ -713,7 +743,8 @@ fun SimpleImageToEmbroideryScreen(
                                     design = preview,
                                     hoop = selectedHoop,
                                     sourceImage = if (editing) null else selected,
-                                    sourceWidthMm = if (editing) null else selectedWidth
+                                    sourceWidthMm = if (editing) null else selectedWidth,
+                                    samplingEvidence = selectedSamplingEvidence
                                 ).getOrNull()?.toMarkdown()
                             }
                         }
