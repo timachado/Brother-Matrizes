@@ -46,6 +46,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterArtworkCandidates
 import com.timachado.brothermatrizes.core.embroidery.RasterCropBounds
 import com.timachado.brothermatrizes.core.embroidery.RasterImageDecoder
 import com.timachado.brothermatrizes.core.embroidery.RasterImageSamplingEvidence
+import com.timachado.brothermatrizes.core.embroidery.RasterImageSamplingAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterImagePixels
 import com.timachado.brothermatrizes.core.embroidery.RasterGeometryAwareSatinPreview
 import com.timachado.brothermatrizes.core.embroidery.RasterAutomaticLogoPreview
@@ -133,6 +134,7 @@ fun SimpleImageToEmbroideryScreen(
     val scope = rememberCoroutineScope()
     var photo by session.photoState
     var samplingEvidence by session.samplingEvidenceState
+    var scopedSamplingReview by remember { mutableStateOf<Pair<RasterCropBounds, RasterImageSamplingEvidence>?>(null) }
     var candidates by session.candidatesState
     var selectedId by session.selectedIdState
     var crop by session.cropState
@@ -211,6 +213,21 @@ fun SimpleImageToEmbroideryScreen(
             picker.launch(arrayOf("image/*"))
         }
     }
+
+    // Evaluate detail loss for the actual cropped REGION. A lost letter
+    // elsewhere in the full logo must not block reviewing an unrelated part.
+    LaunchedEffect(samplingEvidence, crop) {
+        scopedSamplingReview = null
+        val original = samplingEvidence ?: return@LaunchedEffect
+        val selectedCrop = crop
+        val scoped = withContext(Dispatchers.Default) {
+            RasterImageSamplingAudit.inspectRegion(original, selectedCrop)
+        }
+        scoped.getOrNull()?.let { scopedSamplingReview = selectedCrop to it }
+    }
+    val regionalSampling = scopedSamplingReview?.takeIf {
+        it.first == crop && it.second.sha256 == samplingEvidence?.sha256
+    }?.second
 
     // No "Preparar imagem" intermediate page. Every import/selection change
     // automatically prepares the image for immediate original-hoop display.
@@ -353,7 +370,7 @@ fun SimpleImageToEmbroideryScreen(
                 "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
                 color = FioTextMuted, fontSize = 11.sp
             )
-            samplingEvidence?.let { evidence ->
+            regionalSampling?.let { evidence ->
                 Text(
                     "Origem: ${evidence.sourceWidth} × ${evidence.sourceHeight} px → " +
                         "prévia: ${evidence.workingWidth} × ${evidence.workingHeight} px. " +
@@ -362,9 +379,10 @@ fun SimpleImageToEmbroideryScreen(
                 )
                 if (evidence.needsDetailReview) {
                     Text(
-                        "A redução pode ter eliminado cores ou detalhes pequenos. " +
-                            "Revise a foto em maior definição antes de simular " +
-                            "o bordado automático.",
+                        "Foram detectadas diferenças na redução do ${evidence.inspectedRegion}. " +
+                            "A textura e os brilhos do bordado ilustrado não são " +
+                            "trajetórias de agulha: revise cores, letras e contornos " +
+                            "antes da digitalização automática.",
                         color = FioGold, fontSize = 12.sp
                     )
                 }
@@ -650,7 +668,8 @@ fun SimpleImageToEmbroideryScreen(
             }
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !preparing && !simulating && fitted && prepared != null,
+                enabled = !preparing && !simulating && fitted && prepared != null &&
+                    (samplingEvidence == null || regionalSampling != null),
                 colors = ButtonDefaults.buttonColors(containerColor = FioGold),
                 onClick = {
                     val selected = prepared?.image ?: return@Button
@@ -659,7 +678,8 @@ fun SimpleImageToEmbroideryScreen(
                     val chosenMode = displayMode
                     val chosenConnections = showConnections
                     val currentRevision = revision
-                    val selectedSamplingEvidence = samplingEvidence
+                    val selectedSamplingEvidence = regionalSampling
+                    val selectedArtworkComplex = artworkAudit?.requiresMultiTechniqueReview == true
                     // Snapshot rail edits: the background operation must not
                     // mix draft changes or silently switch to raster filling.
                     val selectedPart = if (satinEditorOpen) {
@@ -690,12 +710,23 @@ fun SimpleImageToEmbroideryScreen(
                                             selectedWidth, selectedHoop
                                         )
                                     }
+                                } else if (selectedArtworkComplex) {
+                                    Result.failure(
+                                        IllegalArgumentException(
+                                            "O arquivo contém texturas ou vários tons de " +
+                                                "linha. Separe e revise os elementos " +
+                                                "(símbolo, letras e contornos) antes de " +
+                                                "gerar trajetórias reais de agulha. " +
+                                                "A prévia fotográfica não é uma matriz."
+                                        )
+                                    )
                                 } else if (selectedSamplingEvidence?.needsDetailReview == true) {
                                     Result.failure(
                                         IllegalArgumentException(
-                                            "Detalhes da foto foram potencialmente perdidos " +
-                                                "na redução de resolução. Use uma imagem " +
-                                                "mais nítida ou revisão assistida."
+                                            "O recorte selecionado pode ter perdido " +
+                                                "cores ou pequenos detalhes ao ser " +
+                                                "reduzido. Revise a separação das " +
+                                                "formas antes de gerar pontos reais."
                                         )
                                     )
                                 } else {
