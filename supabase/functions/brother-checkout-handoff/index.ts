@@ -23,7 +23,19 @@ function response(data: object, status: number): Response {
   });
 }
 function fromBase64(input: string): Uint8Array {
-  const raw = atob(input);
+  // The secret screen may preserve surrounding quotes/newlines when pasted
+  // from a mobile editor. Normalize only that harmless wrapping; never
+  // interpret JSON, PHP code, or arbitrary strings as key material.
+  let candidate = input.replace(/^\uFEFF/, "").trim();
+  if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
+      (candidate.startsWith("'") && candidate.endsWith("'"))) {
+    candidate = candidate.slice(1, -1).trim();
+  }
+  candidate = candidate.replace(/\s+/g, "");
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(candidate)) {
+    throw Error("invalid Base64 key format");
+  }
+  const raw = atob(candidate);
   return Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
 }
 function base64url(bytes: Uint8Array): string {
