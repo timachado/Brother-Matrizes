@@ -59,16 +59,28 @@ internal object PesReadbackEvidence {
         val oldPoints=source.points.filter { it.command==StitchCommand.STITCH }
         val newPoints=reopened.points.filter { it.command==StitchCommand.STITCH }
         require(oldPoints.isNotEmpty() && newPoints.isNotEmpty())
-        fun normalized(points:List<EmbroideryPoint>, yDown:Boolean):Set<Pair<Int,Int>> {
-            val xmin=points.minOf { it.xUnits }
-            val ys=points.map { if(yDown) it.yUnits else -it.yUnits }
-            val ymin=ys.min()
-            return points.mapIndexed { i,p ->
-                (p.xUnits-xmin) to (ys[i]-ymin)
+        fun normalized(design:EmbroideryDesign):Set<Pair<Int,Int>> {
+            // Machine encoder can insert a STITCH at the initial JUMP
+            // position. Both source and parsed machine path must therefore
+            // use the origin of ALL needle/travel locations, not the first
+            // STITCH alone. Otherwise legitimate PEC origin shifts look like
+            // missing embroidery even when the actual stitches are intact.
+            val positions=design.points.filter {
+                it.command==StitchCommand.JUMP ||
+                    it.command==StitchCommand.STITCH
+            }
+            val xmin=positions.minOf { it.xUnits }
+            fun visualY(p:EmbroideryPoint)=
+                if(design.sourceYAxisDown) p.yUnits else -p.yUnits
+            val ymin=positions.minOf(::visualY)
+            return design.points.filter {
+                it.command==StitchCommand.STITCH
+            }.map { p ->
+                (p.xUnits-xmin) to (visualY(p)-ymin)
             }.toSet()
         }
-        val oldGeometry=normalized(oldPoints,source.sourceYAxisDown)
-        val newGeometry=normalized(newPoints,reopened.sourceYAxisDown)
+        val oldGeometry=normalized(source)
+        val newGeometry=normalized(reopened)
         // The format can add positioning jumps or interpolate longer
         // movements. Existing source stitch coordinates must remain present
         // (within one 0.1 mm coordinate unit for decoder rounding).
