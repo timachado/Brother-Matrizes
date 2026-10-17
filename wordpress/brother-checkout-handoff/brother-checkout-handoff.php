@@ -8,13 +8,32 @@
 if (!defined('ABSPATH')) exit;
 const BM_CHECKOUT_AUDIENCE = 'ti-machado-brother-checkout-v1';
 
-/** AES-256-GCM; key available ONLY in wp-config.php, not in frontend / repo. */
+/** Shared server-side key. Supports wp-config.php or a private non-autoloaded option. */
+function bm_checkout_private_key() {
+  if (defined('BM_CHECKOUT_HANDOFF_KEY')) return (string) BM_CHECKOUT_HANDOFF_KEY;
+  return function_exists('get_option')
+    ? (string) get_option('bm_checkout_handoff_key_v1', '') : '';
+}
+if (function_exists('register_activation_hook')) {
+  register_activation_hook(__FILE__, function() {
+    if (defined('BM_CHECKOUT_HANDOFF_KEY')) return;
+    $key = get_option('bm_checkout_handoff_key_v1', '');
+    if (!$key) {
+      // One-time generation on site only; never expose in code or APK.
+      add_option('bm_checkout_handoff_key_v1',
+        base64_encode(random_bytes(32)), '', false);
+    }
+  });
+}
+require_once __DIR__ . '/includes/admin-setup.php';
+
+/** AES-256-GCM; secret never exposed through public REST or frontend. */
 function bm_checkout_decode($input) {
-  if (!defined('BM_CHECKOUT_HANDOFF_KEY')) return new WP_Error('setup', 'Checkout integrado indisponível.');
+  if (bm_checkout_private_key() === '') return new WP_Error('setup', 'Checkout integrado indisponível.');
   if (!is_string($input) || strlen($input)>2500 || strlen($input)<70 ||
       !preg_match('/^[A-Za-z0-9_-]+$/D', $input)) return new WP_Error('invalid', 'Acesso inválido.');
   $bytes=base64_decode(strtr($input, '-_', '+/').str_repeat('=', (4-strlen($input)%4)%4), true);
-  $key=base64_decode(BM_CHECKOUT_HANDOFF_KEY, true);
+  $key=base64_decode(bm_checkout_private_key(), true);
   if ($bytes===false || strlen($bytes)<60 || $key===false || strlen($key)!==32)
     return new WP_Error('invalid', 'Acesso inválido ou configuração incompleta.');
   $nonce=substr($bytes, 0, 12); $data=substr($bytes, 12);
