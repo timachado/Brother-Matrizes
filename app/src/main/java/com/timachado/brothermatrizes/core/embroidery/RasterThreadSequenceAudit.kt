@@ -109,12 +109,13 @@ internal object RasterThreadSequenceAudit {
                         changes++
                     }
                     StitchCommand.END -> {
+                        val last = lastSewnPosition
                         require(index == commands.lastIndex &&
                             previousCommand == StitchCommand.STITCH &&
                             point.colorIndex == activeColor &&
-                            lastSewnPosition != null &&
-                            point.xUnits == lastSewnPosition.xUnits &&
-                            point.yUnits == lastSewnPosition.yUnits
+                            last != null &&
+                            point.xUnits == last.xUnits &&
+                            point.yUnits == last.yUnits
                         ) { "Fim de matriz sem ponto final coerente." }
                     }
                     StitchCommand.STOP, StitchCommand.SEQUIN -> {
