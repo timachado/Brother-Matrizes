@@ -66,6 +66,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
+import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
+import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -285,6 +287,16 @@ fun SimpleImageToEmbroideryScreen(
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
+    var elementPlan by remember(stageImage) {
+        mutableStateOf<RasterAssistedElementPlan?>(null)
+    }
+    var analyzingElements by remember(stageImage) { mutableStateOf(false) }
+    var selectedElementId by remember(stageImage) { mutableIntStateOf(0) }
+    // These are comparison masks only; none is passed to a stitch generator.
+    val elementPicture = remember(elementPlan, selectedElementId) {
+        if (selectedElementId == 0) null else
+            elementPlan?.isolate(selectedElementId)?.getOrNull()
+    }
     val artworkAudit = remember(stageImage) {
         stageImage?.let { RasterArtworkComplexityAudit.examine(it) }
     }
@@ -373,13 +385,15 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (showFlatStudy) flatStudy?.flatPreview ?: stageImage
-                    else stageImage,
+                rasterArtwork = elementPicture ?: if (showFlatStudy)
+                    flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (showFlatStudy && flatStudy != null)
+                if (elementPicture != null)
+                    "Máscara isolada para revisão: NÃO é uma matriz nem ponto Satin"
+                else if (showFlatStudy && flatStudy != null)
                     "Prévia técnica em cores planas (sem pontos de bordado)"
                 else "Prévia da imagem no bastidor (ainda sem pontos de bordado)",
                 color = FioTextMuted, fontSize = 11.sp
@@ -418,6 +432,7 @@ fun SimpleImageToEmbroideryScreen(
                     !simulating && !studyingTexture,
                 onClick = {
                     if (flatStudy != null) {
+                        selectedElementId = 0
                         showFlatStudy = !showFlatStudy
                     } else {
                         val picture = prepared?.image
@@ -464,6 +479,100 @@ fun SimpleImageToEmbroideryScreen(
                     color = FioTextMuted,
                     fontSize = 11.sp
                 )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = prepared != null && !preparing &&
+                        !analyzingElements && !studyingTexture,
+                    onClick = {
+                        if (elementPlan != null) {
+                            selectedElementId = 0
+                            elementPlan = null
+                        } else {
+                            val photoSnapshot = prepared?.image
+                            if (photoSnapshot == null) {
+                                message = "A foto precisa estar preparada para separar elementos."
+                            } else {
+                                val request = revision
+                                analyzingElements = true
+                                message = ""
+                                scope.launch {
+                                    val planned = withContext(Dispatchers.Default) {
+                                        RasterAssistedElementPlanner.propose(
+                                            photoSnapshot, study
+                                        )
+                                    }
+                                    analyzingElements = false
+                                    if (request == revision &&
+                                        prepared?.image === photoSnapshot &&
+                                        flatStudy === study) {
+                                        planned.fold(
+                                            onSuccess = {
+                                                elementPlan = it
+                                                selectedElementId = 0
+                                                message = ""
+                                            },
+                                            onFailure = {
+                                                message = it.message ?:
+                                                    "A separação exige revisão manual."
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        when {
+                            analyzingElements -> "Separando silhuetas e vazados..."
+                            elementPlan != null -> "Ocultar elementos detectados"
+                            else -> "Separar símbolo, letras e vazados (QA)"
+                        },
+                        color = FioGold
+                    )
+                }
+                elementPlan?.let { plan ->
+                    Text(plan.summary(), color = FioTextMuted, fontSize = 11.sp)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(onClick = { selectedElementId = 0 }) {
+                            Text("Arte completa", color = FioGold)
+                        }
+                        plan.elements.take(12).forEach { element ->
+                            OutlinedButton(onClick = {
+                                selectedElementId = element.id
+                                showFlatStudy = false
+                            }) {
+                                Text(
+                                    "Elemento " + element.id,
+                                    color = FioGold
+                                )
+                            }
+                        }
+                    }
+                    plan.elements.firstOrNull {
+                        it.id == selectedElementId
+                    }?.let { element ->
+                        Text(
+                            "Elemento " + element.id + ": " +
+                                element.pixelCount + " pixels, " +
+                                element.enclosedHoles + " vazado(s) interno(s). " +
+                                "A visualização não isola pontos nem valida " +
+                                "trilhos; revise as curvas no editor Satin.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                    }
+                    if (plan.elements.size > 12) {
+                        Text(
+                            "Exibidos 12 de " + plan.elements.size +
+                                " elementos selecionáveis. Os demais " +
+                                "continuam no relatório, sem descarte.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                    }
+                }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = prepared != null && fitted && !preparing &&
