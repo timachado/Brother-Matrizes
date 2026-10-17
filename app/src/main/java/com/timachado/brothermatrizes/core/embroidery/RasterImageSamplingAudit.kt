@@ -116,7 +116,7 @@ internal object RasterImageSamplingAudit {
                 val p = high[idx]
                 if (!foreground(p, referenceBackground)) continue
                 refInk++
-                if (directlyComparable) continue
+                if (directlyComparable && p == low[idx]) continue
                 // Compare source color with nearby WORKING image colors.
                 // A one-cell tolerance avoids counting anti-aliasing on
                 // ordinary edges as lost embroidery details.
