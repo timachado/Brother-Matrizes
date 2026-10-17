@@ -111,7 +111,29 @@ add_action('template_redirect',function() {
   wp_set_auth_cookie($user->ID,false,true);
   do_action('wp_login',$user->user_login,$user);
   if ($claim['plan']==='pro_lifetime_launch') {
+    // Product #308 is an official promotional offer. The server, not the
+    // mobile app, decides its price, availability and cart eligibility.
     $dest=home_url('/?post_type=product&p=308');
+    if (function_exists('WC') && function_exists('wc_get_product') &&
+        function_exists('wc_get_checkout_url') && WC()->cart) {
+      $product=wc_get_product(308);
+      if ($product && $product->get_status()==='publish' &&
+          $product->is_purchasable() && $product->is_in_stock()) {
+        $cart=WC()->cart;
+        $contents=$cart->get_cart();
+        $hasOtherItems=false; $alreadyInCart=false;
+        foreach ($contents as $line) {
+          if ((int)($line['product_id']??0)===308) $alreadyInCart=true;
+          else $hasOtherItems=true;
+        }
+        // Never clear the basket or silently mix a Brother purchase with
+        // unrelated WooCommerce products. Existing cart remains untouched.
+        if (!$hasOtherItems && ($alreadyInCart ||
+            $cart->add_to_cart(308,1))) {
+          $dest=wc_get_checkout_url();
+        }
+      }
+    }
   } else {
     $lookup=array('pro_monthly'=>'monthly','pro_yearly'=>'yearly','pro_lifetime'=>'lifetime');
     $dest=add_query_arg(array('tiac_auth'=>'checkout','tiac_resume_app'=>307,
