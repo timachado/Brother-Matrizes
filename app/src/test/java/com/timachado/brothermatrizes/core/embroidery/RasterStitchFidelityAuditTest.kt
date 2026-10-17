@@ -28,6 +28,16 @@ class RasterStitchFidelityAuditTest {
         val measured = RasterStitchFidelityAudit.compare(
             image, component, design, 85f
         ).getOrThrow()
+        // The new gap audit must operate on ACTUAL sewn STITCH coverage,
+        // not fabricated raster fill or JUMP travel.
+        val analyzed = RasterUncoveredRegionAudit.inspect(
+            image, component, measured, 85f
+        ).getOrThrow()
+        assertTrue(analyzed.sourcePixels > 0)
+        assertTrue(analyzed.coverage >= .78)
+        assertTrue(analyzed.uncoveredPixels >= 0)
+        assertTrue(analyzed.regions.all { it.pixelCount > 0 })
+        assertFalse(analyzed.exportPermitted)
         assertTrue("coverage=${measured.coverage}", measured.coverage >= .78)
         assertTrue("outside=${measured.offInkFraction}",
             measured.offInkFraction <= .10)
