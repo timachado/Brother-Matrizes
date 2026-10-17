@@ -142,6 +142,15 @@ internal object RasterQaReadinessReportBuilder {
             density.exceptionOrNull()?.message ?: "Acúmulo preliminar QA aceito."
         )
         if (design.format == "QA_AUTO_STITCH") {
+            audit("Ordem de cortes, saltos e trocas de linha") {
+                RasterThreadSequenceAudit.inspect(design).getOrThrow()
+            }
+        } else gates += RasterQaGate(
+            "Ordem de cortes, saltos e trocas de linha",
+            RasterQaGateStatus.MISSING,
+            "Necessária composição de todos os elementos da imagem."
+        )
+        if (design.format == "QA_AUTO_STITCH") {
             audit("Sobreposição entre cores") {
                 RasterColorLayerOverlapAudit.inspect(design).getOrThrow()
             }
