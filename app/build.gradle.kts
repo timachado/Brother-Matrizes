@@ -51,6 +51,12 @@ android {
 
     buildTypes {
         debug {
+            // QA paralela: não substitui nem desinstala a versão comercial.
+            // Só ativar com -PbrotherCheckoutQaParallel=true.
+            if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+                applicationIdSuffix = ".qa"
+                versionNameSuffix = "-QA"
+            }
             /*
              * Project token do PostHog é um identificador público de cliente,
              * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
