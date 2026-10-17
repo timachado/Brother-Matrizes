@@ -22,7 +22,10 @@ jobs:
         run: |
           set -euo pipefail
           php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php -l wordpress/brother-checkout-handoff/includes/admin-setup.php
           php tests/brother-checkout-handoff-php-test.php
+          grep -Fq 'register_activation_hook' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'BROTHER_CHECKOUT_HANDOFF_KEY' wordpress/brother-checkout-handoff/includes/admin-setup.php
       - name: Empacotar plugin isolado para QA sem segredos
         shell: bash
         run: |
