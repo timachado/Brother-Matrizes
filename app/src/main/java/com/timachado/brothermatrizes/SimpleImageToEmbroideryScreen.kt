@@ -73,6 +73,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinRailGeometryGate
 import com.timachado.brothermatrizes.core.embroidery.RasterStitchFidelityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionReport
+import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredReviewOverlay
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -323,6 +324,21 @@ fun SimpleImageToEmbroideryScreen(
     var uncoveredReport by remember(stageImage, satinSections, satinPartIndex, widthMm, hoop) {
         mutableStateOf<RasterUncoveredRegionReport?>(null)
     }
+    var showGapOverlay by remember(stageImage) { mutableStateOf(false) }
+    var selectedGapId by remember(stageImage) { mutableIntStateOf(0) }
+    val gapOverlay = remember(
+        uncoveredReport, showGapOverlay, selectedGapId,
+        stageImage, satinParts, satinPartIndex, assistedSatinElementId
+    ) {
+        val source = prepared?.image
+        val item = satinParts.getOrNull(satinPartIndex)
+        val report = uncoveredReport
+        if (!showGapOverlay || source == null || item == null || report == null ||
+            assistedSatinElementId != item.id
+        ) null else RasterUncoveredReviewOverlay.render(
+            source, item, report, selectedGapId
+        ).getOrNull()
+    }
     val placeholder = remember(stageImage, hoop, widthMm) {
         stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
     }
@@ -398,13 +414,16 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = elementPicture ?: if (showFlatStudy)
+                rasterArtwork = gapOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (elementPicture != null)
+                if (gapOverlay != null)
+                    "Cobertura real QA: laranja = faltam pontos; cinza = já coberto. " +
+                        "Vazados transparentes preservados. Sem novas agulhadas."
+                else if (elementPicture != null)
                     "Máscara isolada para revisão: NÃO é uma matriz nem ponto Satin"
                 else if (showFlatStudy && flatStudy != null)
                     "Prévia técnica em cores planas (sem pontos de bordado)"
@@ -1038,6 +1057,8 @@ fun SimpleImageToEmbroideryScreen(
                                 val stamp = revision
                                 reviewingGaps = true
                                 uncoveredReport = null
+                                showGapOverlay = false
+                                selectedGapId = 0
                                 message = ""
                                 scope.launch {
                                     val audited = withContext(Dispatchers.Default) {
@@ -1071,7 +1092,11 @@ fun SimpleImageToEmbroideryScreen(
                                         satinParts.getOrNull(satinPartIndex)?.id == id &&
                                         satinSections[id] == sectionsSnapshot) {
                                         audited.fold(
-                                            onSuccess = { uncoveredReport = it },
+                                            onSuccess = {
+                                                uncoveredReport = it
+                                                showGapOverlay = true
+                                                selectedGapId = 0
+                                            },
                                             onFailure = {
                                                 message = it.message ?:
                                                     "Não foi possível conferir as lacunas."
@@ -1093,6 +1118,38 @@ fun SimpleImageToEmbroideryScreen(
                                 missing.summary(), color = FioTextMuted,
                                 fontSize = 11.sp
                             )
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { showGapOverlay = !showGapOverlay }
+                            ) {
+                                Text(
+                                    if (showGapOverlay)
+                                        "Ocultar destaques de lacunas"
+                                    else "Mostrar lacunas no bastidor (QA)",
+                                    color = FioGold
+                                )
+                            }
+                            if (showGapOverlay && missing.regions.isNotEmpty()) {
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(onClick = { selectedGapId = 0 }) {
+                                        Text("Todas as lacunas", color = FioGold)
+                                    }
+                                    missing.regions.take(8).forEach { region ->
+                                        OutlinedButton(onClick = {
+                                            selectedGapId = region.id
+                                        }) {
+                                            Text(
+                                                "Região " + region.id,
+                                                color = FioGold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             missing.regions.take(8).forEach { region ->
                                 val routeName = when (region.suggestedReview) {
                                     RasterGapReviewRoute.SATIN_REVIEW ->
@@ -1157,8 +1214,11 @@ fun SimpleImageToEmbroideryScreen(
                                             )
                                         )
                                     } else {
-                                        if (selectedPart.id == selectedAssistedId) {
-                                            val holes = elementPlan?.elements
+                                        // Fail as Result instead of throwing out of the
+                                        // coroutine and leaving simulating=true.
+                                        runCatching {
+                                            if (selectedPart.id == selectedAssistedId) {
+                                                val holes = elementPlan?.elements
                                                 ?.firstOrNull { it.id == selectedPart.id }
                                                 ?.enclosedHoles ?: error(
                                                     "Origem da máscara assistida indisponível."
@@ -1166,10 +1226,12 @@ fun SimpleImageToEmbroideryScreen(
                                             RasterSatinRailGeometryGate.inspect(
                                                 selected, selectedPart,
                                                 selectedSections, selectedWidth,
-                                                holes
-                                            ).getOrThrow()
-                                        }
-                                        RasterSatinObjectEditor.preview(
+                                                    holes
+                                                ).getOrThrow()
+                                            }
+                                        }.fold(
+                                            onSuccess = {
+                                                RasterSatinObjectEditor.preview(
                                             selected, selectedPart, selectedSections,
                                             selectedWidth, selectedHoop
                                         ).mapCatching { proposed ->
@@ -1202,7 +1264,10 @@ fun SimpleImageToEmbroideryScreen(
                                                 }
                                             }
                                             proposed
-                                        }
+                                                }
+                                            },
+                                            onFailure = { Result.failure(it) }
+                                        )
                                     }
                                 } else if (selectedArtworkComplex) {
                                     Result.failure(

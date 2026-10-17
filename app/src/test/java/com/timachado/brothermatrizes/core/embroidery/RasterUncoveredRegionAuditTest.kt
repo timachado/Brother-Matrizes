@@ -155,6 +155,90 @@ class RasterUncoveredRegionAuditTest {
         assertTrue(result.summary().contains("sem descarte"))
     }
 
+    @Test fun highlightedGapsPreserveOriginalLetterCountersAndCoveredInk() {
+        val fixture = fixture {x,y->
+            x in 20..110 && y in 10..83 &&
+                !(x in 45..75 && y in 30..65)
+        }
+        val (source,item) = fixture
+        val originalPixels = source.argb.copyOf()
+        val originalMask = item.mask.pixels.copyOf()
+        val report = check(fixture) {x,y->
+            (x in 21..24 && y in 20..25) ||
+                (x in 101..104 && y in 70..74)
+        }.getOrThrow()
+        assertEquals(2,report.totalRegions)
+        val overlay = RasterUncoveredReviewOverlay.render(
+            source,item,report
+        ).getOrThrow()
+        assertEquals(160,overlay.width)
+        assertEquals(100,overlay.height)
+        assertEquals(0,overlay.argb[45*w+60]) // counter in O/B/P
+        assertEquals(0,overlay.argb[3*w+3]) // background
+        assertEquals(0xffff8f2d.toInt(),overlay.argb[22*w+22])
+        assertEquals(0xff7a8288.toInt(),overlay.argb[28*w+29])
+        assertEquals(report.uncoveredPixels,
+            overlay.argb.count { it == 0xffff8f2d.toInt() })
+        assertTrue(source.argb.contentEquals(originalPixels))
+        assertTrue(item.mask.pixels.contentEquals(originalMask))
+        assertFalse(report.exportPermitted)
+    }
+
+    @Test fun selectedGapChangesOnlyVisualHighlightNotNeedleGeometry() {
+        val fixture=fixture {x,y->x in 20..110 && y in 10..83}
+        val (source,item)=fixture
+        val report=check(fixture) {x,y->
+            (x in 25..28 && y in 20..24) ||
+                (x in 95..98 && y in 70..74)
+        }.getOrThrow()
+        assertEquals(2,report.totalRegions)
+        val id=report.regions.first().id
+        val overlay=RasterUncoveredReviewOverlay.render(
+            source,item,report,id
+        ).getOrThrow()
+        val highlighted=overlay.argb.count {it == 0xffff8f2d.toInt()}
+        assertEquals(report.regions.first().pixelCount,highlighted)
+        assertEquals(report.uncoveredPixels-highlighted,
+            overlay.argb.count {it == 0xffe9c3a1.toInt()})
+        assertTrue(RasterUncoveredReviewOverlay.render(
+            source,item,report,9999
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun allUnlistedGapPixelsStayHighlightedAndCounted() {
+        val fixture=fixture {x,y->x in 10..150 && y in 10..90}
+        val report=check(fixture) {x,y->
+            x in 12..147 && y in 12..87 && x%7==0 && y%7==0
+        }.getOrThrow()
+        assertTrue(report.totalRegions>24)
+        assertTrue(report.hiddenRegionPixels>0)
+        val overlay=RasterUncoveredReviewOverlay.render(
+            fixture.first,fixture.second,report
+        ).getOrThrow()
+        assertEquals(report.uncoveredPixels,
+            overlay.argb.count {it == 0xffff8f2d.toInt()})
+        assertEquals(24,report.regions.size)
+    }
+
+    @Test fun tamperedRegionIdsOrMaskMetadataMustNeverCreateAVisual() {
+        val fixture=fixture {x,y->x in 20..110 && y in 10..83}
+        val report=check(fixture) {x,y->x in 21..24 && y in 20..25}.getOrThrow()
+        assertTrue(RasterUncoveredReviewOverlay.render(
+            fixture.first,fixture.second,report.copy(
+                regionIds=IntArray(report.regionIds.size)
+            )
+        ).isFailure)
+        assertTrue(RasterUncoveredReviewOverlay.render(
+            fixture.first,fixture.second,report.copy(originX=0)
+        ).isFailure)
+        assertTrue(RasterUncoveredReviewOverlay.render(
+            fixture.first,fixture.second,report.copy(
+                regionIds=IntArray(1)
+            )
+        ).isFailure)
+    }
+
     @Test fun falsifiedCoverageCountsOrSourceMaskFailClosed() {
         val (source,part)=fixture {x,y->x in 20..110 && y in 14..72}
         val bad=RasterStitchFidelity(
