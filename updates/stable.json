@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.9",
-  "versionCode": 185,
+  "versionName": "1.10.10",
+  "versionCode": 186,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5",
-  "releaseNotes": "NetFontes: nova pesquisa com lupa no catálogo de fontes; Planos: informação do NetFontes e das cotas gratuitas de importação; Atualizações: correção da consulta e do canal oficial GitHub; Estabilidade: melhorias e correções sem alterações no motor de bordado, projetos ou licenças.",
-  "publishedAt": "2026-10-17T00:19:36Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.10/Brother-Matrizes-1.10.10-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "13aad7267b6b3b616a8cf5e224e37245ec612f3922cbc1ff8c24ba349eb6c73f",
+  "releaseNotes": "Login Google integrado a conta comercial sem segundo cadastro.; Planos Mensal, Anual, Vitalicio e Vitalicio de Lancamento abrem checkout WooCommerce.; Troca de planos Brother no carrinho; confirmacao para outros produtos.; Pagamentos e licencas preservam validacao WooCommerce/Efi.; APK assinado com certificado comercial original; motor de bordado preservado.",
+  "publishedAt": "2026-10-17T06:28:27Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.10/Brother-Matrizes-1.10.10-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
