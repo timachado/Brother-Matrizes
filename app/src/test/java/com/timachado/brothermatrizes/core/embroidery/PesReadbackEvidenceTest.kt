@@ -50,9 +50,44 @@ class PesReadbackEvidenceTest {
         assertTrue(result.reopenedStitches>=src.stitchCount)
         assertTrue(result.fileBytes>=512)
         assertTrue(result.geometryPreserved)
+        assertTrue(result.stitchOrderPreserved)
         assertFalse(result.externalDecoderVerified)
         assertFalse(result.machineCertified)
         assertFalse(result.authorizesImagePesExport)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun sameStitchPositionsInWrongOrderAreRejected() {
+        val original=releasedPath()
+        val encoded=MatrixConverter.convert(
+            original,"PES","ordered-source"
+        ).getOrThrow()
+        // The bounding box and the SET of needle positions are unchanged.
+        // Previously a set-only comparison would accept this altered order.
+        val shuffled=original.points.toMutableList()
+        val temp=shuffled[2]
+        shuffled[2]=shuffled[3]
+        shuffled[3]=temp
+        val forged=original.copy(points=shuffled)
+        assertEquals(original.stitchCount,forged.stitchCount)
+        assertEquals(original.bounds,forged.bounds)
+        assertTrue(PesReadbackEvidence.inspect(
+            forged,encoded.fileName,encoded.bytes
+        ).isFailure)
+    }
+
+    @Test fun theReadbackFunctionNeverAcceptsImageQaEvenWhenPESHeaderIsValid() {
+        val source=releasedPath()
+        val encoded=MatrixConverter.convert(
+            source,"PES","format-separation"
+        ).getOrThrow()
+        val qa=source.copy(
+            format="QA_AUTO_STITCH",
+            sourceBytes=ByteArray(0)
+        )
+        assertTrue(PesReadbackEvidence.inspect(
+            qa,encoded.fileName,encoded.bytes
+        ).isFailure)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 

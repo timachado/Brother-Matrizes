@@ -20,6 +20,7 @@ internal data class PesReadbackEvidenceReport(
     val originalHeightMm: Float,
     val reopenedHeightMm: Float,
     val geometryPreserved: Boolean,
+    val stitchOrderPreserved: Boolean,
     val externalDecoderVerified: Boolean = false,
     val machineCertified: Boolean = false,
     val authorizesImagePesExport: Boolean = false
@@ -59,7 +60,7 @@ internal object PesReadbackEvidence {
         val oldPoints=source.points.filter { it.command==StitchCommand.STITCH }
         val newPoints=reopened.points.filter { it.command==StitchCommand.STITCH }
         require(oldPoints.isNotEmpty() && newPoints.isNotEmpty())
-        fun normalized(design:EmbroideryDesign):Set<Pair<Int,Int>> {
+        fun normalized(design:EmbroideryDesign):List<Pair<Int,Int>> {
             // Machine encoder can insert a STITCH at the initial JUMP
             // position. Both source and parsed machine path must therefore
             // use the origin of ALL needle/travel locations, not the first
@@ -77,19 +78,33 @@ internal object PesReadbackEvidence {
                 it.command==StitchCommand.STITCH
             }.map { p ->
                 (p.xUnits-xmin) to (visualY(p)-ymin)
-            }.toSet()
+            }
         }
         val oldGeometry=normalized(source)
         val newGeometry=normalized(reopened)
-        // The format can add positioning jumps or interpolate longer
-        // movements. Existing source stitch coordinates must remain present
-        // (within one 0.1 mm coordinate unit for decoder rounding).
-        val preserved=oldGeometry.all { point ->
-            newGeometry.any { actual ->
-                abs(point.first-actual.first)<=1 &&
-                    abs(point.second-actual.second)<=1
-            }
+        require(oldGeometry.size<=90_000 && newGeometry.size<=120_000) {
+            "Sequência de pontos PES excede limite de auditoria."
         }
+        fun similar(a:Pair<Int,Int>,b:Pair<Int,Int>) =
+            abs(a.first-b.first)<=1 && abs(a.second-b.second)<=1
+        // Important: a set comparison accepts reversed stitch order,
+        // missing duplicate passages, and a different needle route through
+        // the SAME positions. For PES readback we require an ordered
+        // subsequence of the actual needle-down commands instead.
+        //
+        // The encoder is still allowed to INSERT extra intermediate points
+        // to split long movements. Every original needle-down visit,
+        // including repeated visits, must appear in the same order.
+        var cursor=0
+        var matched=0
+        for (expected in oldGeometry) {
+            while(cursor<newGeometry.size &&
+                !similar(expected,newGeometry[cursor])) cursor++
+            if (cursor==newGeometry.size) break
+            matched++
+            cursor++
+        }
+        val preserved=matched==oldGeometry.size
         val widthDiff=abs(
             source.bounds.widthMm-reopened.bounds.widthMm
         )
@@ -97,10 +112,9 @@ internal object PesReadbackEvidence {
             source.bounds.heightMm-reopened.bounds.heightMm
         )
         require(preserved && widthDiff<=.3f && heightDiff<=.3f) {
-            "PES reabriu com diferença de geometria: " +
-                "stitchPreserved=$preserved; widthDeltaMm=$widthDiff; " +
-                "heightDeltaMm=$heightDiff; origem=$oldGeometry; " +
-                "releitura=$newGeometry."
+            "PES reabriu com diferença de ordem, trajetória ou dimensões: " +
+                "stitchesMatched=$matched/${oldGeometry.size}; " +
+                "widthDeltaMm=$widthDiff; heightDeltaMm=$heightDiff."
         }
         // The PES container is offset to positive PEC coordinates by the
         // release converter; this check detects recentering to negatives.
@@ -115,7 +129,8 @@ internal object PesReadbackEvidence {
             reopenedWidthMm=reopened.bounds.widthMm,
             originalHeightMm=source.bounds.heightMm,
             reopenedHeightMm=reopened.bounds.heightMm,
-            geometryPreserved=true
+            geometryPreserved=true,
+            stitchOrderPreserved=true
         )
     }
 }

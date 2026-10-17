@@ -213,6 +213,25 @@ internal object RasterQaReadinessReportBuilder {
                     ?: target.getOrThrow().warnings.joinToString(" ")
             )
         }
+        // No 8..512px processing bitmap can, by itself, prove faithful
+        // reproduction of the originally uploaded full-resolution artwork.
+        // In particular the Vasos 96x96 fixture is only a QA miniature.
+        val originalEvidence = if(sourceImage==null) {
+            "A imagem fonte original completa não foi fornecida."
+        } else if(sourceImage.width<=128 || sourceImage.height<=128) {
+            "Referência ${sourceImage.width} × ${sourceImage.height} " +
+                "pixels: miniatura ou baixa resolução, insuficiente para " +
+                "homologar letras, curvas e detalhes da arte original."
+        } else {
+            "Imagem processada de ${sourceImage.width} × " +
+                "${sourceImage.height} pixels, sem prova de resolução " +
+                "integral, checksum da fonte ou comparação visual certificada."
+        }
+        gates += RasterQaGate(
+            "Referência da arte em resolução integral",
+            RasterQaGateStatus.MISSING,
+            originalEvidence
+        )
         gates += RasterQaGate(
             "Codificação PES e roundtrip independente",
             RasterQaGateStatus.MISSING,
