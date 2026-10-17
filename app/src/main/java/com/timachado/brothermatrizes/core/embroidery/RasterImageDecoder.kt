@@ -103,9 +103,13 @@ object RasterImageDecoder {
     ): Result<RasterImageQaImport> = runCatching {
         val working = decode(resolver, uri).getOrThrow()
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: error("Não foi possível reler as dimensões da foto original.")
+        val dimensionsStream = resolver.openInputStream(uri)
+            ?: error("Não foi possível abrir a foto original para conferir dimensões.")
+        // Android returns a NULL Bitmap intentionally with inJustDecodeBounds.
+        // Success is determined by outWidth/outHeight, not decodeStream's return.
+        dimensionsStream.use { stream ->
+            BitmapFactory.decodeStream(stream, null, bounds)
+        }
         require(bounds.outWidth in 2..MAX_SOURCE_SIDE &&
             bounds.outHeight in 2..MAX_SOURCE_SIDE) {
             "Dimensões originais inválidas."
