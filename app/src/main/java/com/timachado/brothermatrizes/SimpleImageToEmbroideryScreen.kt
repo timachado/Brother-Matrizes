@@ -69,6 +69,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandid
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedSatinDraftPlanner
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinRailGeometryGate
 import com.timachado.brothermatrizes.core.embroidery.RasterStitchFidelityAudit
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -937,6 +938,16 @@ fun SimpleImageToEmbroideryScreen(
                                             // stitch-out guarantee. Refuse
                                             // geometry that cannot pass the
                                             // original editable-rail validator.
+                                            if (assistedSatinElementId == partId) {
+                                                val holes = elementPlan?.elements
+                                                    ?.firstOrNull { it.id == partId }
+                                                    ?.enclosedHoles
+                                                    ?: error("A origem das contraformas mudou.")
+                                                RasterSatinRailGeometryGate.inspect(
+                                                    picture, activePart, draft,
+                                                    currentWidth, holes
+                                                ).getOrThrow()
+                                            }
                                             val check = RasterSatinObjectEditor.preview(
                                                 picture, activePart, draft,
                                                 currentWidth, hoop
@@ -1040,6 +1051,18 @@ fun SimpleImageToEmbroideryScreen(
                                             )
                                         )
                                     } else {
+                                        if (selectedPart.id == selectedAssistedId) {
+                                            val holes = elementPlan?.elements
+                                                ?.firstOrNull { it.id == selectedPart.id }
+                                                ?.enclosedHoles ?: error(
+                                                    "Origem da máscara assistida indisponível."
+                                                )
+                                            RasterSatinRailGeometryGate.inspect(
+                                                selected, selectedPart,
+                                                selectedSections, selectedWidth,
+                                                holes
+                                            ).getOrThrow()
+                                        }
                                         RasterSatinObjectEditor.preview(
                                             selected, selectedPart, selectedSections,
                                             selectedWidth, selectedHoop
