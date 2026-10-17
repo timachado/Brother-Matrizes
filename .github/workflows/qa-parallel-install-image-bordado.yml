@@ -2,9 +2,9 @@ name: Brother Matrizes QA Object Selection APK
 
 on:
   push:
-    branches: ["qa/image-assisted-satin-counter-editor-20261017"]
+    branches: ["qa/image-satin-rail-geometry-20261017"]
   pull_request:
-    branches: ["qa/image-assisted-element-masks-20261017"]
+    branches: ["qa/image-assisted-satin-counter-editor-20261017"]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qacounter"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qageometry"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -52,12 +52,13 @@ jobs:
           find app/build/test-results/testDebugUnitTest -name 'TEST-*VariableWidth*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*PesReadback*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterThreadSequence*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
+          find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterSatinRailGeometryGate*.xml' -type f -print -exec sed -n '1,220p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*Vasos*.xml' -type f -print -exec sed -n '1,130p' {} \; || true
       - name: Build isolated Android QA APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Satin-Contraformas
+          name: Brother-Matrizes-QA-Geometria-Satin
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
