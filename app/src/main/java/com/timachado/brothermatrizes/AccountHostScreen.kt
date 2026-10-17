@@ -671,10 +671,13 @@ fun AccountHostScreen(
                     if (result.isSuccess) {
                         result.getOrThrow()
                     } else {
+                        // Do not silently drop customers on the old double-login
+                        // page and pretend seamless Google checkout worked.
                         snackbar.showSnackbar(
-                            "O login integrado está indisponível. A loja será aberta com seu acesso normal."
+                            "Não foi possível sincronizar sua conta com o checkout. " +
+                                "Tente novamente. Nenhum pagamento foi iniciado."
                         )
-                        WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
+                        return@launch
                     }
                 } else {
                     WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
