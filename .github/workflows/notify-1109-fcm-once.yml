@@ -1,0 +1,100 @@
+name: Notificar FCM sobre Brother Matrizes 1.10.9 publicado
+
+on:
+  push:
+    branches: [release-tools/fcm-notify-brother-1109]
+    paths: [.github/workflows/notify-1109-fcm-once.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Conferir publicação, APK e manifesto antes do push
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases/latest" > /tmp/release.json
+          jq -e '.tag_name == "v1.10.9" and .draft == false and .prerelease == false and
+            (.assets | length == 1) and
+            .assets[0].name == "Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk" and
+            .assets[0].digest == "sha256:3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5"' /tmp/release.json >/dev/null
+          gh api "repos/$GH_REPO/contents/updates/stable.json" --jq .content | base64 -d > /tmp/stable.json
+          jq -e '.applicationId == "com.timachado.brothermatrizes" and .versionCode == 185 and
+            .downloadUrl == "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.9/Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk" and
+            .sha256 == "3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5"' /tmp/stable.json >/dev/null
+          echo 'Release e OTA estao publicos e conferidos.'
+      - name: Verificar se credencial Firebase Admin esta configurada sem revelar segredos
+        id: auth
+        env:
+          FCM_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FCM_SA_ALT: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+          FCM_SA_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
+          FCM_BROTHER: ${{ secrets.BROTHER_MATRIZES_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$FCM_SA" ] || [ -n "$FCM_SA_ALT" ] || [ -n "$FCM_SA_B64" ] || [ -n "$FCM_BROTHER" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            echo 'Servico Firebase disponivel para notificacao de versao.'
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo "::warning::PUSH FCM NAO ENVIADO: GitHub nao possui credencial de Firebase Admin reconhecida. O app continua notificando via sua verificacao periodica do manifesto."
+          fi
+      - name: Preparar Python e OAuth apenas se houver credencial
+        if: steps.auth.outputs.configured == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Enviar notificação ao tópico de atualizações, respeitando opt-in
+        if: steps.auth.outputs.configured == 'true'
+        shell: bash
+        env:
+          FCM_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FCM_SA_ALT: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+          FCM_SA_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
+          FCM_BROTHER: ${{ secrets.BROTHER_MATRIZES_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          python -m pip -q install google-auth requests
+          python - <<'PY'
+          import os, json, base64, requests
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import Request
+          raw=os.getenv("FCM_SA") or os.getenv("FCM_SA_ALT") or os.getenv("FCM_BROTHER")
+          if not raw:
+              raw=base64.b64decode(os.environ["FCM_SA_B64"]).decode()
+          info=json.loads(raw)
+          project="brother-matrizes---ti-machado"
+          if info.get("project_id")!=project:
+              raise SystemExit("Projeto Firebase divergente; push bloqueado.")
+          creds=service_account.Credentials.from_service_account_info(
+              info,scopes=["https://www.googleapis.com/auth/firebase.messaging"])
+          creds.refresh(Request())
+          data={
+              "type":"update",
+              "versionCode":"185",
+              "versionName":"1.10.9",
+              "title":"Brother Matrizes 1.10.9 disponível!",
+              "body":"Novidade: NetFontes com lupa. Correções em Planos e Atualizações. Toque para atualizar direto no aplicativo."
+          }
+          response=requests.post(
+              f"https://fcm.googleapis.com/v1/projects/{project}/messages:send",
+              headers={"Authorization":f"Bearer {creds.token}","Content-Type":"application/json"},
+              json={"message":{"topic":"brother_matrizes_updates_stable","data":data}},
+              timeout=25
+          )
+          if response.status_code!=200:
+              raise SystemExit(f"Firebase rejeitou push: HTTP {response.status_code} {response.text[:250]}")
+          obj=response.json()
+          if not obj.get("name","").startswith(f"projects/{project}/messages/"):
+              raise SystemExit("Firebase nao confirmou ID de envio.")
+          print("FCM ACEITOU o disparo da nova atualizacao ao topico de usuarios opt-in.")
+          print("ID de mensagem:",obj["name"])
+          PY
