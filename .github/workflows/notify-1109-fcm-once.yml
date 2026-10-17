@@ -37,10 +37,11 @@ jobs:
           FCM_SA_ALT: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           FCM_SA_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
           FCM_BROTHER: ${{ secrets.BROTHER_MATRIZES_FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FCM_PRODUCTION: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "$FCM_SA" ] || [ -n "$FCM_SA_ALT" ] || [ -n "$FCM_SA_B64" ] || [ -n "$FCM_BROTHER" ]; then
+          if [ -n "$FCM_SA" ] || [ -n "$FCM_SA_ALT" ] || [ -n "$FCM_SA_B64" ] || [ -n "$FCM_BROTHER" ] || [ -n "$FCM_PRODUCTION" ]; then
             echo 'configured=true' >> "$GITHUB_OUTPUT"
             echo 'Servico Firebase disponivel para notificacao de versao.'
           else
@@ -60,6 +61,7 @@ jobs:
           FCM_SA_ALT: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           FCM_SA_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
           FCM_BROTHER: ${{ secrets.BROTHER_MATRIZES_FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FCM_PRODUCTION: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
           python -m pip -q install google-auth requests
@@ -67,7 +69,7 @@ jobs:
           import os, json, base64, requests
           from google.oauth2 import service_account
           from google.auth.transport.requests import Request
-          raw=os.getenv("FCM_SA") or os.getenv("FCM_SA_ALT") or os.getenv("FCM_BROTHER")
+          raw=os.getenv("FCM_PRODUCTION") or os.getenv("FCM_SA") or os.getenv("FCM_SA_ALT") or os.getenv("FCM_BROTHER")
           if not raw:
               raw=base64.b64decode(os.environ["FCM_SA_B64"]).decode()
           info=json.loads(raw)
