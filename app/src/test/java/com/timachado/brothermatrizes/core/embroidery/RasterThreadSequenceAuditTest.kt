@@ -67,6 +67,23 @@ class RasterThreadSequenceAuditTest {
         ).isFailure)
     }
 
+    @Test fun trimAfterJumpWithoutImmediatelySewnStitchIsRejected() {
+        val src = example()
+        val malformed = src.points.toMutableList()
+        // On a real machine this sequence would travel before trimming,
+        // potentially leaving an unintended thread float. The final
+        // TRIM coordinate still matches the last sewn point, so a simple
+        // position-only check would wrongly accept this case.
+        val trim = malformed.indexOfFirst { it.command == StitchCommand.TRIM }
+        val jump = malformed[trim + 1]
+        malformed[trim] = jump
+        malformed[trim + 1] = src.points[trim]
+        assertTrue(RasterThreadSequenceAudit.inspect(
+            src.copy(points = malformed)
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun swappingColorChangeAndJumpIsRejected() {
         val src = example()
         val malformed = src.points.toMutableList()
