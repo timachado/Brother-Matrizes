@@ -1,0 +1,63 @@
+name: QA Brother Matrizes 1.10.10 — sem chave comercial
+
+on:
+  push:
+    branches: [release/brother-1.10.10-checkout-candidate]
+    paths: [.github/workflows/qa-brother-11010-checkout-candidate.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Conferir versão e flag antes da homologação
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 186' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.10"' app/build.gradle.kts
+          grep -Fq 'ENABLE_CHECKOUT_HANDOFF' app/build.gradle.kts
+          grep -Fq 'Version: 0.1.2-rc3' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+      - name: PHP checkout WooCommerce e segurança dos bilhetes
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php tests/brother-checkout-handoff-php-test.php
+          php tests/brother-checkout-cart-php-test.php
+      - name: Preparar assets
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes Android
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Montar candidata unsigned (NÃO INSTALAR)
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          grep -R --include='BuildConfig.java' -F 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release/
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging \
+            app/build/outputs/apk/release/app-release-unsigned.apk |
+            grep -Fq "versionCode='186' versionName='1.10.10'"
+          echo 'Homologação de compilação aprovada. Assinatura comercial aguarda autorização separada.'
