@@ -1,5 +1,7 @@
 name: Notificar FCM sobre Brother Matrizes 1.10.9 publicado
 
+# Reenvio solicitado em 16/10/2026 após correção do Secret Firebase Admin.
+# O disparo anterior falhou antes de ser aceito pelo Firebase; nenhuma mensagem duplicada confirmada.
 on:
   push:
     branches: [release-tools/fcm-notify-brother-1109]
