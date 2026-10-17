@@ -328,7 +328,7 @@ fun SimpleImageToEmbroideryScreen(
     var selectedGapId by remember(stageImage) { mutableIntStateOf(0) }
     val gapOverlay = remember(
         uncoveredReport, showGapOverlay, selectedGapId,
-        stageImage, satinParts, satinPartIndex
+        stageImage, satinParts, satinPartIndex, assistedSatinElementId
     ) {
         val source = prepared?.image
         val item = satinParts.getOrNull(satinPartIndex)
@@ -1124,7 +1124,7 @@ fun SimpleImageToEmbroideryScreen(
                             ) {
                                 Text(
                                     if (showGapOverlay)
-                                        "Voltar à imagem original"
+                                        "Ocultar destaques de lacunas"
                                     else "Mostrar lacunas no bastidor (QA)",
                                     color = FioGold
                                 )
