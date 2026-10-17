@@ -1,0 +1,54 @@
+name: Atualizar novidades da release Brother Matrizes 1.10.9
+on:
+  push:
+    branches: [release-tools/notes-brother-1109-final]
+    paths: [.github/workflows/notes-1109-final.yml]
+permissions:
+  contents: write
+jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verificar release publica e publicar notas finais
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases/latest" > /tmp/latest.json
+          jq -e '.tag_name == "v1.10.9" and .draft == false and (.assets|length)==1 and
+            .assets[0].name == "Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk" and
+            .assets[0].digest == "sha256:3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5"' /tmp/latest.json >/dev/null
+          cat >/tmp/notes.md <<'EOF'
+          # Brother Matrizes 1.10.9 — Atualização comercial oficial
+
+          **Já disponível para atualização diretamente pelo aplicativo.**
+          Esta é uma evolução da versão comercial 1.10.8, preservando os projetos e licenças.
+
+          ## NOVO — NetFontes na Biblioteca de Fontes
+          - Novo catálogo **NetFontes** ao lado do **DaFont**.
+          - **Campo de pesquisa e botão com lupa** nos dois catálogos.
+          - Pesquisa NetFontes pelo endereço oficial, com suporte a nomes acentuados.
+          - Importação de arquivos de fonte dentro das condições do plano contratado.
+
+          ## Melhorias e correções
+          - **Planos e benefícios:** NetFontes adicionado às informações do plano Gratuito; mantém o limite existente de três importações de fontes por mês, sem criar cobrança ou cota de pesquisas nova.
+          - **Atualizações:** restauração do manifesto GitHub estável, correção da consulta e mensagem mais clara se a conexão falhar.
+          - **Interface:** melhor consistência entre a busca do DaFont e do NetFontes.
+          - **Estabilidade:** ajustes focados em fontes e informações de atualização; sem alterações no motor de bordado e simulação.
+
+          ## Como atualizar
+          No Brother Matrizes, abra **Início ou Minha Conta → Atualizações**, veja o card **Nova versão** e toque em **Atualizar agora**. O aplicativo consulta o GitHub, verifica o APK e abre a instalação do Android. Não é necessário remover o app atual.
+
+          **Versão:** 1.10.9 (Android versionCode 185)
+          **Pacote:** `com.timachado.brothermatrizes`
+          **APK comercial:** `Brother-Matrizes-1.10.9-OFICIAL-COMERCIAL-ASSINADO.apk`
+          **SHA-256 do APK:** `3bb264ff7f62476849aec8b8f14475de921deed22f04b33c0b1e1093664e85c5`
+          **Certificado comercial SHA-256:** `fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a`
+
+          Os avisos automáticos dependem da conexão e das permissões de notificação no aparelho. O card de novidades da versão instalada permanece disponível em **Minha Conta → Sobre e atualizações**.
+          EOF
+          gh release edit v1.10.9 --notes-file /tmp/notes.md
+          echo 'Notas publicas atualizadas no GitHub com recursos e instrucoes oficiais.'
