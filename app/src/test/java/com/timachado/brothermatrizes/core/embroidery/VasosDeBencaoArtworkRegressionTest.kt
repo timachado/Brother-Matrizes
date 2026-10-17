@@ -116,6 +116,12 @@ class VasosDeBencaoArtworkRegressionTest {
         assertEquals(RasterQaGateStatus.FAIL,fidelity.status)
         assertTrue(dossier.hasStaticFailures)
         assertTrue(dossier.missingEvidence)
+        val fullSourceGate=dossier.gates.first {
+            it.label.contains("resolução integral")
+        }
+        assertEquals(RasterQaGateStatus.MISSING,fullSourceGate.status)
+        assertTrue(fullSourceGate.detail.contains("96"))
+        assertTrue(fullSourceGate.detail.contains("miniatura"))
         assertTrue(dossier.toMarkdown().contains("BLOQUEADO EM QA"))
         assertFalse(dossier.exportPermitted)
         assertFalse(dossier.machineCertified)
