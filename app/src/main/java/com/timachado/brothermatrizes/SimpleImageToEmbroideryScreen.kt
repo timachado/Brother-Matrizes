@@ -52,6 +52,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinObject
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinObjectEditor
 import com.timachado.brothermatrizes.core.embroidery.RasterAutoSatinRails
 import com.timachado.brothermatrizes.core.embroidery.RasterNeedleRiskAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterQaReadinessReportBuilder
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadDensityPreflight
 import com.timachado.brothermatrizes.core.embroidery.RasterPesTargetCompatibility
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkComplexityAudit
@@ -89,6 +90,8 @@ class SimpleImageSession {
     // Kept across a trip to SimulatorScreen; never attached to a PES.
     val satinEditorOpenState = mutableStateOf(false)
     internal val techniqueReportState = mutableStateOf<RasterTechniqueReport?>(null)
+    internal val qaTechnicalReportState = mutableStateOf<String?>(null)
+    internal val qaReportRevisionState = mutableIntStateOf(-1)
     val satinPartsState = mutableStateOf<List<RasterSatinObject>>(emptyList())
     val satinPartIndexState = mutableIntStateOf(0)
     val satinSectionsState = mutableStateOf<Map<Int, List<ManualSatinSection>>>(emptyMap())
@@ -138,6 +141,8 @@ fun SimpleImageToEmbroideryScreen(
     var showConnections by session.showConnectionsState
     var satinEditorOpen by session.satinEditorOpenState
     var techniqueReport by session.techniqueReportState
+    var qaTechnicalReport by session.qaTechnicalReportState
+    var qaReportRevision by session.qaReportRevisionState
     var satinParts by session.satinPartsState
     var satinPartIndex by session.satinPartIndexState
     var satinSections by session.satinSectionsState
@@ -699,10 +704,25 @@ fun SimpleImageToEmbroideryScreen(
                                 }
                                 preview
                             }
+                        // Produce a review dossier from the actual finalized
+                        // QA stitch commands, off the UI thread. This is a
+                        // text report, never an encoded embroidery file.
+                        val report = design.getOrNull()?.let { preview ->
+                            withContext(Dispatchers.Default) {
+                                RasterQaReadinessReportBuilder.collect(
+                                    design = preview,
+                                    hoop = selectedHoop,
+                                    sourceImage = if (editing) null else selected,
+                                    sourceWidthMm = if (editing) null else selectedWidth
+                                ).getOrNull()?.toMarkdown()
+                            }
+                        }
                         if (revision == currentRevision) {
                             simulating = false
                             design.fold(
                                 onSuccess = {
+                                    qaTechnicalReport = report
+                                    qaReportRevision = currentRevision
                                     onSimulate(it, selectedHoop, chosenMode, chosenConnections)
                                 },
                                 onFailure = {
@@ -717,6 +737,32 @@ fun SimpleImageToEmbroideryScreen(
             ) {
                 Text("▶ Simular bordado", color = FioBackground,
                     fontWeight = FontWeight.Bold)
+            }
+            if (qaReportRevision == revision &&
+                !qaTechnicalReport.isNullOrBlank()) {
+                Text(
+                    "Relatório técnico QA disponível após a simulação. " +
+                        "Não é matriz PES nem autorização de bordado.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val reportText = qaTechnicalReport.orEmpty()
+                        val clip = android.content.ClipData.newPlainText(
+                            "Brother Matrizes — Relatório técnico QA",
+                            reportText
+                        )
+                        val clipboard = context.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE
+                        ) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(clip)
+                        message = "Relatório técnico QA copiado. " +
+                            "Exportação PES experimental permanece bloqueada."
+                    }
+                ) {
+                    Text("Copiar relatório técnico QA", color = FioGold)
+                }
             }
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
