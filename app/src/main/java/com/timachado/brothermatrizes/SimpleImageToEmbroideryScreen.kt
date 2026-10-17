@@ -68,6 +68,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyRep
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
+import com.timachado.brothermatrizes.core.embroidery.RasterAssistedSatinDraftPlanner
+import com.timachado.brothermatrizes.core.embroidery.RasterStitchFidelityAudit
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -292,6 +294,7 @@ fun SimpleImageToEmbroideryScreen(
     }
     var analyzingElements by remember(stageImage) { mutableStateOf(false) }
     var selectedElementId by remember(stageImage) { mutableIntStateOf(0) }
+    var assistedSatinElementId by remember(stageImage) { mutableIntStateOf(0) }
     // These are comparison masks only; none is passed to a stitch generator.
     val elementPicture = remember(elementPlan, selectedElementId) {
         if (selectedElementId == 0) null else
@@ -559,10 +562,72 @@ fun SimpleImageToEmbroideryScreen(
                             "Elemento " + element.id + ": " +
                                 element.pixelCount + " pixels, " +
                                 element.enclosedHoles + " vazado(s) interno(s). " +
-                                "A visualização não isola pontos nem valida " +
-                                "trilhos; revise as curvas no editor Satin.",
+                                "A máscara é um guia visual, não pontos costurados.",
                             color = FioTextMuted, fontSize = 11.sp
                         )
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = prepared != null && fitted &&
+                                !preparing && !simulating && !proposingRails,
+                            onClick = {
+                                val originalSnapshot = prepared?.image
+                                    ?: return@OutlinedButton
+                                val planned = elementPlan ?: return@OutlinedButton
+                                val widthSnapshot = widthMm
+                                val hoopSnapshot = hoop
+                                val requested = revision
+                                proposingRails = true
+                                message = ""
+                                scope.launch {
+                                    val proposal = withContext(Dispatchers.Default) {
+                                        RasterAssistedSatinDraftPlanner.prepare(
+                                            originalSnapshot, planned, element.id,
+                                            widthSnapshot, hoopSnapshot
+                                        )
+                                    }
+                                    proposingRails = false
+                                    if (requested == revision &&
+                                        prepared?.image === originalSnapshot &&
+                                        elementPlan === planned &&
+                                        selectedElementId == element.id &&
+                                        widthMm == widthSnapshot &&
+                                        hoop == hoopSnapshot) {
+                                        proposal.fold(
+                                            onSuccess = { draft ->
+                                                satinParts = listOf(draft.item)
+                                                satinSections = mapOf(
+                                                    draft.item.id to draft.sections
+                                                )
+                                                satinTouched = emptySet()
+                                                satinPartIndex = 0
+                                                satinSectionIndex = 0
+                                                assistedSatinElementId = element.id
+                                                satinEditorOpen = true
+                                                message =
+                                                    "Trilhos Satin propostos para o elemento " +
+                                                    element.id + ", com " +
+                                                    draft.counterCount +
+                                                    " contraforma(s). Edite os trilhos " +
+                                                    "manualmente antes da prévia; " +
+                                                    "a exportação PES continua bloqueada."
+                                            },
+                                            onFailure = {
+                                                message = it.message ?:
+                                                    "A letra exige desenho Satin " +
+                                                        "assistido adicional."
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                if (proposingRails)
+                                    "Verificando os trilhos desta parte..."
+                                else "Preparar edição Satin do elemento " + element.id,
+                                color = FioGold
+                            )
+                        }
                     }
                     if (plan.elements.size > 12) {
                         Text(
@@ -801,6 +866,7 @@ fun SimpleImageToEmbroideryScreen(
                                 preparing = false
                                 result.fold(
                                     onSuccess = { pieces ->
+                                        assistedSatinElementId = 0
                                         satinParts = pieces
                                         satinSections = emptyMap()
                                         satinTouched = emptySet()
@@ -871,10 +937,17 @@ fun SimpleImageToEmbroideryScreen(
                                             // stitch-out guarantee. Refuse
                                             // geometry that cannot pass the
                                             // original editable-rail validator.
-                                            RasterSatinObjectEditor.preview(
+                                            val check = RasterSatinObjectEditor.preview(
                                                 picture, activePart, draft,
                                                 currentWidth, hoop
                                             ).getOrThrow()
+                                            if (assistedSatinElementId == partId) {
+                                                RasterAssistedSatinDraftPlanner
+                                                    .requireSafeCounterPath(
+                                                        picture, activePart,
+                                                        check, currentWidth
+                                                    ).getOrThrow()
+                                            }
                                             draft
                                         }
                                     }
@@ -902,7 +975,16 @@ fun SimpleImageToEmbroideryScreen(
                             }
                         },
                         onReset = {
-                            prepared?.image?.let { image ->
+                            if (assistedSatinElementId == activePart.id &&
+                                elementPlan?.elements?.any {
+                                    it.id == activePart.id &&
+                                        it.enclosedHoles > 0
+                                } == true
+                            ) {
+                                message = "Contraforma detectada: reiniciar com um " +
+                                    "trilho reto atravessaria o vazado. " +
+                                    "Use a proposta de contornos ou refaça a seleção."
+                            } else prepared?.image?.let { image ->
                                 RasterSatinObjectEditor.suggest(
                                     image, activePart, widthMm
                                 ).onSuccess { initial ->
@@ -941,6 +1023,7 @@ fun SimpleImageToEmbroideryScreen(
                         satinSections[it.id].orEmpty()
                     }.orEmpty()
                     val isReviewed = selectedPart?.id in satinTouched
+                    val selectedAssistedId = assistedSatinElementId
                     val editing = satinEditorOpen
                     simulating = true
                     message = ""
@@ -960,7 +1043,29 @@ fun SimpleImageToEmbroideryScreen(
                                         RasterSatinObjectEditor.preview(
                                             selected, selectedPart, selectedSections,
                                             selectedWidth, selectedHoop
-                                        )
+                                        ).mapCatching { proposed ->
+                                            if (selectedPart.id == selectedAssistedId) {
+                                                RasterAssistedSatinDraftPlanner
+                                                    .requireSafeCounterPath(
+                                                        selected, selectedPart,
+                                                        proposed, selectedWidth
+                                                    ).getOrThrow()
+                                                val fidelity = RasterStitchFidelityAudit
+                                                    .compare(
+                                                        selected, selectedPart,
+                                                        proposed, selectedWidth
+                                                    ).getOrThrow()
+                                                require(
+                                                    fidelity.coverage >= .78 &&
+                                                        fidelity.offInkFraction <= .10
+                                                ) {
+                                                    "Pontos Satin não cobrem a máscara " +
+                                                        "ou atravessam áreas vazias. " +
+                                                        "Ajuste os trilhos da letra."
+                                                }
+                                            }
+                                            proposed
+                                        }
                                     }
                                 } else if (selectedArtworkComplex) {
                                     Result.failure(
