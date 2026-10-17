@@ -19,7 +19,7 @@ internal object BrotherCheckoutHandoffClient {
         val uri = URI(value)
         require(
             uri.scheme == "https" &&
-            uri.host.equals("timachado.ifree.page", ignoreCase = true) &&
+            "timachado.ifree.page".equals(uri.host, ignoreCase = true) &&
             uri.port == -1 && uri.rawUserInfo == null &&
             uri.rawPath == "/minha-conta/" && uri.rawFragment == null &&
             (uri.rawQuery ?: "").matches(Regex("bm_checkout=[A-Za-z0-9_-]{70,2500}"))
@@ -40,7 +40,7 @@ internal object BrotherCheckoutHandoffClient {
                 base.scheme == "https" && base.port == -1 &&
                 base.rawUserInfo == null && base.rawQuery == null &&
                 base.rawFragment == null && base.rawPath.orEmpty().trim('/').isEmpty() &&
-                base.host.endsWith(".supabase.co")
+                base.host.orEmpty().endsWith(".supabase.co")
             ) { "Provedor de identidade indisponível." }
             val url = URL(base.toString().trimEnd('/') +
                 "/functions/v1/brother-checkout-handoff")
