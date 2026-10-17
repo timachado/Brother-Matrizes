@@ -1,0 +1,44 @@
+name: Package Brother Checkout Google — QA
+
+on:
+  push:
+    branches: [feature/brother-google-checkout-handoff]
+    paths: [.github/workflows/package-brother-checkout-handoff.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Testes PHP integracao checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php tests/brother-checkout-handoff-php-test.php
+      - name: Empacotar plugin isolado para QA sem segredos
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wordpress
+          zip -X -r ../Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.zip brother-checkout-handoff -x '*.DS_Store'
+          cd ..
+          unzip -t Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.zip
+          sha256sum Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.zip > Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.sha256
+          ! unzip -p Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.zip | grep -E 'BEGIN PRIVATE KEY|SUPABASE_SERVICE_ROLE_KEY|^sk_'
+      - name: Arquivos para testes sem publicacao
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1-QA
+          path: |
+            Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.zip
+            Brother-Matrizes-Checkout-Google-SSO-0.1.0-rc1.sha256
+          retention-days: 14
+          if-no-files-found: error
