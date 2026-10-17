@@ -94,7 +94,8 @@ internal object RasterQaReadinessReportBuilder {
         sourceImage: RasterImagePixels? = null,
         sourceWidthMm: Float? = null,
         machine: PesTargetProfile = PesTargetProfile.unknown(),
-        pesVersion: Int? = null
+        pesVersion: Int? = null,
+        samplingEvidence: RasterImageSamplingEvidence? = null
     ): Result<RasterQaReadinessReport> = runCatching {
         require(
             design.format in setOf(
@@ -222,6 +223,36 @@ internal object RasterQaReadinessReportBuilder {
                     ?: target.getOrThrow().warnings.joinToString(" ")
             )
         }
+        // Pre-processing evidence is bound to the ORIGINAL uploaded file,
+        // not a synthetic image or an imported embroidery design. A sampled
+        // comparison can identify risks, but never certifies full fidelity.
+        val samplingStatus = when {
+            samplingEvidence == null -> RasterQaGateStatus.MISSING
+            samplingEvidence.needsDetailReview -> RasterQaGateStatus.FAIL
+            samplingEvidence.referenceIsFullResolution ->
+                RasterQaGateStatus.PASS
+            else -> RasterQaGateStatus.MISSING
+        }
+        val samplingNote = when {
+            samplingEvidence == null ->
+                "A foto original não foi comparada com a prévia reduzida."
+            else ->
+                "Origem ${samplingEvidence.sourceWidth} × " +
+                    "${samplingEvidence.sourceHeight}; comparação " +
+                    "${samplingEvidence.referenceWidth} × " +
+                    "${samplingEvidence.referenceHeight}; prévia " +
+                    "${samplingEvidence.workingWidth} × " +
+                    "${samplingEvidence.workingHeight}; pixels " +
+                    "potencialmente perdidos ${samplingEvidence.potentiallyLostPixels}; " +
+                    "maior região ${samplingEvidence.largestPotentiallyLostRegion} px; " +
+                    "SHA-256 ${samplingEvidence.sha256.take(16)}…. " +
+                    "Esta triagem não certifica fidelidade visual ou bordado."
+        }
+        gates += RasterQaGate(
+            "Perda de detalhes ao reduzir fotografia",
+            samplingStatus,
+            samplingNote
+        )
         // No 8..512px processing bitmap can, by itself, prove faithful
         // reproduction of the originally uploaded full-resolution artwork.
         // In particular the Vasos 96x96 fixture is only a QA miniature.

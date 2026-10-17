@@ -20,6 +20,10 @@ internal object ImageHoopSizing {
         }
     }
 
+    /** Display the exact same rotated usable area used by the fit check. */
+    fun usableFrameMm(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Pair<Float, Float> =
+        frame(imageWidth, imageHeight, hoop)
+
     fun maximumWidthMm(imageWidth: Int, imageHeight: Int, hoop: HoopProfile): Float {
         val (safeW, safeH) = frame(imageWidth, imageHeight, hoop)
         return min(200f, min(safeW, safeH * imageWidth.toFloat() / imageHeight))
