@@ -48,6 +48,8 @@ jobs:
         run: |
           find app/build/test-results/testDebugUnitTest -name 'TEST-*Topology*.xml' -type f -print -exec sed -n '1,125p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*VariableWidth*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
+          find app/build/test-results/testDebugUnitTest -name 'TEST-*PesReadback*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
+          find app/build/test-results/testDebugUnitTest -name 'TEST-*Vasos*.xml' -type f -print -exec sed -n '1,130p' {} \; || true
       - name: Build isolated Android QA APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Upload APK for QA only
