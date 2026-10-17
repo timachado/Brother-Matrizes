@@ -74,6 +74,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterStitchFidelityAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionReport
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredReviewOverlay
+import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairGuidance
+import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairPlan
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -323,6 +325,10 @@ fun SimpleImageToEmbroideryScreen(
     }
     var uncoveredReport by remember(stageImage, satinSections, satinPartIndex, widthMm, hoop) {
         mutableStateOf<RasterUncoveredRegionReport?>(null)
+    }
+    var repairGuidanceBusy by remember(uncoveredReport) { mutableStateOf(false) }
+    var repairPlan by remember(uncoveredReport) {
+        mutableStateOf<RasterGapRepairPlan?>(null)
     }
     var showGapOverlay by remember(stageImage) { mutableStateOf(false) }
     var selectedGapId by remember(stageImage) { mutableIntStateOf(0) }
@@ -1118,6 +1124,72 @@ fun SimpleImageToEmbroideryScreen(
                                 missing.summary(), color = FioTextMuted,
                                 fontSize = 11.sp
                             )
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !repairGuidanceBusy && !simulating &&
+                                    prepared?.image != null,
+                                onClick = {
+                                    val original = prepared?.image
+                                        ?: return@OutlinedButton
+                                    val part = satinParts.getOrNull(satinPartIndex)
+                                        ?: return@OutlinedButton
+                                    val recordedRevision = revision
+                                    val reportSnapshot = missing
+                                    val widthSnapshot = widthMm
+                                    repairGuidanceBusy = true
+                                    repairPlan = null
+                                    message = ""
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.Default) {
+                                            RasterGapRepairGuidance.propose(
+                                                original, part, reportSnapshot,
+                                                widthSnapshot
+                                            )
+                                        }
+                                        repairGuidanceBusy = false
+                                        if (revision == recordedRevision &&
+                                            prepared?.image === original &&
+                                            widthMm == widthSnapshot &&
+                                            uncoveredReport === reportSnapshot &&
+                                            satinParts.getOrNull(satinPartIndex) === part) {
+                                            result.fold(
+                                                onSuccess = { repairPlan = it },
+                                                onFailure = {
+                                                    message = it.message
+                                                        ?: "Não foi possível orientar a revisão."
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    if (repairGuidanceBusy)
+                                        "Localizando correções seguras..."
+                                    else "Priorizar ajustes de pontos (QA)",
+                                    color = FioGold
+                                )
+                            }
+                            repairPlan?.let { guided ->
+                                Text(
+                                    guided.summary(),
+                                    color = FioTextMuted, fontSize = 11.sp
+                                )
+                                guided.advice.take(8).forEach { advice ->
+                                    OutlinedButton(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = {
+                                            showGapOverlay = true
+                                            selectedGapId = advice.regionId
+                                        }
+                                    ) {
+                                        Text(
+                                            advice.guidance(),
+                                            color = FioGold, fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
                             OutlinedButton(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { showGapOverlay = !showGapOverlay }
