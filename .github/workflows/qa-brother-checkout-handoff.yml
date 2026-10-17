@@ -1,0 +1,58 @@
+name: QA checkout Google integrado — HOMOLOGACAO
+
+on:
+  push:
+    branches: [feature/brother-google-checkout-handoff]
+    paths: [.github/workflows/qa-brother-checkout-handoff.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validar PHP sem WordPress conectado
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php -l tests/brother-checkout-handoff-php-test.php
+          php tests/brother-checkout-handoff-php-test.php
+      - name: Auditar fluxo seguro (sem token OAuth em URL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'auth.getUser(token)' supabase/functions/brother-checkout-handoff/index.ts
+          grep -Fq 'AES-GCM' supabase/functions/brother-checkout-handoff/index.ts
+          grep -Fq 'openssl_decrypt' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'ENABLE_CHECKOUT_HANDOFF' app/src/main/java/com/timachado/brothermatrizes/AccountHostScreen.kt
+          grep -Fq 'versionCode = 185' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.9"' app/build.gradle.kts
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Preparar ícones e marca
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testes unitários Android
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Compilar release sem assinatura (QA, não publicar)
+        run: gradle --no-daemon :app:assembleRelease --stacktrace
+      - name: Compilar com checkout Google habilitado apenas para QA
+        run: gradle --no-daemon :app:assembleRelease -PbrotherCheckoutHandoff=true --rerun-tasks --stacktrace

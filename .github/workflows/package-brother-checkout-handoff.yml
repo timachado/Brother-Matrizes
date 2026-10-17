@@ -1,0 +1,51 @@
+name: Package Brother Checkout Google — QA
+
+on:
+  push:
+    branches: [feature/brother-google-checkout-handoff]
+    paths: [.github/workflows/package-brother-checkout-handoff.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Testes PHP integracao checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php -l wordpress/brother-checkout-handoff/includes/admin-setup.php
+          php tests/brother-checkout-handoff-php-test.php
+          php tests/brother-checkout-cart-php-test.php
+          grep -Fq 'Version: 0.1.2-rc3' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'bm_checkout_pending_plan' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'admin_post_bm_checkout_replace_cart' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'register_activation_hook' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'BROTHER_CHECKOUT_HANDOFF_KEY' wordpress/brother-checkout-handoff/includes/admin-setup.php
+      - name: Empacotar plugin isolado para QA sem segredos
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wordpress
+          zip -X -r ../Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.zip brother-checkout-handoff -x '*.DS_Store'
+          cd ..
+          unzip -t Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.zip
+          sha256sum Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.zip > Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.sha256
+          ! unzip -p Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.zip | grep -E 'BEGIN PRIVATE KEY|SUPABASE_SERVICE_ROLE_KEY|^sk_'
+      - name: Arquivos para testes sem publicacao
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3-QA
+          path: |
+            Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.zip
+            Brother-Matrizes-Checkout-Google-SSO-0.1.2-rc3.sha256
+          retention-days: 14
+          if-no-files-found: error

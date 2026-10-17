@@ -657,15 +657,37 @@ fun AccountHostScreen(
 
     fun openBrotherPlan(planCode: String) {
         if (!checkOnline()) return
-        runCatching {
-            val address = WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(address))
-                    .addCategory(Intent.CATEGORY_BROWSABLE)
-            )
-        }.onFailure {
-            scope.launch {
-                snackbar.showSnackbar("Não foi possível abrir o plano no site T.I. Machado.")
+        scope.launch {
+            try {
+                // Login handoff remains feature-gated until the WordPress plugin
+                // and Supabase endpoint are deployed and tested together.
+                val address = if (BuildConfig.ENABLE_CHECKOUT_HANDOFF) {
+                    if (account == null) {
+                        snackbar.showSnackbar("Entre com Google no Brother Matrizes antes de contratar um plano.")
+                        return@launch
+                    }
+                    val result = BrotherMatrizesAccountService
+                        .handoffToCommercialCheckout(planCode)
+                    if (result.isSuccess) {
+                        result.getOrThrow()
+                    } else {
+                        // Do not silently drop customers on the old double-login
+                        // page and pretend seamless Google checkout worked.
+                        snackbar.showSnackbar(
+                            "Não foi possível sincronizar sua conta com o checkout. " +
+                                "Tente novamente. Nenhum pagamento foi iniciado."
+                        )
+                        return@launch
+                    }
+                } else {
+                    WordPressWebStore.planUrl(BuildConfig.WORDPRESS_URL, planCode)
+                }
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(address))
+                        .addCategory(Intent.CATEGORY_BROWSABLE)
+                )
+            } catch (_: Exception) {
+                snackbar.showSnackbar("Não foi possível abrir o checkout no site T.I. Machado.")
             }
         }
     }
