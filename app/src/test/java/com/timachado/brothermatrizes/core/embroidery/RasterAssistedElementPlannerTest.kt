@@ -106,7 +106,10 @@ class RasterAssistedElementPlannerTest {
         val counterfeit = study.flatPreview.argb.copyOf()
         counterfeit[23*90+20] = 0 // Erased original ink.
         val tampered = study.copy(
-            flatPreview = study.flatPreview.copy(argb = counterfeit)
+            flatPreview = RasterImagePixels(
+                original.width, original.height, counterfeit,
+                "tentativa de apagar letra"
+            )
         )
         assertTrue(RasterAssistedElementPlanner.propose(original,tampered).isFailure)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
