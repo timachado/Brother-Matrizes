@@ -65,6 +65,7 @@ import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
+import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -283,6 +284,7 @@ fun SimpleImageToEmbroideryScreen(
     }
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
+    var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
     val artworkAudit = remember(stageImage) {
         stageImage?.let { RasterArtworkComplexityAudit.examine(it) }
     }
@@ -461,6 +463,72 @@ fun SimpleImageToEmbroideryScreen(
                     study.message(),
                     color = FioTextMuted,
                     fontSize = 11.sp
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = prepared != null && fitted && !preparing &&
+                        !simulating && !testingFlatStitches &&
+                        !studyingTexture && regionalSampling != null,
+                    onClick = {
+                        val picture = prepared?.image ?: return@OutlinedButton
+                        val chosenHoop = hoop
+                        val chosenWidth = widthMm
+                        val chosenMode = displayMode
+                        val chosenConnections = showConnections
+                        val request = revision
+                        val evidence = regionalSampling
+                        testingFlatStitches = true
+                        message = ""
+                        scope.launch {
+                            val proposal = withContext(Dispatchers.Default) {
+                                if (evidence?.needsDetailReview != false) {
+                                    Result.failure(
+                                        IllegalArgumentException(
+                                            "A imagem original ainda apresenta " +
+                                                "perdas potenciais neste recorte. " +
+                                                "Revise os detalhes antes dos pontos."
+                                        )
+                                    )
+                                } else {
+                                    RasterFlatColorStitchCandidate.create(
+                                        picture, chosenWidth, chosenHoop
+                                    )
+                                }
+                            }
+                            testingFlatStitches = false
+                            if (request == revision && prepared?.image === picture &&
+                                hoop == chosenHoop && chosenWidth == widthMm) {
+                                proposal.fold(
+                                    onSuccess = {
+                                        qaTechnicalReport = null
+                                        qaReportRevision = -1
+                                        onSimulate(
+                                            it.design, chosenHoop, chosenMode,
+                                            chosenConnections
+                                        )
+                                    },
+                                    onFailure = {
+                                        message = "Prévia QA de pontos recusada: " +
+                                            (it.message ?:
+                                                "Revise as regiões da arte e os trilhos.")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        if (testingFlatStitches)
+                            "Auditando trajetórias de agulha..."
+                        else "Testar pontos reais QA (somente formas simples)",
+                        color = FioGold
+                    )
+                }
+                Text(
+                    "Usa as cores planas apenas como hipótese; confere " +
+                        "as pontadas contra a máscara ORIGINAL e reprova " +
+                        "texturas/cores ambíguas. Não cria PES.",
+                    color = FioTextMuted, fontSize = 11.sp
                 )
             }
             Text(
