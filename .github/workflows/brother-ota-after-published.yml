@@ -1,0 +1,133 @@
+name: Brother Matrizes — atualização automática pelo GitHub verificado
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release oficial a verificar (por exemplo v1.10.9)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brother-matrizes-stable-manifest
+  cancel-in-progress: false
+
+jobs:
+  verify-and-announce:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout da base comercial
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Java 17 para verificação Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android Build Tools 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "build-tools;36.0.0"
+      - name: Validar release pública e baixar somente APK comercial
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Tag de versão inválida."; exit 1; }
+          gh api "repos/$GH_REPO/releases/tags/$TARGET_TAG" > /tmp/release.json
+          jq -e '.draft == false and .prerelease == false and .published_at != null' /tmp/release.json > /dev/null
+          test "$(jq -r .tag_name /tmp/release.json)" = "$TARGET_TAG"
+          apk_count="$(jq '[.assets[] | select(.name | endswith(".apk"))] | length' /tmp/release.json)"
+          test "$apk_count" = 1 || { echo "::error::Release exige exatamente um APK comercial."; exit 1; }
+          jq -r '.assets[] | select(.name | endswith(".apk"))' /tmp/release.json > /tmp/apk.json
+          name="$(jq -r .name /tmp/apk.json)"
+          [[ "$name" =~ ^Brother-Matrizes-[A-Za-z0-9._-]+-OFICIAL-COMERCIAL-ASSINADO\.apk$ ]] || {
+            echo "::error::Nome do APK fora do padrão comercial."; exit 1;
+          }
+          [[ "$(jq -r .state /tmp/apk.json)" == "uploaded" ]]
+          size="$(jq -r .size /tmp/apk.json)"
+          [ "$size" -ge 10000000 ] && [ "$size" -le 100000000 ] || { echo "::error::Tamanho incorreto."; exit 1; }
+          digest="$(jq -r .digest /tmp/apk.json)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Hash ausente."; exit 1; }
+          mkdir -p release-check
+          gh release download "$TARGET_TAG" --repo "$GH_REPO" --pattern "$name" --dir release-check
+          echo "${digest#sha256:}  release-check/$name" | sha256sum -c -
+          echo "$name" > /tmp/apk-name
+          echo "$TARGET_TAG" > /tmp/release-tag
+      - name: Validar certificado original e versão monotônica do APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="$(cat /tmp/apk-name)"
+          apk="release-check/$name"
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/zipalign" -P 16 -c 4 "$apk"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$apk" > /tmp/cert.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/cert.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/cert.txt
+          info="$("$sdk/aapt" dump badging "$apk" | head -n1)"
+          echo "$info"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          version_name="$(sed -n "s/.* versionName='\([^']*\)'.*/\1/p" <<< "$info")"
+          version_code="$(sed -n "s/.* versionCode='\([^']*\)'.*/\1/p" <<< "$info")"
+          [[ "$version_code" =~ ^[0-9]+$ ]] && [ "$version_code" -gt 0 ]
+          test "v$version_name" = "$(cat /tmp/release-tag)"
+          current="$(jq -r .versionCode updates/stable.json)"
+          [[ "$current" =~ ^[0-9]+$ ]]
+          [ "$version_code" -ge "$current" ] || { echo "::error::Tentativa de downgrade bloqueada."; exit 1; }
+          printf '%s' "$version_name" > /tmp/verified-name
+          printf '%s' "$version_code" > /tmp/verified-code
+          echo "Release verificada contra certificado comercial e versao."
+      - name: Escrever manifesto OTA somente após todos os controles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, re
+          release = json.loads(pathlib.Path('/tmp/release.json').read_text())
+          manifest_path = pathlib.Path('updates/stable.json')
+          manifest = json.loads(manifest_path.read_text())
+          assert manifest['applicationId'] == 'com.timachado.brothermatrizes'
+          version = pathlib.Path('/tmp/verified-name').read_text()
+          code = int(pathlib.Path('/tmp/verified-code').read_text())
+          asset_name = pathlib.Path('/tmp/apk-name').read_text().strip()
+          tag = pathlib.Path('/tmp/release-tag').read_text().strip()
+          asset = next(x for x in release['assets'] if x['name'] == asset_name)
+          url = f'https://github.com/timachado/Brother-Matrizes/releases/download/{tag}/{asset_name}'
+          hash_ = asset['digest'].removeprefix('sha256:')
+          assert re.fullmatch('[a-f0-9]{64}', hash_)
+          assert code >= int(manifest['versionCode'])
+          if code == int(manifest['versionCode']):
+              assert manifest['sha256'] == hash_ and manifest['downloadUrl'] == url, (
+                  'Versão já publicada com outro APK: alteração bloqueada')
+              print('Release ja anunciada corretamente; nenhuma mudanca.')
+          else:
+              body = release.get('body') or ''
+              bullets = [re.sub(r'[*_`]', '', x.strip()) for x in
+                         re.findall(r'(?m)^\s*-\s+(.+)$', body)]
+              notes = '; '.join(bullets[:6])[:1800]
+              manifest.update(versionName=version, versionCode=code, downloadUrl=url,
+                              sha256=hash_, publishedAt=release['published_at'],
+                              releaseNotes=notes or f'Brother Matrizes {version} — melhorias e correcoes.')
+              manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/stable.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'release(ota): atualizar automaticamente manifesto apos verificar APK comercial'
+          git push origin HEAD:main
