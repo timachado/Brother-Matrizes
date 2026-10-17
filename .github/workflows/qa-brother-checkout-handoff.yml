@@ -54,3 +54,5 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
       - name: Compilar release sem assinatura (QA, não publicar)
         run: gradle --no-daemon :app:assembleRelease --stacktrace
+      - name: Compilar com checkout Google habilitado apenas para QA
+        run: gradle --no-daemon :app:assembleRelease -PbrotherCheckoutHandoff=true --rerun-tasks --stacktrace
