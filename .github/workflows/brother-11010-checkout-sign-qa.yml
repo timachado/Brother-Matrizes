@@ -1,0 +1,126 @@
+name: Brother Matrizes 1.10.10 — checkout Google assinado (homologação)
+
+on:
+  push:
+    branches: [release/brother-1.10.10-checkout-candidate]
+    paths: [.github/workflows/brother-11010-checkout-sign-qa.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-11010-checkout-sign-qa
+  cancel-in-progress: false
+
+jobs:
+  signed-candidate:
+    name: Validar e assinar APK com chave comercial original — NÃO PUBLICAR
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    environment: brother-release-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Preparar Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Validar fonte comercial 1.10.10 e preservar motor de bordado
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'versionCode = 186' app/build.gradle.kts
+          grep -Fq 'versionName = "1.10.10"' app/build.gradle.kts
+          grep -Fq 'ENABLE_CHECKOUT_HANDOFF' app/src/main/java/com/timachado/brothermatrizes/AccountHostScreen.kt
+          grep -Fq 'bm_checkout_prepare_woo_cart' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          grep -Fq 'Version: 0.1.2-rc3' wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          test -z "$(git diff --name-only origin/main...HEAD -- \
+            'app/src/main/java/com/timachado/brothermatrizes/font' \
+            'app/src/main/java/com/timachado/brothermatrizes/embroidery' \
+            'app/src/main/java/com/timachado/brothermatrizes/*Simulation*' \
+            'app/src/main/java/com/timachado/brothermatrizes/*Stitch*' \
+            'app/src/main/java/com/timachado/brothermatrizes/core/project')"
+          echo "Motor de bordado e projetos preservados."
+      - name: Preparar marca
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Validar plugin de checkout e integração comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l wordpress/brother-checkout-handoff/brother-checkout-handoff.php
+          php -l wordpress/brother-checkout-handoff/includes/admin-setup.php
+          php tests/brother-checkout-handoff-php-test.php
+          php tests/brother-checkout-cart-php-test.php
+      - name: Testar app Android
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Compilar release COM login integrado habilitado somente nesta build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          grep -R --include='BuildConfig.java' -F 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Assinar com certificado comercial original e verificar identidade
+        shell: bash
+        env:
+          RELEASE_JKS_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in RELEASE_JKS_B64 RELEASE_STORE_PASS RELEASE_KEY_ALIAS RELEASE_KEY_PASS; do
+            test -n "${!name:-}" || { echo "::error::Segredo de assinatura comercial ausente."; exit 1; }
+          done
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s' "$RELEASE_JKS_B64" | base64 --decode > "$tmp/original.jks"
+          test -s "$tmp/original.jks"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/zipalign" -P 16 -f 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            "$tmp/aligned.apk"
+          mkdir -p dist
+          signed="dist/Brother-Matrizes-1.10.10-CHECKOUT-GOOGLE-ASSINADO-HOMOLOGACAO.apk"
+          "$tools/apksigner" sign --ks "$tmp/original.jks" \
+            --ks-key-alias "$RELEASE_KEY_ALIAS" \
+            --ks-pass env:RELEASE_STORE_PASS \
+            --key-pass env:RELEASE_KEY_PASS \
+            --out "$signed" "$tmp/aligned.apk"
+          "$tools/zipalign" -P 16 -c 4 "$signed"
+          audit="$("$tools/apksigner" verify --verbose --print-certs "$signed")"
+          printf '%s\n' "$audit" | grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true'
+          printf '%s\n' "$audit" | grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true'
+          cert="$(printf '%s\n' "$audit" | sed -nE 's/^Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]{64})$/\1/p' | tr '[:upper:]' '[:lower:]')"
+          test "$cert" = 'fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' || {
+            echo "::error::Certificado não corresponde à versão comercial."; exit 1;
+          }
+          badging="$("$tools/aapt" dump badging "$signed" | head -n 1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='186'"* ]]
+          [[ "$badging" == *"versionName='1.10.10'"* ]]
+          sha256sum "$signed" > dist/Brother-Matrizes-1.10.10-CHECKOUT-APK-SHA256.txt
+          printf '%s\n' "$cert" > dist/Brother-Matrizes-1.10.10-CERT-SHA256.txt
+          echo "APK comercial original assinado e validado. Nenhuma publicação executada."
+      - name: Anexar candidato assinado apenas aos artefatos privados de QA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.10.10-CHECKOUT-ASSINADO-HOMOLOGACAO-NAO-PUBLICAR
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
