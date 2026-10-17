@@ -403,6 +403,16 @@ fun SimpleImageToEmbroideryScreen(
                     "Bastidor: ${hoop.displayName}",
                 color = FioText, fontWeight = FontWeight.SemiBold
             )
+            val orientedHoop = ImageHoopSizing.usableFrameMm(
+                stageImage.width, stageImage.height, hoop
+            )
+            Text(
+                "Área útil na orientação da arte: " +
+                    "${orientedHoop.first.roundToInt()} × " +
+                    "${orientedHoop.second.roundToInt()} mm " +
+                    "(inclui margem de segurança).",
+                color = FioTextMuted, fontSize = 11.sp
+            )
             Slider(
                 value = fill.coerceIn(.2f, 1f),
                 onValueChange = { fill = it; techniqueReport = null },
