@@ -29,7 +29,14 @@ internal data class RasterUncoveredRegionReport(
     val regions: List<RasterUncoveredRegion>,
     val hiddenRegionPixels: Int,
     val outsideInkFraction: Double,
-    val exportPermitted: Boolean = false
+    val exportPermitted: Boolean = false,
+    // Exact region IDs for ALL uncovered pixels, including those beyond the
+    // UI's first 24 rows. Local to the component mask; zero means no gap.
+    val regionIds: IntArray = IntArray(0),
+    val localWidth: Int = 0,
+    val localHeight: Int = 0,
+    val originX: Int = 0,
+    val originY: Int = 0
 ) {
     val coverage: Double get() =
         if (sourcePixels == 0) 0.0 else coveredPixels.toDouble() / sourcePixels
@@ -101,6 +108,7 @@ internal object RasterUncoveredRegionAudit {
         ) { "Contagens de pontos e imagem inconsistentes." }
 
         val visited = BooleanArray(missing.size)
+        val regionIds = IntArray(missing.size)
         val queue = IntArray(missing.size)
         val regions = ArrayList<RasterUncoveredRegion>()
         var allRegions = 0
@@ -129,6 +137,7 @@ internal object RasterUncoveredRegionAudit {
             }
             allRegions++
             visited[root] = true
+            regionIds[root] = allRegions
             queue[0] = root
             var first = 0
             var tail = 1
@@ -150,6 +159,7 @@ internal object RasterUncoveredRegionAudit {
                     val next = yy * w + xx
                     if (missing[next] && !visited[next]) {
                         visited[next] = true
+                        regionIds[next] = allRegions
                         queue[tail++] = next
                     }
                 }
@@ -171,7 +181,9 @@ internal object RasterUncoveredRegionAudit {
             sourcePixels = sourceInk, coveredPixels = covered,
             uncoveredPixels = unsewn, totalRegions = allRegions,
             regions = regions, hiddenRegionPixels = hiddenPixels,
-            outsideInkFraction = fidelity.offInkFraction
+            outsideInkFraction = fidelity.offInkFraction,
+            regionIds = regionIds, localWidth = w, localHeight = h,
+            originX = b.minX, originY = b.minY
         )
     }
 }
