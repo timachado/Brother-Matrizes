@@ -1,0 +1,34 @@
+name: QA Android public signing tool library
+
+on:
+  push:
+    branches: [release/brother-1.10.10-checkout-candidate]
+    paths: [.github/workflows/qa-android-public-libcxx.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-library:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check public Android SDK toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "build-tools;36.0.0"
+          lib="$(find "$ANDROID_HOME/build-tools/36.0.0" -type f -name 'libc++.so' | head -n1)"
+          test -n "$lib" && test -s "$lib"
+          mkdir -p dist/lib
+          cp "$lib" dist/lib/libc++.so
+          sha256sum dist/lib/libc++.so > dist/SHA256-libcxx.txt
+      - name: Upload public Android SDK shared library only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-Build-Tools-36-Public-Libcxx
+          path: dist/
+          retention-days: 5
+          if-no-files-found: error
