@@ -3,6 +3,8 @@ name: Brother Matrizes QA Object Selection APK
 on:
   push:
     branches: ["qa/image-stitch-sequence-preflight-20261017"]
+  pull_request:
+    branches: ["qa/pes-ordered-readback-source-provenance-20261017"]
   workflow_dispatch:
 
 permissions:
@@ -49,6 +51,7 @@ jobs:
           find app/build/test-results/testDebugUnitTest -name 'TEST-*Topology*.xml' -type f -print -exec sed -n '1,125p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*VariableWidth*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*PesReadback*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
+          find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterThreadSequence*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
           find app/build/test-results/testDebugUnitTest -name 'TEST-*Vasos*.xml' -type f -print -exec sed -n '1,130p' {} \; || true
       - name: Build isolated Android QA APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
