@@ -39,7 +39,7 @@ internal object BrotherCheckoutHandoffClient {
             require(
                 base.scheme == "https" && base.port == -1 &&
                 base.rawUserInfo == null && base.rawQuery == null &&
-                base.rawFragment == null && base.rawPath.trim('/').isEmpty() &&
+                base.rawFragment == null && base.rawPath.orEmpty().trim('/').isEmpty() &&
                 base.host.endsWith(".supabase.co")
             ) { "Provedor de identidade indisponível." }
             val url = URL(base.toString().trimEnd('/') +
