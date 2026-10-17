@@ -18,7 +18,12 @@ internal data class RasterImageSamplingEvidence(
     val sha256: String,
     val foregroundReferencePixels: Int,
     val potentiallyLostPixels: Int,
-    val largestPotentiallyLostRegion: Int
+    val largestPotentiallyLostRegion: Int,
+    // Diagnostic masks refer to the entire imported reference, not to a PES.
+    // Keep these in memory only; never include them in the Markdown QA report.
+    val referenceForegroundMask: BooleanArray = BooleanArray(0),
+    val referenceLossMask: BooleanArray = BooleanArray(0),
+    val inspectedRegion: String = "imagem original"
 ) {
     val referenceIsFullResolution: Boolean get() =
         sourceWidth == referenceWidth && sourceHeight == referenceHeight
@@ -106,6 +111,7 @@ internal object RasterImageSamplingAudit {
             else differenceSquared(p, bg) >= 72 * 72
 
         val lost = BooleanArray(high.size)
+        val foregroundMask = BooleanArray(high.size)
         var refInk = 0
         var atRisk = 0
         val directlyComparable = reference.width == working.width &&
@@ -115,6 +121,7 @@ internal object RasterImageSamplingAudit {
                 val idx = y * reference.width + x
                 val p = high[idx]
                 if (!foreground(p, referenceBackground)) continue
+                foregroundMask[idx] = true
                 refInk++
                 if (directlyComparable && p == low[idx]) continue
                 // Compare source color with nearby WORKING image colors.
@@ -176,7 +183,79 @@ internal object RasterImageSamplingAudit {
             sha256 = sha256,
             foregroundReferencePixels = refInk,
             potentiallyLostPixels = atRisk,
-            largestPotentiallyLostRegion = largest
+            largestPotentiallyLostRegion = largest,
+            referenceForegroundMask = foregroundMask,
+            referenceLossMask = lost
+        )
+    }
+
+    /**
+     * Restrict the global sampling warning to the selected crop.
+     * Without this check, loss in a logo subtitle blocks reviewing an
+     * unrelated independent icon. The ORIGINAL dimensions and SHA remain
+     * unchanged; this does not certify the crop or any physical stitches.
+     */
+    fun inspectRegion(
+        original: RasterImageSamplingEvidence,
+        bounds: RasterCropBounds
+    ): Result<RasterImageSamplingEvidence> = runCatching {
+        require(
+            original.referenceWidth in 2..MAX_REFERENCE_SIDE &&
+                original.referenceHeight in 2..MAX_REFERENCE_SIDE &&
+                original.referenceForegroundMask.size ==
+                    original.referenceWidth * original.referenceHeight &&
+                original.referenceLossMask.size ==
+                    original.referenceForegroundMask.size &&
+                listOf(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                    .all { it.isFinite() && it in 0f..1f } &&
+                bounds.left < bounds.right && bounds.top < bounds.bottom
+        ) { "A foto original não tem prova de amostragem para o recorte." }
+        val w = original.referenceWidth
+        val h = original.referenceHeight
+        val x0 = kotlin.math.floor(bounds.left * w).toInt().coerceIn(0, w - 1)
+        val y0 = kotlin.math.floor(bounds.top * h).toInt().coerceIn(0, h - 1)
+        val x1 = kotlin.math.ceil(bounds.right * w).toInt().coerceIn(x0 + 1, w)
+        val y1 = kotlin.math.ceil(bounds.bottom * h).toInt().coerceIn(y0 + 1, h)
+        val foregroundMask = original.referenceForegroundMask
+        val lost = original.referenceLossMask
+        var foreground = 0
+        var missing = 0
+        var largest = 0
+        val visited = BooleanArray(w * h)
+        val queue = IntArray(w * h)
+        for (y in y0 until y1) for (x in x0 until x1) {
+            val root = y * w + x
+            if (foregroundMask[root]) foreground++
+            if (!lost[root]) continue
+            missing++
+            if (visited[root]) continue
+            visited[root] = true
+            queue[0] = root
+            var front = 0
+            var tail = 1
+            while (front < tail) {
+                val index = queue[front++]
+                val px = index % w
+                val py = index / w
+                for (dy in -1..1) for (dx in -1..1) {
+                    if (dx == 0 && dy == 0) continue
+                    val xx = px + dx
+                    val yy = py + dy
+                    if (xx !in x0 until x1 || yy !in y0 until y1) continue
+                    val next = yy * w + xx
+                    if (lost[next] && !visited[next]) {
+                        visited[next] = true
+                        queue[tail++] = next
+                    }
+                }
+            }
+            largest = max(largest, tail)
+        }
+        original.copy(
+            foregroundReferencePixels = foreground,
+            potentiallyLostPixels = missing,
+            largestPotentiallyLostRegion = largest,
+            inspectedRegion = "recorte selecionado"
         )
     }
 }
