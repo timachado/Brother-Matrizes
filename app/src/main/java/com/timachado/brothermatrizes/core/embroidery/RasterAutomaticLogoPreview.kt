@@ -343,6 +343,9 @@ internal object RasterAutomaticLogoPreview {
             hoopProfile = hoop
         )
         RasterNeedleRiskAudit.inspect(assembled, hoop).getOrThrow()
+        // Endpoint hotspots and three-color overlap do not detect several
+        // needle-down passes of the SAME color in a small area.
+        RasterThreadDensityPreflight.inspect(assembled).getOrThrow()
         // A full logo may overlay separately valid layers of different
         // thread colors. Screen the ASSEMBLED sewing order, not only parts.
         RasterColorLayerOverlapAudit.inspect(assembled).getOrThrow()
