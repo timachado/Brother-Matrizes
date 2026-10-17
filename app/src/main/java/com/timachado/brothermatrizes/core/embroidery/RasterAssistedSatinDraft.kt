@@ -100,6 +100,12 @@ internal object RasterAssistedSatinDraftPlanner {
             sections.all { it.rails.size in 2..100 }
         ) { "Proposta Satin sem pares de trilhos editáveis." }
 
+        // Width/curvature/rail-order check before any needle simulation.
+        // Re-run the same gate after every human edit in the screen.
+        RasterSatinRailGeometryGate.inspect(
+            original, item, sections, widthMm, counted
+        ).getOrThrow()
+
         if (counted > 0) {
             // Counter-safe proposals must pass the physical SEWN-SEGMENT
             // counter audit even before a human begins adjusting them.
