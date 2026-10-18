@@ -2,6 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application
-        android:label="Brother Matrizes QA Ajuste Satin"
+        android:label="Brother Matrizes QA Camadas Mistas"
         tools:replace="android:label" />
 </manifest>
