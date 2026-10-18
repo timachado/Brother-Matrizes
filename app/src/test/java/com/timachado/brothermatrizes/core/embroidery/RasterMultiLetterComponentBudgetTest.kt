@@ -19,7 +19,7 @@ class RasterMultiLetterComponentBudgetTest {
             val row=i/7
             val left=8+col*31
             val top=9+row*34
-            for(y in top until top+15) for(x in left until left+13) {
+            for(y in top until top+24) for(x in left until left+26) {
                 argb[y*width+x]=thread
             }
         }
