@@ -80,6 +80,9 @@ import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairAction
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairTrial
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairResult
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
+import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
+import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
+import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -354,6 +357,40 @@ fun SimpleImageToEmbroideryScreen(
             source, item, report, selectedGapId
         ).getOrNull()
     }
+    // Mixed-technique QA is tied to the exact image, scale and hoop.
+    // Changing any of these discards candidate paths and confirmations.
+    var mixedOpen by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
+    var mixedParts by remember(stageImage, hoop, widthMm) {
+        mutableStateOf<List<RasterSatinObject>>(emptyList())
+    }
+    var mixedOrder by remember(stageImage, hoop, widthMm) {
+        mutableStateOf<List<Int>>(emptyList())
+    }
+    var mixedTechniques by remember(stageImage, hoop, widthMm) {
+        mutableStateOf<Map<Int, RasterTechniqueKind>>(emptyMap())
+    }
+    var mixedDrafts by remember(stageImage, hoop, widthMm) {
+        mutableStateOf<Map<Int, EmbroideryDesign>>(emptyMap())
+    }
+    var mixedConfirmed by remember(stageImage, hoop, widthMm) {
+        mutableStateOf<Set<Int>>(emptySet())
+    }
+    var mixedBusy by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
+    var mixedSelectedPart by remember(stageImage, hoop, widthMm) {
+        mutableIntStateOf(0)
+    }
+    val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, stageImage) {
+        val original = prepared?.image
+        val item = mixedParts.firstOrNull { it.id == mixedSelectedPart }
+        if (original == null || item == null ||
+            item.mask.pixels.size != original.argb.size
+        ) null else RasterImagePixels(
+            original.width, original.height,
+            IntArray(original.argb.size) { index ->
+                if (item.mask.pixels[index] == 0) original.argb[index] else 0
+            }, "Elemento para prévia multitécnica QA"
+        )
+    }
     val placeholder = remember(stageImage, hoop, widthMm) {
         stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
     }
@@ -429,13 +466,16 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = gapOverlay ?: elementPicture ?: if (showFlatStudy)
+                rasterArtwork = gapOverlay ?: mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (gapOverlay != null)
+                if (mixedPartOverlay != null)
+                    "Componente destacado para revisão multitécnica. " +
+                        "É a imagem original isolada, NÃO são pontadas."
+                else if (gapOverlay != null)
                     "Cobertura real QA: laranja = faltam pontos; cinza = já coberto. " +
                         "Vazados transparentes preservados. Sem novas agulhadas."
                 else if (elementPicture != null)
