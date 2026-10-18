@@ -86,6 +86,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudi
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
+import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueSequenceReview
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -386,6 +387,17 @@ fun SimpleImageToEmbroideryScreen(
     var mixedSelectedPart by remember(stageImage, hoop, widthMm) {
         mutableIntStateOf(0)
     }
+    // A finished sequence cannot survive a new source, part, technique,
+    // stitch draft, color/order change or removed human approval.
+    var mixedAssembly by remember(
+        stageImage, hoop, widthMm, mixedParts, mixedOrder,
+        mixedTechniques, mixedDrafts, mixedConfirmed, mixedViewed, mixedAudits
+    ) {
+        mutableStateOf<RasterMixedTechniqueSequenceReview?>(null)
+    }
+    var mixedAssemblyViewed by remember(mixedAssembly) {
+        mutableStateOf(false)
+    }
     val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, stageImage) {
         val original = prepared?.image
         val item = mixedParts.firstOrNull { it.id == mixedSelectedPart }
@@ -398,7 +410,10 @@ fun SimpleImageToEmbroideryScreen(
             }, "Elemento para prévia multitécnica QA"
         )
     }
-    val mixedShown = if (mixedOpen && mixedViewMode == 1) mixedDrafts[mixedSelectedPart] else null
+    val mixedFullShown = if (mixedOpen && mixedViewMode == 3)
+        mixedAssembly?.design else null
+    val mixedShown = if (mixedOpen && mixedViewMode == 1)
+        mixedDrafts[mixedSelectedPart] else null
     val mixedAuditShown = if (mixedOpen) mixedAudits[mixedSelectedPart] else null
     val mixedCoverShown = if (mixedOpen && mixedViewMode == 2) mixedAuditShown?.coverageOverlay else null
     val mixedSourceShown = if (mixedOpen && mixedViewMode == 1) mixedAuditShown?.sourceOverlay else null
@@ -473,18 +488,24 @@ fun SimpleImageToEmbroideryScreen(
             // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
-                design = mixedShown ?: placeholder,
+                design = mixedFullShown ?: mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?: mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
+                rasterArtwork = if (mixedFullShown != null) stageImage
+                    else mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
+                        mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
-                rasterOpacity = if (mixedShown != null) .18f else .99f,
+                rasterOpacity = if (mixedFullShown != null) .12f
+                    else if (mixedShown != null) .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (mixedShown != null)
+                if (mixedFullShown != null)
+                    "Sequência COMPLETA real em STITCH/JUMP/TRIM sobre a fonte. " +
+                        "Revise a ordem de costura antes do Simular Bordado. PES bloqueado."
+                else if (mixedShown != null)
                     "Pontadas STITCH/JUMP reais sobre a fonte semitransparente. Não é PES."
                 else if (mixedCoverShown != null)
                     "Cobertura real QA: laranja = tinta sem pontos; cinza = tinta coberta."
@@ -1202,8 +1223,6 @@ fun SimpleImageToEmbroideryScreen(
                         val techniqueSnapshot = mixedTechniques.toMap()
                         val hoopSnapshot = hoop
                         val widthSnapshot = widthMm
-                        val displaySnapshot = displayMode
-                        val connectionsSnapshot = showConnections
                         val stamp = revision
                         simulating = true
                         message = ""
@@ -1251,12 +1270,10 @@ fun SimpleImageToEmbroideryScreen(
                                 simulating = false
                                 built.fold(
                                     onSuccess = {
-                                        qaTechnicalReport = it.message()
-                                        qaReportRevision = stamp
-                                        onSimulate(
-                                            it.design,hoopSnapshot,
-                                            displaySnapshot,connectionsSnapshot
-                                        )
+                                        mixedAssembly = it
+                                        mixedViewMode = 0
+                                        message = it.message() +
+                                            " Abra a prévia completa antes de Simular Bordado."
                                     },
                                     onFailure = {
                                         message = "Sequência multitécnica recusada: " +
@@ -1268,8 +1285,49 @@ fun SimpleImageToEmbroideryScreen(
                         }
                     }
                 ) {
-                    Text("Simular Bordado — camadas revisadas (QA)",
+                    Text("Validar montagem completa (QA)",
                         color = FioBackground, fontWeight = FontWeight.Bold)
+                }
+                mixedAssembly?.let { assembly ->
+                    Text(
+                        assembly.message(),
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            mixedViewMode = 3
+                            mixedAssemblyViewed = true
+                        }
+                    ) {
+                        Text("Conferir todas as pontadas no bastidor",
+                            color = FioGold)
+                    }
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = mixedAssemblyViewed && allConfirmed &&
+                            !mixedBusy && !simulating &&
+                            assembly.integrityReport != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold
+                        ),
+                        onClick = {
+                            if (mixedAssembly === assembly &&
+                                mixedAssemblyViewed &&
+                                assembly.integrityReport != null &&
+                                !assembly.exportPermitted && allConfirmed) {
+                                qaTechnicalReport = assembly.message()
+                                qaReportRevision = revision
+                                onSimulate(
+                                    assembly.design,hoop,
+                                    displayMode,showConnections
+                                )
+                            }
+                        }
+                    ) {
+                        Text("Simular Bordado — montagem revisada (QA)",
+                            color = FioBackground, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             if (candidates.isNotEmpty()) {

@@ -16,13 +16,15 @@ internal data class RasterMixedTechniqueSequenceReview(
     val techniqueOrder: List<RasterTechniqueKind>,
     val trims: Int,
     val colorChanges: Int,
+    val integrityReport: RasterMixedSequenceIntegrityReport? = null,
     val needsPhysicalStitchOut: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
     fun message(): String =
         "QA: " + componentOrder.size + " partes revisadas, " +
             trims + " cortes e " + colorChanges + " trocas de linha. " +
-            "Sequência experimental, não matriz PES homologada."
+            (integrityReport?.summary() ?: "Integridade pendente.") +
+            " Sequência experimental, não matriz PES homologada."
 }
 
 internal object RasterMixedTechniqueComposer {
@@ -174,6 +176,9 @@ internal object RasterMixedTechniqueComposer {
             sourceBytes=ByteArray(0),threadColors=colors,
             isModified=true,hoopProfile=hoop
         )
+        val integrity = RasterMixedSequenceIntegrityAudit.inspect(
+            assembled,layers
+        ).getOrThrow()
         val sequence=RasterThreadSequenceAudit.inspect(assembled).getOrThrow()
         val needle=RasterNeedleRiskAudit.inspect(assembled,hoop).getOrThrow()
         val density=RasterThreadDensityPreflight.inspect(assembled).getOrThrow()
@@ -189,7 +194,8 @@ internal object RasterMixedTechniqueComposer {
             design=assembled,
             componentOrder=layers.map { it.component.id },
             techniqueOrder=layers.map { it.technique },
-            trims=sequence.trims,colorChanges=changes
+            trims=sequence.trims,colorChanges=changes,
+            integrityReport=integrity
         )
     }
 }

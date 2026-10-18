@@ -144,6 +144,99 @@ class RasterMixedTechniqueComposerTest {
         ).isFailure)
     }
 
+    @Test fun assembledSequencePreservesEveryRealStitchAndSeparatesParts() {
+        val (source,tatami,running)=fixture()
+        val layers=listOf(tatami,running)
+        val finished=RasterMixedTechniqueComposer.compose(
+            source,width,hoop,layers
+        ).getOrThrow()
+        val proof=RasterMixedSequenceIntegrityAudit.inspect(
+            finished.design,layers
+        ).getOrThrow()
+        assertEquals(2,proof.reviewedComponents)
+        assertEquals(tatami.design.stitchCount+
+            running.design.stitchCount,proof.originalStitches)
+        assertEquals(tatami.design.jumpCount+
+            running.design.jumpCount,proof.originalJumps)
+        assertEquals(1,proof.layerBoundaryTrims)
+        assertEquals(1,proof.layerBoundaryColorChanges)
+        assertEquals(finished.design.points.size,proof.totalCommands)
+        assertFalse(proof.exportPermitted)
+        assertTrue(finished.message().contains("preservados"))
+    }
+
+    @Test fun tamperedStitchCoordinateIsRejectedEvenWithUnchangedCounts() {
+        val (source,tatami,running)=fixture()
+        val layers=listOf(tatami,running)
+        val original=RasterMixedTechniqueComposer.compose(
+            source,width,hoop,layers
+        ).getOrThrow().design
+        val stitchIndex=original.points.indexOfFirst {
+            it.command==StitchCommand.STITCH
+        }
+        val corrupted=original.points.toMutableList()
+        corrupted[stitchIndex]=corrupted[stitchIndex].copy(
+            xUnits=corrupted[stitchIndex].xUnits+1
+        )
+        assertTrue(RasterMixedSequenceIntegrityAudit.inspect(
+            original.copy(points=corrupted),layers
+        ).isFailure)
+        assertEquals(original.stitchCount,corrupted.count {
+            it.command==StitchCommand.STITCH
+        })
+    }
+
+    @Test fun missingMandatoryTrimIsRejectedBeforeSimulating() {
+        val (source,tatami,running)=fixture()
+        val layers=listOf(tatami,running)
+        val original=RasterMixedTechniqueComposer.compose(
+            source,width,hoop,layers
+        ).getOrThrow().design
+        val removed=original.points.toMutableList()
+        assertTrue(removed.removeAll {it.command==StitchCommand.TRIM})
+        assertTrue(RasterMixedSequenceIntegrityAudit.inspect(
+            original.copy(points=removed),layers
+        ).isFailure)
+    }
+
+    @Test fun switchedLayerOrderCannotMasqueradeAsConfirmedSequence() {
+        val (source,tatami,running)=fixture()
+        val design=RasterMixedTechniqueComposer.compose(
+            source,width,hoop,listOf(tatami,running)
+        ).getOrThrow().design
+        assertTrue(RasterMixedSequenceIntegrityAudit.inspect(
+            design,listOf(
+                tatami.copy(sewingOrder=50),
+                running.copy(sewingOrder=1)
+            )
+        ).isFailure)
+    }
+
+    @Test fun inventedColorChangeAndImportedPesFailSequenceProof() {
+        val (source,tatami,running)=fixture()
+        val layers=listOf(tatami,running)
+        val original=RasterMixedTechniqueComposer.compose(
+            source,width,hoop,layers
+        ).getOrThrow().design
+        val pos=original.points.indexOfFirst {
+            it.command==StitchCommand.COLOR_CHANGE
+        }
+        val forged=original.points.toMutableList()
+        forged[pos]=forged[pos].copy(
+            colorIndex=forged[pos].colorIndex-1
+        )
+        assertTrue(RasterMixedSequenceIntegrityAudit.inspect(
+            original.copy(points=forged),layers
+        ).isFailure)
+        assertTrue(RasterMixedSequenceIntegrityAudit.inspect(
+            original.copy(
+                format="PES",
+                sourceBytes=byteArrayOf(0x50,0x45,0x53)
+            ),layers
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun tamperedOriginalSourceMustFailTheStitchFidelityGate() {
         val (source,tatami,running)=fixture()
         val blank=RasterImagePixels(160,100,IntArray(160*100),"adulterado")
