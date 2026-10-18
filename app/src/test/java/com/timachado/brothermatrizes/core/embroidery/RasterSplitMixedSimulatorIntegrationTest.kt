@@ -113,6 +113,71 @@ class RasterSplitMixedSimulatorIntegrationTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun finalReadinessKeepsAllPhysicalAndCommercialGatesPending() {
+        val f=fixture()
+        val review=RasterMixedTechniqueReviewWorkflow.composeReviewed(
+            f.source,f.parts,f.layers,width,hoop
+        ).getOrThrow()
+        val result=RasterImageQaReleaseReadinessAudit.inspect(
+            review
+        ).getOrThrow()
+        assertTrue(result.softwareSequencePassed)
+        assertTrue(result.softwareNeedleDensityChecksPassed)
+        assertEquals(2,result.verifiedComponents)
+        assertEquals(review.design.stitchCount,result.preservedStitches)
+        assertEquals(1,result.internalTrims)
+        assertEquals(1,result.boundaryTrims)
+        assertEquals(1,result.colorChanges)
+        assertEquals(4,result.outstandingProductionGates)
+        assertFalse(result.physicalAndroidUiVerified)
+        assertFalse(result.originalComplexArtReconstructedAndReviewed)
+        assertFalse(result.brotherStitchOutVerified)
+        assertFalse(result.transferablePesVerified)
+        assertFalse(result.exportPermitted)
+        assertTrue(result.summary().contains("Não pronto"))
+    }
+
+    @Test fun fakeProductionStatusOrMissingIntegrityCannotPassReadinessGate() {
+        val f=fixture()
+        val assembled=RasterMixedTechniqueReviewWorkflow.composeReviewed(
+            f.source,f.parts,f.layers,width,hoop
+        ).getOrThrow()
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(exportPermitted=true)
+        ).isFailure)
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(needsPhysicalStitchOut=false)
+        ).isFailure)
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(integrityReport=null)
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun alteredTrimOrClaimedStitchCountInvalidatesReadiness() {
+        val f=fixture()
+        val assembled=RasterMixedTechniqueReviewWorkflow.composeReviewed(
+            f.source,f.parts,f.layers,width,hoop
+        ).getOrThrow()
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(trims=assembled.trims-1)
+        ).isFailure)
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(
+                design=assembled.design.copy(
+                    stitchCount=assembled.design.stitchCount+1
+                )
+            )
+        ).isFailure)
+        assertTrue(RasterImageQaReleaseReadinessAudit.inspect(
+            assembled.copy(
+                integrityReport=assembled.integrityReport?.copy(
+                    internalTravelJumps=0
+                )
+            )
+        ).isFailure)
+    }
+
     @Test fun deletingInternalSatinTrimFailsEvenIfCommandCountsAreRepaired() {
         val f=fixture()
         val full=RasterMixedTechniqueReviewWorkflow.composeReviewed(
