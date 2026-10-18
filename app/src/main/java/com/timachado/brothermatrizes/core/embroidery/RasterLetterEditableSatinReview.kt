@@ -179,6 +179,108 @@ internal object RasterLetterEditableSatinReview {
     }
 
     /**
+     * Split an existing Satin curve into TWO independent sew sections.
+     * Overlap exactly the original seam rail; the generator must insert
+     * TRIM + JUMP and all post-quantized audits must pass.
+     *
+     * The split is deliberately returned as a NEW proposal with a NEW
+     * baseline, to prevent endpoint editing across changed rail topology.
+     * UI must first preview/compare it and obtain explicit operator consent.
+     * Existing previews/history are NOT modified by a rejected split.
+     */
+    fun proposeIndependentSplit(
+        original: RasterImagePixels,
+        part: RasterSatinObject,
+        previous: RasterLetterSatinDraft,
+        sectionIndex: Int,
+        splitPairIndex: Int,
+        widthMm: Float,
+        hoop: HoopProfile
+    ): Result<RasterLetterSatinDraft> = runCatching {
+        require(
+            previous.sections.size in 1 until MAX_SECTIONS &&
+                sectionIndex in previous.sections.indices &&
+                previous.revision in 0..100 &&
+                !previous.exportPermitted &&
+                !RasterEmbroideryApproval.canExportFromImageTool()
+        ) { "Seção Satin fora dos limites da divisão QA." }
+
+        val earlier = validate(
+            original,part,previous.sections,widthMm,hoop,
+            previous.diagnosis,previous.revision,
+            baselineSections=previous.baselineSections
+        )
+        require(
+            earlier.preview.points==previous.preview.points &&
+                earlier.preview.threadColors==previous.preview.threadColors &&
+                earlier.coverage==previous.coverage &&
+                earlier.offInkFraction==previous.offInkFraction
+        ) { "Os trilhos foram alterados após a última conferência de STITCH." }
+
+        val selected = previous.sections[sectionIndex]
+        val railCount = selected.rails.size
+        require(railCount >= 12 && splitPairIndex in 5..railCount-6) {
+            "É preciso pelo menos seis pares de trilhos seguros " +
+                "em cada trecho de uma junção Satin."
+        }
+        // The seam rail belongs to both physical sections so the edge is
+        // not dropped from the source shape. No new coordinates invented.
+        val first = ManualSatinSection(
+            selected.rails.subList(0,splitPairIndex+1).toList(),
+            connectToPrevious=selected.connectToPrevious
+        )
+        val second = ManualSatinSection(
+            selected.rails.subList(splitPairIndex,railCount).toList(),
+            connectToPrevious=false
+        )
+        val updated = previous.sections.take(sectionIndex) + listOf(
+            first,second
+        ) + previous.sections.drop(sectionIndex+1)
+        require(updated.sumOf { it.rails.size } ==
+            previous.sections.sumOf { it.rails.size }+1 &&
+            updated[sectionIndex+1].rails.first() ==
+                updated[sectionIndex].rails.last()
+        ) { "Divisão Satin perdeu pares ou gerou junção falsa." }
+
+        val fresh=RasterLetterTopologyReview.inspect(original,part)
+            .getOrThrow()
+        require(fresh==previous.diagnosis) {
+            "Imagem de referência foi alterada antes da divisão."
+        }
+        val result = validate(
+            original,part,updated,widthMm,hoop,fresh,
+            0,baselineSections=updated
+        )
+        val beforeTrims=previous.preview.points.count {
+            it.command==StitchCommand.TRIM
+        }
+        val afterTrims=result.preview.points.count {
+            it.command==StitchCommand.TRIM
+        }
+        val beforeJumps=previous.preview.jumpCount
+        require(afterTrims==beforeTrims+1 &&
+            result.preview.jumpCount>=beforeJumps+1 &&
+            result.preview.points!=previous.preview.points &&
+            result.preview.colorChanges==0 &&
+            result.preview.sourceBytes.isEmpty()
+        ) {
+            "A divisão não introduziu um TRIM/JUMP real e seguro " +
+                "entre os dois trechos Satin. Não foi aplicada."
+        }
+        // Do not silently accept a regression as an improvement. A new
+        // section is only offered when the full raster coverage remains
+        // inside the independently preflighted range.
+        require(result.coverage>=previous.coverage-.02 &&
+            result.offInkFraction<=previous.offInkFraction+.01
+        ) { "A divisão reduziu a cobertura ou aumentou pontos fora da tinta." }
+        result.copy(
+            previousCoverage=previous.coverage,
+            previousOffInkFraction=previous.offInkFraction,
+            previousStitchCount=previous.preview.stitchCount
+        )
+    }
+
+    /**
      * One-level undo target is ALWAYS independently re-audited; merely
      * reading the UI history is never treated as permission to stitch.
      */
