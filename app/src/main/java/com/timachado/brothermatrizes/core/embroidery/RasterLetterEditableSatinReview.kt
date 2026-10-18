@@ -262,7 +262,8 @@ internal object RasterLetterEditableSatinReview {
             result.preview.jumpCount>=beforeJumps+1 &&
             result.preview.points!=previous.preview.points &&
             result.preview.colorChanges==0 &&
-            result.preview.sourceBytes.isEmpty()
+            result.preview.sourceBytes.isEmpty() &&
+            result.preview.points.last().command==StitchCommand.END
         ) {
             "A divisão não introduziu um TRIM/JUMP real e seguro " +
                 "entre os dois trechos Satin. Não foi aplicada."
