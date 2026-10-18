@@ -120,8 +120,8 @@ class RasterSatinBoundedRepairTrialTest {
 
     @Test fun disjointInkHasNoValidSatinBridge() {
         val (source,part,report)=fixture(
-            ink={x,y->(x in 10..22 || x in 100..113) && y in 22..70},
-            missing={x,y->x in 100..113}
+            ink={x,y->(x in 10..22 || x in 100..109) && y in 22..70},
+            missing={x,y->x in 100..109}
         )
         assertEquals(1,report.totalRegions)
         val guidance=RasterGapRepairGuidance.propose(
