@@ -9,7 +9,7 @@ import org.junit.Test
 class RasterMultiLetterComponentBudgetTest {
     private val thread=0xffdf7625.toInt()
     private val width=240
-    private val height=120
+    private val height=160
     private val hoop=HoopProfile.H130X180
 
     private fun source(elements:Int, tinyAccent:Boolean=false):RasterImagePixels {
