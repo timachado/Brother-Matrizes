@@ -2,9 +2,9 @@ name: Brother Matrizes QA Object Selection APK
 
 on:
   push:
-    branches: ["qa/image-split-mixed-simulator-proof-20261018"]
+    branches: ["qa/image-multiletter-24-components-20261018"]
   pull_request:
-    branches: ["qa/image-satin-junction-split-20261018"]
+    branches: ["qa/image-split-mixed-simulator-proof-20261018"]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qasimproof"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qa24letters"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -60,6 +60,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Prova-Simulador
+          name: Brother-Matrizes-QA-24-Letras
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
