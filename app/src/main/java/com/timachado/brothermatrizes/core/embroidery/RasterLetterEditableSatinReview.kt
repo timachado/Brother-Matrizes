@@ -12,6 +12,12 @@ internal data class RasterLetterSatinDraft(
     val coverage: Double,
     val offInkFraction: Double,
     val diagnosis: RasterLetterTopologyReport,
+    /** Immutable starting rails used to bound the ENTIRE editing session. */
+    val baselineSections: List<ManualSatinSection> = sections,
+    val maxEndpointDriftMm: Double = 0.0,
+    val previousCoverage: Double? = null,
+    val previousOffInkFraction: Double? = null,
+    val previousStitchCount: Int? = null,
     val revision: Int = 0,
     val reviewRequired: Boolean = true,
     val exportPermitted: Boolean = false
@@ -21,7 +27,25 @@ internal data class RasterLetterSatinDraft(
             preview.stitchCount + " STITCH; cobertura " +
             (coverage * 100).toInt() + "%; fora da tinta " +
             (offInkFraction * 100).toInt() + "%. " +
-            "Trilhos editáveis, prévia técnica QA; PES bloqueado."
+            "Deslocamento máximo desde o original: " +
+            "%.2f".format(java.util.Locale.ROOT,maxEndpointDriftMm) +
+            " mm. Trilhos editáveis, PES bloqueado."
+
+    fun changeSummary(): String =
+        if (previousCoverage == null || previousOffInkFraction == null ||
+            previousStitchCount == null) {
+            "Primeira prévia Satin de QA, sem comparação anterior."
+        } else {
+            val coverageChange = (coverage - previousCoverage) * 100
+            val outsideChange = (offInkFraction - previousOffInkFraction) * 100
+            val stitchChange = preview.stitchCount - previousStitchCount
+            "Antes/depois (STITCH reais): cobertura " +
+                "%+.1f".format(java.util.Locale.ROOT,coverageChange) +
+                " p.p.; pontos fora da tinta " +
+                "%+.1f".format(java.util.Locale.ROOT,outsideChange) +
+                " p.p.; " + (if (stitchChange >= 0) "+" else "") +
+                stitchChange + " STITCH. Comparação QA, não é PES."
+        }
 }
 
 internal enum class RasterLetterRailEdge { A, B }
@@ -31,6 +55,8 @@ internal object RasterLetterEditableSatinReview {
     private const val MAX_SECTIONS = 24
     private const val MAX_PAIRS = 1500
     private const val MAX_NUDGE_MM = .20f
+    private const val MAX_BASELINE_DRIFT_MM = .50
+    private const val MAX_TOTAL_DRIFT_MM = 8.0
 
     fun propose(
         original: RasterImagePixels,
@@ -56,7 +82,10 @@ internal object RasterLetterEditableSatinReview {
                 original,part,widthMm
             ).getOrThrow().let { listOf(it) }
         }.getOrThrow()
-        validate(original,part,sections,widthMm,hoop,diagnosis,0)
+        validate(
+            original,part,sections,widthMm,hoop,diagnosis,0,
+            baselineSections=sections
+        )
     }
 
     /**
@@ -84,6 +113,19 @@ internal object RasterLetterEditableSatinReview {
             !previous.exportPermitted &&
             !RasterEmbroideryApproval.canExportFromImageTool()
         ) { "Ajuste QA limitado a uma borda Satin e 0,20 mm." }
+
+        // Recheck that the original snapshot is still the SAME set of
+        // physically valid stitches. A stale or forged in-memory draft cannot
+        // serve as a baseline for further needle movement.
+        val oldChecked = validate(
+            original,part,previous.sections,widthMm,hoop,
+            previous.diagnosis,previous.revision,
+            baselineSections=previous.baselineSections
+        )
+        require(oldChecked.preview.points == previous.preview.points &&
+            oldChecked.coverage == previous.coverage &&
+            oldChecked.offInkFraction == previous.offInkFraction
+        ) { "Prévia alterada ou desatualizada: recalcule o Satin." }
 
         val box = part.mask
         val pixelsForAxis = when (axis) {
@@ -121,14 +163,51 @@ internal object RasterLetterEditableSatinReview {
         }
         val tested = validate(
             original,part,updated,widthMm,hoop,fresh,
-            previous.revision+1
+            previous.revision+1,
+            baselineSections=previous.baselineSections
         )
         // Quantization to tenths of a millimetre can make small moves a no-op.
         // Do not pretend that a geometric change improved the stitches.
         require(tested.preview.points != previous.preview.points) {
             "Deslocamento não alterou os STITCH reais; escolha outro trilho."
         }
-        tested
+        tested.copy(
+            previousCoverage=previous.coverage,
+            previousOffInkFraction=previous.offInkFraction,
+            previousStitchCount=previous.preview.stitchCount
+        )
+    }
+
+    /**
+     * One-level undo target is ALWAYS independently re-audited; merely
+     * reading the UI history is never treated as permission to stitch.
+     */
+    fun restorePrevious(
+        original: RasterImagePixels,
+        part: RasterSatinObject,
+        current: RasterLetterSatinDraft,
+        previous: RasterLetterSatinDraft,
+        widthMm: Float,
+        hoop: HoopProfile
+    ): Result<RasterLetterSatinDraft> = runCatching {
+        require(current.revision == previous.revision + 1 &&
+            current.baselineSections == previous.baselineSections &&
+            !current.exportPermitted && !previous.exportPermitted &&
+            !RasterEmbroideryApproval.canExportFromImageTool()
+        ) { "Histórico Satin incompatível; refaça a proposta QA." }
+        val fresh=RasterLetterTopologyReview.inspect(original,part)
+            .getOrThrow()
+        require(current.diagnosis == fresh && previous.diagnosis == fresh) {
+            "A origem foi alterada após o ajuste Satin."
+        }
+        val checked=validate(
+            original,part,previous.sections,widthMm,hoop,
+            fresh,previous.revision,previous.baselineSections
+        )
+        require(checked.preview.points == previous.preview.points) {
+            "O histórico perdeu os pontos reais originais."
+        }
+        checked
     }
 
     private fun validate(
@@ -138,7 +217,8 @@ internal object RasterLetterEditableSatinReview {
         widthMm: Float,
         hoop: HoopProfile,
         topology: RasterLetterTopologyReport,
-        revision: Int
+        revision: Int,
+        baselineSections: List<ManualSatinSection>
     ): RasterLetterSatinDraft {
         require(rails.size in 1..MAX_SECTIONS &&
             rails.sumOf { it.rails.size } in 2..MAX_PAIRS &&
@@ -147,6 +227,9 @@ internal object RasterLetterEditableSatinReview {
             widthMm * source.height/source.width <= hoop.usableHeightMm &&
             !RasterEmbroideryApproval.canExportFromImageTool()
         ) { "Trilhos ou bastidor fora do limite de edição QA." }
+        val maxDrift = inspectBaselineDrift(
+            source,part,rails,baselineSections,widthMm
+        )
         RasterSatinRailGeometryGate.inspect(
             source,part,rails,widthMm,topology.enclosedCounters
         ).getOrThrow()
@@ -176,7 +259,57 @@ internal object RasterLetterEditableSatinReview {
             sections=rails,preview=preview,
             coverage=fidelity.coverage,
             offInkFraction=fidelity.offInkFraction,
-            diagnosis=topology,revision=revision
+            diagnosis=topology,revision=revision,
+            baselineSections=baselineSections,
+            maxEndpointDriftMm=maxDrift
         )
+    }
+
+    private fun inspectBaselineDrift(
+        source: RasterImagePixels,
+        part: RasterSatinObject,
+        current: List<ManualSatinSection>,
+        baseline: List<ManualSatinSection>,
+        widthMm: Float
+    ): Double {
+        require(current.size == baseline.size) {
+            "Seções Satin mudaram após a proposta inicial."
+        }
+        val mmPerPixel=widthMm/source.width.toDouble()
+        val width=(part.mask.maxX-part.mask.minX+1)*mmPerPixel
+        val height=(part.mask.maxY-part.mask.minY+1)*mmPerPixel
+        var greatest=0.0
+        var summed=0.0
+        for (sectionIndex in current.indices) {
+            val a=current[sectionIndex]
+            val b=baseline[sectionIndex]
+            require(a.rails.size == b.rails.size &&
+                a.connectToPrevious == b.connectToPrevious
+            ) { "Trilhos Satin perderam pares ou conexões originais." }
+            for (index in a.rails.indices) {
+                val p=a.rails[index]
+                val q=b.rails[index]
+                val edges=listOf(
+                    kotlin.math.hypot(
+                        (p.ax-q.ax).toDouble()*width,(p.ay-q.ay).toDouble()*height
+                    ),
+                    kotlin.math.hypot(
+                        (p.bx-q.bx).toDouble()*width,(p.by-q.by).toDouble()*height
+                    )
+                )
+                for (drift in edges) {
+                    require(drift.isFinite())
+                    greatest=maxOf(greatest,drift)
+                    summed+=drift
+                }
+            }
+        }
+        require(greatest <= MAX_BASELINE_DRIFT_MM+1e-6 &&
+            summed <= MAX_TOTAL_DRIFT_MM+1e-6
+        ) {
+            "A soma dos ajustes ultrapassou o limite acumulado " +
+                "de segurança dos trilhos Satin. Reinicie a revisão."
+        }
+        return greatest
     }
 }
