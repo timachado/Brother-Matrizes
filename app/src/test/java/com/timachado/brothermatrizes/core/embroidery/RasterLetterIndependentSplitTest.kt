@@ -83,6 +83,54 @@ class RasterLetterIndependentSplitTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun changingSectionTopologyCannotErasePhysicalDriftBaseline() {
+        val (source,part,original)=fixture()
+        val originalCoords=original.baselineSections[0].rails
+        var edited:RasterLetterSatinDraft?=null
+        for (index in 4..15) {
+            if (edited!=null) break
+            for (edge in RasterLetterRailEdge.entries) {
+                if (edited!=null) break
+                for (axis in RasterLetterRailAxis.entries) {
+                    val candidate=RasterLetterEditableSatinReview.nudge(
+                        source,part,original,0,index,edge,axis,
+                        .1f,width,hoop
+                    )
+                    if (candidate.isSuccess) {
+                        edited=candidate.getOrThrow()
+                        break
+                    }
+                }
+            }
+        }
+        if (edited!=null) {
+            val changed=edited
+            assertEquals(original.baselineSections,changed.baselineSections)
+            assertTrue(changed.maxEndpointDriftMm>0.0)
+            val result=RasterLetterEditableSatinReview.proposeIndependentSplit(
+                source,part,changed,0,10,width,hoop
+            )
+            if (result.isSuccess) {
+                val split=result.getOrThrow()
+                assertTrue(split.maxEndpointDriftMm>0.0)
+                assertEquals(
+                    originalCoords.take(11),
+                    split.baselineSections[0].rails
+                )
+                assertEquals(
+                    originalCoords.drop(10),
+                    split.baselineSections[1].rails
+                )
+                assertFalse(split.exportPermitted)
+            } else {
+                assertTrue(result.exceptionOrNull()?.message.orEmpty().isNotEmpty())
+            }
+        } else {
+            assertEquals(original.baselineSections,original.sections)
+        }
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun tooShortSectionsAndWrongIndicesFailWithoutMutatingPrevious() {
         val (source,part,original)=fixture()
         val old=original.preview.points.toList()
