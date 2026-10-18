@@ -111,6 +111,52 @@ class RasterTextureReconstructionGateTest {
         ).isFailure)
     }
 
+    @Test fun acceptedFlatReferenceFeedsRealQaTatamiStitchesWithoutPes() {
+        val source=RasterImagePixels(w,h,IntArray(w*h) { i ->
+            val x=i%w
+            val y=i/w
+            when {
+                x in 10..36 && y in 15..52 ->
+                    0xff000000.toInt() or (0xbc shl 16) or
+                        ((80+(x+y)%12) shl 8) or 0x17
+                x in 58..85 && y in 17..54 -> valWhite((x+y)%10)
+                else -> 0
+            }
+        },"duas áreas sólidas com textura")
+        val importedCopy=source.argb.copyOf()
+        val study=RasterThreadTextureStudy.inspect(source).getOrThrow()
+        val qa=RasterTextureReconstructionGate.prepare(source,study)
+            .getOrThrow()
+        val separated=RasterExactColorComponentDetector.detect(
+            qa.flatReference
+        ).getOrThrow()
+        assertEquals(2,separated.size)
+        val layers=separated.mapIndexed {index,part ->
+            val preview=RasterMixedTechniqueReviewWorkflow.prepare(
+                qa.flatReference,part,RasterTechniqueKind.TATAMI,
+                80f,HoopProfile.H130X180
+            ).getOrThrow()
+            assertTrue(preview.stitchCount>0)
+            RasterReviewedTechniqueLayer(
+                component=part,design=preview,
+                technique=RasterTechniqueKind.TATAMI,
+                sewingOrder=index
+            )
+        }
+        val composed=RasterMixedTechniqueReviewWorkflow.composeReviewed(
+            qa.flatReference,separated,layers,
+            80f,HoopProfile.H130X180
+        ).getOrThrow()
+        assertEquals(2,composed.componentOrder.size)
+        assertTrue(composed.trims>=1)
+        assertTrue(composed.design.stitchCount>0)
+        assertEquals("QA_AUTO_STITCH",composed.design.format)
+        assertTrue(composed.design.sourceBytes.isEmpty())
+        assertFalse(composed.exportPermitted)
+        assertTrue(source.argb.contentEquals(importedCopy))
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun photoWithoutTransparencyStillRequiresSeparateBackgroundRemoval() {
         val source=RasterImagePixels(w,h,IntArray(w*h) {0xffb67b25.toInt()},
             "foto opaca")
