@@ -291,10 +291,10 @@ internal object RasterLetterEditableSatinReview {
                 val q=b.rails[index]
                 val edges=listOf(
                     kotlin.math.hypot(
-                        (p.ax-q.ax)*width,(p.ay-q.ay)*height
+                        (p.ax-q.ax).toDouble()*width,(p.ay-q.ay).toDouble()*height
                     ),
                     kotlin.math.hypot(
-                        (p.bx-q.bx)*width,(p.by-q.by)*height
+                        (p.bx-q.bx).toDouble()*width,(p.by-q.by).toDouble()*height
                     )
                 )
                 for (drift in edges) {
