@@ -81,6 +81,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairTri
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairResult
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
+import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -907,7 +908,7 @@ fun SimpleImageToEmbroideryScreen(
                         message = ""
                         scope.launch {
                             val detected = withContext(Dispatchers.Default) {
-                                RasterSatinObjectEditor.detect(original)
+                                RasterExactColorComponentDetector.detect(original)
                                     .mapCatching { parts ->
                                         require(parts.size in 2..12) {
                                             "A montagem QA requer 2 a 12 elementos. " +
