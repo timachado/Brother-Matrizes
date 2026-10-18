@@ -888,6 +888,326 @@ fun SimpleImageToEmbroideryScreen(
                     )
                 }
             }
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !preparing && !simulating && !mixedBusy &&
+                    prepared != null && fitted,
+                onClick = {
+                    if (mixedOpen) {
+                        mixedOpen = false
+                        mixedSelectedPart = 0
+                    } else if (mixedParts.isNotEmpty()) {
+                        mixedOpen = true
+                    } else {
+                        val original = prepared?.image ?: return@OutlinedButton
+                        val chosenHoop = hoop
+                        val chosenWidth = widthMm
+                        val stamp = revision
+                        mixedBusy = true
+                        message = ""
+                        scope.launch {
+                            val detected = withContext(Dispatchers.Default) {
+                                RasterSatinObjectEditor.detect(original)
+                                    .mapCatching { parts ->
+                                        require(parts.size in 2..12) {
+                                            "A montagem QA requer 2 a 12 elementos. " +
+                                                "Recorte a arte em partes menores."
+                                        }
+                                        parts
+                                    }
+                            }
+                            mixedBusy = false
+                            if (revision == stamp &&
+                                prepared?.image === original &&
+                                hoop == chosenHoop && widthMm == chosenWidth) {
+                                detected.fold(
+                                    onSuccess = { parts ->
+                                        mixedParts = parts
+                                        mixedOrder = parts.map { it.id }
+                                        mixedTechniques = parts.associate {
+                                            part ->
+                                            val px = minOf(
+                                                part.mask.maxX-part.mask.minX+1,
+                                                part.mask.maxY-part.mask.minY+1
+                                            )
+                                            val smallMm = px * chosenWidth /
+                                                original.width
+                                            part.id to when {
+                                                smallMm < 1.15f ->
+                                                    RasterTechniqueKind.RUNNING
+                                                smallMm >= 7f ->
+                                                    RasterTechniqueKind.TATAMI
+                                                else -> RasterTechniqueKind.SATIN
+                                            }
+                                        }
+                                        mixedDrafts = emptyMap()
+                                        mixedConfirmed = emptySet()
+                                        mixedSelectedPart = 0
+                                        mixedOpen = true
+                                    },
+                                    onFailure = {
+                                        message = it.message ?:
+                                            "Não foi possível separar as partes QA."
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    when {
+                        mixedBusy -> "Preparando revisão multitécnica..."
+                        mixedOpen -> "Fechar revisão de camadas QA"
+                        else -> "Montar Satin, Tatami e corrido (QA)"
+                    }, color = FioGold
+                )
+            }
+            if (mixedOpen && mixedParts.isNotEmpty()) {
+                Text(
+                    "Escolha a técnica e a ordem de cada componente. " +
+                        "Gere e confirme todas as prévias antes da montagem. " +
+                        "A foto deve corresponder exatamente às máscaras; " +
+                        "ainda não é PES.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                mixedOrder.forEachIndexed { orderIndex, partId ->
+                    val part = mixedParts.firstOrNull { it.id == partId }
+                    if (part != null) {
+                        val chosen = mixedTechniques[part.id] ?:
+                            RasterTechniqueKind.SATIN
+                        val draft = mixedDrafts[part.id]
+                        val confirmed = part.id in mixedConfirmed
+                        Text(
+                            "Parte " + part.id + " • ordem " + (orderIndex + 1) +
+                                " de " + mixedOrder.size +
+                                " • " + part.pixelCount + " pixels",
+                            color = FioText, fontWeight = FontWeight.SemiBold
+                        )
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { mixedSelectedPart = part.id }
+                            ) { Text("Ver parte", color = FioGold) }
+                            OutlinedButton(
+                                enabled = orderIndex > 0 && !mixedBusy,
+                                onClick = {
+                                    val items = mixedOrder.toMutableList()
+                                    val t = items[orderIndex - 1]
+                                    items[orderIndex - 1] = items[orderIndex]
+                                    items[orderIndex] = t
+                                    mixedOrder = items
+                                }
+                            ) { Text("Subir", color = FioGold) }
+                            OutlinedButton(
+                                enabled = orderIndex < mixedOrder.lastIndex &&
+                                    !mixedBusy,
+                                onClick = {
+                                    val items = mixedOrder.toMutableList()
+                                    val t = items[orderIndex + 1]
+                                    items[orderIndex + 1] = items[orderIndex]
+                                    items[orderIndex] = t
+                                    mixedOrder = items
+                                }
+                            ) { Text("Descer", color = FioGold) }
+                            for (kind in RasterTechniqueKind.entries) {
+                                OutlinedButton(
+                                    enabled = !mixedBusy,
+                                    onClick = {
+                                        if (mixedTechniques[part.id] != kind) {
+                                            mixedTechniques = mixedTechniques +
+                                                (part.id to kind)
+                                            mixedDrafts = mixedDrafts - part.id
+                                            mixedConfirmed = mixedConfirmed - part.id
+                                        }
+                                    }
+                                ) {
+                                    val name = when (kind) {
+                                        RasterTechniqueKind.SATIN -> "Satin"
+                                        RasterTechniqueKind.TATAMI -> "Tatami"
+                                        RasterTechniqueKind.RUNNING -> "Corrido"
+                                    }
+                                    Text(
+                                        (if (chosen == kind) "● " else "") + name,
+                                        color = FioGold
+                                    )
+                                }
+                            }
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating,
+                            onClick = {
+                                val original = prepared?.image
+                                    ?: return@OutlinedButton
+                                val partSnapshot = part
+                                val kind = mixedTechniques[part.id]
+                                    ?: return@OutlinedButton
+                                val chosenWidth = widthMm
+                                val chosenHoop = hoop
+                                val stamp = revision
+                                mixedBusy = true
+                                message = ""
+                                scope.launch {
+                                    val proposal = withContext(Dispatchers.Default) {
+                                        RasterMixedTechniqueReviewWorkflow.prepare(
+                                            original,partSnapshot,kind,
+                                            chosenWidth,chosenHoop
+                                        )
+                                    }
+                                    mixedBusy = false
+                                    if (revision == stamp &&
+                                        prepared?.image === original &&
+                                        mixedParts.any { it === partSnapshot } &&
+                                        mixedTechniques[partSnapshot.id] == kind &&
+                                        widthMm == chosenWidth &&
+                                        hoop == chosenHoop) {
+                                        proposal.fold(
+                                            onSuccess = {
+                                                mixedDrafts = mixedDrafts +
+                                                    (partSnapshot.id to it)
+                                                mixedConfirmed = mixedConfirmed -
+                                                    partSnapshot.id
+                                                mixedSelectedPart = partSnapshot.id
+                                                message =
+                                                    "Prévia QA de " + kind.name +
+                                                    " gerada. Confira o elemento " +
+                                                    "e confirme para compor."
+                                            },
+                                            onFailure = {
+                                                message = "Técnica recusada na parte " +
+                                                    partSnapshot.id + ": " +
+                                                    (it.message ?:
+                                                        "revisão manual necessária.")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                if (mixedBusy) "Validando pontos da parte..."
+                                else "Gerar prévia de " + chosen.name + " (QA)",
+                                color = FioGold
+                            )
+                        }
+                        if (draft != null) {
+                            Text(
+                                "Prévia de " + draft.stitchCount +
+                                    " STITCH, " + draft.jumpCount +
+                                    " JUMP. " + if (confirmed)
+                                    "Parte confirmada para montagem QA."
+                                    else "Confirmação pendente.",
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !mixedBusy && !confirmed,
+                                onClick = {
+                                    mixedConfirmed = mixedConfirmed + part.id
+                                }
+                            ) {
+                                Text(
+                                    "Confirmar prévia técnica da parte (QA)",
+                                    color = FioGold
+                                )
+                            }
+                        }
+                    }
+                }
+                val allConfirmed = mixedParts.size in 2..12 &&
+                    mixedConfirmed.size == mixedParts.size &&
+                    mixedOrder.toSet() == mixedConfirmed &&
+                    mixedOrder.all { mixedDrafts[it] != null }
+                Text(
+                    "Partes confirmadas: " + mixedConfirmed.size + " de " +
+                        mixedParts.size + ". Partes incompletas não serão " +
+                        "omitidas da composição.",
+                    color = FioTextMuted, fontSize = 11.sp
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = allConfirmed && !mixedBusy && !simulating &&
+                        (regionalSampling?.needsDetailReview != true),
+                    colors = ButtonDefaults.buttonColors(containerColor = FioGold),
+                    onClick = {
+                        val original = prepared?.image ?: return@Button
+                        val capturedParts = mixedParts.toList()
+                        val orderSnapshot = mixedOrder.toList()
+                        val confirmedSnapshot = mixedConfirmed.toSet()
+                        val draftSnapshot = mixedDrafts.toMap()
+                        val techniqueSnapshot = mixedTechniques.toMap()
+                        val hoopSnapshot = hoop
+                        val widthSnapshot = widthMm
+                        val displaySnapshot = displayMode
+                        val connectionsSnapshot = showConnections
+                        val stamp = revision
+                        simulating = true
+                        message = ""
+                        scope.launch {
+                            val built = withContext(Dispatchers.Default) {
+                                runCatching {
+                                    require(orderSnapshot.toSet() ==
+                                        confirmedSnapshot &&
+                                        orderSnapshot.size == capturedParts.size
+                                    ) { "Faltam confirmações das partes." }
+                                    val partsById = capturedParts.associateBy {
+                                        it.id
+                                    }
+                                    val layers = orderSnapshot.mapIndexed {
+                                        pos,id ->
+                                        RasterReviewedTechniqueLayer(
+                                            component = partsById[id] ?:
+                                                error("Parte não encontrada."),
+                                            design = draftSnapshot[id] ?:
+                                                error("Prévia de pontos pendente."),
+                                            technique = techniqueSnapshot[id] ?:
+                                                error("Técnica não selecionada."),
+                                            sewingOrder = pos
+                                        )
+                                    }
+                                    RasterMixedTechniqueReviewWorkflow.composeReviewed(
+                                        original,capturedParts,layers,
+                                        widthSnapshot,hoopSnapshot
+                                    ).getOrThrow()
+                                }
+                            }
+                            if (revision == stamp &&
+                                prepared?.image === original &&
+                                mixedParts == capturedParts &&
+                                mixedOrder == orderSnapshot &&
+                                mixedConfirmed == confirmedSnapshot &&
+                                mixedDrafts == draftSnapshot &&
+                                mixedTechniques == techniqueSnapshot &&
+                                hoop == hoopSnapshot &&
+                                widthMm == widthSnapshot) {
+                                simulating = false
+                                built.fold(
+                                    onSuccess = {
+                                        qaTechnicalReport = it.message()
+                                        qaReportRevision = stamp
+                                        onSimulate(
+                                            it.design,hoopSnapshot,
+                                            displaySnapshot,connectionsSnapshot
+                                        )
+                                    },
+                                    onFailure = {
+                                        message = "Sequência multitécnica recusada: " +
+                                            (it.message ?:
+                                                "revise cores, cortes e cobertura.")
+                                    }
+                                )
+                            } else simulating = false
+                        }
+                    }
+                ) {
+                    Text("Simular Bordado — camadas revisadas (QA)",
+                        color = FioBackground, fontWeight = FontWeight.Bold)
+                }
+            }
             if (candidates.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
