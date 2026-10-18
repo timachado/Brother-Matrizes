@@ -2,6 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application
-        android:label="Brother Matrizes QA Prova Simulador"
+        android:label="Brother Matrizes QA Relatorio Prontidao"
         tools:replace="android:label" />
 </manifest>
