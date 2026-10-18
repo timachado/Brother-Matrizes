@@ -300,8 +300,9 @@ fun SimpleImageToEmbroideryScreen(
     }
 
     val stageImage = prepared?.image ?: photo
-    // Visual comparison only. Never pass flattened preview pixels to the
-    // stitch composer, source-fidelity audits, or a PES encoder.
+    // A raw color-study preview is visual only. A separately validated and
+    // explicitly accepted QA reference may be used for stitch PREVIEWS;
+    // the actual imported photo remains unchanged and PES stays blocked.
     var flatStudy by remember(stageImage) {
         mutableStateOf<RasterThreadTextureStudyReport?>(null)
     }
@@ -617,6 +618,101 @@ fun SimpleImageToEmbroideryScreen(
                     color = FioTextMuted,
                     fontSize = 11.sp
                 )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = prepared != null && fitted &&
+                        !checkingFlatSource && !preparing && !simulating,
+                    onClick = {
+                        val original = prepared?.image
+                            ?: return@OutlinedButton
+                        val stamp = revision
+                        checkingFlatSource = true
+                        message = ""
+                        scope.launch {
+                            val checked = withContext(Dispatchers.Default) {
+                                RasterTextureReconstructionGate.prepare(
+                                    original,study
+                                )
+                            }
+                            checkingFlatSource = false
+                            if (revision == stamp &&
+                                prepared?.image === original &&
+                                flatStudy === study) {
+                                checked.fold(
+                                    onSuccess = {
+                                        flatSourceCandidate = it
+                                        showFlatStudy = true
+                                        selectedElementId = 0
+                                        message = it.message()
+                                    },
+                                    onFailure = {
+                                        flatSourceCandidate = null
+                                        message = "A referência simplificada " +
+                                            "ainda precisa de reconstrução: " +
+                                            (it.message ?:
+                                                "reveja as formas e os detalhes.")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        if (checkingFlatSource)
+                            "Conferindo fidelidade da silhueta..."
+                        else "Verificar referência plana para pontos (QA)",
+                        color = FioGold
+                    )
+                }
+                flatSourceCandidate?.let { candidate ->
+                    Text(
+                        candidate.message(),
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                    if (acceptedFlatSource === candidate) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating,
+                            onClick = {
+                                acceptedFlatSource = null
+                                message = "Referência QA removida. " +
+                                    "As prévias dessa referência serão " +
+                                    "descartadas; foto original intacta."
+                            }
+                        ) {
+                            Text(
+                                "Voltar a usar foto original nas prévias QA",
+                                color = FioGold
+                            )
+                        }
+                    } else {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating &&
+                                prepared?.image === candidate.original,
+                            onClick = {
+                                if (prepared?.image === candidate.original &&
+                                    flatStudy === study) {
+                                    acceptedFlatSource = candidate
+                                    mixedOpen = false
+                                    mixedSelectedPart = 0
+                                    showFlatStudy = true
+                                    selectedElementId = 0
+                                    message = "Referência plana aceita para " +
+                                        "prévia QA. Confirme separadamente " +
+                                        "cada componente e suas agulhadas. " +
+                                        "A foto original foi preservada."
+                                }
+                            }
+                        ) {
+                            Text(
+                                "Aceitar cores planas como referência QA",
+                                color = FioGold
+                            )
+                        }
+                    }
+                }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = prepared != null && !preparing &&
