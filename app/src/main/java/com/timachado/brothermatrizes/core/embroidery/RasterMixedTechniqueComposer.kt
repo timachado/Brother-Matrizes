@@ -17,6 +17,7 @@ internal data class RasterMixedTechniqueSequenceReview(
     val trims: Int,
     val colorChanges: Int,
     val integrityReport: RasterMixedSequenceIntegrityReport? = null,
+    val fullCanvasReport: RasterMixedFullCanvasReport? = null,
     val needsPhysicalStitchOut: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
@@ -28,8 +29,8 @@ internal data class RasterMixedTechniqueSequenceReview(
 }
 
 internal object RasterMixedTechniqueComposer {
-    private const val MAX_LAYERS = 12
-    private const val MAX_COMMANDS = 90_000
+    private const val MAX_LAYERS = RasterQaComponentBudget.MAX_COMPONENTS
+    private const val MAX_COMMANDS = RasterQaComponentBudget.MAX_STITCH_COMMANDS
 
     fun compose(
         source: RasterImagePixels,
