@@ -86,7 +86,7 @@ class RasterLetterIndependentSplitTest {
     @Test fun tooShortSectionsAndWrongIndicesFailWithoutMutatingPrevious() {
         val (source,part,original)=fixture()
         val old=original.preview.points.toList()
-        for (cut in listOf(0,1,4,15,18,20)) {
+        for (cut in listOf(0,1,4,16,18,20)) {
             assertTrue(RasterLetterEditableSatinReview.proposeIndependentSplit(
                 source,part,original,0,cut,width,hoop
             ).isFailure)
