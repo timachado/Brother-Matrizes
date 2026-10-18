@@ -84,6 +84,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairRes
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
 import com.timachado.brothermatrizes.core.embroidery.RasterQaComponentBudget
+import com.timachado.brothermatrizes.core.embroidery.RasterAlphaEdgeReview
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -344,6 +345,11 @@ fun SimpleImageToEmbroideryScreen(
     }
     val artworkAudit = remember(stageImage) {
         stageImage?.let { RasterArtworkComplexityAudit.examine(it) }
+    }
+    // Show anti-aliased edge loss risk on the original prepared picture.
+    // Choosing a reviewed flat QA reference does not overwrite that picture.
+    val alphaSourceReview = remember(prepared?.image) {
+        prepared?.image?.let { RasterAlphaEdgeReview.inspect(it).getOrNull() }
     }
     val maxWidth = stageImage?.let {
         ImageHoopSizing.maximumWidthMm(it.width, it.height, hoop)
@@ -621,6 +627,17 @@ fun SimpleImageToEmbroideryScreen(
                         color = FioGold, fontSize = 12.sp
                     )
                 }
+            }
+            if (alphaSourceReview?.requiresManualReconstruction == true) {
+                Text(
+                    alphaSourceReview.guidance() +
+                        if (acceptedFlatSource == null)
+                            " Montagem automática por cores exatas bloqueada."
+                        else
+                            " Referência plana QA aceita separadamente; " +
+                                "confira a fidelidade manualmente.",
+                    color = FioGold, fontSize = 12.sp
+                )
             }
             if (artworkAudit?.requiresMultiTechniqueReview == true) {
                 Text(
