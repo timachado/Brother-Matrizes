@@ -1312,14 +1312,14 @@ fun SimpleImageToEmbroideryScreen(
                             containerColor = FioGold
                         ),
                         onClick = {
-                            val ready = mixedAssembly
-                            if (ready === assembly && mixedAssemblyViewed &&
-                                ready.integrityReport != null &&
-                                !ready.exportPermitted && allConfirmed) {
-                                qaTechnicalReport = ready.message()
+                            if (mixedAssembly === assembly &&
+                                mixedAssemblyViewed &&
+                                assembly.integrityReport != null &&
+                                !assembly.exportPermitted && allConfirmed) {
+                                qaTechnicalReport = assembly.message()
                                 qaReportRevision = revision
                                 onSimulate(
-                                    ready.design,hoop,
+                                    assembly.design,hoop,
                                     displayMode,showConnections
                                 )
                             }
