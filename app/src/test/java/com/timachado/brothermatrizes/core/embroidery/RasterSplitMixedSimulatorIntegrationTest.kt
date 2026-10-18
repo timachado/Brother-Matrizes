@@ -106,8 +106,7 @@ class RasterSplitMixedSimulatorIntegrationTest {
         assertTrue(sewn.design.sourceBytes.isEmpty())
         assertFalse(sewn.exportPermitted)
         assertTrue(sewn.needsPhysicalStitchOut)
-        assertTrue(sewn.message().contains("1 cortes internos") ||
-            sewn.message().contains("1 cortes internos".replace("cortes","corte")))
+        assertTrue(sewn.message().contains("1 corte(s) interno(s)"))
         assertTrue(RasterThreadSequenceAudit.inspect(
             sewn.design
         ).isSuccess)
