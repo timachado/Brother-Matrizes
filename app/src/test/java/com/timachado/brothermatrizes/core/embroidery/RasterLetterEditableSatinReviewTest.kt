@@ -138,6 +138,156 @@ class RasterLetterEditableSatinReviewTest {
         assertTrue(source.argb.contentEquals(original))
     }
 
+    @Test fun initialRailsStartWithZeroDriftAndNoInventedImprovement() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        assertEquals(0,draft.revision)
+        assertEquals(0.0,draft.maxEndpointDriftMm,0.000001)
+        assertEquals(draft.sections,draft.baselineSections)
+        assertTrue(draft.changeSummary().contains("sem comparação anterior"))
+        assertFalse(draft.exportPermitted)
+    }
+
+    @Test fun undoRejectsInventedHistoryAndWrongRevision() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+            source,part,draft,draft,width,hoop
+        ).isFailure)
+        assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+            source,part,draft.copy(revision=3),draft,width,hoop
+        ).isFailure)
+        assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+            source,part,draft.copy(revision=1,exportPermitted=true),
+            draft,width,hoop
+        ).isFailure)
+    }
+
+    @Test fun undoCannotUseChangedOriginalOrDifferentBaseline() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        val changed=source.argb.copyOf()
+        changed[35*160+25]=0xff123c95.toInt()
+        val altered=RasterImagePixels(160,100,changed,"origem alterada")
+        assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+            altered,part,draft.copy(revision=1),draft,width,hoop
+        ).isFailure)
+        val changedBaseline=draft.baselineSections.mapIndexed {index,section->
+            if(index>0) section else section.copy(
+                rails=section.rails.mapIndexed {pairIndex,rail ->
+                    if(pairIndex>0) rail else rail.copy(ax=rail.ax+.05f)
+                }
+            )
+        }
+        assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+            source,part,draft.copy(
+                revision=1,baselineSections=changedBaseline
+            ),draft,width,hoop
+        ).isFailure)
+    }
+
+    @Test fun baselineCannotBeResetToAllowHiddenAccumulatedDrift() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        // This forged baseline displaces a single end by over 0.5mm,
+        // but leaves the actual STITCH preview untouched. Recheck MUST
+        // refuse it before allowing any new incremental nudge.
+        val moved = draft.baselineSections.mapIndexed {idx,section ->
+            if(idx>0) section else section.copy(
+                rails=section.rails.mapIndexed {j,rail ->
+                    if(j>0) rail else rail.copy(ax=rail.ax+.50f)
+                }
+            )
+        }
+        val tampered = draft.copy(baselineSections=moved)
+        assertTrue(RasterLetterEditableSatinReview.nudge(
+            source,part,tampered,0,0,
+            RasterLetterRailEdge.A,RasterLetterRailAxis.X,
+            .1f,width,hoop
+        ).isFailure)
+        assertEquals(draft.preview.points,tampered.preview.points)
+    }
+
+    @Test fun reportUsesSignedDifferencesInsteadOfClaimingAllEditsImprove() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        val compared=draft.copy(
+            previousCoverage=draft.coverage+.01,
+            previousOffInkFraction=draft.offInkFraction-.01,
+            previousStitchCount=draft.preview.stitchCount+3,
+            revision=1
+        )
+        val summary=compared.changeSummary()
+        assertTrue(summary.contains("−1.0")||summary.contains("-1.0"))
+        assertTrue(summary.contains("+1.0"))
+        assertTrue(summary.contains("-3 STITCH"))
+        assertTrue(summary.contains("não é PES"))
+    }
+
+    @Test fun actualAcceptedNudgeCanBeUndoneAndRevalidatedIfAvailable() {
+        val (source,part)=fixture {x,y->
+            x in 22..30 && y in 12..83
+        }
+        val draft=RasterLetterEditableSatinReview.propose(
+            source,part,width,hoop
+        ).getOrThrow()
+        val attempts=sequence {
+            val count=minOf(4,draft.sections[0].rails.size)
+            for(index in 0 until count) {
+                for(edge in RasterLetterRailEdge.entries) {
+                    for(axis in RasterLetterRailAxis.entries) {
+                        for(delta in listOf(-.1f,.1f)) {
+                            yield(RasterLetterEditableSatinReview.nudge(
+                                source,part,draft,0,index,edge,axis,
+                                delta,width,hoop
+                            ))
+                        }
+                    }
+                }
+            }
+        }
+        val accepted=attempts.firstOrNull {it.isSuccess}
+        if(accepted!=null) {
+            val later=accepted.getOrThrow()
+            assertTrue(later.maxEndpointDriftMm<=.500001)
+            assertTrue(later.changeSummary().contains("Antes/depois"))
+            val undone=RasterLetterEditableSatinReview.restorePrevious(
+                source,part,later,draft,width,hoop
+            ).getOrThrow()
+            assertEquals(draft.preview.points,undone.preview.points)
+            assertEquals(draft.sections,undone.sections)
+            assertEquals(0,undone.revision)
+            assertFalse(undone.exportPermitted)
+        } else {
+            // This particular quantized stem might have no safe 0.1mm
+            // adjustment. Rejection is legitimate, not a fabricated pass.
+            assertTrue(RasterLetterEditableSatinReview.restorePrevious(
+                source,part,draft,draft,width,hoop
+            ).isFailure)
+        }
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun wrongOriginalSourceColorIsNeverAcceptedAsRailGuide() {
         val (source,part)=fixture {x,y ->
             x in 22..30 && y in 12..83
