@@ -83,6 +83,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairTri
 import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairResult
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
+import com.timachado.brothermatrizes.core.embroidery.RasterQaComponentBudget
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -1113,7 +1114,7 @@ fun SimpleImageToEmbroideryScreen(
                             val detected = withContext(Dispatchers.Default) {
                                 RasterExactColorComponentDetector.detect(original)
                                     .mapCatching { parts ->
-                                        require(parts.size in 2..24) {
+                                        require(parts.size in 2..RasterQaComponentBudget.MAX_COMPONENTS) {
                                             "A montagem QA requer 2 a 24 elementos. " +
                                                 "Recorte a arte em partes menores."
                                         }
@@ -2065,7 +2066,7 @@ fun SimpleImageToEmbroideryScreen(
                         }
                     }
                 }
-                val allConfirmed = mixedParts.size in 2..24 &&
+                val allConfirmed = mixedParts.size in 2..RasterQaComponentBudget.MAX_COMPONENTS &&
                     mixedConfirmed.size == mixedParts.size &&
                     mixedOrder.toSet() == mixedConfirmed &&
                     mixedOrder.all { mixedDrafts[it] != null &&
