@@ -57,6 +57,9 @@ internal object RasterTextureReconstructionGate {
         // pixels, rather than treating metadata in a prior report as a proof.
         val recomputed = RasterThreadTextureStudy.inspect(imported).getOrThrow()
         require(
+            previousStudy.sourceArgbFingerprint ==
+                recomputed.sourceArgbFingerprint &&
+                previousStudy.sourceArgbFingerprint != 0L &&
             previousStudy.foregroundPixels == recomputed.foregroundPixels &&
                 previousStudy.originalToneBuckets == recomputed.originalToneBuckets &&
                 previousStudy.suggestedColorFamilies ==
