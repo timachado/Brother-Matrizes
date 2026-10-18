@@ -1384,6 +1384,95 @@ fun SimpleImageToEmbroideryScreen(
                                         color = FioTextMuted,fontSize = 11.sp
                                     )
                                 }
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !mixedBusy && !simulating,
+                                    onClick = {
+                                        val source = mixedSource
+                                            ?: return@OutlinedButton
+                                        val active = mixedSatinRails[part.id]
+                                            ?: return@OutlinedButton
+                                        if (active !== current)
+                                            return@OutlinedButton
+                                        val selectedPart = part
+                                        val chosenWidth = widthMm
+                                        val chosenHoop = hoop
+                                        val acceptedSnapshot = acceptedFlatSource
+                                        val stamp = revision
+                                        mixedBusy = true
+                                        message = ""
+                                        scope.launch {
+                                            val report = withContext(
+                                                Dispatchers.Default
+                                            ) {
+                                                RasterSatinCurveHotspotReview.inspect(
+                                                    source,selectedPart,active,
+                                                    chosenWidth,chosenHoop
+                                                )
+                                            }
+                                            mixedBusy = false
+                                            if (revision == stamp &&
+                                                mixedSource === source &&
+                                                acceptedFlatSource === acceptedSnapshot &&
+                                                mixedSatinRails[selectedPart.id] === active &&
+                                                mixedTechniques[selectedPart.id] ==
+                                                    RasterTechniqueKind.SATIN &&
+                                                widthMm == chosenWidth &&
+                                                hoop == chosenHoop) {
+                                                report.fold(
+                                                    onSuccess = { checked ->
+                                                        mixedCurveHotspots =
+                                                            mixedCurveHotspots +
+                                                            (selectedPart.id to
+                                                                (active to checked))
+                                                        message = checked.message()
+                                                    },
+                                                    onFailure = {
+                                                        message =
+                                                            "Curvatura não auditada: " +
+                                                            (it.message ?:
+                                                                "refaça a prévia STITCH.")
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Diagnosticar curvas dos trilhos (QA)",
+                                        color = FioGold)
+                                }
+                                mixedCurveHotspots[part.id]?.takeIf {
+                                    it.first === current
+                                }?.second?.let { curveReport ->
+                                    Text(
+                                        curveReport.message(),
+                                        color = FioTextMuted,fontSize = 11.sp
+                                    )
+                                    curveReport.important.take(3).forEach { hot ->
+                                        Text(
+                                            hot.explanation(),
+                                            color = FioTextMuted,fontSize = 11.sp
+                                        )
+                                    }
+                                    curveReport.important.firstOrNull()?.let { critical ->
+                                        OutlinedButton(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            enabled = !mixedBusy,
+                                            onClick = {
+                                                if (mixedSatinRails[part.id] === current) {
+                                                    mixedRailSection =
+                                                        critical.sectionIndex
+                                                    mixedRailPair = critical.pairIndex
+                                                    mixedSelectedPart = part.id
+                                                    mixedViewMode = 1
+                                                }
+                                            }
+                                        ) {
+                                            Text("Ir ao trecho Satin prioritário",
+                                                color = FioGold)
+                                        }
+                                    }
+                                }
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .horizontalScroll(rememberScrollState()),
