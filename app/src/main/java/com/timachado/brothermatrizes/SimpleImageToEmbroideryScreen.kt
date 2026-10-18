@@ -1279,6 +1279,250 @@ fun SimpleImageToEmbroideryScreen(
                                 fontSize = 11.sp
                             )
                         }
+                        if (chosen == RasterTechniqueKind.SATIN) {
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !mixedBusy && !simulating,
+                                onClick = {
+                                    val source = mixedSource
+                                        ?: return@OutlinedButton
+                                    val currentPart = part
+                                    val currentReference = acceptedFlatSource
+                                    val currentWidth = widthMm
+                                    val currentHoop = hoop
+                                    val stamp = revision
+                                    mixedBusy = true
+                                    message = ""
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.Default) {
+                                            RasterLetterEditableSatinReview.propose(
+                                                source,currentPart,currentWidth,currentHoop
+                                            ).mapCatching { draft ->
+                                                draft to RasterMixedStitchVisualAudit
+                                                    .inspect(source,currentPart,
+                                                        draft.preview,currentWidth,currentHoop)
+                                                    .getOrThrow()
+                                            }
+                                        }
+                                        mixedBusy = false
+                                        if (revision == stamp &&
+                                            mixedSource === source &&
+                                            acceptedFlatSource === currentReference &&
+                                            mixedParts.any { it === currentPart } &&
+                                            mixedTechniques[currentPart.id] ==
+                                                RasterTechniqueKind.SATIN &&
+                                            widthMm == currentWidth &&
+                                            hoop == currentHoop) {
+                                            result.fold(
+                                                onSuccess = { (draft, audit) ->
+                                                    mixedSatinRails = mixedSatinRails +
+                                                        (currentPart.id to draft)
+                                                    mixedDrafts = mixedDrafts +
+                                                        (currentPart.id to draft.preview)
+                                                    mixedAudits = mixedAudits +
+                                                        (currentPart.id to audit)
+                                                    mixedConfirmed = mixedConfirmed -
+                                                        currentPart.id
+                                                    mixedViewed = mixedViewed - currentPart.id
+                                                    mixedRailSection = 0
+                                                    mixedRailPair = 0
+                                                    mixedSelectedPart = currentPart.id
+                                                    mixedViewMode = 0
+                                                    message = draft.summary()
+                                                },
+                                                onFailure = {
+                                                    message = "Satin precisa de " +
+                                                        "reconstrução manual: " +
+                                                        (it.message ?: "trilhos inadequados.")
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text("Propor trilhos Satin editáveis (QA)",
+                                    color = FioGold)
+                            }
+                            mixedSatinRails[part.id]?.let { current ->
+                                val sectionId = mixedRailSection.coerceIn(
+                                    0,current.sections.lastIndex
+                                )
+                                val section = current.sections[sectionId]
+                                val railId = mixedRailPair.coerceIn(
+                                    0,section.rails.lastIndex
+                                )
+                                Text(
+                                    current.summary() +
+                                        " Seção " + (sectionId+1) + "/" +
+                                        current.sections.size + ", par " +
+                                        (railId+1) + "/" + section.rails.size +
+                                        ", revisão " + current.revision + ".",
+                                    color = FioTextMuted,fontSize = 11.sp
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        enabled = sectionId>0 && !mixedBusy,
+                                        onClick = {
+                                            mixedRailSection = sectionId-1
+                                            mixedRailPair = 0
+                                        }
+                                    ) { Text("Seção −", color = FioGold) }
+                                    OutlinedButton(
+                                        enabled = sectionId<current.sections.lastIndex &&
+                                            !mixedBusy,
+                                        onClick = {
+                                            mixedRailSection = sectionId+1
+                                            mixedRailPair = 0
+                                        }
+                                    ) { Text("Seção +", color = FioGold) }
+                                    OutlinedButton(
+                                        enabled = railId>0 && !mixedBusy,
+                                        onClick = { mixedRailPair = railId-1 }
+                                    ) { Text("Par −", color = FioGold) }
+                                    OutlinedButton(
+                                        enabled = railId<section.rails.lastIndex &&
+                                            !mixedBusy,
+                                        onClick = { mixedRailPair = railId+1 }
+                                    ) { Text("Par +", color = FioGold) }
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(6.dp)
+                                ) {
+                                    for (side in RasterLetterRailEdge.entries) {
+                                        OutlinedButton(
+                                            enabled = !mixedBusy,
+                                            onClick = { mixedRailEdge = side }
+                                        ) {
+                                            Text(
+                                                (if(mixedRailEdge == side) "● " else "") +
+                                                    "Borda " + side.name,
+                                                color = FioGold
+                                            )
+                                        }
+                                    }
+                                    for (axis in RasterLetterRailAxis.entries) {
+                                        OutlinedButton(
+                                            enabled = !mixedBusy,
+                                            onClick = { mixedRailAxis = axis }
+                                        ) {
+                                            Text(
+                                                (if(mixedRailAxis == axis) "● " else "") +
+                                                    axis.name,
+                                                color = FioGold
+                                            )
+                                        }
+                                    }
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(8.dp)
+                                ) {
+                                    for (distance in listOf(-.1f,.1f)) {
+                                        OutlinedButton(
+                                            modifier = Modifier.weight(1f),
+                                            enabled = !mixedBusy && !simulating,
+                                            onClick = {
+                                                val source = mixedSource
+                                                    ?: return@OutlinedButton
+                                                val previous = mixedSatinRails[part.id]
+                                                    ?: return@OutlinedButton
+                                                if(previous !== current)
+                                                    return@OutlinedButton
+                                                val currentPart = part
+                                                val stamp = revision
+                                                val currentReference = acceptedFlatSource
+                                                val currentWidth = widthMm
+                                                val currentHoop = hoop
+                                                val edge = mixedRailEdge
+                                                val axis = mixedRailAxis
+                                                mixedBusy = true
+                                                message = ""
+                                                scope.launch {
+                                                    val result = withContext(
+                                                        Dispatchers.Default
+                                                    ) {
+                                                        RasterLetterEditableSatinReview
+                                                            .nudge(
+                                                                source,currentPart,
+                                                                previous,sectionId,railId,
+                                                                edge,axis,distance,
+                                                                currentWidth,currentHoop
+                                                            ).mapCatching { draft ->
+                                                                draft to
+                                                                    RasterMixedStitchVisualAudit
+                                                                    .inspect(
+                                                                        source,currentPart,
+                                                                        draft.preview,
+                                                                        currentWidth,currentHoop
+                                                                    ).getOrThrow()
+                                                            }
+                                                    }
+                                                    mixedBusy = false
+                                                    if(revision == stamp &&
+                                                        mixedSource === source &&
+                                                        acceptedFlatSource ===
+                                                            currentReference &&
+                                                        mixedSatinRails[currentPart.id] ===
+                                                            previous &&
+                                                        mixedTechniques[currentPart.id] ==
+                                                            RasterTechniqueKind.SATIN &&
+                                                        widthMm == currentWidth &&
+                                                        hoop == currentHoop) {
+                                                        result.fold(
+                                                            onSuccess = { (draft,audit) ->
+                                                                mixedSatinRails =
+                                                                    mixedSatinRails +
+                                                                    (currentPart.id to draft)
+                                                                mixedDrafts = mixedDrafts +
+                                                                    (currentPart.id to
+                                                                        draft.preview)
+                                                                mixedAudits = mixedAudits +
+                                                                    (currentPart.id to audit)
+                                                                mixedConfirmed =
+                                                                    mixedConfirmed -
+                                                                    currentPart.id
+                                                                mixedViewed = mixedViewed -
+                                                                    currentPart.id
+                                                                mixedSelectedPart=currentPart.id
+                                                                mixedViewMode=0
+                                                                message=draft.summary() +
+                                                                    " Reconfira STITCH."
+                                                            },
+                                                            onFailure = {
+                                                                message = "Ajuste recusado: " +
+                                                                    (it.message ?:
+                                                                        "validação dos pontos.")
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            Text(
+                                                if(distance<0f) "− 0,1 mm" else
+                                                    "+ 0,1 mm",
+                                                color = FioGold
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    "Cada alteração recalcula STITCH, vazados, " +
+                                        "densidade e agulha. Confirmar exige " +
+                                        "abrir novamente Conferir STITCH.",
+                                    color = FioTextMuted,fontSize = 11.sp
+                                )
+                            }
+                        }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !mixedBusy && !simulating,
@@ -1315,6 +1559,8 @@ fun SimpleImageToEmbroideryScreen(
                                         hoop == chosenHoop) {
                                         proposal.fold(
                                             onSuccess = { (design, audit) ->
+                                                mixedSatinRails = mixedSatinRails -
+                                                    partSnapshot.id
                                                 mixedDrafts = mixedDrafts +
                                                     (partSnapshot.id to design)
                                                 mixedAudits = mixedAudits +
