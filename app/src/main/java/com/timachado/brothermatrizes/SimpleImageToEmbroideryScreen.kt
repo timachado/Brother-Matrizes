@@ -91,6 +91,10 @@ import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLaye
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueSequenceReview
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReview
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReport
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterEditableSatinReview
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterSatinDraft
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterRailEdge
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterRailAxis
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -395,6 +399,21 @@ fun SimpleImageToEmbroideryScreen(
     }
     var mixedTopology by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, RasterLetterTopologyReport>>(emptyMap())
+    }
+    var mixedSatinRails by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Map<Int, RasterLetterSatinDraft>>(emptyMap())
+    }
+    var mixedRailSection by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableIntStateOf(0)
+    }
+    var mixedRailPair by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableIntStateOf(0)
+    }
+    var mixedRailEdge by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf(RasterLetterRailEdge.A)
+    }
+    var mixedRailAxis by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf(RasterLetterRailAxis.X)
     }
     var mixedConfirmed by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Set<Int>>(emptySet())
@@ -1097,6 +1116,9 @@ fun SimpleImageToEmbroideryScreen(
                                         mixedDrafts = emptyMap()
                                         mixedAudits = emptyMap()
                                         mixedTopology = emptyMap()
+                                        mixedSatinRails = emptyMap()
+                                        mixedRailSection = 0
+                                        mixedRailPair = 0
                                         mixedViewed = emptySet()
                                         mixedConfirmed = emptySet()
                                         mixedSelectedPart = 0
@@ -1152,7 +1174,12 @@ fun SimpleImageToEmbroideryScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             OutlinedButton(
-                                onClick = { mixedSelectedPart = part.id; mixedViewMode = 0 }
+                                onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 0
+                                    mixedRailSection = 0
+                                    mixedRailPair = 0
+                                }
                             ) { Text("Ver parte", color = FioGold) }
                             OutlinedButton(
                                 enabled = orderIndex > 0 && !mixedBusy,
@@ -1183,6 +1210,7 @@ fun SimpleImageToEmbroideryScreen(
                                             mixedTechniques = mixedTechniques +
                                                 (part.id to kind)
                                             mixedDrafts = mixedDrafts - part.id
+                                            mixedSatinRails = mixedSatinRails - part.id
                                             mixedAudits = mixedAudits - part.id
                                             mixedViewed = mixedViewed - part.id
                                             mixedConfirmed = mixedConfirmed - part.id
