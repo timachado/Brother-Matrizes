@@ -87,6 +87,21 @@ internal object RasterMixedTechniqueComposer {
                 part.mask.minY in 0 until source.height &&
                 part.mask.maxY in part.mask.minY until source.height
             ) { "Máscara desconectada da foto original." }
+            // Fidelity of STITCH to a mask cannot by itself prove that the
+            // MASK still matches the import. Solid-color QA parts must be
+            // checked against the ORIGINAL source before composing layers.
+            var inkCount = 0
+            for (i in part.mask.pixels.indices) {
+                if (part.mask.pixels[i] != 0) continue
+                require(source.argb[i] == part.color) {
+                    "Parte " + part.id +
+                        ": a máscara/cor divergiu da imagem original."
+                }
+                inkCount++
+            }
+            require(inkCount == part.pixelCount) {
+                "Contagem de tinta da máscara foi alterada."
+            }
             val fidelity = RasterStitchFidelityAudit.compare(
                 source,part,input,widthMm
             ).getOrThrow()
