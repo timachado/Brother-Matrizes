@@ -1328,7 +1328,8 @@ fun SimpleImageToEmbroideryScreen(
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = allConfirmed && !mixedBusy && !simulating &&
-                        (regionalSampling?.needsDetailReview != true),
+                        (acceptedFlatSource != null ||
+                            regionalSampling?.needsDetailReview != true),
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold),
                     onClick = {
                         val original = mixedSource ?: return@Button
