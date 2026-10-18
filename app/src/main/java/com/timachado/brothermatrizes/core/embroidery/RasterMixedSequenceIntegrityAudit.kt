@@ -20,9 +20,9 @@ internal data class RasterMixedSequenceIntegrityReport(
     fun summary(): String =
         reviewedComponents.toString() + " componentes, " + originalStitches +
             " STITCH originais preservados, " + layerBoundaryTrims +
-            " cortes entre partes, " + internalTrims +
-            " cortes internos, " + internalTravelJumps +
-            " deslocamentos após cortes internos, " + layerBoundaryColorChanges +
+            " corte(s) entre partes, " + internalTrims +
+            " corte(s) interno(s), " + internalTravelJumps +
+            " JUMP após cortes internos, " + layerBoundaryColorChanges +
             " trocas de linha. Sem atalhos costurados. PES bloqueado."
 }
 
