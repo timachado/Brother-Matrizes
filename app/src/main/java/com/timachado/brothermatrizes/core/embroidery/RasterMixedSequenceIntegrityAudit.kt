@@ -35,8 +35,8 @@ internal object RasterMixedSequenceIntegrityAudit {
             composed.format == "QA_AUTO_STITCH" &&
                 composed.isModified && composed.sourceBytes.isEmpty() &&
                 composed.endFound &&
-                composed.points.size in 3..90_000 &&
-                layers.size in 2..12 &&
+                composed.points.size in 3..RasterQaComponentBudget.MAX_STITCH_COMMANDS &&
+                layers.size in 2..RasterQaComponentBudget.MAX_COMPONENTS &&
                 layers.map { it.component.id }.distinct().size == layers.size &&
                 layers.map { it.sewingOrder }.distinct().size == layers.size &&
                 !RasterEmbroideryApproval.canExportFromImageTool()
@@ -82,7 +82,7 @@ internal object RasterMixedSequenceIntegrityAudit {
                     input.endFound && input.hoopProfile == composed.hoopProfile &&
                     input.threadColors == listOf(part.color) &&
                     input.colorChanges == 0 && input.stitchCount > 0 &&
-                    input.jumpCount > 0 && input.points.size in 3..90_000 &&
+                    input.jumpCount > 0 && input.points.size in 3..RasterQaComponentBudget.MAX_STITCH_COMMANDS &&
                     input.points.first().command == StitchCommand.JUMP &&
                     input.points.last().command == StitchCommand.END &&
                     input.points.dropLast(1).all {

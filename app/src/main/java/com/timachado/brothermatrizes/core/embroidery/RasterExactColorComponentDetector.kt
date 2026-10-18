@@ -6,8 +6,8 @@ package com.timachado.brothermatrizes.core.embroidery
  * Textured photos require assisted digitization and are rejected.
  */
 internal object RasterExactColorComponentDetector {
-    private const val MAX_COMPONENTS = 12
-    private const val MAX_COLORS = 4
+    private const val MAX_COMPONENTS = RasterQaComponentBudget.MAX_COMPONENTS
+    private const val MAX_COLORS = RasterQaComponentBudget.MAX_COLORS
     private const val MAX_PIXELS = 512 * 512
 
     fun detect(source: RasterImagePixels): Result<List<RasterSatinObject>> =
@@ -63,7 +63,7 @@ internal object RasterExactColorComponentDetector {
             for (root in labels.indices) {
                 if (!foreground[root] || labels[root] != 0) continue
                 require(parts.size < MAX_COMPONENTS) {
-                    "Mais de 12 elementos: ajuste o recorte antes da montagem QA."
+                    "Mais de 24 elementos: ajuste o recorte antes da montagem QA."
                 }
                 val id = parts.size+1
                 val color = source.argb[root]

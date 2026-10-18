@@ -5,7 +5,7 @@ package com.timachado.brothermatrizes.core.embroidery
  * component. Nothing is silently confirmed or sewn.
  */
 internal object RasterMixedTechniqueReviewWorkflow {
-    private const val MAX_PARTS = 12
+    private const val MAX_PARTS = RasterQaComponentBudget.MAX_COMPONENTS
 
     fun prepare(
         source: RasterImagePixels,
