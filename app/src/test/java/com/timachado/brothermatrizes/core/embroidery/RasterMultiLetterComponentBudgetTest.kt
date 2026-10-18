@@ -52,10 +52,16 @@ class RasterMultiLetterComponentBudgetTest {
             image
         ).getOrThrow()
         val layers=parts.mapIndexed {order,part ->
-            val design=RasterMixedTechniqueReviewWorkflow.prepare(
+            val prepared=RasterMixedTechniqueReviewWorkflow.prepare(
                 image,part,RasterTechniqueKind.TATAMI,
                 90f,hoop
-            ).getOrThrow()
+            )
+            assertTrue(
+                "Parte " + part.id + ": " +
+                    prepared.exceptionOrNull()?.message,
+                prepared.isSuccess
+            )
+            val design=prepared.getOrThrow()
             RasterReviewedTechniqueLayer(
                 part,design,RasterTechniqueKind.TATAMI,order
             )
