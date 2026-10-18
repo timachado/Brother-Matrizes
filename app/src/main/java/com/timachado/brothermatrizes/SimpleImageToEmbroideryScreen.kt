@@ -1046,9 +1046,10 @@ fun SimpleImageToEmbroideryScreen(
                     } else if (mixedParts.isNotEmpty()) {
                         mixedOpen = true
                     } else {
-                        val original = prepared?.image ?: return@OutlinedButton
+                        val original = mixedSource ?: return@OutlinedButton
                         val chosenHoop = hoop
                         val chosenWidth = widthMm
+                        val acceptedSnapshot = acceptedFlatSource
                         val stamp = revision
                         mixedBusy = true
                         message = ""
@@ -1065,7 +1066,8 @@ fun SimpleImageToEmbroideryScreen(
                             }
                             mixedBusy = false
                             if (revision == stamp &&
-                                prepared?.image === original &&
+                                mixedSource === original &&
+                                acceptedFlatSource === acceptedSnapshot &&
                                 hoop == chosenHoop && widthMm == chosenWidth) {
                                 detected.fold(
                                     onSuccess = { parts ->
@@ -1115,10 +1117,14 @@ fun SimpleImageToEmbroideryScreen(
             }
             if (mixedOpen && mixedParts.isNotEmpty()) {
                 Text(
-                    "Escolha a técnica e a ordem de cada componente. " +
-                        "Gere e confirme todas as prévias antes da montagem. " +
-                        "A foto deve corresponder exatamente às máscaras; " +
-                        "ainda não é PES.",
+                    (if (acceptedFlatSource != null)
+                        "Fonte de trabalho: cores planas explicitamente " +
+                            "aceitas para QA. A fotografia com textura " +
+                            "permanece original e não foi transformada em pontos. "
+                     else
+                        "Fonte de trabalho: imagem original com cores exatas. ") +
+                        "Escolha técnica e ordem, confira todas as pontadas " +
+                        "e confirme cada componente. Não é PES.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
                 mixedOrder.forEachIndexed { orderIndex, partId ->
@@ -1194,8 +1200,9 @@ fun SimpleImageToEmbroideryScreen(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !mixedBusy && !simulating,
                             onClick = {
-                                val original = prepared?.image
+                                val original = mixedSource
                                     ?: return@OutlinedButton
+                                val acceptedSnapshot = acceptedFlatSource
                                 val partSnapshot = part
                                 val kind = mixedTechniques[part.id]
                                     ?: return@OutlinedButton
@@ -1217,7 +1224,8 @@ fun SimpleImageToEmbroideryScreen(
                                     }
                                     mixedBusy = false
                                     if (revision == stamp &&
-                                        prepared?.image === original &&
+                                        mixedSource === original &&
+                                        acceptedFlatSource === acceptedSnapshot &&
                                         mixedParts.any { it === partSnapshot } &&
                                         mixedTechniques[partSnapshot.id] == kind &&
                                         widthMm == chosenWidth &&
@@ -1323,7 +1331,8 @@ fun SimpleImageToEmbroideryScreen(
                         (regionalSampling?.needsDetailReview != true),
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold),
                     onClick = {
-                        val original = prepared?.image ?: return@Button
+                        val original = mixedSource ?: return@Button
+                        val acceptedSnapshot = acceptedFlatSource
                         val capturedParts = mixedParts.toList()
                         val orderSnapshot = mixedOrder.toList()
                         val confirmedSnapshot = mixedConfirmed.toSet()
@@ -1367,7 +1376,8 @@ fun SimpleImageToEmbroideryScreen(
                                 }
                             }
                             if (revision == stamp &&
-                                prepared?.image === original &&
+                                mixedSource === original &&
+                                acceptedFlatSource === acceptedSnapshot &&
                                 mixedParts == capturedParts &&
                                 mixedOrder == orderSnapshot &&
                                 mixedConfirmed == confirmedSnapshot &&
