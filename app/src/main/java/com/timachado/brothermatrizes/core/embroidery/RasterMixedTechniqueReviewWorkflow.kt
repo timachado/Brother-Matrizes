@@ -175,8 +175,16 @@ internal object RasterMixedTechniqueReviewWorkflow {
                 layer.component.mask.pixels.contentEquals(expected.mask.pixels)
             ) { "A máscara revisada foi substituída após a confirmação." }
         }
-        RasterMixedTechniqueComposer.compose(
+        val assembled = RasterMixedTechniqueComposer.compose(
             source,widthMm,hoop,confirmed
         ).getOrThrow()
+        val completeMap = RasterMixedFullCanvasReview.inspect(
+            source,confirmed,assembled.design,widthMm,hoop
+        ).getOrThrow()
+        require(completeMap.originalInkPixels ==
+            detected.sumOf { it.pixelCount } &&
+            !completeMap.exportPermitted
+        ) { "Uma letra ou parte da tinta se perdeu na montagem QA." }
+        assembled.copy(fullCanvasReport=completeMap)
     }
 }

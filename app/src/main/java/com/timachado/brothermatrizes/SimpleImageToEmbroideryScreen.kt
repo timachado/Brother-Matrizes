@@ -460,6 +460,9 @@ fun SimpleImageToEmbroideryScreen(
     var mixedAssemblyViewed by remember(mixedAssembly) {
         mutableStateOf(false)
     }
+    var mixedCoverageViewed by remember(mixedAssembly) {
+        mutableStateOf(false)
+    }
     val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, mixedSource) {
         val original = mixedSource
         val item = mixedParts.firstOrNull { it.id == mixedSelectedPart }
@@ -474,6 +477,8 @@ fun SimpleImageToEmbroideryScreen(
     }
     val mixedFullShown = if (mixedOpen && mixedViewMode == 3)
         mixedAssembly?.design else null
+    val mixedFullCoverage = if (mixedOpen && mixedViewMode == 5)
+        mixedAssembly?.fullCanvasReport?.coverageOverlay else null
     val mixedSplitShown = if(mixedOpen && mixedViewMode == 4)
         mixedSplitCandidates[mixedSelectedPart]?.second?.preview else null
     val mixedSplitSource = if(mixedOpen && mixedViewMode == 4)
@@ -559,7 +564,8 @@ fun SimpleImageToEmbroideryScreen(
                 displayMode = displayMode,
                 showConnections = showConnections,
                 rasterArtwork = if (mixedFullShown != null) mixedSource
-                    else mixedSplitSource ?: mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
+                    else mixedFullCoverage ?: mixedSplitSource ?:
+                        mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
@@ -569,7 +575,11 @@ fun SimpleImageToEmbroideryScreen(
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (mixedSplitShown != null)
+                if (mixedFullCoverage != null)
+                    "Desenho INTEIRO: cinza = tinta coberta por STITCH " +
+                        "amostrados; laranja = áreas sem pontos. " +
+                        "Cada letra e cor foi conferida sem preencher vazados."
+                else if (mixedSplitShown != null)
                     "Divisão Satin CANDIDATA: STITCH/JUMP/TRIM reais. " +
                         "Nenhum trilho original foi substituído; aceite apenas " +
                         "após conferir o corte e a cobertura."
@@ -2165,6 +2175,37 @@ fun SimpleImageToEmbroideryScreen(
                         assembly.message(),
                         color = FioTextMuted, fontSize = 11.sp
                     )
+                    assembly.fullCanvasReport?.let { whole ->
+                        Text(
+                            whole.summary(),
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                        whole.parts.forEach { coveredPart ->
+                            Text(
+                                "Parte " + coveredPart.id + ": " +
+                                    coveredPart.coveredPixels + "/" +
+                                    coveredPart.inkPixels + " px cobertos; " +
+                                    coveredPart.uncoveredPixels +
+                                    " px pendentes em " +
+                                    coveredPart.regionsWithoutStitches +
+                                    " região(ões).",
+                                color = FioTextMuted,fontSize = 11.sp
+                            )
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !simulating,
+                            onClick = {
+                                if (mixedAssembly === assembly) {
+                                    mixedViewMode = 5
+                                    mixedCoverageViewed = true
+                                }
+                            }
+                        ) {
+                            Text("Conferir lacunas do desenho inteiro (QA)",
+                                color = FioGold)
+                        }
+                    }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -2177,16 +2218,18 @@ fun SimpleImageToEmbroideryScreen(
                     }
                     Button(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = mixedAssemblyViewed && allConfirmed &&
-                            !mixedBusy && !simulating &&
-                            assembly.integrityReport != null,
+                        enabled = mixedAssemblyViewed && mixedCoverageViewed &&
+                            allConfirmed && !mixedBusy && !simulating &&
+                            assembly.integrityReport != null &&
+                            assembly.fullCanvasReport != null,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FioGold
                         ),
                         onClick = {
                             if (mixedAssembly === assembly &&
-                                mixedAssemblyViewed &&
+                                mixedAssemblyViewed && mixedCoverageViewed &&
                                 assembly.integrityReport != null &&
+                                assembly.fullCanvasReport != null &&
                                 !assembly.exportPermitted && allConfirmed) {
                                 qaTechnicalReport = assembly.message()
                                 qaReportRevision = revision
