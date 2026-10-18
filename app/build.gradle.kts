@@ -49,7 +49,7 @@ android {
         debug {
             // QA installs alongside the commercial release, without replacing it.
             // No production signing key is used. This suffix applies to debug ONLY.
-            applicationIdSuffix = ".qaletter"
+            applicationIdSuffix = ".qarails"
             /*
              * Project token do PostHog é um identificador público de cliente,
              * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
