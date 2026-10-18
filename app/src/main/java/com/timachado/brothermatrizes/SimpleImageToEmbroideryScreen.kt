@@ -408,6 +408,17 @@ fun SimpleImageToEmbroideryScreen(
     var mixedSatinUndo by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, List<RasterLetterSatinDraft>>>(emptyMap())
     }
+    // Split proposals are unapproved. Their STITCH must be inspected
+    // independently before changing the editor's actual Satin sections.
+    var mixedSplitCandidates by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Map<Int, Triple<RasterLetterSatinDraft,
+            RasterLetterSatinDraft, RasterMixedStitchVisualEvidence>>>(
+            emptyMap()
+        )
+    }
+    var mixedSplitViewed by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Set<Int>>(emptySet())
+    }
     // A hotspot report is valid for ONE exact Satin draft, never reused
     // after moving a rail, undo or changing the reference image.
     var mixedCurveHotspots by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
@@ -431,7 +442,8 @@ fun SimpleImageToEmbroideryScreen(
     }
     var mixedAudits by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
     var mixedViewed by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
-    // 0 = fonte, 1 = STITCH, 2 = mapa de cobertura.
+    // 0 = fonte, 1 = STITCH, 2 = mapa de cobertura,
+    // 3 = montagem completa, 4 = preview candidato de divisão Satin.
     var mixedViewMode by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableIntStateOf(0) }
     var mixedBusy by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf(false) }
     var mixedSelectedPart by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
@@ -462,6 +474,10 @@ fun SimpleImageToEmbroideryScreen(
     }
     val mixedFullShown = if (mixedOpen && mixedViewMode == 3)
         mixedAssembly?.design else null
+    val mixedSplitShown = if(mixedOpen && mixedViewMode == 4)
+        mixedSplitCandidates[mixedSelectedPart]?.second?.preview else null
+    val mixedSplitSource = if(mixedOpen && mixedViewMode == 4)
+        mixedSplitCandidates[mixedSelectedPart]?.third?.sourceOverlay else null
     val mixedShown = if (mixedOpen && mixedViewMode == 1)
         mixedDrafts[mixedSelectedPart] else null
     val mixedAuditShown = if (mixedOpen) mixedAudits[mixedSelectedPart] else null
@@ -538,21 +554,26 @@ fun SimpleImageToEmbroideryScreen(
             // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
-                design = mixedFullShown ?: mixedShown ?: placeholder,
+                design = mixedFullShown ?: mixedSplitShown ?: mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
                 rasterArtwork = if (mixedFullShown != null) mixedSource
-                    else mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
+                    else mixedSplitSource ?: mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
                 rasterOpacity = if (mixedFullShown != null) .12f
-                    else if (mixedShown != null) .18f else .99f,
+                    else if (mixedShown != null || mixedSplitShown != null)
+                        .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (mixedFullShown != null)
+                if (mixedSplitShown != null)
+                    "Divisão Satin CANDIDATA: STITCH/JUMP/TRIM reais. " +
+                        "Nenhum trilho original foi substituído; aceite apenas " +
+                        "após conferir o corte e a cobertura."
+                else if (mixedFullShown != null)
                     "Sequência COMPLETA real em STITCH/JUMP/TRIM sobre a fonte. " +
                         "Revise a ordem de costura antes do Simular Bordado. PES bloqueado."
                 else if (mixedShown != null)
@@ -1129,6 +1150,8 @@ fun SimpleImageToEmbroideryScreen(
                                         mixedTopology = emptyMap()
                                         mixedSatinRails = emptyMap()
                                         mixedSatinUndo = emptyMap()
+                                        mixedSplitCandidates = emptyMap()
+                                        mixedSplitViewed = emptySet()
                                         mixedCurveHotspots = emptyMap()
                                         mixedRailSection = 0
                                         mixedRailPair = 0
@@ -1225,6 +1248,9 @@ fun SimpleImageToEmbroideryScreen(
                                             mixedDrafts = mixedDrafts - part.id
                                             mixedSatinRails = mixedSatinRails - part.id
                                             mixedSatinUndo = mixedSatinUndo - part.id
+                                            mixedSplitCandidates =
+                                                mixedSplitCandidates - part.id
+                                            mixedSplitViewed = mixedSplitViewed - part.id
                                             mixedCurveHotspots = mixedCurveHotspots - part.id
                                             mixedAudits = mixedAudits - part.id
                                             mixedViewed = mixedViewed - part.id
@@ -1336,6 +1362,10 @@ fun SimpleImageToEmbroideryScreen(
                                                         mixedCurveHotspots - currentPart.id
                                                     mixedSatinUndo = mixedSatinUndo -
                                                         currentPart.id
+                                                    mixedSplitCandidates =
+                                                        mixedSplitCandidates - currentPart.id
+                                                    mixedSplitViewed =
+                                                        mixedSplitViewed - currentPart.id
                                                     mixedDrafts = mixedDrafts +
                                                         (currentPart.id to draft.preview)
                                                     mixedAudits = mixedAudits +
@@ -1607,6 +1637,11 @@ fun SimpleImageToEmbroideryScreen(
                                                                 mixedCurveHotspots =
                                                                     mixedCurveHotspots -
                                                                     currentPart.id
+                                                                mixedSplitCandidates =
+                                                                    mixedSplitCandidates -
+                                                                    currentPart.id
+                                                                mixedSplitViewed =
+                                                                    mixedSplitViewed - currentPart.id
                                                                 mixedDrafts = mixedDrafts +
                                                                     (currentPart.id to
                                                                         draft.preview)
@@ -1704,6 +1739,11 @@ fun SimpleImageToEmbroideryScreen(
                                                         mixedCurveHotspots =
                                                             mixedCurveHotspots -
                                                             selectedPart.id
+                                                        mixedSplitCandidates =
+                                                            mixedSplitCandidates -
+                                                            selectedPart.id
+                                                        mixedSplitViewed =
+                                                            mixedSplitViewed - selectedPart.id
                                                         mixedDrafts = mixedDrafts +
                                                             (selectedPart.id to draft.preview)
                                                         mixedAudits = mixedAudits +
@@ -1781,6 +1821,10 @@ fun SimpleImageToEmbroideryScreen(
                                                     partSnapshot.id
                                                 mixedCurveHotspots =
                                                     mixedCurveHotspots - partSnapshot.id
+                                                mixedSplitCandidates =
+                                                    mixedSplitCandidates - partSnapshot.id
+                                                mixedSplitViewed =
+                                                    mixedSplitViewed - partSnapshot.id
                                                 mixedSatinUndo = mixedSatinUndo -
                                                     partSnapshot.id
                                                 mixedDrafts = mixedDrafts +
