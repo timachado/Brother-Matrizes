@@ -1223,8 +1223,6 @@ fun SimpleImageToEmbroideryScreen(
                         val techniqueSnapshot = mixedTechniques.toMap()
                         val hoopSnapshot = hoop
                         val widthSnapshot = widthMm
-                        val displaySnapshot = displayMode
-                        val connectionsSnapshot = showConnections
                         val stamp = revision
                         simulating = true
                         message = ""
@@ -1272,12 +1270,10 @@ fun SimpleImageToEmbroideryScreen(
                                 simulating = false
                                 built.fold(
                                     onSuccess = {
-                                        qaTechnicalReport = it.message()
-                                        qaReportRevision = stamp
-                                        onSimulate(
-                                            it.design,hoopSnapshot,
-                                            displaySnapshot,connectionsSnapshot
-                                        )
+                                        mixedAssembly = it
+                                        mixedViewMode = 0
+                                        message = it.message() +
+                                            " Abra a prévia completa antes de Simular Bordado."
                                     },
                                     onFailure = {
                                         message = "Sequência multitécnica recusada: " +
@@ -1289,8 +1285,49 @@ fun SimpleImageToEmbroideryScreen(
                         }
                     }
                 ) {
-                    Text("Simular Bordado — camadas revisadas (QA)",
+                    Text("Validar montagem completa (QA)",
                         color = FioBackground, fontWeight = FontWeight.Bold)
+                }
+                mixedAssembly?.let { assembly ->
+                    Text(
+                        assembly.message(),
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            mixedViewMode = 3
+                            mixedAssemblyViewed = true
+                        }
+                    ) {
+                        Text("Conferir todas as pontadas no bastidor",
+                            color = FioGold)
+                    }
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = mixedAssemblyViewed && allConfirmed &&
+                            !mixedBusy && !simulating &&
+                            assembly.integrityReport != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold
+                        ),
+                        onClick = {
+                            val ready = mixedAssembly
+                            if (ready === assembly && mixedAssemblyViewed &&
+                                ready.integrityReport != null &&
+                                !ready.exportPermitted && allConfirmed) {
+                                qaTechnicalReport = ready.message()
+                                qaReportRevision = revision
+                                onSimulate(
+                                    ready.design,hoop,
+                                    displayMode,showConnections
+                                )
+                            }
+                        }
+                    ) {
+                        Text("Simular Bordado — montagem revisada (QA)",
+                            color = FioBackground, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             if (candidates.isNotEmpty()) {
