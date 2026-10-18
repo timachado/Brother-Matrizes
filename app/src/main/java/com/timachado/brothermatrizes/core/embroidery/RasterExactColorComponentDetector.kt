@@ -19,7 +19,12 @@ internal object RasterExactColorComponentDetector {
                 !RasterEmbroideryApproval.canExportFromImageTool()
             ) { "Fonte inadequada para separar cores exatas em QA." }
 
-            val usesAlpha = source.argb.any { it ushr 24 < 180 }
+            val alphaReview = RasterAlphaEdgeReview.inspect(source)
+                .getOrThrow()
+            require(!alphaReview.requiresManualReconstruction) {
+                alphaReview.guidance()
+            }
+            val usesAlpha = alphaReview.transparentPixels > 0
             val background = if (usesAlpha) null else {
                 val corner = source.argb[0]
                 require(listOf(
@@ -34,11 +39,9 @@ internal object RasterExactColorComponentDetector {
             fun foreground(index: Int): Boolean {
                 val a = source.argb[index] ushr 24
                 if (usesAlpha) {
-                    require(a == 0 || a >= 180) {
-                        "Transparência parcial pode ocultar contornos finos. " +
-                            "Refaça a separação sem perder detalhes."
-                    }
-                    return a >= 180
+                    // Semi-transparent pixels were rejected by the
+                    // independent alpha audit before classifying any colors.
+                    return a == 255
                 }
                 return source.argb[index] != background
             }

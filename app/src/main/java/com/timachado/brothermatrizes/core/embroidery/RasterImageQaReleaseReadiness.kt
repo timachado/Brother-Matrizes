@@ -57,7 +57,8 @@ internal object RasterImageQaReleaseReadinessAudit {
                 design.isModified && design.sourceBytes.isEmpty() &&
                 design.endFound &&
                 design.points.lastOrNull()?.command == StitchCommand.END &&
-                assembly.componentOrder.size in 2..12 &&
+                assembly.componentOrder.size in
+                    2..RasterQaComponentBudget.MAX_COMPONENTS &&
                 assembly.componentOrder.distinct().size ==
                     assembly.componentOrder.size &&
                 assembly.techniqueOrder.size == assembly.componentOrder.size &&
