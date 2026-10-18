@@ -65,6 +65,8 @@ import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
+import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionGate
+import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionReport
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
@@ -298,11 +300,24 @@ fun SimpleImageToEmbroideryScreen(
     }
 
     val stageImage = prepared?.image ?: photo
-    // Visual comparison only. Never pass flattened preview pixels to the
-    // stitch composer, source-fidelity audits, or a PES encoder.
+    // A raw color-study preview is visual only. A separately validated and
+    // explicitly accepted QA reference may be used for stitch PREVIEWS;
+    // the actual imported photo remains unchanged and PES stays blocked.
     var flatStudy by remember(stageImage) {
         mutableStateOf<RasterThreadTextureStudyReport?>(null)
     }
+    // The operator explicitly selects a reconstructed QA-only reference;
+    // the imported photograph is never overwritten by this preference.
+    var flatSourceCandidate by remember(stageImage, flatStudy) {
+        mutableStateOf<RasterTextureReconstructionReport?>(null)
+    }
+    var acceptedFlatSource by remember(stageImage, flatStudy) {
+        mutableStateOf<RasterTextureReconstructionReport?>(null)
+    }
+    var checkingFlatSource by remember(stageImage, flatStudy) {
+        mutableStateOf(false)
+    }
+    val mixedSource = acceptedFlatSource?.flatReference ?: prepared?.image
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
@@ -363,34 +378,34 @@ fun SimpleImageToEmbroideryScreen(
     }
     // Mixed-technique QA is tied to the exact image, scale and hoop.
     // Changing any of these discards candidate paths and confirmations.
-    var mixedOpen by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
-    var mixedParts by remember(stageImage, hoop, widthMm) {
+    var mixedOpen by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf(false) }
+    var mixedParts by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<List<RasterSatinObject>>(emptyList())
     }
-    var mixedOrder by remember(stageImage, hoop, widthMm) {
+    var mixedOrder by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<List<Int>>(emptyList())
     }
-    var mixedTechniques by remember(stageImage, hoop, widthMm) {
+    var mixedTechniques by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, RasterTechniqueKind>>(emptyMap())
     }
-    var mixedDrafts by remember(stageImage, hoop, widthMm) {
+    var mixedDrafts by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, EmbroideryDesign>>(emptyMap())
     }
-    var mixedConfirmed by remember(stageImage, hoop, widthMm) {
+    var mixedConfirmed by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Set<Int>>(emptySet())
     }
-    var mixedAudits by remember(stageImage, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
-    var mixedViewed by remember(stageImage, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
+    var mixedAudits by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
+    var mixedViewed by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
     // 0 = fonte, 1 = STITCH, 2 = mapa de cobertura.
-    var mixedViewMode by remember(stageImage, hoop, widthMm) { mutableIntStateOf(0) }
-    var mixedBusy by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
-    var mixedSelectedPart by remember(stageImage, hoop, widthMm) {
+    var mixedViewMode by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableIntStateOf(0) }
+    var mixedBusy by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf(false) }
+    var mixedSelectedPart by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableIntStateOf(0)
     }
     // A finished sequence cannot survive a new source, part, technique,
     // stitch draft, color/order change or removed human approval.
     var mixedAssembly by remember(
-        stageImage, hoop, widthMm, mixedParts, mixedOrder,
+        stageImage, acceptedFlatSource, hoop, widthMm, mixedParts, mixedOrder,
         mixedTechniques, mixedDrafts, mixedConfirmed, mixedViewed, mixedAudits
     ) {
         mutableStateOf<RasterMixedTechniqueSequenceReview?>(null)
@@ -398,8 +413,8 @@ fun SimpleImageToEmbroideryScreen(
     var mixedAssemblyViewed by remember(mixedAssembly) {
         mutableStateOf(false)
     }
-    val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, stageImage) {
-        val original = prepared?.image
+    val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, mixedSource) {
+        val original = mixedSource
         val item = mixedParts.firstOrNull { it.id == mixedSelectedPart }
         if (original == null || item == null ||
             item.mask.pixels.size != original.argb.size
@@ -492,7 +507,7 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (mixedFullShown != null) stageImage
+                rasterArtwork = if (mixedFullShown != null) mixedSource
                     else mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
@@ -603,6 +618,101 @@ fun SimpleImageToEmbroideryScreen(
                     color = FioTextMuted,
                     fontSize = 11.sp
                 )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = prepared != null && fitted &&
+                        !checkingFlatSource && !preparing && !simulating,
+                    onClick = {
+                        val original = prepared?.image
+                            ?: return@OutlinedButton
+                        val stamp = revision
+                        checkingFlatSource = true
+                        message = ""
+                        scope.launch {
+                            val checked = withContext(Dispatchers.Default) {
+                                RasterTextureReconstructionGate.prepare(
+                                    original,study
+                                )
+                            }
+                            checkingFlatSource = false
+                            if (revision == stamp &&
+                                prepared?.image === original &&
+                                flatStudy === study) {
+                                checked.fold(
+                                    onSuccess = {
+                                        flatSourceCandidate = it
+                                        showFlatStudy = true
+                                        selectedElementId = 0
+                                        message = it.message()
+                                    },
+                                    onFailure = {
+                                        flatSourceCandidate = null
+                                        message = "A referência simplificada " +
+                                            "ainda precisa de reconstrução: " +
+                                            (it.message ?:
+                                                "reveja as formas e os detalhes.")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        if (checkingFlatSource)
+                            "Conferindo fidelidade da silhueta..."
+                        else "Verificar referência plana para pontos (QA)",
+                        color = FioGold
+                    )
+                }
+                flatSourceCandidate?.let { candidate ->
+                    Text(
+                        candidate.message(),
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                    if (acceptedFlatSource === candidate) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating,
+                            onClick = {
+                                acceptedFlatSource = null
+                                message = "Referência QA removida. " +
+                                    "As prévias dessa referência serão " +
+                                    "descartadas; foto original intacta."
+                            }
+                        ) {
+                            Text(
+                                "Voltar a usar foto original nas prévias QA",
+                                color = FioGold
+                            )
+                        }
+                    } else {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating &&
+                                prepared?.image === candidate.original,
+                            onClick = {
+                                if (prepared?.image === candidate.original &&
+                                    flatStudy === study) {
+                                    acceptedFlatSource = candidate
+                                    mixedOpen = false
+                                    mixedSelectedPart = 0
+                                    showFlatStudy = true
+                                    selectedElementId = 0
+                                    message = "Referência plana aceita para " +
+                                        "prévia QA. Confirme separadamente " +
+                                        "cada componente e suas agulhadas. " +
+                                        "A foto original foi preservada."
+                                }
+                            }
+                        ) {
+                            Text(
+                                "Aceitar cores planas como referência QA",
+                                color = FioGold
+                            )
+                        }
+                    }
+                }
                 OutlinedButton(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = prepared != null && !preparing &&
@@ -936,9 +1046,10 @@ fun SimpleImageToEmbroideryScreen(
                     } else if (mixedParts.isNotEmpty()) {
                         mixedOpen = true
                     } else {
-                        val original = prepared?.image ?: return@OutlinedButton
+                        val original = mixedSource ?: return@OutlinedButton
                         val chosenHoop = hoop
                         val chosenWidth = widthMm
+                        val acceptedSnapshot = acceptedFlatSource
                         val stamp = revision
                         mixedBusy = true
                         message = ""
@@ -955,7 +1066,8 @@ fun SimpleImageToEmbroideryScreen(
                             }
                             mixedBusy = false
                             if (revision == stamp &&
-                                prepared?.image === original &&
+                                mixedSource === original &&
+                                acceptedFlatSource === acceptedSnapshot &&
                                 hoop == chosenHoop && widthMm == chosenWidth) {
                                 detected.fold(
                                     onSuccess = { parts ->
@@ -1005,10 +1117,14 @@ fun SimpleImageToEmbroideryScreen(
             }
             if (mixedOpen && mixedParts.isNotEmpty()) {
                 Text(
-                    "Escolha a técnica e a ordem de cada componente. " +
-                        "Gere e confirme todas as prévias antes da montagem. " +
-                        "A foto deve corresponder exatamente às máscaras; " +
-                        "ainda não é PES.",
+                    (if (acceptedFlatSource != null)
+                        "Fonte de trabalho: cores planas explicitamente " +
+                            "aceitas para QA. A fotografia com textura " +
+                            "permanece original e não foi transformada em pontos. "
+                     else
+                        "Fonte de trabalho: imagem original com cores exatas. ") +
+                        "Escolha técnica e ordem, confira todas as pontadas " +
+                        "e confirme cada componente. Não é PES.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
                 mixedOrder.forEachIndexed { orderIndex, partId ->
@@ -1084,8 +1200,9 @@ fun SimpleImageToEmbroideryScreen(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !mixedBusy && !simulating,
                             onClick = {
-                                val original = prepared?.image
+                                val original = mixedSource
                                     ?: return@OutlinedButton
+                                val acceptedSnapshot = acceptedFlatSource
                                 val partSnapshot = part
                                 val kind = mixedTechniques[part.id]
                                     ?: return@OutlinedButton
@@ -1107,7 +1224,8 @@ fun SimpleImageToEmbroideryScreen(
                                     }
                                     mixedBusy = false
                                     if (revision == stamp &&
-                                        prepared?.image === original &&
+                                        mixedSource === original &&
+                                        acceptedFlatSource === acceptedSnapshot &&
                                         mixedParts.any { it === partSnapshot } &&
                                         mixedTechniques[partSnapshot.id] == kind &&
                                         widthMm == chosenWidth &&
@@ -1210,10 +1328,12 @@ fun SimpleImageToEmbroideryScreen(
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = allConfirmed && !mixedBusy && !simulating &&
-                        (regionalSampling?.needsDetailReview != true),
+                        (acceptedFlatSource != null ||
+                            regionalSampling?.needsDetailReview != true),
                     colors = ButtonDefaults.buttonColors(containerColor = FioGold),
                     onClick = {
-                        val original = prepared?.image ?: return@Button
+                        val original = mixedSource ?: return@Button
+                        val acceptedSnapshot = acceptedFlatSource
                         val capturedParts = mixedParts.toList()
                         val orderSnapshot = mixedOrder.toList()
                         val confirmedSnapshot = mixedConfirmed.toSet()
@@ -1257,7 +1377,8 @@ fun SimpleImageToEmbroideryScreen(
                                 }
                             }
                             if (revision == stamp &&
-                                prepared?.image === original &&
+                                mixedSource === original &&
+                                acceptedFlatSource === acceptedSnapshot &&
                                 mixedParts == capturedParts &&
                                 mixedOrder == orderSnapshot &&
                                 mixedConfirmed == confirmedSnapshot &&
