@@ -89,6 +89,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvid
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueSequenceReview
+import com.timachado.brothermatrizes.core.embroidery.RasterImageQaReleaseReadinessAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReview
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterEditableSatinReview
@@ -2161,9 +2162,24 @@ fun SimpleImageToEmbroideryScreen(
                         color = FioBackground, fontWeight = FontWeight.Bold)
                 }
                 mixedAssembly?.let { assembly ->
+                    val readiness = remember(assembly) {
+                        RasterImageQaReleaseReadinessAudit.inspect(
+                            assembly
+                        )
+                    }
                     Text(
                         assembly.message(),
                         color = FioTextMuted, fontSize = 11.sp
+                    )
+                    Text(
+                        readiness.fold(
+                            onSuccess = { it.summary() },
+                            onFailure = {
+                                "Relatório QA inválido: " +
+                                    (it.message ?: "revise a sequência.")
+                            }
+                        ),
+                        color = FioTextMuted,fontSize = 11.sp
                     )
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
@@ -2179,13 +2195,14 @@ fun SimpleImageToEmbroideryScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = mixedAssemblyViewed && allConfirmed &&
                             !mixedBusy && !simulating &&
+                            readiness.isSuccess &&
                             assembly.integrityReport != null,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FioGold
                         ),
                         onClick = {
                             if (mixedAssembly === assembly &&
-                                mixedAssemblyViewed &&
+                                mixedAssemblyViewed && readiness.isSuccess &&
                                 assembly.integrityReport != null &&
                                 !assembly.exportPermitted && allConfirmed) {
                                 qaTechnicalReport = assembly.message()
