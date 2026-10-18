@@ -1537,10 +1537,99 @@ fun SimpleImageToEmbroideryScreen(
                                         }
                                     }
                                 }
+                                val previousVersion = mixedSatinUndo[part.id]
+                                    .orEmpty().lastOrNull()
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = previousVersion != null &&
+                                        !mixedBusy && !simulating,
+                                    onClick = {
+                                        val previous = mixedSatinUndo[part.id]
+                                            .orEmpty().lastOrNull()
+                                            ?: return@OutlinedButton
+                                        val latest = mixedSatinRails[part.id]
+                                            ?: return@OutlinedButton
+                                        if(latest !== current)
+                                            return@OutlinedButton
+                                        val original = mixedSource
+                                            ?: return@OutlinedButton
+                                        val selectedPart = part
+                                        val snapshot = mixedSatinUndo[part.id]
+                                            .orEmpty().toList()
+                                        val currentReference = acceptedFlatSource
+                                        val currentWidth = widthMm
+                                        val currentHoop = hoop
+                                        val stamp = revision
+                                        mixedBusy = true
+                                        message = ""
+                                        scope.launch {
+                                            val restored = withContext(
+                                                Dispatchers.Default
+                                            ) {
+                                                RasterLetterEditableSatinReview
+                                                    .restorePrevious(
+                                                        original,selectedPart,
+                                                        latest,previous,
+                                                        currentWidth,currentHoop
+                                                    ).mapCatching { draft ->
+                                                        draft to RasterMixedStitchVisualAudit
+                                                            .inspect(
+                                                                original,selectedPart,
+                                                                draft.preview,
+                                                                currentWidth,currentHoop
+                                                            ).getOrThrow()
+                                                    }
+                                            }
+                                            mixedBusy = false
+                                            if (revision == stamp &&
+                                                mixedSource === original &&
+                                                acceptedFlatSource === currentReference &&
+                                                mixedSatinRails[selectedPart.id] === latest &&
+                                                mixedSatinUndo[selectedPart.id] == snapshot &&
+                                                mixedTechniques[selectedPart.id] ==
+                                                    RasterTechniqueKind.SATIN &&
+                                                widthMm == currentWidth &&
+                                                hoop == currentHoop) {
+                                                restored.fold(
+                                                    onSuccess = { (draft,audit) ->
+                                                        mixedSatinUndo = mixedSatinUndo +
+                                                            (selectedPart.id to snapshot
+                                                                .dropLast(1))
+                                                        mixedSatinRails = mixedSatinRails +
+                                                            (selectedPart.id to draft)
+                                                        mixedDrafts = mixedDrafts +
+                                                            (selectedPart.id to draft.preview)
+                                                        mixedAudits = mixedAudits +
+                                                            (selectedPart.id to audit)
+                                                        mixedConfirmed = mixedConfirmed -
+                                                            selectedPart.id
+                                                        mixedViewed = mixedViewed -
+                                                            selectedPart.id
+                                                        mixedSelectedPart = selectedPart.id
+                                                        mixedViewMode = 0
+                                                        message = "Último ajuste desfeito. " +
+                                                            "Pontos restaurados e auditados. " +
+                                                            "Confira STITCH novamente."
+                                                    },
+                                                    onFailure = {
+                                                        message = "Não foi possível " +
+                                                            "restaurar: " +
+                                                            (it.message ?:
+                                                                "fonte ou pontos alterados.")
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Desfazer último ajuste Satin (QA)",
+                                        color = FioGold)
+                                }
                                 Text(
-                                    "Cada alteração recalcula STITCH, vazados, " +
-                                        "densidade e agulha. Confirmar exige " +
-                                        "abrir novamente Conferir STITCH.",
+                                    "Ajustes limitados a 0,2 mm por operação, " +
+                                        "0,5 mm acumulado por ponta e 8 mm " +
+                                        "de deslocamento total. Desfazer também " +
+                                        "exige nova inspeção de STITCH e agulha.",
                                     color = FioTextMuted,fontSize = 11.sp
                                 )
                             }
