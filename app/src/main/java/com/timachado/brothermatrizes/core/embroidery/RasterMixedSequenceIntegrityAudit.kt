@@ -13,12 +13,16 @@ internal data class RasterMixedSequenceIntegrityReport(
     val totalCommands: Int,
     val layerBoundaryTrims: Int,
     val layerBoundaryColorChanges: Int,
+    val internalTrims: Int = 0,
+    val internalTravelJumps: Int = 0,
     val exportPermitted: Boolean = false
 ) {
     fun summary(): String =
         reviewedComponents.toString() + " componentes, " + originalStitches +
             " STITCH originais preservados, " + layerBoundaryTrims +
-            " cortes entre partes, " + layerBoundaryColorChanges +
+            " corte(s) entre partes, " + internalTrims +
+            " corte(s) interno(s), " + internalTravelJumps +
+            " JUMP após cortes internos, " + layerBoundaryColorChanges +
             " trocas de linha. Sem atalhos costurados. PES bloqueado."
 }
 
@@ -46,6 +50,8 @@ internal object RasterMixedSequenceIntegrityAudit {
         var stitches = 0
         var jumps = 0
         var boundaryTrims = 0
+        var internalTrims = 0
+        var internalTravelJumps = 0
         var changes = 0
 
         fun consume(expected: EmbroideryPoint, reason: String) {
@@ -112,7 +118,20 @@ internal object RasterMixedSequenceIntegrityAudit {
                 }
             }
             val commands = input.points.dropLast(1)
-            for (command in commands) {
+            // A split Satin or another manually reviewed sub-section must
+            // explicitly TRIM then JUMP. Never silently use an STITCH to
+            // cross an unsewn gap after a requested cut.
+            for ((position,command) in commands.withIndex()) {
+                if (command.command == StitchCommand.TRIM) {
+                    require(position > 0 &&
+                        commands[position-1].command == StitchCommand.STITCH &&
+                        position+1 < commands.size &&
+                        commands[position+1].command == StitchCommand.JUMP &&
+                        commands[position+1].colorIndex == 0
+                    ) { "Corte interno sem deslocamento JUMP imediato." }
+                    internalTrims++
+                    internalTravelJumps++
+                }
                 consume(
                     command.copy(colorIndex=colorIndex),
                     "Pontada original da parte " + part.id
@@ -142,15 +161,18 @@ internal object RasterMixedSequenceIntegrityAudit {
         require(
             audit.stitches == stitches && audit.jumps == jumps &&
                 audit.colorChanges == changes &&
-                audit.trims >= boundaryTrims
-        ) { "Sequência montada inconsistente." }
+                audit.trims == boundaryTrims + internalTrims &&
+                internalTravelJumps == internalTrims
+        ) { "Sequência montada inconsistente: cortes internos ou entre partes." }
         RasterMixedSequenceIntegrityReport(
             reviewedComponents=ordered.size,
             originalStitches=stitches,
             originalJumps=jumps,
             totalCommands=cursor,
             layerBoundaryTrims=boundaryTrims,
-            layerBoundaryColorChanges=changes
+            layerBoundaryColorChanges=changes,
+            internalTrims=internalTrims,
+            internalTravelJumps=internalTravelJumps
         )
     }
 }
