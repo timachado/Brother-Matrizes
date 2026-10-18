@@ -16,6 +16,8 @@ internal data class RasterThreadTextureStudyReport(
     val suggestedColorFamilies: Int,
     val ambiguousPixels: Int,
     val originalAlphaHolesPreserved: Boolean,
+    // Detect stale study results if an imported raster changed in memory.
+    val sourceArgbFingerprint: Long = 0L,
     val reviewRequired: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
@@ -43,6 +45,11 @@ internal object RasterThreadTextureStudy {
             require(source.argb.any { (it ushr 24) < 128 }) {
                 "Esta revisão exige fundo transparente; remover fundo " +
                     "de fotografia comum requer revisão separada."
+            }
+            var sourceFingerprint = 1469598103934665603L
+            for (pixel in source.argb) {
+                sourceFingerprint = (sourceFingerprint xor
+                    (pixel.toLong() and 0xffffffffL)) * 1099511628211L
             }
             val active = BooleanArray(source.argb.size)
             val tones = HashSet<Int>()
@@ -144,7 +151,8 @@ internal object RasterThreadTextureStudy {
                 originalToneBuckets = tones.size,
                 suggestedColorFamilies = palette.size,
                 ambiguousPixels = ambiguous,
-                originalAlphaHolesPreserved = preserved
+                originalAlphaHolesPreserved = preserved,
+                sourceArgbFingerprint = sourceFingerprint
             )
         }
 
