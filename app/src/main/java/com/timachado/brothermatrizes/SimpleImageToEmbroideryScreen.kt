@@ -403,6 +403,9 @@ fun SimpleImageToEmbroideryScreen(
     var mixedSatinRails by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, RasterLetterSatinDraft>>(emptyMap())
     }
+    var mixedSatinUndo by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Map<Int, List<RasterLetterSatinDraft>>>(emptyMap())
+    }
     var mixedRailSection by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableIntStateOf(0)
     }
@@ -1117,6 +1120,7 @@ fun SimpleImageToEmbroideryScreen(
                                         mixedAudits = emptyMap()
                                         mixedTopology = emptyMap()
                                         mixedSatinRails = emptyMap()
+                                        mixedSatinUndo = emptyMap()
                                         mixedRailSection = 0
                                         mixedRailPair = 0
                                         mixedViewed = emptySet()
@@ -1211,6 +1215,7 @@ fun SimpleImageToEmbroideryScreen(
                                                 (part.id to kind)
                                             mixedDrafts = mixedDrafts - part.id
                                             mixedSatinRails = mixedSatinRails - part.id
+                                            mixedSatinUndo = mixedSatinUndo - part.id
                                             mixedAudits = mixedAudits - part.id
                                             mixedViewed = mixedViewed - part.id
                                             mixedConfirmed = mixedConfirmed - part.id
@@ -1317,6 +1322,8 @@ fun SimpleImageToEmbroideryScreen(
                                                 onSuccess = { (draft, audit) ->
                                                     mixedSatinRails = mixedSatinRails +
                                                         (currentPart.id to draft)
+                                                    mixedSatinUndo = mixedSatinUndo -
+                                                        currentPart.id
                                                     mixedDrafts = mixedDrafts +
                                                         (currentPart.id to draft.preview)
                                                     mixedAudits = mixedAudits +
@@ -1359,6 +1366,12 @@ fun SimpleImageToEmbroideryScreen(
                                         ", revisão " + current.revision + ".",
                                     color = FioTextMuted,fontSize = 11.sp
                                 )
+                                if (current.revision > 0) {
+                                    Text(
+                                        current.changeSummary(),
+                                        color = FioTextMuted,fontSize = 11.sp
+                                    )
+                                }
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .horizontalScroll(rememberScrollState()),
@@ -1479,6 +1492,14 @@ fun SimpleImageToEmbroideryScreen(
                                                         hoop == currentHoop) {
                                                         result.fold(
                                                             onSuccess = { (draft,audit) ->
+                                                                mixedSatinUndo =
+                                                                    mixedSatinUndo +
+                                                                    (currentPart.id to
+                                                                        (mixedSatinUndo[
+                                                                            currentPart.id
+                                                                        ].orEmpty()
+                                                                            .takeLast(19) +
+                                                                            previous))
                                                                 mixedSatinRails =
                                                                     mixedSatinRails +
                                                                     (currentPart.id to draft)
@@ -1495,6 +1516,7 @@ fun SimpleImageToEmbroideryScreen(
                                                                 mixedSelectedPart=currentPart.id
                                                                 mixedViewMode=0
                                                                 message=draft.summary() +
+                                                                    " " + draft.changeSummary() +
                                                                     " Reconfira STITCH."
                                                             },
                                                             onFailure = {
@@ -1560,6 +1582,8 @@ fun SimpleImageToEmbroideryScreen(
                                         proposal.fold(
                                             onSuccess = { (design, audit) ->
                                                 mixedSatinRails = mixedSatinRails -
+                                                    partSnapshot.id
+                                                mixedSatinUndo = mixedSatinUndo -
                                                     partSnapshot.id
                                                 mixedDrafts = mixedDrafts +
                                                     (partSnapshot.id to design)
