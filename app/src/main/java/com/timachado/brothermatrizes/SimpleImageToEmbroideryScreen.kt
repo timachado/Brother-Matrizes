@@ -65,6 +65,8 @@ import com.timachado.brothermatrizes.core.embroidery.ManualSatinSection
 import com.timachado.brothermatrizes.core.embroidery.RasterPhotoPreparation
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
+import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionGate
+import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionReport
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
@@ -303,6 +305,18 @@ fun SimpleImageToEmbroideryScreen(
     var flatStudy by remember(stageImage) {
         mutableStateOf<RasterThreadTextureStudyReport?>(null)
     }
+    // The operator explicitly selects a reconstructed QA-only reference;
+    // the imported photograph is never overwritten by this preference.
+    var flatSourceCandidate by remember(stageImage, flatStudy) {
+        mutableStateOf<RasterTextureReconstructionReport?>(null)
+    }
+    var acceptedFlatSource by remember(stageImage, flatStudy) {
+        mutableStateOf<RasterTextureReconstructionReport?>(null)
+    }
+    var checkingFlatSource by remember(stageImage, flatStudy) {
+        mutableStateOf(false)
+    }
+    val mixedSource = acceptedFlatSource?.flatReference ?: prepared?.image
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
@@ -363,34 +377,34 @@ fun SimpleImageToEmbroideryScreen(
     }
     // Mixed-technique QA is tied to the exact image, scale and hoop.
     // Changing any of these discards candidate paths and confirmations.
-    var mixedOpen by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
-    var mixedParts by remember(stageImage, hoop, widthMm) {
+    var mixedOpen by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf(false) }
+    var mixedParts by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<List<RasterSatinObject>>(emptyList())
     }
-    var mixedOrder by remember(stageImage, hoop, widthMm) {
+    var mixedOrder by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<List<Int>>(emptyList())
     }
-    var mixedTechniques by remember(stageImage, hoop, widthMm) {
+    var mixedTechniques by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, RasterTechniqueKind>>(emptyMap())
     }
-    var mixedDrafts by remember(stageImage, hoop, widthMm) {
+    var mixedDrafts by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, EmbroideryDesign>>(emptyMap())
     }
-    var mixedConfirmed by remember(stageImage, hoop, widthMm) {
+    var mixedConfirmed by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Set<Int>>(emptySet())
     }
-    var mixedAudits by remember(stageImage, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
-    var mixedViewed by remember(stageImage, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
+    var mixedAudits by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
+    var mixedViewed by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
     // 0 = fonte, 1 = STITCH, 2 = mapa de cobertura.
-    var mixedViewMode by remember(stageImage, hoop, widthMm) { mutableIntStateOf(0) }
-    var mixedBusy by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
-    var mixedSelectedPart by remember(stageImage, hoop, widthMm) {
+    var mixedViewMode by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableIntStateOf(0) }
+    var mixedBusy by remember(stageImage, acceptedFlatSource, hoop, widthMm) { mutableStateOf(false) }
+    var mixedSelectedPart by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableIntStateOf(0)
     }
     // A finished sequence cannot survive a new source, part, technique,
     // stitch draft, color/order change or removed human approval.
     var mixedAssembly by remember(
-        stageImage, hoop, widthMm, mixedParts, mixedOrder,
+        stageImage, acceptedFlatSource, hoop, widthMm, mixedParts, mixedOrder,
         mixedTechniques, mixedDrafts, mixedConfirmed, mixedViewed, mixedAudits
     ) {
         mutableStateOf<RasterMixedTechniqueSequenceReview?>(null)
@@ -398,8 +412,8 @@ fun SimpleImageToEmbroideryScreen(
     var mixedAssemblyViewed by remember(mixedAssembly) {
         mutableStateOf(false)
     }
-    val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, stageImage) {
-        val original = prepared?.image
+    val mixedPartOverlay = remember(mixedParts, mixedSelectedPart, mixedSource) {
+        val original = mixedSource
         val item = mixedParts.firstOrNull { it.id == mixedSelectedPart }
         if (original == null || item == null ||
             item.mask.pixels.size != original.argb.size
@@ -492,7 +506,7 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (mixedFullShown != null) stageImage
+                rasterArtwork = if (mixedFullShown != null) mixedSource
                     else mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
