@@ -132,6 +132,36 @@ internal object RasterMixedTechniqueReviewWorkflow {
             "A sequência precisa de todas as partes detectadas e " +
                 "confirmadas. Nenhuma letra poderá ser omitida."
         }
+        // Re-derive every connected, EXACT-color source component. Comparing
+        // confirmed layers only with the originally selected subset would
+        // silently omit a forgotten letter or small valid accent.
+        val canonical = RasterExactColorComponentDetector.detect(
+            source
+        ).getOrThrow()
+        require(canonical.size == detected.size) {
+            "A foto original contém partes ausentes da seleção. " +
+                "Recomece a revisão sem descartar letras e detalhes."
+        }
+        val unmatched = canonical.toMutableList()
+        for (part in detected) {
+            val idx = unmatched.indexOfFirst { original ->
+                original.color == part.color &&
+                    original.pixelCount == part.pixelCount &&
+                    original.mask.minX == part.mask.minX &&
+                    original.mask.minY == part.mask.minY &&
+                    original.mask.maxX == part.mask.maxX &&
+                    original.mask.maxY == part.mask.maxY &&
+                    original.mask.pixels.contentEquals(part.mask.pixels)
+            }
+            require(idx >= 0) {
+                "Um componente selecionado não corresponde a uma parte " +
+                    "íntegra da fonte. Refaça a separação da imagem."
+            }
+            unmatched.removeAt(idx)
+        }
+        require(unmatched.isEmpty()) {
+            "A montagem ainda omite partes da imagem original."
+        }
         val byId = detected.associateBy { it.id }
         for (layer in confirmed) {
             val expected = byId[layer.component.id] ?:
