@@ -1503,6 +1503,162 @@ fun SimpleImageToEmbroideryScreen(
                                         }
                                     }
                                 }
+                                // A division changes stitch topology. It is
+                                // an explicit PROPOSAL, not an implicit rail edit.
+                                val canTrySplit = section.rails.size >= 12 &&
+                                    railId in 5..(section.rails.size-6) &&
+                                    current.sections.size < 24
+                                OutlinedButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = canTrySplit && !mixedBusy && !simulating,
+                                    onClick = {
+                                        val original = mixedSource
+                                            ?: return@OutlinedButton
+                                        val selectedPart = part
+                                        val snapshot = mixedSatinRails[part.id]
+                                            ?: return@OutlinedButton
+                                        if (snapshot !== current) return@OutlinedButton
+                                        val chosenWidth = widthMm
+                                        val chosenHoop = hoop
+                                        val acceptedSnapshot = acceptedFlatSource
+                                        val stamp = revision
+                                        mixedBusy = true
+                                        message = ""
+                                        scope.launch {
+                                            val candidate = withContext(
+                                                Dispatchers.Default
+                                            ) {
+                                                RasterLetterEditableSatinReview
+                                                    .proposeIndependentSplit(
+                                                        original,selectedPart,
+                                                        snapshot,sectionId,railId,
+                                                        chosenWidth,chosenHoop
+                                                    ).mapCatching { draft ->
+                                                        draft to
+                                                            RasterMixedStitchVisualAudit
+                                                                .inspect(
+                                                                    original,selectedPart,
+                                                                    draft.preview,chosenWidth,
+                                                                    chosenHoop
+                                                                ).getOrThrow()
+                                                    }
+                                            }
+                                            mixedBusy = false
+                                            if (revision == stamp &&
+                                                mixedSource === original &&
+                                                acceptedFlatSource === acceptedSnapshot &&
+                                                mixedSatinRails[selectedPart.id] === snapshot &&
+                                                mixedTechniques[selectedPart.id] ==
+                                                    RasterTechniqueKind.SATIN &&
+                                                widthMm == chosenWidth &&
+                                                hoop == chosenHoop) {
+                                                candidate.fold(
+                                                    onSuccess = { (draft,audit) ->
+                                                        mixedSplitCandidates =
+                                                            mixedSplitCandidates +
+                                                            (selectedPart.id to
+                                                                Triple(snapshot,draft,audit))
+                                                        mixedSplitViewed =
+                                                            mixedSplitViewed - selectedPart.id
+                                                        mixedSelectedPart = selectedPart.id
+                                                        mixedViewMode = 0
+                                                        message = "Divisão candidata: " +
+                                                            draft.summary() + " " +
+                                                            draft.changeSummary() +
+                                                            " Confira STITCH da divisão " +
+                                                            "antes de aceitar."
+                                                    },
+                                                    onFailure = {
+                                                        message = "Divisão Satin recusada: " +
+                                                            (it.message ?:
+                                                                "TRIM, cobertura ou " +
+                                                                "densidade incompatíveis.")
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Propor corte na junção selecionada (QA)",
+                                        color = FioGold)
+                                }
+                                mixedSplitCandidates[part.id]?.takeIf {
+                                    it.first === current
+                                }?.let { candidate ->
+                                    Text(
+                                        "Prévia candidata com duas seções " +
+                                            "independentes. " +
+                                            candidate.second.changeSummary(),
+                                        color = FioTextMuted,fontSize = 11.sp
+                                    )
+                                    OutlinedButton(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !mixedBusy,
+                                        onClick = {
+                                            if(mixedSatinRails[part.id] === current) {
+                                                mixedSelectedPart = part.id
+                                                mixedViewMode = 4
+                                                mixedSplitViewed =
+                                                    mixedSplitViewed + part.id
+                                            }
+                                        }
+                                    ) {
+                                        Text("Conferir STITCH do corte proposto",
+                                            color = FioGold)
+                                    }
+                                    Button(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !mixedBusy && !simulating &&
+                                            part.id in mixedSplitViewed,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = FioGold
+                                        ),
+                                        onClick = {
+                                            val active = mixedSplitCandidates[part.id]
+                                            if(active === candidate &&
+                                                active.first ===
+                                                    mixedSatinRails[part.id] &&
+                                                part.id in mixedSplitViewed &&
+                                                mixedTechniques[part.id] ==
+                                                    RasterTechniqueKind.SATIN &&
+                                                !active.second.exportPermitted) {
+                                                mixedSatinRails =
+                                                    mixedSatinRails +
+                                                    (part.id to active.second)
+                                                // Topology changed; the old
+                                                // endpoint undo history no
+                                                // longer has the same indices.
+                                                mixedSatinUndo =
+                                                    mixedSatinUndo - part.id
+                                                mixedCurveHotspots =
+                                                    mixedCurveHotspots - part.id
+                                                mixedDrafts = mixedDrafts +
+                                                    (part.id to active.second.preview)
+                                                mixedAudits = mixedAudits +
+                                                    (part.id to active.third)
+                                                mixedConfirmed =
+                                                    mixedConfirmed - part.id
+                                                mixedViewed = mixedViewed - part.id
+                                                mixedSplitCandidates =
+                                                    mixedSplitCandidates - part.id
+                                                mixedSplitViewed =
+                                                    mixedSplitViewed - part.id
+                                                mixedRailSection = sectionId
+                                                mixedRailPair = 0
+                                                mixedSelectedPart = part.id
+                                                mixedViewMode = 0
+                                                message = "Divisão Satin aplicada " +
+                                                    "após revisão QA. Conferir " +
+                                                    "STITCH e confirmar esta parte " +
+                                                    "novamente antes de simular."
+                                            }
+                                        }
+                                    ) {
+                                        Text("Aceitar divisão revisada (QA)",
+                                            color = FioBackground,
+                                            fontWeight = FontWeight.Bold)
+                                    }
+                                }
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .horizontalScroll(rememberScrollState()),
