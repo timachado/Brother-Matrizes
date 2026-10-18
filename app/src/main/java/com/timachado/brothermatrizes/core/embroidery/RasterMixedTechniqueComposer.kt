@@ -17,6 +17,7 @@ internal data class RasterMixedTechniqueSequenceReview(
     val trims: Int,
     val colorChanges: Int,
     val integrityReport: RasterMixedSequenceIntegrityReport? = null,
+    val fullCanvasReport: RasterMixedFullCanvasReport? = null,
     val needsPhysicalStitchOut: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
