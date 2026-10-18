@@ -89,6 +89,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvid
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueSequenceReview
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReview
+import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReport
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -390,6 +392,9 @@ fun SimpleImageToEmbroideryScreen(
     }
     var mixedDrafts by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, EmbroideryDesign>>(emptyMap())
+    }
+    var mixedTopology by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Map<Int, RasterLetterTopologyReport>>(emptyMap())
     }
     var mixedConfirmed by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Set<Int>>(emptySet())
@@ -1091,6 +1096,7 @@ fun SimpleImageToEmbroideryScreen(
                                         }
                                         mixedDrafts = emptyMap()
                                         mixedAudits = emptyMap()
+                                        mixedTopology = emptyMap()
                                         mixedViewed = emptySet()
                                         mixedConfirmed = emptySet()
                                         mixedSelectedPart = 0
@@ -1195,6 +1201,55 @@ fun SimpleImageToEmbroideryScreen(
                                     )
                                 }
                             }
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !mixedBusy && !simulating,
+                            onClick = {
+                                val original = mixedSource
+                                    ?: return@OutlinedButton
+                                val acceptedSnapshot = acceptedFlatSource
+                                val stamp = revision
+                                val partSnapshot = part
+                                mixedBusy = true
+                                message = ""
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        RasterLetterTopologyReview.inspect(
+                                            original, partSnapshot
+                                        )
+                                    }
+                                    mixedBusy = false
+                                    if (revision == stamp &&
+                                        acceptedFlatSource === acceptedSnapshot &&
+                                        mixedSource === original &&
+                                        mixedParts.any { it === partSnapshot }) {
+                                        result.fold(
+                                            onSuccess = {
+                                                mixedTopology = mixedTopology +
+                                                    (partSnapshot.id to it)
+                                                mixedSelectedPart = partSnapshot.id
+                                                mixedViewMode = 0
+                                                message = it.guidance()
+                                            },
+                                            onFailure = {
+                                                message = "Contorno não confiável: " +
+                                                    (it.message ?: "refaça a forma.")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Analisar curvas e vazados (QA)", color = FioGold)
+                        }
+                        mixedTopology[part.id]?.let { topology ->
+                            Text(
+                                topology.guidance(),
+                                color = if (topology.manualGeometryRequired)
+                                    FioGold else FioTextMuted,
+                                fontSize = 11.sp
+                            )
                         }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
