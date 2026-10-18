@@ -183,9 +183,10 @@ internal object RasterLetterEditableSatinReview {
      * Overlap exactly the original seam rail; the generator must insert
      * TRIM + JUMP and all post-quantized audits must pass.
      *
-     * The split is deliberately returned as a NEW proposal with a NEW
-     * baseline, to prevent endpoint editing across changed rail topology.
-     * UI must first preview/compare it and obtain explicit operator consent.
+     * The split returns a NEW section topology but keeps the original
+     * coordinate baseline by applying the SAME split to the baseline rails.
+     * This prevents bypassing cumulative endpoint drift limits through
+     * repeated splitting. UI must obtain explicit operator consent.
      * Existing previews/history are NOT modified by a rejected split.
      */
     fun proposeIndependentSplit(
@@ -236,6 +237,21 @@ internal object RasterLetterEditableSatinReview {
         val updated = previous.sections.take(sectionIndex) + listOf(
             first,second
         ) + previous.sections.drop(sectionIndex+1)
+        val baselineSource=previous.baselineSections
+        require(baselineSource.size==previous.sections.size &&
+            baselineSource[sectionIndex].rails.size==railCount
+        ) { "O limite acumulado Satin não acompanha a topologia anterior." }
+        val base=baselineSource[sectionIndex]
+        val baselineAfterSplit=baselineSource.take(sectionIndex) + listOf(
+            ManualSatinSection(
+                base.rails.subList(0,splitPairIndex+1).toList(),
+                connectToPrevious=base.connectToPrevious
+            ),
+            ManualSatinSection(
+                base.rails.subList(splitPairIndex,railCount).toList(),
+                connectToPrevious=false
+            )
+        ) + baselineSource.drop(sectionIndex+1)
         require(updated.sumOf { it.rails.size } ==
             previous.sections.sumOf { it.rails.size }+1 &&
             updated[sectionIndex+1].rails.first() ==
@@ -249,7 +265,7 @@ internal object RasterLetterEditableSatinReview {
         }
         val result = validate(
             original,part,updated,widthMm,hoop,fresh,
-            0,baselineSections=updated
+            0,baselineSections=baselineAfterSplit
         )
         val beforeTrims=previous.preview.points.count {
             it.command==StitchCommand.TRIM
@@ -262,7 +278,8 @@ internal object RasterLetterEditableSatinReview {
             result.preview.jumpCount>=beforeJumps+1 &&
             result.preview.points!=previous.preview.points &&
             result.preview.colorChanges==0 &&
-            result.preview.sourceBytes.isEmpty()
+            result.preview.sourceBytes.isEmpty() &&
+            result.preview.points.last().command==StitchCommand.END
         ) {
             "A divisão não introduziu um TRIM/JUMP real e seguro " +
                 "entre os dois trechos Satin. Não foi aplicada."
