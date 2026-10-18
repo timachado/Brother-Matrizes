@@ -76,6 +76,9 @@ import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredRegionReport
 import com.timachado.brothermatrizes.core.embroidery.RasterUncoveredReviewOverlay
 import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairGuidance
 import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairPlan
+import com.timachado.brothermatrizes.core.embroidery.RasterGapRepairAction
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairTrial
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairResult
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -331,6 +334,12 @@ fun SimpleImageToEmbroideryScreen(
         mutableStateOf<RasterGapRepairPlan?>(null)
     }
     var showGapOverlay by remember(stageImage) { mutableStateOf(false) }
+    var trialBusy by remember(uncoveredReport, satinSections, widthMm, hoop) {
+        mutableStateOf(false)
+    }
+    var repairTrial by remember(uncoveredReport, satinSections, widthMm, hoop) {
+        mutableStateOf<RasterSatinBoundedRepairResult?>(null)
+    }
     var selectedGapId by remember(stageImage) { mutableIntStateOf(0) }
     val gapOverlay = remember(
         uncoveredReport, showGapOverlay, selectedGapId,
@@ -1187,6 +1196,122 @@ fun SimpleImageToEmbroideryScreen(
                                             advice.guidance(),
                                             color = FioGold, fontSize = 11.sp
                                         )
+                                    }
+                                }
+                            }
+                            repairPlan?.let { guided ->
+                                val canTrySatin = guided.advice.any {
+                                    it.regionId == selectedGapId &&
+                                        it.action ==
+                                            RasterGapRepairAction.REVIEW_SATIN_RAILS
+                                }
+                                if (canTrySatin) {
+                                    OutlinedButton(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !trialBusy && !simulating &&
+                                            !repairGuidanceBusy && fitted &&
+                                            activePart.id in satinTouched,
+                                        onClick = {
+                                            val original = prepared?.image
+                                                ?: return@OutlinedButton
+                                            val part = activePart
+                                            val regionId = selectedGapId
+                                            val startingSections =
+                                                satinSections[part.id].orEmpty().toList()
+                                            val reportSnapshot = missing
+                                            val widthSnapshot = widthMm
+                                            val hoopSnapshot = hoop
+                                            val stamp = revision
+                                            val holes = elementPlan?.elements
+                                                ?.firstOrNull { it.id == part.id }
+                                                ?.enclosedHoles
+                                            trialBusy = true
+                                            repairTrial = null
+                                            message = ""
+                                            scope.launch {
+                                                val candidate =
+                                                    withContext(Dispatchers.Default) {
+                                                        runCatching {
+                                                            val sourceHoles = holes
+                                                                ?: error(
+                                                                    "Não foi possível validar os " +
+                                                                        "vazados da imagem."
+                                                                )
+                                                            RasterSatinBoundedRepairTrial.suggest(
+                                                                original, part,
+                                                                startingSections,
+                                                                reportSnapshot,
+                                                                regionId,
+                                                                widthSnapshot,
+                                                                hoopSnapshot,
+                                                                sourceHoles
+                                                            ).getOrThrow()
+                                                        }
+                                                    }
+                                                trialBusy = false
+                                                if (revision == stamp &&
+                                                    prepared?.image === original &&
+                                                    satinParts.getOrNull(satinPartIndex) === part &&
+                                                    satinSections[part.id] == startingSections &&
+                                                    uncoveredReport === reportSnapshot &&
+                                                    widthMm == widthSnapshot &&
+                                                    hoop == hoopSnapshot &&
+                                                    selectedGapId == regionId) {
+                                                    candidate.fold(
+                                                        onSuccess = { repairTrial = it },
+                                                        onFailure = {
+                                                            message = it.message ?:
+                                                                "Sem ajuste Satin válido. " +
+                                                                    "Revise o trecho manualmente."
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Text(
+                                            if (trialBusy)
+                                                "Auditando proposta de deslocamento..."
+                                            else "Ensaiar ajuste Satin de até 0,35 mm",
+                                            color = FioGold
+                                        )
+                                    }
+                                    repairTrial?.takeIf {
+                                        it.regionId == selectedGapId
+                                    }?.let { candidate ->
+                                        Text(
+                                            candidate.message(),
+                                            color = FioTextMuted, fontSize = 11.sp
+                                        )
+                                        OutlinedButton(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            enabled = !trialBusy && !simulating &&
+                                                satinSections[activePart.id].orEmpty()
+                                                    .isNotEmpty(),
+                                            onClick = {
+                                                // Only an explicit tap incorporates
+                                                // the tentative rails. It clears the
+                                                // human-reviewed flag, forcing another
+                                                // manual edit/review before simulation.
+                                                satinSections = satinSections +
+                                                    (activePart.id to
+                                                        candidate.candidateSections)
+                                                satinTouched = satinTouched - activePart.id
+                                                satinSectionIndex = candidate.sectionIndex
+                                                    .coerceIn(0,
+                                                        candidate.candidateSections.lastIndex)
+                                                showGapOverlay = false
+                                                message =
+                                                    "Trilhos incorporados como rascunho QA. " +
+                                                        "Revise os pontos no editor Satin " +
+                                                        "antes de simular. PES bloqueado."
+                                            }
+                                        ) {
+                                            Text(
+                                                "Adotar proposta para editar (QA)",
+                                                color = FioGold
+                                            )
+                                        }
                                     }
                                 }
                             }
