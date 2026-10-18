@@ -84,6 +84,14 @@ class RasterMultiLetterComponentBudgetTest {
         assertEquals("QA_AUTO_STITCH",result.design.format)
         assertTrue(result.design.sourceBytes.isEmpty())
         assertFalse(result.exportPermitted)
+        // Regression: the editor and final readiness gate must share 24,
+        // otherwise valid 13-24 component assemblies cannot be simulated.
+        val readiness=RasterImageQaReleaseReadinessAudit.inspect(
+            result
+        ).getOrThrow()
+        assertEquals(21,readiness.verifiedComponents)
+        assertEquals(4,readiness.outstandingProductionGates)
+        assertFalse(readiness.exportPermitted)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
