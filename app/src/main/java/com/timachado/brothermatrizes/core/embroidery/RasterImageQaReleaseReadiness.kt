@@ -77,8 +77,11 @@ internal object RasterImageQaReleaseReadinessAudit {
                 !RasterEmbroideryApproval.canExportFromImageTool()
         ) { "Montagem QA alterada, não é matriz de produção." }
         val sequence=RasterThreadSequenceAudit.inspect(design).getOrThrow()
+        val verifiedHoop = design.hoopProfile ?: error(
+            "O bastidor da composição QA não está definido."
+        )
         val needle=RasterNeedleRiskAudit.inspect(
-            design,design.hoopProfile
+            design,verifiedHoop
         ).getOrThrow()
         val density=RasterThreadDensityPreflight.inspect(
             design
