@@ -95,6 +95,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterLetterEditableSatinRe
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterSatinDraft
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterRailEdge
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterRailAxis
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinCurveHotspotReview
+import com.timachado.brothermatrizes.core.embroidery.RasterSatinCurveHotspotReport
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -405,6 +407,12 @@ fun SimpleImageToEmbroideryScreen(
     }
     var mixedSatinUndo by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableStateOf<Map<Int, List<RasterLetterSatinDraft>>>(emptyMap())
+    }
+    // A hotspot report is valid for ONE exact Satin draft, never reused
+    // after moving a rail, undo or changing the reference image.
+    var mixedCurveHotspots by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
+        mutableStateOf<Map<Int, Pair<RasterLetterSatinDraft,
+            RasterSatinCurveHotspotReport>>>(emptyMap())
     }
     var mixedRailSection by remember(stageImage, acceptedFlatSource, hoop, widthMm) {
         mutableIntStateOf(0)
@@ -1121,6 +1129,7 @@ fun SimpleImageToEmbroideryScreen(
                                         mixedTopology = emptyMap()
                                         mixedSatinRails = emptyMap()
                                         mixedSatinUndo = emptyMap()
+                                        mixedCurveHotspots = emptyMap()
                                         mixedRailSection = 0
                                         mixedRailPair = 0
                                         mixedViewed = emptySet()
@@ -1216,6 +1225,7 @@ fun SimpleImageToEmbroideryScreen(
                                             mixedDrafts = mixedDrafts - part.id
                                             mixedSatinRails = mixedSatinRails - part.id
                                             mixedSatinUndo = mixedSatinUndo - part.id
+                                            mixedCurveHotspots = mixedCurveHotspots - part.id
                                             mixedAudits = mixedAudits - part.id
                                             mixedViewed = mixedViewed - part.id
                                             mixedConfirmed = mixedConfirmed - part.id
@@ -1322,6 +1332,8 @@ fun SimpleImageToEmbroideryScreen(
                                                 onSuccess = { (draft, audit) ->
                                                     mixedSatinRails = mixedSatinRails +
                                                         (currentPart.id to draft)
+                                                    mixedCurveHotspots =
+                                                        mixedCurveHotspots - currentPart.id
                                                     mixedSatinUndo = mixedSatinUndo -
                                                         currentPart.id
                                                     mixedDrafts = mixedDrafts +
@@ -1503,6 +1515,9 @@ fun SimpleImageToEmbroideryScreen(
                                                                 mixedSatinRails =
                                                                     mixedSatinRails +
                                                                     (currentPart.id to draft)
+                                                                mixedCurveHotspots =
+                                                                    mixedCurveHotspots -
+                                                                    currentPart.id
                                                                 mixedDrafts = mixedDrafts +
                                                                     (currentPart.id to
                                                                         draft.preview)
@@ -1597,6 +1612,9 @@ fun SimpleImageToEmbroideryScreen(
                                                                 .dropLast(1))
                                                         mixedSatinRails = mixedSatinRails +
                                                             (selectedPart.id to draft)
+                                                        mixedCurveHotspots =
+                                                            mixedCurveHotspots -
+                                                            selectedPart.id
                                                         mixedDrafts = mixedDrafts +
                                                             (selectedPart.id to draft.preview)
                                                         mixedAudits = mixedAudits +
@@ -1672,6 +1690,8 @@ fun SimpleImageToEmbroideryScreen(
                                             onSuccess = { (design, audit) ->
                                                 mixedSatinRails = mixedSatinRails -
                                                     partSnapshot.id
+                                                mixedCurveHotspots =
+                                                    mixedCurveHotspots - partSnapshot.id
                                                 mixedSatinUndo = mixedSatinUndo -
                                                     partSnapshot.id
                                                 mixedDrafts = mixedDrafts +
