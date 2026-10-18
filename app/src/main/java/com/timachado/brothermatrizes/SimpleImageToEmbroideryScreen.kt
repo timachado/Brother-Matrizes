@@ -1113,8 +1113,8 @@ fun SimpleImageToEmbroideryScreen(
                             val detected = withContext(Dispatchers.Default) {
                                 RasterExactColorComponentDetector.detect(original)
                                     .mapCatching { parts ->
-                                        require(parts.size in 2..12) {
-                                            "A montagem QA requer 2 a 12 elementos. " +
+                                        require(parts.size in 2..24) {
+                                            "A montagem QA requer 2 a 24 elementos. " +
                                                 "Recorte a arte em partes menores."
                                         }
                                         parts
@@ -2065,7 +2065,7 @@ fun SimpleImageToEmbroideryScreen(
                         }
                     }
                 }
-                val allConfirmed = mixedParts.size in 2..12 &&
+                val allConfirmed = mixedParts.size in 2..24 &&
                     mixedConfirmed.size == mixedParts.size &&
                     mixedOrder.toSet() == mixedConfirmed &&
                     mixedOrder.all { mixedDrafts[it] != null &&
