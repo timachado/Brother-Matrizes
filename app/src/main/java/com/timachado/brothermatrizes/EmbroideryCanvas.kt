@@ -87,7 +87,9 @@ fun EmbroideryCanvas(
     showConnections: Boolean = false,
     /** Raster overlay for image preparation ONLY: NOT stitches or a PES matrix. */
     rasterArtwork: RasterImagePixels? = null,
-    rasterWidthMm: Float = 0f
+    rasterWidthMm: Float = 0f,
+    /** QA overlay opacity; default preserves all existing image/canvas screens. */
+    rasterOpacity: Float = .99f
 ) {
     val rasterBitmap: ImageBitmap? = remember(rasterArtwork) {
         rasterArtwork?.let {
@@ -260,7 +262,7 @@ fun EmbroideryCanvas(
                         ((size.height - bitmapHeightPx) / 2f).toInt()
                     ),
                     dstSize = IntSize(bitmapWidthPx, bitmapHeightPx),
-                    alpha = .99f
+                    alpha = rasterOpacity.coerceIn(0f, 1f)
                 )
             }
         }

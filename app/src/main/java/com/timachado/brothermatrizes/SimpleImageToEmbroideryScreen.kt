@@ -82,6 +82,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSatinBoundedRepairRes
 import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
+import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
 import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -376,6 +378,10 @@ fun SimpleImageToEmbroideryScreen(
     var mixedConfirmed by remember(stageImage, hoop, widthMm) {
         mutableStateOf<Set<Int>>(emptySet())
     }
+    var mixedAudits by remember(stageImage, hoop, widthMm) { mutableStateOf<Map<Int, RasterMixedStitchVisualEvidence>>(emptyMap()) }
+    var mixedViewed by remember(stageImage, hoop, widthMm) { mutableStateOf<Set<Int>>(emptySet()) }
+    // 0 = fonte, 1 = STITCH, 2 = mapa de cobertura.
+    var mixedViewMode by remember(stageImage, hoop, widthMm) { mutableIntStateOf(0) }
     var mixedBusy by remember(stageImage, hoop, widthMm) { mutableStateOf(false) }
     var mixedSelectedPart by remember(stageImage, hoop, widthMm) {
         mutableIntStateOf(0)
@@ -392,6 +398,10 @@ fun SimpleImageToEmbroideryScreen(
             }, "Elemento para prévia multitécnica QA"
         )
     }
+    val mixedShown = if (mixedOpen && mixedViewMode == 1) mixedDrafts[mixedSelectedPart] else null
+    val mixedAuditShown = if (mixedOpen) mixedAudits[mixedSelectedPart] else null
+    val mixedCoverShown = if (mixedOpen && mixedViewMode == 2) mixedAuditShown?.coverageOverlay else null
+    val mixedSourceShown = if (mixedOpen && mixedViewMode == 1) mixedAuditShown?.sourceOverlay else null
     val placeholder = remember(stageImage, hoop, widthMm) {
         stageImage?.let { imageStagePlaceholder(it, hoop, widthMm.coerceAtLeast(.1f)) }
     }
@@ -463,17 +473,22 @@ fun SimpleImageToEmbroideryScreen(
             // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
-                design = placeholder,
+                design = mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = gapOverlay ?: mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
+                rasterArtwork = mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?: mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
+                rasterOpacity = if (mixedShown != null) .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (mixedPartOverlay != null)
+                if (mixedShown != null)
+                    "Pontadas STITCH/JUMP reais sobre a fonte semitransparente. Não é PES."
+                else if (mixedCoverShown != null)
+                    "Cobertura real QA: laranja = tinta sem pontos; cinza = tinta coberta."
+                else if (mixedPartOverlay != null)
                     "Componente destacado para revisão multitécnica. " +
                         "É a imagem original isolada, NÃO são pontadas."
                 else if (gapOverlay != null)
@@ -942,8 +957,11 @@ fun SimpleImageToEmbroideryScreen(
                                             }
                                         }
                                         mixedDrafts = emptyMap()
+                                        mixedAudits = emptyMap()
+                                        mixedViewed = emptySet()
                                         mixedConfirmed = emptySet()
                                         mixedSelectedPart = 0
+                                        mixedViewMode = 0
                                         mixedOpen = true
                                     },
                                     onFailure = {
@@ -991,7 +1009,7 @@ fun SimpleImageToEmbroideryScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             OutlinedButton(
-                                onClick = { mixedSelectedPart = part.id }
+                                onClick = { mixedSelectedPart = part.id; mixedViewMode = 0 }
                             ) { Text("Ver parte", color = FioGold) }
                             OutlinedButton(
                                 enabled = orderIndex > 0 && !mixedBusy,
@@ -1022,7 +1040,10 @@ fun SimpleImageToEmbroideryScreen(
                                             mixedTechniques = mixedTechniques +
                                                 (part.id to kind)
                                             mixedDrafts = mixedDrafts - part.id
+                                            mixedAudits = mixedAudits - part.id
+                                            mixedViewed = mixedViewed - part.id
                                             mixedConfirmed = mixedConfirmed - part.id
+                                            if (mixedSelectedPart == part.id) mixedViewMode = 0
                                         }
                                     }
                                 ) {
@@ -1057,7 +1078,11 @@ fun SimpleImageToEmbroideryScreen(
                                         RasterMixedTechniqueReviewWorkflow.prepare(
                                             original,partSnapshot,kind,
                                             chosenWidth,chosenHoop
-                                        )
+                                        ).mapCatching { design ->
+                                            design to RasterMixedStitchVisualAudit.inspect(
+                                                original,partSnapshot,design,chosenWidth,chosenHoop
+                                            ).getOrThrow()
+                                        }
                                     }
                                     mixedBusy = false
                                     if (revision == stamp &&
@@ -1067,16 +1092,17 @@ fun SimpleImageToEmbroideryScreen(
                                         widthMm == chosenWidth &&
                                         hoop == chosenHoop) {
                                         proposal.fold(
-                                            onSuccess = {
+                                            onSuccess = { (design, audit) ->
                                                 mixedDrafts = mixedDrafts +
-                                                    (partSnapshot.id to it)
-                                                mixedConfirmed = mixedConfirmed -
-                                                    partSnapshot.id
+                                                    (partSnapshot.id to design)
+                                                mixedAudits = mixedAudits +
+                                                    (partSnapshot.id to audit)
+                                                mixedViewed = mixedViewed - partSnapshot.id
+                                                mixedConfirmed = mixedConfirmed - partSnapshot.id
                                                 mixedSelectedPart = partSnapshot.id
-                                                message =
-                                                    "Prévia QA de " + kind.name +
-                                                    " gerada. Confira o elemento " +
-                                                    "e confirme para compor."
+                                                mixedViewMode = 0
+                                                message = audit.brief() +
+                                                    " Confira STITCH no bastidor antes de confirmar."
                                             },
                                             onFailure = {
                                                 message = "Técnica recusada na parte " +
@@ -1095,7 +1121,8 @@ fun SimpleImageToEmbroideryScreen(
                                 color = FioGold
                             )
                         }
-                        if (draft != null) {
+                        val evidence = mixedAudits[part.id]
+                        if (draft != null && evidence != null) {
                             Text(
                                 "Prévia de " + draft.stitchCount +
                                     " STITCH, " + draft.jumpCount +
@@ -1104,11 +1131,40 @@ fun SimpleImageToEmbroideryScreen(
                                     else "Confirmação pendente.",
                                 color = FioTextMuted, fontSize = 11.sp
                             )
+                            Text(
+                                evidence.brief(),
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 0
+                                }) { Text("Fonte", color = FioGold) }
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 1
+                                    mixedViewed = mixedViewed + part.id
+                                }) { Text("Conferir STITCH", color = FioGold) }
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 2
+                                }) { Text("Mapa de cobertura", color = FioGold) }
+                            }
                             OutlinedButton(
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !mixedBusy && !confirmed,
+                                enabled = !mixedBusy && !confirmed &&
+                                    part.id in mixedViewed &&
+                                    mixedDrafts[part.id] === draft &&
+                                    mixedAudits[part.id] === evidence,
                                 onClick = {
-                                    mixedConfirmed = mixedConfirmed + part.id
+                                    if (mixedDrafts[part.id] === draft &&
+                                        mixedAudits[part.id] === evidence &&
+                                        part.id in mixedViewed
+                                    ) mixedConfirmed = mixedConfirmed + part.id
                                 }
                             ) {
                                 Text(
@@ -1122,7 +1178,8 @@ fun SimpleImageToEmbroideryScreen(
                 val allConfirmed = mixedParts.size in 2..12 &&
                     mixedConfirmed.size == mixedParts.size &&
                     mixedOrder.toSet() == mixedConfirmed &&
-                    mixedOrder.all { mixedDrafts[it] != null }
+                    mixedOrder.all { mixedDrafts[it] != null &&
+                        mixedAudits[it] != null && it in mixedViewed }
                 Text(
                     "Partes confirmadas: " + mixedConfirmed.size + " de " +
                         mixedParts.size + ". Partes incompletas não serão " +
@@ -1139,6 +1196,8 @@ fun SimpleImageToEmbroideryScreen(
                         val capturedParts = mixedParts.toList()
                         val orderSnapshot = mixedOrder.toList()
                         val confirmedSnapshot = mixedConfirmed.toSet()
+                        val viewedSnapshot = mixedViewed.toSet()
+                        val auditsSnapshot = mixedAudits.toMap()
                         val draftSnapshot = mixedDrafts.toMap()
                         val techniqueSnapshot = mixedTechniques.toMap()
                         val hoopSnapshot = hoop
@@ -1153,6 +1212,8 @@ fun SimpleImageToEmbroideryScreen(
                                 runCatching {
                                     require(orderSnapshot.toSet() ==
                                         confirmedSnapshot &&
+                                        orderSnapshot.toSet() == viewedSnapshot &&
+                                        orderSnapshot.toSet() == auditsSnapshot.keys &&
                                         orderSnapshot.size == capturedParts.size
                                     ) { "Faltam confirmações das partes." }
                                     val partsById = capturedParts.associateBy {
@@ -1181,6 +1242,8 @@ fun SimpleImageToEmbroideryScreen(
                                 mixedParts == capturedParts &&
                                 mixedOrder == orderSnapshot &&
                                 mixedConfirmed == confirmedSnapshot &&
+                                mixedViewed == viewedSnapshot &&
+                                mixedAudits == auditsSnapshot &&
                                 mixedDrafts == draftSnapshot &&
                                 mixedTechniques == techniqueSnapshot &&
                                 hoop == hoopSnapshot &&
