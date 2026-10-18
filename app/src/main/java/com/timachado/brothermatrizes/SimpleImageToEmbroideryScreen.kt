@@ -1121,7 +1121,8 @@ fun SimpleImageToEmbroideryScreen(
                                 color = FioGold
                             )
                         }
-                        if (draft != null) {
+                        val evidence = mixedAudits[part.id]
+                        if (draft != null && evidence != null) {
                             Text(
                                 "Prévia de " + draft.stitchCount +
                                     " STITCH, " + draft.jumpCount +
@@ -1130,11 +1131,40 @@ fun SimpleImageToEmbroideryScreen(
                                     else "Confirmação pendente.",
                                 color = FioTextMuted, fontSize = 11.sp
                             )
+                            Text(
+                                evidence.brief(),
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 0
+                                }) { Text("Fonte", color = FioGold) }
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 1
+                                    mixedViewed = mixedViewed + part.id
+                                }) { Text("Conferir STITCH", color = FioGold) }
+                                OutlinedButton(onClick = {
+                                    mixedSelectedPart = part.id
+                                    mixedViewMode = 2
+                                }) { Text("Mapa de cobertura", color = FioGold) }
+                            }
                             OutlinedButton(
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !mixedBusy && !confirmed,
+                                enabled = !mixedBusy && !confirmed &&
+                                    part.id in mixedViewed &&
+                                    mixedDrafts[part.id] === draft &&
+                                    mixedAudits[part.id] === evidence,
                                 onClick = {
-                                    mixedConfirmed = mixedConfirmed + part.id
+                                    if (mixedDrafts[part.id] === draft &&
+                                        mixedAudits[part.id] === evidence &&
+                                        part.id in mixedViewed
+                                    ) mixedConfirmed = mixedConfirmed + part.id
                                 }
                             ) {
                                 Text(
@@ -1148,7 +1178,8 @@ fun SimpleImageToEmbroideryScreen(
                 val allConfirmed = mixedParts.size in 2..12 &&
                     mixedConfirmed.size == mixedParts.size &&
                     mixedOrder.toSet() == mixedConfirmed &&
-                    mixedOrder.all { mixedDrafts[it] != null }
+                    mixedOrder.all { mixedDrafts[it] != null &&
+                        mixedAudits[it] != null && it in mixedViewed }
                 Text(
                     "Partes confirmadas: " + mixedConfirmed.size + " de " +
                         mixedParts.size + ". Partes incompletas não serão " +
@@ -1165,6 +1196,8 @@ fun SimpleImageToEmbroideryScreen(
                         val capturedParts = mixedParts.toList()
                         val orderSnapshot = mixedOrder.toList()
                         val confirmedSnapshot = mixedConfirmed.toSet()
+                        val viewedSnapshot = mixedViewed.toSet()
+                        val auditsSnapshot = mixedAudits.toMap()
                         val draftSnapshot = mixedDrafts.toMap()
                         val techniqueSnapshot = mixedTechniques.toMap()
                         val hoopSnapshot = hoop
@@ -1179,6 +1212,8 @@ fun SimpleImageToEmbroideryScreen(
                                 runCatching {
                                     require(orderSnapshot.toSet() ==
                                         confirmedSnapshot &&
+                                        orderSnapshot.toSet() == viewedSnapshot &&
+                                        orderSnapshot.toSet() == auditsSnapshot.keys &&
                                         orderSnapshot.size == capturedParts.size
                                     ) { "Faltam confirmações das partes." }
                                     val partsById = capturedParts.associateBy {
@@ -1207,6 +1242,8 @@ fun SimpleImageToEmbroideryScreen(
                                 mixedParts == capturedParts &&
                                 mixedOrder == orderSnapshot &&
                                 mixedConfirmed == confirmedSnapshot &&
+                                mixedViewed == viewedSnapshot &&
+                                mixedAudits == auditsSnapshot &&
                                 mixedDrafts == draftSnapshot &&
                                 mixedTechniques == techniqueSnapshot &&
                                 hoop == hoopSnapshot &&
