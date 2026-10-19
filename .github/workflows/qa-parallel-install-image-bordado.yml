@@ -1,10 +1,10 @@
-name: Brother Matrizes QA Topologia da Fonte
+name: Brother Matrizes QA Transparência Variável
 
 on:
   push:
-    branches: ["qa/image-source-topology-diagnostics-20261019"]
+    branches: ["qa/image-opacity-threshold-sweep-20261019"]
   pull_request:
-    branches: ["qa/image-alpha-contour-topology-20261019"]
+    branches: ["qa/image-source-topology-diagnostics-20261019"]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qasourcetopo"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qaopacitysweep"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -60,6 +60,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Topologia-Fonte
+          name: Brother-Matrizes-QA-Limiares-Alfa
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
