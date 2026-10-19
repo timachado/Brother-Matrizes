@@ -97,7 +97,7 @@ internal object RasterTextureReconstructionGate {
         require(!topology.opaqueAnchorsReliable ||
             topology.highAlphaTopologySafe
         ) {
-            "Contorno alfa 180..254 fundiu núcleos opacos: " +
+            "Contorno alfa 180..254 pode unir letras entre núcleos opacos: " +
                 topology.summary() + " Refaça a referência manualmente."
         }
         val contour = RasterAntialiasedContourGuard.inspect(imported)
