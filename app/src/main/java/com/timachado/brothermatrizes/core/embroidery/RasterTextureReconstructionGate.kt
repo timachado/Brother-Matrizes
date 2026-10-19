@@ -19,6 +19,7 @@ internal data class RasterTextureReconstructionReport(
     val ambiguousPixels: Int,
     val antialiasedEdgePixels: Int,
     val contourEvidence: RasterAntialiasedContourReport? = null,
+    val thresholdEvidence: RasterAlphaThresholdSweepReport? = null,
     val reviewRequired: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
@@ -29,6 +30,12 @@ internal data class RasterTextureReconstructionReport(
             ambiguousPixels + " px com cor incerta e " +
             antialiasedEdgePixels + " px de borda sem opacidade plena. " +
             (contourEvidence?.let { it.summary() + " " } ?: "") +
+            (thresholdEvidence?.let {
+                if (!it.alpha255AnchorReliable)
+                    "Arte com poucos pixels totalmente opacos: " +
+                        "validação visual das silhuetas é indispensável. "
+                else ""
+            } ?: "") +
             "Revise a prévia original e as cores planas antes de aceitar. " +
             "Nenhuma agulhada ou PES foi criado."
 }
@@ -74,9 +81,24 @@ internal object RasterTextureReconstructionGate {
 
         val topology = RasterSourceTopologyDiagnostics.inspect(imported)
             .getOrThrow()
-        require(topology.highAlphaTopologySafe) {
-            "Alfa 180..254 pode unir letras ou esconder detalhes. " +
-                topology.summary() + " Corrija a referência manualmente."
+        val thresholds = RasterAlphaThresholdSweep.inspect(imported)
+            .getOrThrow()
+        require(topology.opaqueAnchorsReliable ==
+            thresholds.alpha255AnchorReliable &&
+            thresholds.fullyOpaquePixels == topology.fullyOpaque &&
+            thresholds.slices.first { it.threshold == 180 }.inkPixels ==
+                topology.fullyOpaque+topology.strongAlpha
+        ) { "As leituras do alfa divergem; revise a imagem original." }
+
+        // Alpha 255 is a trustworthy island anchor only when there are
+        // enough opaque pixels. Otherwise the previous bridge counter is
+        // inconclusive, NOT evidence that 180..254 ink is invalid.
+        // The flat preview remains provisional and needs manual acceptance.
+        require(!topology.opaqueAnchorsReliable ||
+            topology.highAlphaTopologySafe
+        ) {
+            "Contorno alfa 180..254 pode unir letras entre núcleos opacos: " +
+                topology.summary() + " Refaça a referência manualmente."
         }
         val contour = RasterAntialiasedContourGuard.inspect(imported)
             .getOrThrow()
@@ -132,7 +154,8 @@ internal object RasterTextureReconstructionGate {
             disconnectedComponents=components.size,
             ambiguousPixels=recomputed.ambiguousPixels,
             antialiasedEdgePixels=fringe,
-            contourEvidence=contour
+            contourEvidence=contour,
+            thresholdEvidence=thresholds
         )
     }
 }

@@ -27,6 +27,17 @@ internal data class RasterSourceTopologyReport(
     val highAlphaTopologySafe: Boolean get() =
         highAlphaBridges == 0 && unanchoredThresholdIslands == 0
 
+    /**
+     * Fully opaque core topology is meaningful only when core coverage is
+     * substantial. Sparse alpha=255 peaks in a translucent illustration can
+     * give false bridges and false "islands without opaque core" warnings.
+     */
+    val opaqueAnchorsReliable: Boolean get() =
+        fullyOpaque >= 64 &&
+            (fullyOpaque+strongAlpha+weakAlpha)>0 &&
+            fullyOpaque.toDouble()/
+                (fullyOpaque+strongAlpha+weakAlpha) >= .05
+
     fun summary(): String =
         "Diagnóstico QA da imagem importada: ${width}x${height} px; " +
             "transparência total=${transparent}; alfa 1..179=${weakAlpha}; " +
@@ -35,10 +46,14 @@ internal data class RasterSourceTopologyReport(
             "${thresholdIslands}; conexões por alfa forte=" +
             "${highAlphaBridges}; ilhas sem núcleo opaco=" +
             "${unanchoredThresholdIslands}; fingerprint=${fingerprint}. " +
-            (if (highAlphaTopologySafe)
-                "Nenhuma união por alfa forte detectada. "
+            (if (!opaqueAnchorsReliable)
+                "Núcleos alfa 255 insuficientes: essas ligações e ilhas " +
+                    "são indicadores INCONCLUSIVOS, não defeitos provados. " +
+                    "Compare os limiares de alfa e revise cada letra. "
+             else if (highAlphaTopologySafe)
+                "Nenhuma união entre núcleos opacos detectada. "
              else
-                "Contornos podem juntar letras ou ocultar pequenos detalhes: " +
+                "Possível junção ou detalhe perdido entre núcleos opacos: " +
                     "revisão manual obrigatória. ") +
             "Esta é uma análise local da foto, NÃO é matriz nem PES."
 }
