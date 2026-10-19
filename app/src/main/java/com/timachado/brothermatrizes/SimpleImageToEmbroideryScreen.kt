@@ -87,6 +87,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterQaComponentBudget
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaEdgeReview
 import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyDiagnostics
 import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyReport
+import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweep
+import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweepReport
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -363,6 +365,24 @@ fun SimpleImageToEmbroideryScreen(
     var sourceTopologyReport by remember(prepared?.image) {
         mutableStateOf<RasterSourceTopologyReport?>(null)
     }
+    // Explicit comparison previews of the user's original alpha channel.
+    // These masks are NEVER supplied to the stitch generator.
+    var alphaSweepBusy by remember(prepared?.image) {
+        mutableStateOf(false)
+    }
+    var alphaSweepReport by remember(prepared?.image) {
+        mutableStateOf<RasterAlphaThresholdSweepReport?>(null)
+    }
+    var selectedAlphaThreshold by remember(prepared?.image) {
+        mutableStateOf<Int?>(null)
+    }
+    val alphaSweepOverlay = remember(alphaSweepReport,selectedAlphaThreshold) {
+        val report=alphaSweepReport
+        val level=selectedAlphaThreshold
+        if(report!=null && level!=null)
+            report.silhouettePreview(level)
+        else null
+    }
     val simulationRoute = RasterImageSimulationRoutePlanner.choose(
         complexArtwork = artworkAudit?.requiresMultiTechniqueReview == true,
         partialAlphaEdges = alphaSourceReview?.requiresManualReconstruction == true,
@@ -590,7 +610,9 @@ fun SimpleImageToEmbroideryScreen(
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (mixedFullShown != null) mixedSource
+                rasterArtwork = if (alphaSweepOverlay != null)
+                    alphaSweepOverlay
+                    else if (mixedFullShown != null) mixedSource
                     else mixedFullCoverage ?: mixedSplitSource ?:
                         mixedCoverShown ?: mixedSourceShown ?: gapOverlay ?:
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
@@ -602,7 +624,12 @@ fun SimpleImageToEmbroideryScreen(
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (mixedFullCoverage != null)
+                if (alphaSweepOverlay != null)
+                    "LIMIAR DE ALFA QA " + selectedAlphaThreshold +
+                        ": cinza = silhueta mantida, laranja = borda perto " +
+                        "do corte de transparência. É apenas comparação da " +
+                        "imagem original, NÃO são pontos nem matriz PES."
+                else if (mixedFullCoverage != null)
                     "Desenho INTEIRO: cinza = tinta coberta por STITCH " +
                         "amostrados; laranja = áreas sem pontos. " +
                         "Cada letra e cor foi conferida sem preencher vazados."
@@ -713,6 +740,91 @@ fun SimpleImageToEmbroideryScreen(
                     }
                 ) {
                     Text("Copiar diagnóstico da imagem (QA)", color = FioGold)
+                }
+            }
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = prepared?.image != null && !alphaSweepBusy &&
+                    !preparing && !simulating,
+                onClick = {
+                    val source=prepared?.image ?: return@OutlinedButton
+                    if(alphaSweepReport!=null) {
+                        selectedAlphaThreshold = if(selectedAlphaThreshold==null)
+                            180 else null
+                    } else {
+                        val stamp=revision
+                        alphaSweepBusy=true
+                        message=""
+                        scope.launch {
+                            val result=withContext(Dispatchers.Default) {
+                                RasterAlphaThresholdSweep.inspect(source)
+                            }
+                            if(revision==stamp && prepared?.image===source) {
+                                result.fold(
+                                    onSuccess = {
+                                        alphaSweepReport=it
+                                        selectedAlphaThreshold=180
+                                        message="Comparação da silhueta pronta. " +
+                                            "Revise letras e vazados nos limiares."
+                                    },
+                                    onFailure = {
+                                        message=it.message ?:
+                                            "Falha no estudo de transparência."
+                                    }
+                                )
+                            }
+                            alphaSweepBusy=false
+                        }
+                    }
+                }
+            ) {
+                Text(
+                    if(alphaSweepBusy) "Comparando níveis de transparência..."
+                    else if(selectedAlphaThreshold!=null)
+                        "Mostrar imagem original"
+                    else "Comparar silhuetas por transparência (QA)",
+                    color=FioGold
+                )
+            }
+            alphaSweepReport?.let { alphaReport ->
+                Text(alphaReport.summary(), color=FioTextMuted,
+                    fontSize=11.sp)
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(
+                        rememberScrollState()
+                    ),
+                    horizontalArrangement=Arrangement.spacedBy(5.dp)
+                ) {
+                    listOf(128,160,180,208,224,255).forEach { level ->
+                        OutlinedButton(
+                            onClick = { selectedAlphaThreshold=level }
+                        ) {
+                            Text(
+                                (if(selectedAlphaThreshold==level) "● " else "") +
+                                    level,
+                                color=FioGold,fontSize=12.sp
+                            )
+                        }
+                    }
+                }
+                OutlinedButton(
+                    modifier=Modifier.fillMaxWidth(),
+                    onClick = {
+                        val clipboard=context.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE
+                        ) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(
+                            android.content.ClipData.newPlainText(
+                                "Brother Matrizes — Limiares alfa QA",
+                                alphaReport.summary()
+                            )
+                        )
+                        message="Estudo de transparência copiado: " +
+                            "apenas contagens, nenhuma imagem foi enviada."
+                    }
+                ) {
+                    Text("Copiar estudo de transparência (QA)",
+                        color=FioGold)
                 }
             }
             if (artworkAudit?.requiresMultiTechniqueReview == true) {
