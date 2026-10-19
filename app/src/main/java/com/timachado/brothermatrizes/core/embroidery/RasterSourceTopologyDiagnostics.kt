@@ -33,8 +33,10 @@ internal data class RasterSourceTopologyReport(
      * give false bridges and false "islands without opaque core" warnings.
      */
     val opaqueAnchorsReliable: Boolean get() =
-        fullyOpaque >= 64 && (fullyOpaque+strongAlpha)>0 &&
-            fullyOpaque.toDouble()/(fullyOpaque+strongAlpha) >= .05
+        fullyOpaque >= 64 &&
+            (fullyOpaque+strongAlpha+weakAlpha)>0 &&
+            fullyOpaque.toDouble()/
+                (fullyOpaque+strongAlpha+weakAlpha) >= .05
 
     fun summary(): String =
         "Diagnóstico QA da imagem importada: ${width}x${height} px; " +
