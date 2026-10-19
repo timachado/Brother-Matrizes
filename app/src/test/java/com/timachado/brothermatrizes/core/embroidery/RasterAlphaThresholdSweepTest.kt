@@ -26,7 +26,7 @@ class RasterAlphaThresholdSweepTest {
         // Only four full-opacity pixels in an otherwise translucent logo.
         for((x,y) in listOf(12 to 15,28 to 36,55 to 15,71 to 36)) {
             pixels[y*w+x]=0xff000000.toInt() or
-                if(x<40) orange else white
+                (if(x<40) orange else white)
         }
         for(y in 11..44) for(x in 9..32) {
             val p=y*w+x
