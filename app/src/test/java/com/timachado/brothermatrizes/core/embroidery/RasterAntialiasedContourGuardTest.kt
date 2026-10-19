@@ -122,4 +122,45 @@ class RasterAntialiasedContourGuardTest {
         assertFalse(candidate.exportPermitted)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
+
+    @Test fun reviewedAntialiasReferenceFeedsActualTatamiNeedleCommands() {
+        val source=outlinedLogo()
+        val unchanged=source.argb.copyOf()
+        val candidate=RasterTextureReconstructionGate.prepare(
+            source,RasterThreadTextureStudy.inspect(source).getOrThrow()
+        ).getOrThrow()
+        val flat=candidate.flatReference
+        val parts=RasterExactColorComponentDetector.detect(flat)
+            .getOrThrow()
+        assertEquals(2,parts.size)
+        val hoop=HoopProfile.H130X180
+        val width=80f
+        val layers=parts.mapIndexed { index,part ->
+            val preview=RasterMixedTechniqueReviewWorkflow.prepare(
+                flat,part,RasterTechniqueKind.TATAMI,width,hoop
+            ).getOrThrow()
+            assertTrue(preview.stitchCount>0)
+            assertTrue(preview.points.any {
+                it.command==StitchCommand.STITCH
+            })
+            RasterReviewedTechniqueLayer(
+                part,preview,RasterTechniqueKind.TATAMI,index
+            )
+        }
+        val composed=RasterMixedTechniqueReviewWorkflow.composeReviewed(
+            flat,parts,layers,width,hoop
+        ).getOrThrow()
+        val readiness=RasterImageQaReleaseReadinessAudit.inspect(
+            composed
+        ).getOrThrow()
+        assertEquals(2,readiness.verifiedComponents)
+        assertTrue(readiness.preservedStitches>0)
+        assertEquals(4,readiness.outstandingProductionGates)
+        assertTrue(composed.fullCanvasReport!=null)
+        assertTrue(source.argb.contentEquals(unchanged))
+        assertTrue(composed.design.sourceBytes.isEmpty())
+        assertFalse(readiness.exportPermitted)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
 }
