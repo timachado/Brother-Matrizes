@@ -387,7 +387,9 @@ fun SimpleImageToEmbroideryScreen(
         val comparison=selectedAlphaTransition
         when {
             report!=null && comparison!=null ->
-                report.componentLineage?.lossPreview(
+                report.structuralAudit?.preview(
+                    comparison.first,comparison.second
+                ) ?: report.componentLineage?.lossPreview(
                     comparison.first,comparison.second
                 )
             report!=null && level!=null -> report.silhouettePreview(level)
@@ -642,8 +644,9 @@ fun SimpleImageToEmbroideryScreen(
                         selectedAlphaTransition?.first + "→" +
                         selectedAlphaTransition?.second +
                         ": cinza = pixels preservados; laranja = pixels " +
-                        "excluídos ao elevar a transparência. " +
-                        "Não são pontos de bordado nem PES."
+                        "excluídos ao elevar a transparência; magenta = " +
+                        "candidatos a ligação entre regiões. " +
+                        "Compare os vazados internos. Não são pontos nem PES."
                 else if (alphaSweepOverlay != null)
                     "LIMIAR DE ALFA QA " + selectedAlphaThreshold +
                         ": cinza = silhueta mantida, laranja = borda perto " +
@@ -834,9 +837,9 @@ fun SimpleImageToEmbroideryScreen(
                     }
                 }
                 Text(
-                    "Confira se alguma região foi dividida, desapareceu " +
-                        "ou perdeu pixels. Números de regiões estáveis " +
-                        "não garantem contornos e vazados intactos.",
+                    "A análise destaca ligações alfa em magenta e conta " +
+                        "vazados internos em cada limiar. Ela não identifica " +
+                        "automaticamente letras nem autoriza bordados.",
                     color=FioTextMuted,fontSize=11.sp
                 )
                 Row(
