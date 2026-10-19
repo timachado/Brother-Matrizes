@@ -376,12 +376,23 @@ fun SimpleImageToEmbroideryScreen(
     var selectedAlphaThreshold by remember(prepared?.image) {
         mutableStateOf<Int?>(null)
     }
-    val alphaSweepOverlay = remember(alphaSweepReport,selectedAlphaThreshold) {
+    var selectedAlphaTransition by remember(prepared?.image) {
+        mutableStateOf<Pair<Int,Int>?>(null)
+    }
+    val alphaSweepOverlay = remember(
+        alphaSweepReport,selectedAlphaThreshold,selectedAlphaTransition
+    ) {
         val report=alphaSweepReport
         val level=selectedAlphaThreshold
-        if(report!=null && level!=null)
-            report.silhouettePreview(level)
-        else null
+        val comparison=selectedAlphaTransition
+        when {
+            report!=null && comparison!=null ->
+                report.componentLineage?.lossPreview(
+                    comparison.first,comparison.second
+                )
+            report!=null && level!=null -> report.silhouettePreview(level)
+            else -> null
+        }
     }
     val simulationRoute = RasterImageSimulationRoutePlanner.choose(
         complexArtwork = artworkAudit?.requiresMultiTechniqueReview == true,
@@ -606,7 +617,8 @@ fun SimpleImageToEmbroideryScreen(
             // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
-                design = mixedFullShown ?: mixedSplitShown ?: mixedShown ?: placeholder,
+                design = if (alphaSweepOverlay != null) placeholder
+                    else mixedFullShown ?: mixedSplitShown ?: mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
@@ -618,13 +630,21 @@ fun SimpleImageToEmbroideryScreen(
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
-                rasterOpacity = if (mixedFullShown != null) .12f
+                rasterOpacity = if (alphaSweepOverlay != null) .99f
+                    else if (mixedFullShown != null) .12f
                     else if (mixedShown != null || mixedSplitShown != null)
                         .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (alphaSweepOverlay != null)
+                if (selectedAlphaTransition != null)
+                    "COMPARAÇÃO DE PERDA QA " +
+                        selectedAlphaTransition?.first + "→" +
+                        selectedAlphaTransition?.second +
+                        ": cinza = pixels preservados; laranja = pixels " +
+                        "excluídos ao elevar a transparência. " +
+                        "Não são pontos de bordado nem PES."
+                else if (alphaSweepOverlay != null)
                     "LIMIAR DE ALFA QA " + selectedAlphaThreshold +
                         ": cinza = silhueta mantida, laranja = borda perto " +
                         "do corte de transparência. É apenas comparação da " +
@@ -749,8 +769,10 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = {
                     val source=prepared?.image ?: return@OutlinedButton
                     if(alphaSweepReport!=null) {
-                        selectedAlphaThreshold = if(selectedAlphaThreshold==null)
-                            180 else null
+                        val closed = selectedAlphaThreshold!=null ||
+                            selectedAlphaTransition!=null
+                        selectedAlphaTransition=null
+                        selectedAlphaThreshold=if(closed) null else 180
                     } else {
                         val stamp=revision
                         alphaSweepBusy=true
@@ -780,7 +802,8 @@ fun SimpleImageToEmbroideryScreen(
             ) {
                 Text(
                     if(alphaSweepBusy) "Comparando níveis de transparência..."
-                    else if(selectedAlphaThreshold!=null)
+                    else if(selectedAlphaThreshold!=null ||
+                        selectedAlphaTransition!=null)
                         "Mostrar imagem original"
                     else "Comparar silhuetas por transparência (QA)",
                     color=FioGold
@@ -797,7 +820,10 @@ fun SimpleImageToEmbroideryScreen(
                 ) {
                     listOf(128,160,180,208,224,255).forEach { level ->
                         OutlinedButton(
-                            onClick = { selectedAlphaThreshold=level }
+                            onClick = {
+                                selectedAlphaTransition=null
+                                selectedAlphaThreshold=level
+                            }
                         ) {
                             Text(
                                 (if(selectedAlphaThreshold==level) "● " else "") +
@@ -806,6 +832,36 @@ fun SimpleImageToEmbroideryScreen(
                             )
                         }
                     }
+                }
+                Text(
+                    "Confira se alguma região foi dividida, desapareceu " +
+                        "ou perdeu pixels. Números de regiões estáveis " +
+                        "não garantem contornos e vazados intactos.",
+                    color=FioTextMuted,fontSize=11.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(
+                        rememberScrollState()
+                    ),
+                    horizontalArrangement=Arrangement.spacedBy(5.dp)
+                ) {
+                    listOf(160 to 180,180 to 208,208 to 224,224 to 240)
+                        .forEach { pair ->
+                            OutlinedButton(
+                                onClick = {
+                                    selectedAlphaThreshold=null
+                                    selectedAlphaTransition=pair
+                                }
+                            ) {
+                                Text(
+                                    (if(selectedAlphaTransition==pair)
+                                        "● " else "") +
+                                        "Perda " + pair.first + "→" +
+                                        pair.second,
+                                    color=FioGold,fontSize=12.sp
+                                )
+                            }
+                        }
                 }
                 OutlinedButton(
                     modifier=Modifier.fillMaxWidth(),
