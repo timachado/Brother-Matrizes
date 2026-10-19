@@ -85,6 +85,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterGapReviewRoute
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueReviewWorkflow
 import com.timachado.brothermatrizes.core.embroidery.RasterQaComponentBudget
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaEdgeReview
+import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyDiagnostics
+import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -352,6 +354,14 @@ fun SimpleImageToEmbroideryScreen(
     // Choosing a reviewed flat QA reference does not overwrite that picture.
     val alphaSourceReview = remember(prepared?.image) {
         prepared?.image?.let { RasterAlphaEdgeReview.inspect(it).getOrNull() }
+    }
+    // Run the exact imported crop analysis only on demand, off the UI thread.
+    // Changing artwork/crop automatically invalidates prior diagnostics.
+    var sourceTopologyBusy by remember(prepared?.image) {
+        mutableStateOf(false)
+    }
+    var sourceTopologyReport by remember(prepared?.image) {
+        mutableStateOf<RasterSourceTopologyReport?>(null)
     }
     val simulationRoute = RasterImageSimulationRoutePlanner.choose(
         complexArtwork = artworkAudit?.requiresMultiTechniqueReview == true,
@@ -647,6 +657,63 @@ fun SimpleImageToEmbroideryScreen(
                                 "confira a fidelidade manualmente.",
                     color = FioGold, fontSize = 12.sp
                 )
+            }
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = prepared?.image != null && !sourceTopologyBusy &&
+                    !preparing && !simulating,
+                onClick = {
+                    val picture = prepared?.image ?: return@OutlinedButton
+                    val stamp = revision
+                    sourceTopologyBusy = true
+                    message = ""
+                    scope.launch {
+                        val diagnosis = withContext(Dispatchers.Default) {
+                            RasterSourceTopologyDiagnostics.inspect(picture)
+                        }
+                        if (revision == stamp && prepared?.image === picture) {
+                            diagnosis.fold(
+                                onSuccess = {
+                                    sourceTopologyReport = it
+                                    message = "Diagnóstico da imagem pronto. " +
+                                        "Confira e copie o relatório QA abaixo."
+                                },
+                                onFailure = {
+                                    message = it.message ?:
+                                        "Não foi possível analisar a imagem."
+                                }
+                            )
+                        }
+                        sourceTopologyBusy = false
+                    }
+                }
+            ) {
+                Text(
+                    if (sourceTopologyBusy) "Analisando letras e alfa..."
+                    else "Diagnóstico técnico da imagem (QA)",
+                    color = FioGold
+                )
+            }
+            sourceTopologyReport?.let { proof ->
+                Text(proof.summary(), color = FioTextMuted, fontSize = 11.sp)
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val clipboard = context.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE
+                        ) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(
+                            android.content.ClipData.newPlainText(
+                                "Brother Matrizes — Diagnóstico raster QA",
+                                proof.summary()
+                            )
+                        )
+                        message = "Diagnóstico técnico copiado. " +
+                            "Nenhum pixel nem arquivo da imagem foi exportado."
+                    }
+                ) {
+                    Text("Copiar diagnóstico da imagem (QA)", color = FioGold)
+                }
             }
             if (artworkAudit?.requiresMultiTechniqueReview == true) {
                 Text(
