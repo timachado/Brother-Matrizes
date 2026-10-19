@@ -55,7 +55,7 @@ internal data class RasterAlphaThresholdSweepReport(
             val alpha = source.argb[i] ushr 24
             when {
                 alpha < threshold -> 0
-                alpha < minOf(256, threshold+24) -> amber
+                alpha < minOf(255, threshold+24) -> amber
                 else -> gray
             }
         }
