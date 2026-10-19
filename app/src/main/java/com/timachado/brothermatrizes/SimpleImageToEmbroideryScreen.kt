@@ -92,6 +92,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterTechniqueKind
 import com.timachado.brothermatrizes.core.embroidery.RasterReviewedTechniqueLayer
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedTechniqueSequenceReview
 import com.timachado.brothermatrizes.core.embroidery.RasterImageQaReleaseReadinessAudit
+import com.timachado.brothermatrizes.core.embroidery.RasterImageSimulationRoute
+import com.timachado.brothermatrizes.core.embroidery.RasterImageSimulationRoutePlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReview
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterTopologyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterLetterEditableSatinReview
@@ -351,6 +353,12 @@ fun SimpleImageToEmbroideryScreen(
     val alphaSourceReview = remember(prepared?.image) {
         prepared?.image?.let { RasterAlphaEdgeReview.inspect(it).getOrNull() }
     }
+    val simulationRoute = RasterImageSimulationRoutePlanner.choose(
+        complexArtwork = artworkAudit?.requiresMultiTechniqueReview == true,
+        partialAlphaEdges = alphaSourceReview?.requiresManualReconstruction == true,
+        flatReferenceAccepted = acceptedFlatSource != null,
+        manualSatinEditorActive = satinEditorOpen
+    )
     val maxWidth = stageImage?.let {
         ImageHoopSizing.maximumWidthMm(it.width, it.height, hoop)
     } ?: 0f
@@ -540,9 +548,10 @@ fun SimpleImageToEmbroideryScreen(
         )
     }
 
+    val imageScrollState = rememberScrollState()
     Column(
         Modifier.fillMaxSize().background(FioBackground)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(imageScrollState)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -2804,6 +2813,96 @@ fun SimpleImageToEmbroideryScreen(
                     }
                 }
             }
+            if (simulationRoute != RasterImageSimulationRoute.DIRECT_REVIEW) {
+                Text(
+                    if (simulationRoute ==
+                        RasterImageSimulationRoute.PREPARE_FLAT_SOURCE
+                    ) {
+                        "Esta foto tem textura, contornos translúcidos ou " +
+                            "elementos complexos. Ainda não existem pontos " +
+                            "validados para simular o logotipo inteiro. " +
+                            "1. Analise as cores. 2. Verifique e aceite uma " +
+                            "referência plana fiel. 3. Revise separadamente " +
+                            "Satin, Tatami e corrido. Não é PES."
+                    } else {
+                        "A referência plana foi aceita apenas como base QA. " +
+                            "Confirme cada componente, cor, trilho e mapa de " +
+                            "cobertura em Montar Satin, Tatami e corrido (QA) " +
+                            "antes de usar o simulador. Nenhum PES é gerado."
+                    },
+                    color = FioGold, fontSize = 12.sp
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !preparing && !studyingTexture &&
+                        !simulating && fitted && prepared != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FioGold
+                    ),
+                    onClick = {
+                        val picture = prepared?.image ?: return@Button
+                        if (simulationRoute ==
+                            RasterImageSimulationRoute.PREPARE_FLAT_SOURCE
+                        ) {
+                            if (flatStudy != null) {
+                                showFlatStudy = true
+                                message = "Estudo de cores existente. " +
+                                    "Acima, toque Verificar referência plana " +
+                                    "para pontos (QA), confira os detalhes e " +
+                                    "aceite apenas se a silhueta for fiel."
+                                scope.launch { imageScrollState.animateScrollTo(0) }
+                            } else {
+                                val stamp = revision
+                                studyingTexture = true
+                                message = ""
+                                scope.launch {
+                                    val study = withContext(Dispatchers.Default) {
+                                        RasterThreadTextureStudy.inspect(picture)
+                                    }
+                                    if (revision == stamp &&
+                                        prepared?.image === picture) {
+                                        study.fold(
+                                            onSuccess = {
+                                                flatStudy = it
+                                                showFlatStudy = true
+                                                message =
+                                                    "Estudo de cores pronto. " +
+                                                    "Abra a referência plana acima, " +
+                                                    "confira letras, curvas e vazados " +
+                                                    "e só então valide sua fidelidade."
+                                                imageScrollState.animateScrollTo(0)
+                                            },
+                                            onFailure = {
+                                                message = "Não foi possível " +
+                                                    "preparar a referência: " +
+                                                    (it.message ?: "revise a foto.")
+                                            }
+                                        )
+                                    }
+                                    studyingTexture = false
+                                }
+                            }
+                        } else {
+                            message = "Referência QA já aceita. Acima, " +
+                                "use Montar Satin, Tatami e corrido (QA), " +
+                                "revise todas as partes e abra a " +
+                                "simulação da montagem validada."
+                            scope.launch { imageScrollState.animateScrollTo(0) }
+                        }
+                    }
+                ) {
+                    Text(
+                        if (simulationRoute ==
+                            RasterImageSimulationRoute.PREPARE_FLAT_SOURCE
+                        ) {
+                            if (studyingTexture)
+                                "Analisando cores e contornos..."
+                            else "Preparar cores e contornos (QA)"
+                        } else "Revisar camadas para simular (QA)",
+                        color = FioBackground, fontWeight = FontWeight.Bold
+                    )
+                }
+            } else {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !preparing && !simulating && fitted && prepared != null &&
@@ -2988,6 +3087,7 @@ fun SimpleImageToEmbroideryScreen(
             ) {
                 Text("▶ Simular bordado", color = FioBackground,
                     fontWeight = FontWeight.Bold)
+            }
             }
             if (qaReportRevision == revision &&
                 !qaTechnicalReport.isNullOrBlank()) {
