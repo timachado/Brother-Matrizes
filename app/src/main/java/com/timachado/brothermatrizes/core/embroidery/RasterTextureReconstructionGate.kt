@@ -72,6 +72,12 @@ internal object RasterTextureReconstructionGate {
                 )
         ) { "O estudo de cores não pertence à imagem importada atual." }
 
+        val topology = RasterSourceTopologyDiagnostics.inspect(imported)
+            .getOrThrow()
+        require(topology.highAlphaTopologySafe) {
+            "Alfa 180..254 pode unir letras ou esconder detalhes. " +
+                topology.summary() + " Corrija a referência manualmente."
+        }
         val contour = RasterAntialiasedContourGuard.inspect(imported)
             .getOrThrow()
         var foreground = 0
