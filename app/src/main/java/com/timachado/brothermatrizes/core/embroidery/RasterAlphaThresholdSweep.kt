@@ -17,6 +17,7 @@ internal data class RasterAlphaThresholdSweepReport(
     val visiblePixels: Int,
     val fullyOpaquePixels: Int,
     val slices: List<RasterThresholdSlice>,
+    val componentLineage: RasterAlphaComponentLineageReport? = null,
     val exportPermitted: Boolean = false,
     val requiresOperatorReview: Boolean = true
 ) {
@@ -39,7 +40,8 @@ internal data class RasterAlphaThresholdSweepReport(
                 "Poucos núcleos alfa 255: ligações entre eles não " +
                     "comprovam união indevida de letras.") +
             " Prévia apenas para comparar a silhueta e os vazados. " +
-            "Nenhum ponto de máquina ou PES foi criado."
+            (componentLineage?.let { " " + it.summary() } ?: "") +
+            " Nenhum ponto de máquina ou PES foi criado."
     }
 
     /**
@@ -120,9 +122,23 @@ internal object RasterAlphaThresholdSweep {
                 a.inkPixels>=b.inkPixels
             } && sections.last().inkPixels==opaque
             ) { "As contagens de pixels dos limiares se contradizem." }
+            val lineage=RasterAlphaComponentLineage.inspect(
+                source,LEVELS
+            ).getOrThrow()
+            require(lineage.transitions.size==LEVELS.size-1 &&
+                lineage.transitions.indices.all { i ->
+                    lineage.transitions[i].baseComponents ==
+                        sections[i].components &&
+                    lineage.transitions[i].survivingComponents ==
+                        sections[i+1].components &&
+                    lineage.transitions[i].pixelsRemoved ==
+                        sections[i].inkPixels-sections[i+1].inkPixels
+                }
+            ) { "Contagens e continuidade das regiões não coincidem." }
             RasterAlphaThresholdSweepReport(
                 source=source,visiblePixels=totalVisible,
-                fullyOpaquePixels=opaque,slices=sections
+                fullyOpaquePixels=opaque,slices=sections,
+                componentLineage=lineage
             )
         }
 }
