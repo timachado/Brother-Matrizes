@@ -18,6 +18,7 @@ internal data class RasterTextureReconstructionReport(
     val disconnectedComponents: Int,
     val ambiguousPixels: Int,
     val antialiasedEdgePixels: Int,
+    val contourEvidence: RasterAntialiasedContourReport? = null,
     val reviewRequired: Boolean = true,
     val exportPermitted: Boolean = false
 ) {
@@ -27,6 +28,7 @@ internal data class RasterTextureReconstructionReport(
             sourceOpaquePixels + " px de silhueta preservados; " +
             ambiguousPixels + " px com cor incerta e " +
             antialiasedEdgePixels + " px de borda sem opacidade plena. " +
+            (contourEvidence?.let { it.summary() + " " } ?: "") +
             "Revise a prévia original e as cores planas antes de aceitar. " +
             "Nenhuma agulhada ou PES foi criado."
 }
@@ -34,7 +36,7 @@ internal data class RasterTextureReconstructionReport(
 internal object RasterTextureReconstructionGate {
     private const val MAX_SIDE = 512
     private const val ALPHA_LIMIT = 180
-    private const val MAX_FRINGE_RATIO = .05
+    // Contour safety comes from per-pixel geometry, not a rigid 5% ratio.
 
     fun prepare(
         imported: RasterImagePixels,
@@ -70,6 +72,8 @@ internal object RasterTextureReconstructionGate {
                 )
         ) { "O estudo de cores não pertence à imagem importada atual." }
 
+        val contour = RasterAntialiasedContourGuard.inspect(imported)
+            .getOrThrow()
         var foreground = 0
         var fringe = 0
         val rebuilt = recomputed.flatPreview
@@ -89,7 +93,9 @@ internal object RasterTextureReconstructionGate {
             }
         }
         require(foreground == previousStudy.foregroundPixels &&
-            fringe <= (foreground * MAX_FRINGE_RATIO).toInt()
+            foreground == contour.solidPixels &&
+            fringe == contour.weakAlphaPixels &&
+            !contour.exportPermitted && contour.requiresOriginalComparison
         ) {
             "Contornos com transparência ambígua: ajuste o recorte " +
                 "antes de propor pontos reais."
@@ -119,7 +125,8 @@ internal object RasterTextureReconstructionGate {
             threadColorFamilies=recomputed.suggestedColorFamilies,
             disconnectedComponents=components.size,
             ambiguousPixels=recomputed.ambiguousPixels,
-            antialiasedEdgePixels=fringe
+            antialiasedEdgePixels=fringe,
+            contourEvidence=contour
         )
     }
 }
