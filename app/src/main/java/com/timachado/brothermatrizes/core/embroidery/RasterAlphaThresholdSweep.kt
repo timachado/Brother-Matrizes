@@ -18,6 +18,7 @@ internal data class RasterAlphaThresholdSweepReport(
     val fullyOpaquePixels: Int,
     val slices: List<RasterThresholdSlice>,
     val componentLineage: RasterAlphaComponentLineageReport? = null,
+    val structuralAudit: RasterAlphaStructuralAuditReport? = null,
     val exportPermitted: Boolean = false,
     val requiresOperatorReview: Boolean = true
 ) {
@@ -41,6 +42,7 @@ internal data class RasterAlphaThresholdSweepReport(
                     "comprovam união indevida de letras.") +
             " Prévia apenas para comparar a silhueta e os vazados. " +
             (componentLineage?.let { " " + it.summary() } ?: "") +
+            (structuralAudit?.let { " " + it.summary() } ?: "") +
             " Nenhum ponto de máquina ou PES foi criado."
     }
 
@@ -135,10 +137,26 @@ internal object RasterAlphaThresholdSweep {
                         sections[i].inkPixels-sections[i+1].inkPixels
                 }
             ) { "Contagens e continuidade das regiões não coincidem." }
+            val structural=RasterAlphaStructuralAudit.inspect(
+                source,listOf(
+                    160 to 180,180 to 208,208 to 224,224 to 240
+                )
+            ).getOrThrow()
+            require(structural.intervals.all { interval ->
+                val match=lineage.transitions.single {
+                    it.fromThreshold==interval.fromThreshold &&
+                        it.toThreshold==interval.toThreshold
+                }
+                // A weak-alpha connector can only reach two strong-alpha
+                // child regions when the lower-level parent actually splits.
+                (match.parentsSplit>0 ||
+                    interval.splitConnectorCandidates.isEmpty()) &&
+                    interval.holesBefore>=0 && interval.holesAfter>=0
+            }) { "Conexões frágeis divergentes da topologia original." }
             RasterAlphaThresholdSweepReport(
                 source=source,visiblePixels=totalVisible,
                 fullyOpaquePixels=opaque,slices=sections,
-                componentLineage=lineage
+                componentLineage=lineage,structuralAudit=structural
             )
         }
 }
