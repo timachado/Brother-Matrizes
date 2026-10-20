@@ -19,6 +19,7 @@ internal data class RasterAlphaThresholdSweepReport(
     val slices: List<RasterThresholdSlice>,
     val componentLineage: RasterAlphaComponentLineageReport? = null,
     val structuralAudit: RasterAlphaStructuralAuditReport? = null,
+    val counterLeakEvidence: RasterAlphaCounterLeakReport? = null,
     val exportPermitted: Boolean = false,
     val requiresOperatorReview: Boolean = true
 ) {
@@ -43,6 +44,7 @@ internal data class RasterAlphaThresholdSweepReport(
             " Prévia apenas para comparar a silhueta e os vazados. " +
             (componentLineage?.let { " " + it.summary() } ?: "") +
             (structuralAudit?.let { " " + it.summary() } ?: "") +
+            (counterLeakEvidence?.let { " " + it.summary() } ?: "") +
             " Nenhum ponto de máquina ou PES foi criado."
     }
 
@@ -153,10 +155,25 @@ internal object RasterAlphaThresholdSweep {
                     interval.splitConnectorCandidates.isEmpty()) &&
                     interval.holesBefore>=0 && interval.holesAfter>=0
             }) { "Conexões frágeis divergentes da topologia original." }
+            val lostCounters=RasterAlphaCounterLeakPath.inspect(
+                source,listOf(
+                    160 to 180,180 to 208,208 to 224,224 to 240
+                )
+            ).getOrThrow()
+            require(lostCounters.intervals.size==structural.intervals.size &&
+                lostCounters.intervals.indices.all { i ->
+                    val low=lostCounters.intervals[i]
+                    val high=structural.intervals[i]
+                    low.fromThreshold==high.fromThreshold &&
+                        low.toThreshold==high.toThreshold &&
+                        low.openedCounters.size<=high.holesBefore
+                }
+            ) { "Cavidades e aberturas alfa com contagens incoerentes." }
             RasterAlphaThresholdSweepReport(
                 source=source,visiblePixels=totalVisible,
                 fullyOpaquePixels=opaque,slices=sections,
-                componentLineage=lineage,structuralAudit=structural
+                componentLineage=lineage,structuralAudit=structural,
+                counterLeakEvidence=lostCounters
             )
         }
 }
