@@ -90,6 +90,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweep
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweepReport
 import com.timachado.brothermatrizes.core.embroidery.RasterQaStructuralAuditReceipt
+import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureStudy
+import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureProposal
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -380,6 +382,20 @@ fun SimpleImageToEmbroideryScreen(
     var selectedAlphaTransition by remember(prepared?.image) {
         mutableStateOf<Pair<Int,Int>?>(null)
     }
+    var counterClosureBusy by remember(prepared?.image) {
+        mutableStateOf(false)
+    }
+    var counterClosureStudy by remember(prepared?.image) {
+        mutableStateOf<RasterQaCounterClosureProposal?>(null)
+    }
+    var showCounterClosure by remember(prepared?.image) {
+        mutableStateOf(false)
+    }
+    val counterClosureOverlay=remember(
+        counterClosureStudy,showCounterClosure
+    ) {
+        if(showCounterClosure) counterClosureStudy?.preview() else null
+    }
     val alphaSweepOverlay = remember(
         alphaSweepReport,selectedAlphaThreshold,selectedAlphaTransition
     ) {
@@ -610,7 +626,7 @@ fun SimpleImageToEmbroideryScreen(
                     fontWeight = FontWeight.Bold)
                 Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
                 Text(
-                    "APK EXPERIMENTAL: QA V3 — Aberturas de Vazados",
+                    "APK EXPERIMENTAL: QA V4 — Proteção de Vazados",
                     color = FioGold,fontSize = 11.sp
                 )
             }
@@ -628,12 +644,15 @@ fun SimpleImageToEmbroideryScreen(
             // The SAME EmbroideryCanvas as Abrir Matrizes, with a graphic
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
-                design = if (alphaSweepOverlay != null) placeholder
+                design = if (alphaSweepOverlay != null ||
+                    counterClosureOverlay != null) placeholder
                     else mixedFullShown ?: mixedSplitShown ?: mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (alphaSweepOverlay != null)
+                rasterArtwork = if (counterClosureOverlay != null)
+                    counterClosureOverlay
+                    else if (alphaSweepOverlay != null)
                     alphaSweepOverlay
                     else if (mixedFullShown != null) mixedSource
                     else mixedFullCoverage ?: mixedSplitSource ?:
@@ -641,14 +660,20 @@ fun SimpleImageToEmbroideryScreen(
                         mixedPartOverlay ?: elementPicture ?: if (showFlatStudy)
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
-                rasterOpacity = if (alphaSweepOverlay != null) .99f
+                rasterOpacity = if (alphaSweepOverlay != null ||
+                    counterClosureOverlay != null) .99f
                     else if (mixedFullShown != null) .12f
                     else if (mixedShown != null || mixedSplitShown != null)
                         .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (selectedAlphaTransition != null)
+                if (counterClosureOverlay != null)
+                    "PROTEÇÃO LOCALIZADA QA 180→208: cinza = pixels " +
+                        "preservados; verde = pixels semitransparentes " +
+                        "da imagem original reincluídos apenas na prévia. " +
+                        "Não são pontos, trilhos Satin nem PES."
+                else if (selectedAlphaTransition != null)
                     "COMPARAÇÃO DE PERDA QA " +
                         selectedAlphaTransition?.first + "→" +
                         selectedAlphaTransition?.second +
@@ -869,6 +894,7 @@ fun SimpleImageToEmbroideryScreen(
                     listOf(128,160,180,208,224,255).forEach { level ->
                         OutlinedButton(
                             onClick = {
+                                showCounterClosure=false
                                 selectedAlphaTransition=null
                                 selectedAlphaThreshold=level
                             }
@@ -879,6 +905,106 @@ fun SimpleImageToEmbroideryScreen(
                                 color=FioGold,fontSize=12.sp
                             )
                         }
+                    }
+                }
+                OutlinedButton(
+                    modifier=Modifier.fillMaxWidth(),
+                    enabled=alphaReport.counterLeakEvidence!=null &&
+                        !counterClosureBusy,
+                    onClick={
+                        val stamp=revision
+                        val picture=prepared?.image
+                        if(picture==null ||
+                            alphaReport.source !== picture) {
+                            message="Imagem original mudou. Analise novamente."
+                        } else {
+                            counterClosureBusy=true
+                            scope.launch {
+                                val result=withContext(Dispatchers.Default) {
+                                    RasterQaCounterClosureStudy.prepare(
+                                        alphaReport,180,208
+                                    )
+                                }
+                                if(revision==stamp &&
+                                    prepared?.image === picture) {
+                                    result.fold(
+                                        onSuccess={
+                                            counterClosureStudy=it
+                                            selectedAlphaTransition=null
+                                            selectedAlphaThreshold=null
+                                            showCounterClosure=true
+                                            message=if(it.candidateForVisualReview)
+                                                "Prévia candidata pronta: " +
+                                                    "revisão visual ainda obrigatória."
+                                            else
+                                                "A rota não restaurou a " +
+                                                    "topologia de forma segura."
+                                        },
+                                        onFailure={
+                                            message=it.message ?:
+                                                "Proteção localizada não disponível."
+                                        }
+                                    )
+                                }
+                                counterClosureBusy=false
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        if(counterClosureBusy)
+                            "Conferindo proteção do vazado..."
+                        else "Prévia de proteção do vazado 180→208 (QA)",
+                        color=FioGold
+                    )
+                }
+                counterClosureStudy?.let { candidate ->
+                    Text(candidate.summary(),color=FioTextMuted,
+                        fontSize=11.sp)
+                    OutlinedButton(
+                        modifier=Modifier.fillMaxWidth(),
+                        onClick={
+                            showCounterClosure=!showCounterClosure
+                            if(showCounterClosure) {
+                                selectedAlphaTransition=null
+                                selectedAlphaThreshold=null
+                            }
+                        }
+                    ) {
+                        Text(
+                            if(showCounterClosure)
+                                "Voltar à imagem original (QA)"
+                            else "Exibir proteção localizada (QA)",
+                            color=FioGold
+                        )
+                    }
+                    OutlinedButton(
+                        modifier=Modifier.fillMaxWidth(),
+                        onClick={
+                            val previous=RasterQaStructuralAuditReceipt
+                                .generate(alphaReport).getOrNull()
+                            if(previous==null) {
+                                message="Auditoria de origem inválida."
+                            } else {
+                                val payload="QA-PROTECAO-VAZADO-V4 | " +
+                                    candidate.summary() + " | " +
+                                    previous
+                                val clipboard=context.getSystemService(
+                                    android.content.Context.CLIPBOARD_SERVICE
+                                ) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(
+                                        "Brother Matrizes — Proteção QA V4",
+                                        payload
+                                    )
+                                )
+                                message="Prova de proteção QA V4 copiada; " +
+                                    "nenhuma imagem nem PES exportados."
+                            }
+                        }
+                    ) {
+                        Text("Copiar proteção localizada QA V4",
+                            color=FioGold)
                     }
                 }
                 Text(
@@ -898,6 +1024,7 @@ fun SimpleImageToEmbroideryScreen(
                         .forEach { pair ->
                             OutlinedButton(
                                 onClick = {
+                                    showCounterClosure=false
                                     selectedAlphaThreshold=null
                                     selectedAlphaTransition=pair
                                 }
