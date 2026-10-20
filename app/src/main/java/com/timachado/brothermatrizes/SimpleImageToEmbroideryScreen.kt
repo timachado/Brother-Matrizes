@@ -806,6 +806,7 @@ fun SimpleImageToEmbroideryScreen(
                     !preparing && !simulating,
                 onClick = {
                     val source=prepared?.image ?: return@OutlinedButton
+                    showCounterClosure=false
                     if(alphaSweepReport!=null) {
                         val closed = selectedAlphaThreshold!=null ||
                             selectedAlphaTransition!=null
