@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -74,6 +76,29 @@ class PremiumHomeScreenshotTest {
         screenshot.recycle()
         check(output.length() > 10_000L) {
             "Captura visual gerada com tamanho invalido"
+        }
+
+        // Prova de que o simbolo dourado aprovado foi empacotado, nao apenas
+        // desenhado no mockup. Captura o icone real solicitado ao PackageManager.
+        val bm = BitmapFactory.decodeResource(
+            targetContext.resources, R.drawable.brother_bm_premium_approved
+        )
+        requireNotNull(bm) { "Drawable BM premium nao decodificado no Android" }
+        check(bm.width >= 180 && bm.height >= 180) {
+            "Recurso de marca do Android tem resolucao insuficiente"
+        }
+        val launcher = targetContext.packageManager.getApplicationIcon(targetContext.packageName)
+        val launcherBitmap = Bitmap.createBitmap(432, 432, Bitmap.Config.ARGB_8888)
+        launcher.setBounds(0, 0, 432, 432)
+        launcher.draw(Canvas(launcherBitmap))
+        val launcherOutput = File(targetContext.filesDir, "premium-launcher-icon.png")
+        launcherOutput.outputStream().use { out ->
+            check(launcherBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                "Falha ao salvar icone de launcher adaptativo"
+            }
+        }
+        check(launcherOutput.length() > 5_000) {
+            "Captura do icone Android invalida"
         }
     }
 }
