@@ -135,7 +135,7 @@ jobs:
           profile: pixel_5
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest,com.timachado.brothermatrizes.ImageToEmbroideryInstrumentedQaTest,com.timachado.brothermatrizes.ImportedFontSystemSmokeTest,com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest,com.timachado.brothermatrizes.ImportedFontSatinSequenceTest --no-daemon --stacktrace
+          script: bash .github/scripts/qa-android-class-regression.sh
       - name: Mostrar falhas JUnit Android em texto para triagem
         if: failure()
         shell: bash
@@ -169,4 +169,5 @@ jobs:
           path: |
             app/build/outputs/androidTest-results/connected/
             app/build/reports/androidTests/connected/
+            app/build/qa-regressions/
           if-no-files-found: warn
