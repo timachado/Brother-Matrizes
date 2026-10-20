@@ -93,6 +93,8 @@ import com.timachado.brothermatrizes.core.embroidery.RasterQaStructuralAuditRece
 import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureProposal
 import com.timachado.brothermatrizes.core.embroidery.RasterQaMicrodetailReview
+import com.timachado.brothermatrizes.core.embroidery.RasterQaMicrodetailPhysicalGate
+import com.timachado.brothermatrizes.core.embroidery.RasterQaMicrodetailIntent
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -652,7 +654,7 @@ fun SimpleImageToEmbroideryScreen(
                     fontWeight = FontWeight.Bold)
                 Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
                 Text(
-                    "APK EXPERIMENTAL: QA V5 — Microdetalhes",
+                    "APK EXPERIMENTAL: QA V6 — Segurança do Microdetalhe",
                     color = FioGold,fontSize = 11.sp
                 )
             }
@@ -1019,6 +1021,16 @@ fun SimpleImageToEmbroideryScreen(
                         )
                     }
                     microdetail?.let { detail ->
+                        val physicalScreen=remember(
+                            detail,microdetailJudgment
+                        ) {
+                            RasterQaMicrodetailPhysicalGate.inspect(
+                                detail,
+                                RasterQaMicrodetailIntent.fromCaption(
+                                    microdetailJudgment
+                                )
+                            ).getOrNull()
+                        }
                         Text(
                             "Revisão física e visual do microdetalhe " +
                                 "(não é liberação para bordar):",
@@ -1026,6 +1038,12 @@ fun SimpleImageToEmbroideryScreen(
                         )
                         Text(detail.summary(microdetailJudgment),
                             color=FioTextMuted,fontSize=11.sp)
+                        Text(
+                            physicalScreen?.summary() ?:
+                                "Falha na conferência física QA: " +
+                                    "microdetalhe bloqueado.",
+                            color=FioGold,fontSize=11.sp
+                        )
                         OutlinedButton(
                             modifier=Modifier.fillMaxWidth(),
                             onClick={
@@ -1073,23 +1091,26 @@ fun SimpleImageToEmbroideryScreen(
                         OutlinedButton(
                             modifier=Modifier.fillMaxWidth(),
                             onClick={
-                                val textReport=detail.summary(
-                                    microdetailJudgment
-                                )
-                                val clipboard=context.getSystemService(
-                                    android.content.Context.CLIPBOARD_SERVICE
-                                ) as android.content.ClipboardManager
-                                clipboard.setPrimaryClip(
-                                    android.content.ClipData.newPlainText(
-                                        "Brother Matrizes — Microdetalhe QA V5",
-                                        textReport
+                                val textReport=physicalScreen?.summary()
+                                if(textReport==null) {
+                                    message="Conferência QA V6 inválida. " +
+                                        "Nenhuma decisão de bordado liberada."
+                                } else {
+                                    val clipboard=context.getSystemService(
+                                        android.content.Context.CLIPBOARD_SERVICE
+                                    ) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(
+                                        android.content.ClipData.newPlainText(
+                                            "Brother Matrizes — Segurança QA V6",
+                                            textReport
+                                        )
                                     )
-                                )
-                                message="Microdetalhe QA V5 copiado " +
-                                    "sem pixels ou arquivo PES."
+                                    message="Segurança QA V6 copiada: " +
+                                        "PES e digitalização ainda bloqueados."
+                                }
                             }
                         ) {
-                            Text("Copiar microdetalhe QA V5",
+                            Text("Copiar segurança do microdetalhe QA V6",
                                 color=FioGold)
                         }
                     }
