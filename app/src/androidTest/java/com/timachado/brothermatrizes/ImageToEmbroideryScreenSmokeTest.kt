@@ -1,0 +1,45 @@
+package com.timachado.brothermatrizes
+
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.junit4.createComposeRule
+import com.timachado.brothermatrizes.core.embroidery.RasterEmbroideryApproval
+import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
+import org.junit.Assert.assertFalse
+import org.junit.Rule
+import org.junit.Test
+
+/**
+ * Runs on a virtual Android device in GitHub Actions, never on a user's
+ * phone. Guards the most costly QA regressions: screen startup, source
+ * selection UX, distinguishable QA version and NO accidental PES export.
+ */
+class ImageToEmbroideryScreenSmokeTest {
+    @get:Rule
+    val compose= createComposeRule()
+
+    @Test fun emptyImageScreenStartsWithRealQaWarningAndNoPesExport() {
+        compose.setContent {
+            BrotherMatrizesTheme {
+                SimpleImageToEmbroideryScreen(
+                    onBack={},
+                    onSimulate={ _,_,_,_ ->
+                        error("Empty image must never simulate stitches.")
+                    },
+                    session=SimpleImageSession()
+                )
+            }
+        }
+        compose.onNodeWithText("Imagem para Bordado").assertExists()
+        compose.onNodeWithText(
+            "APK EXPERIMENTAL: QA V6 — Segurança do Microdetalhe"
+        ).assertExists()
+        compose.onNodeWithText(
+            "Escolha a imagem e confira no bastidor"
+        ).assertExists()
+        compose.onNodeWithText("Exportar PES").assertDoesNotExist()
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+}
