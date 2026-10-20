@@ -79,27 +79,27 @@ fun HomeScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 12.dp),
         contentPadding =
             PaddingValues(
-                top = 6.dp,
-                bottom = 28.dp
+                top = 4.dp,
+                bottom = 18.dp
             ),
         horizontalArrangement =
-            Arrangement.spacedBy(12.dp),
+            Arrangement.spacedBy(8.dp),
         verticalArrangement =
-            Arrangement.spacedBy(12.dp)
+            Arrangement.spacedBy(8.dp)
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_launcher_brother_premium),
                     contentDescription = "Símbolo BM, Brother Matrizes",
-                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)),
+                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)),
                     contentScale = ContentScale.Crop
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -145,7 +145,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 106.dp
+                            min = 88.dp
                         ),
                 iconRes =
                     R.drawable
@@ -185,7 +185,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -205,7 +205,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -225,7 +225,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -253,7 +253,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -281,7 +281,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -309,7 +309,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 100.dp
+                            min = 70.dp
                         ),
                 iconRes =
                     R.drawable
@@ -604,7 +604,7 @@ fun HomeScreen(
 private fun PremiumHeroCard() {
     Box(
         modifier = Modifier.fillMaxWidth()
-            .height(158.dp)
+            .height(142.dp)
             .clip(RoundedCornerShape(28.dp))
             .background(Color(0xFF091C2D))
     ) {
@@ -685,18 +685,18 @@ private fun ExpressiveFeatureCard(
                     .background(Brush.horizontalGradient(
                         listOf(Color(0xFFFFDD91), Color(0xFFE2B461), Color(0xFFD59A3E))
                     ))
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(color = dark, shape = CircleShape, modifier = Modifier.size(56.dp)) {
+                Surface(color = dark, shape = CircleShape, modifier = Modifier.size(50.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(painterResource(iconRes), null, tint = FioGold,
                              modifier = Modifier.size(28.dp))
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                          color = Color(0xFF081724))
                     Spacer(Modifier.height(2.dp))
                     Text(subtitle, style = MaterialTheme.typography.bodyMedium,
@@ -707,31 +707,31 @@ private fun ExpressiveFeatureCard(
             }
         } else {
             Row(
-                Modifier.fillMaxWidth().padding(12.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
                     shape = CircleShape,
                     color = if (enabled) FioGold.copy(alpha = 0.14f) else FioSurfaceAlt,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = painterResource(iconRes),
                             contentDescription = null,
                             tint = if (enabled) FioGoldSoft else FioTextMuted,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, color = foreground,
-                         fontSize = 12.sp, lineHeight = 16.sp,
+                         fontSize = 12.sp, lineHeight = 15.sp,
                          fontWeight = FontWeight.SemiBold, maxLines = 2,
                          overflow = TextOverflow.Ellipsis)
                     Text(subtitle, color = FioTextMuted,
-                         fontSize = 10.sp, lineHeight = 13.sp,
+                         fontSize = 10.sp, lineHeight = 12.sp,
                          maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text("›", fontSize = 20.sp, color = if (enabled) FioGoldSoft else FioTextMuted)
