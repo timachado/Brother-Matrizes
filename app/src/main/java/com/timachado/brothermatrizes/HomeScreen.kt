@@ -113,7 +113,7 @@ fun HomeScreen(
                     shape = CircleShape,
                     colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceHigh)) {
                     Icon(
-                        painterResource(R.drawable.ic_notification_brother),
+                        painterResource(R.drawable.ic_premium_bell),
                         contentDescription = "Novidades disponíveis na seção Início",
                         tint = FioGoldSoft,
                         modifier = Modifier.padding(12.dp).size(22.dp)
