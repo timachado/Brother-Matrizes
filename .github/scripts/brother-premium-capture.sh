@@ -25,16 +25,21 @@ fi
 
 adb shell pm path com.timachado.brothermatrizes | grep -q 'package:'
 adb exec-out run-as com.timachado.brothermatrizes cat files/premium-home-screenshot.png > premium-home-screenshot.png
+adb exec-out run-as com.timachado.brothermatrizes cat files/premium-launcher-icon.png > premium-launcher-icon.png
 
 python3 - <<'PY'
 from pathlib import Path
 import struct
-p = Path("premium-home-screenshot.png")
-data = p.read_bytes()
-assert len(data) >= 10_000, f"Captura inesperadamente curta: {len(data)} bytes"
-assert data[:8] == bytes.fromhex("89504e470d0a1a0a"), "Captura nao e PNG"
-assert data[12:16] == b'IHDR', "Arquivo PNG sem cabecalho de dimensoes"
-width, height = struct.unpack(">II", data[16:24])
-assert width >= 320 and height >= 560, f"Resolucao invalida: {width}x{height}"
-print(f"Captura real da Home: {width}x{height}, {len(data)} bytes")
+for filename, minimum_size, minimum_width, minimum_height in [
+    ("premium-home-screenshot.png", 10_000, 320, 560),
+    ("premium-launcher-icon.png", 5_000, 432, 432),
+]:
+    p = Path(filename)
+    data = p.read_bytes()
+    assert len(data) >= minimum_size, f"{filename}: tamanho invalido ({len(data)})"
+    assert data[:8] == bytes.fromhex("89504e470d0a1a0a"), f"{filename}: nao e PNG"
+    assert data[12:16] == b'IHDR', f"{filename}: IHDR ausente"
+    width, height = struct.unpack(">II", data[16:24])
+    assert width >= minimum_width and height >= minimum_height, f"{filename}: resolucao invalida"
+    print(f"QA imagem validada: {filename}, {width}x{height}, {len(data)} bytes")
 PY
