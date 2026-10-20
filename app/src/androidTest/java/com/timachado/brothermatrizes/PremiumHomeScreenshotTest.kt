@@ -25,6 +25,16 @@ class PremiumHomeScreenshotTest {
             composeRule.onAllNodesWithText(heroTitle)
                 .fetchSemanticsNodes().isNotEmpty()
         }
+        // A janela de novidades aparece apenas na primeira abertura da versao.
+        // Fechar como usuario, preservando a preferencia e o fluxo de producao.
+        composeRule.waitUntil(timeoutMillis = 25_000) {
+            composeRule.onAllNodesWithText("Entendi").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Entendi").assertIsDisplayed().performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Entendi").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitForIdle()
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
         composeRule.onNodeWithText("Início").assertIsDisplayed()
