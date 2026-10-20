@@ -6,6 +6,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.annotation.DrawableRes
@@ -629,7 +632,12 @@ private fun PremiumHeroCard() {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "O que vamos\nbordar hoje?",
+                text = buildAnnotatedString {
+                    append("O que vamos\n")
+                    withStyle(SpanStyle(color = FioGoldSoft)) {
+                        append("bordar hoje?")
+                    }
+                },
                 color = Color.White,
                 fontSize = 23.sp,
                 lineHeight = 27.sp,
