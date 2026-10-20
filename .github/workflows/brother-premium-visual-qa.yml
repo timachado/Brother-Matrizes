@@ -37,3 +37,41 @@ jobs:
           name: brother-premium-visual-debug-qa
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  android-visual-screenshot:
+    name: Captura visual Android em emulador
+    needs: android-visual-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Habilitar aceleracao de emulador
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Validar tela premium no Android e salvar captura
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            gradle :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.PremiumHomeScreenshotTest" --stacktrace
+            adb exec-out run-as com.timachado.brothermatrizes cat files/premium-home-screenshot.png > premium-home-screenshot.png
+            test -s premium-home-screenshot.png
+      - name: Disponibilizar captura para revisao visual
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-premium-visual-home-android
+          path: premium-home-screenshot.png
+          if-no-files-found: error
