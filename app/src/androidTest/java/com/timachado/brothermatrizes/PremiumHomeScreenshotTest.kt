@@ -35,6 +35,15 @@ class PremiumHomeScreenshotTest {
         composeRule.waitUntil(timeoutMillis = 10_000) {
             composeRule.onAllNodesWithText("Entendi").fetchSemanticsNodes().isEmpty()
         }
+        // Segunda janela de primeiro uso: consentimento independente do Firebase.
+        // Dispensar apenas no emulador, sem alterar o fluxo real de opt-in.
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Agora não").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Agora não").assertIsDisplayed().performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Agora não").fetchSemanticsNodes().isEmpty()
+        }
         composeRule.waitForIdle()
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
