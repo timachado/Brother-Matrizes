@@ -387,81 +387,47 @@ fun HomeScreen(
                 GridItemSpan(maxLineSpan)
             }
         ) {
-            if (
-                recent ==
-                    null
-            ) {
+            if (recent == null) {
                 Surface(
-                    color = FioSurface,
-                    shape =
-                        MaterialTheme.shapes
-                            .large
+                    color = FioSurfaceAlt,
+                    shape = RoundedCornerShape(28.dp)
                 ) {
                     Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            "Nenhuma matriz nesta sessão.",
-                            color = FioTextMuted,
-                            style =
-                                MaterialTheme.typography
-                                    .bodyMedium,
-                            textAlign =
-                                TextAlign.Center
-                        )
-
-                        Spacer(
-                            Modifier.height(
-                                12.dp
-                            )
-                        )
-
-                        Button(
-                            onClick =
-                                onCreateName,
-                            colors =
-                                ButtonDefaults
-                                    .buttonColors(
-                                        containerColor =
-                                            FioGold,
-                                        contentColor =
-                                            FioBackground
-                                    ),
-                            shape =
-                                MaterialTheme.shapes
-                                    .large
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_text_fields_rounded
-                                    ),
-                                contentDescription =
-                                    null,
-                                modifier =
-                                    Modifier.size(
-                                        20.dp
-                                    )
+                                painter = painterResource(R.drawable.ic_ms_folder_open_rounded),
+                                contentDescription = null,
+                                tint = FioTextMuted,
+                                modifier = Modifier.size(32.dp)
                             )
-
-                            Spacer(
-                                Modifier.size(
-                                    8.dp
-                                )
-                            )
-
                             Text(
-                                "Criar primeiro nome",
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .labelLarge
+                                "Nenhuma matriz nesta sessão.",
+                                color = FioTextMuted,
+                                style = MaterialTheme.typography.bodyMedium
                             )
+                        }
+                        Button(
+                            onClick = onCreateName,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = FioGold,
+                                contentColor = FioBackground
+                            ),
+                            shape = RoundedCornerShape(50.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_ms_text_fields_rounded),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text("Criar primeiro nome", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
