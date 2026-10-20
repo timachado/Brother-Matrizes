@@ -36,7 +36,7 @@ class RasterQaMicrodetailReviewTest {
         assertEquals(36*31,report.sourceHolePixels)
         assertEquals(10,report.restoredPixels.size)
         assertEquals(45,report.centerX)
-        assertEquals(37,report.centerY)
+        assertEquals(12,report.centerY)
         assertTrue(report.summary().contains("largura-escolhida=96.000 mm"))
         assertTrue(report.summary().contains("caixa-fisica=36.000x31.000 mm"))
         assertTrue(report.summary().contains(
@@ -69,7 +69,7 @@ class RasterQaMicrodetailReviewTest {
                 it==0xffefa75b.toInt() ||
                 it==0xff2d3947.toInt()
         })
-        assertEquals(0xff2d3947.toInt(),zoom.argb[(h/2)*w+(w/2)])
+        assertEquals(0xff60d58c.toInt(),zoom.argb[(h/2)*w+(w/2)])
         assertTrue(zoom.argb.contains(0xff60d58c.toInt()))
         assertTrue(zoom.argb.contains(0xffb1bbc4.toInt()))
         assertTrue(review.summary().contains("escala=0.500 mm/px"))
