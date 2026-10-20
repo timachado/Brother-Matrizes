@@ -1,10 +1,10 @@
-name: Brother Matrizes QA Microdetalhes V5
+name: Brother Matrizes QA Seguranca Microdetalhe V6
 
 on:
   push:
-    branches: ["qa/image-microdetail-scale-review-20261020"]
+    branches: ["qa/image-microdetail-physical-gate-20261020"]
   pull_request:
-    branches: ["qa/image-counter-closure-review-20261020"]
+    branches: ["qa/image-microdetail-scale-review-20261020"]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qamicrodetail"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qaphysicalgate"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -60,6 +60,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Microdetalhes-V5
+          name: Brother-Matrizes-QA-Seguranca-V6
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
