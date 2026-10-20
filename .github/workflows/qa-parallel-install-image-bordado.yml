@@ -1,17 +1,17 @@
-name: Brother Matrizes QA Seguranca Microdetalhe V6
+name: Brother Matrizes QA CI sem reinstalacao
 
 on:
   push:
-    branches: ["qa/image-microdetail-physical-gate-20261020"]
+    branches: ["qa/brother-stable-qa-ci-20261020"]
   pull_request:
-    branches: ["qa/image-microdetail-scale-review-20261020"]
+    branches: ["qa/image-microdetail-physical-gate-20261020"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  parallel-apk:
+  qa-continuo:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -32,34 +32,73 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.0"
-      - name: Guard original release package and simulator
+
+      - name: Guard release and fixed QA identity
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
           grep -F 'applicationIdSuffix = ".qaphysicalgate"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
+          grep -F 'android:label="Brother Matrizes QA"' app/src/debug/AndroidManifest.xml
+          grep -F '"package_name": "com.timachado.brothermatrizes.qaphysicalgate"' app/src/debug/google-services.json
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
             git diff origin/main --exit-code -- "app/src/main/java/com/timachado/brothermatrizes/$file"
           done
-      - name: Unit tests
+
+      - name: Automated regression tests (no phone required)
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
-      - name: Report failed embroidery QA tests
-        if: failure()
-        shell: bash
-        run: |
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*Topology*.xml' -type f -print -exec sed -n '1,125p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*VariableWidth*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*PesReadback*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterThreadSequence*.xml' -type f -print -exec sed -n '1,190p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterSatinRailGeometryGate*.xml' -type f -print -exec sed -n '1,220p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*RasterUncoveredRegionAudit*.xml' -type f -print -exec sed -n '1,240p' {} \; || true
-          find app/build/test-results/testDebugUnitTest -name 'TEST-*Vasos*.xml' -type f -print -exec sed -n '1,130p' {} \; || true
-      - name: Build isolated Android QA APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-      - name: Upload APK for QA only
+
+      - name: Publish automated test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Seguranca-V6
+          name: Brother-Matrizes-QA-Testes-Automaticos
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
+          if-no-files-found: warn
+
+      # A permanently update-compatible APK needs an actual persistent
+      # QA key. Ephemeral GitHub runner debug keys CANNOT update each other.
+      # This step only prepares a private QA signer during an explicit
+      # manual distribution request. Never publish an unsigned or
+      # ephemeral-debug-key APK as if it were update-compatible.
+      - name: Prepare persistent QA signer (manual distribution only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          QA_KEYSTORE_B64: ${{ secrets.BROTHER_QA_KEYSTORE_BASE64 }}
+          QA_STORE_PASSWORD: ${{ secrets.BROTHER_QA_STORE_PASSWORD }}
+          QA_KEY_ALIAS: ${{ secrets.BROTHER_QA_KEY_ALIAS }}
+          QA_KEY_PASSWORD: ${{ secrets.BROTHER_QA_KEY_PASSWORD }}
+        run: |
+          if [ -z "$QA_KEYSTORE_B64" ] || [ -z "$QA_STORE_PASSWORD" ] || \
+             [ -z "$QA_KEY_ALIAS" ] || [ -z "$QA_KEY_PASSWORD" ]; then
+            echo "::warning::QA signer not configured; automated tests remain usable, but no installable APK will be published."
+            echo "QA_SIGNED=false" >> "$GITHUB_ENV"
+          else
+            umask 077
+            printf '%s' "$QA_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/brother-qa.jks"
+            test -s "$RUNNER_TEMP/brother-qa.jks"
+            echo "QA_SIGNED=true" >> "$GITHUB_ENV"
+            echo "BROTHER_QA_STORE_FILE=$RUNNER_TEMP/brother-qa.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compile Android QA on CI (no installation)
+        shell: bash
+        env:
+          BROTHER_QA_STORE_PASSWORD: ${{ secrets.BROTHER_QA_STORE_PASSWORD }}
+          BROTHER_QA_KEY_ALIAS: ${{ secrets.BROTHER_QA_KEY_ALIAS }}
+          BROTHER_QA_KEY_PASSWORD: ${{ secrets.BROTHER_QA_KEY_PASSWORD }}
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload update-compatible QA APK only when requested and signed
+        if: github.event_name == 'workflow_dispatch' && env.QA_SIGNED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-QA-Estavel
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
           if-no-files-found: error
