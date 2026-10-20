@@ -62,8 +62,12 @@ class RasterQaCounterClosureStudyTest {
         assertEquals(1,report.sourceHoles)
         assertEquals(0,report.cutoffHoles)
         assertEquals(0,report.candidateHoles)
-        assertEquals(1,report.cutoffRegions)
+        // Two top slits isolate an ink island. Restoring only one
+        // witness reunites it, but STILL leaves the counter open.
+        // Both conditions must be checked before any QA candidacy.
+        assertEquals(2,report.cutoffRegions)
         assertEquals(1,report.candidateRegions)
+        assertFalse(report.regionTopologyPreserved)
         assertFalse(report.holeRestored)
         assertFalse(report.candidateForVisualReview)
         assertFalse(report.exportPermitted)
