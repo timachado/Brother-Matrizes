@@ -390,7 +390,11 @@ fun SimpleImageToEmbroideryScreen(
             report!=null && comparison!=null ->
                 report.structuralAudit?.preview(
                     comparison.first,comparison.second
-                ) ?: report.componentLineage?.lossPreview(
+                )?.let { base ->
+                    report.counterLeakEvidence?.overlay(
+                        comparison.first,comparison.second,base
+                    ) ?: base
+                } ?: report.componentLineage?.lossPreview(
                     comparison.first,comparison.second
                 )
             report!=null && level!=null -> report.silhouettePreview(level)
@@ -606,7 +610,7 @@ fun SimpleImageToEmbroideryScreen(
                     fontWeight = FontWeight.Bold)
                 Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
                 Text(
-                    "APK EXPERIMENTAL: QA AUDITORIA V2 — Ligações e Vazados",
+                    "APK EXPERIMENTAL: QA V3 — Aberturas de Vazados",
                     color = FioGold,fontSize = 11.sp
                 )
             }
@@ -650,8 +654,9 @@ fun SimpleImageToEmbroideryScreen(
                         selectedAlphaTransition?.second +
                         ": cinza = pixels preservados; laranja = pixels " +
                         "excluídos ao elevar a transparência; magenta = " +
-                        "candidatos a ligação entre regiões. " +
-                        "Compare os vazados internos. Não são pontos nem PES."
+                        "candidatos a ligação entre regiões; ciano = " +
+                        "rota de abertura de um vazado interno. " +
+                        "Não são pontos nem PES."
                 else if (alphaSweepOverlay != null)
                     "LIMIAR DE ALFA QA " + selectedAlphaThreshold +
                         ": cinza = silhueta mantida, laranja = borda perto " +
@@ -821,14 +826,15 @@ fun SimpleImageToEmbroideryScreen(
                 Text(alphaReport.summary(), color=FioTextMuted,
                     fontSize=11.sp)
                 Text(
-                    "Este APK gera o relatório QA-AUDITORIA-ESTRUTURAL-V2. " +
-                        "O botão abaixo copia SOMENTE a auditoria espacial " +
-                        "desta imagem, sem repetir o relatório antigo.",
+                    "Este APK gera o relatório QA-ABERTURA-DE-VAZADOS-V3. " +
+                        "O botão abaixo copia as coordenadas do(s) " +
+                        "vazado(s) aberto(s), sem repetir tabelas antigas.",
                     color=FioGold,fontSize=12.sp
                 )
                 OutlinedButton(
                     modifier=Modifier.fillMaxWidth(),
-                    enabled=alphaReport.structuralAudit!=null,
+                    enabled=alphaReport.structuralAudit!=null &&
+                        alphaReport.counterLeakEvidence!=null,
                     onClick={
                         RasterQaStructuralAuditReceipt.generate(alphaReport).fold(
                             onSuccess={ receipt ->
@@ -837,21 +843,21 @@ fun SimpleImageToEmbroideryScreen(
                                 ) as android.content.ClipboardManager
                                 clipboard.setPrimaryClip(
                                     android.content.ClipData.newPlainText(
-                                        "Brother Matrizes — Auditoria QA V2",
+                                        "Brother Matrizes — Abertura Vazados V3",
                                         receipt
                                     )
                                 )
-                                message="Auditoria QA V2 copiada: inclui " +
-                                    "conexões, vazados e fingerprint. " +
+                                message="Auditoria QA V3 copiada: inclui " +
+                                    "rota de abertura, conexões e fingerprint. " +
                                     "Não contém arquivo de imagem nem PES."
                             },
                             onFailure={
-                                message=it.message ?: "Auditoria QA V2 ausente."
+                                message=it.message ?: "Auditoria QA V3 ausente."
                             }
                         )
                     }
                 ) {
-                    Text("Copiar SOMENTE auditoria espacial QA V2",
+                    Text("Copiar localização dos vazados QA V3",
                         color=FioGold)
                 }
                 Row(
@@ -876,8 +882,9 @@ fun SimpleImageToEmbroideryScreen(
                     }
                 }
                 Text(
-                    "A análise destaca ligações alfa em magenta e conta " +
-                        "vazados internos em cada limiar. Ela não identifica " +
+                    "A análise destaca conexões alfa em magenta, " +
+                        "rotas de abertura dos vazados em ciano. " +
+                        "Ela não identifica " +
                         "automaticamente letras nem autoriza bordados.",
                     color=FioTextMuted,fontSize=11.sp
                 )
