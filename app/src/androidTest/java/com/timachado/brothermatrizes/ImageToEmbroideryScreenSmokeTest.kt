@@ -1,8 +1,5 @@
 package com.timachado.brothermatrizes
 
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.timachado.brothermatrizes.core.embroidery.RasterEmbroideryApproval
