@@ -140,8 +140,10 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     val source = rootProject.file("branding/brother_matrizes_brand_logo.base64")
     val drawable = project.file("src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg")
     val mipmap = project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
-    inputs.file(source)
-    outputs.files(drawable, mipmap)
+    val heroSource = rootProject.file("branding/brother_home_hero.base64")
+    val heroDrawable = project.file("src/main/res/drawable-nodpi/brother_home_hero.jpg")
+    inputs.files(source, heroSource)
+    outputs.files(drawable, mipmap, heroDrawable)
     doLast {
         val data = Base64.getMimeDecoder().decode(source.readText())
         check(data.size >= 3000 && data[0] == 0xff.toByte() && data[1] == 0xd8.toByte()) {
@@ -151,6 +153,12 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
         mipmap.parentFile.mkdirs()
         drawable.writeBytes(data)
         mipmap.writeBytes(data)
+        val heroData = Base64.getMimeDecoder().decode(heroSource.readText())
+        check(heroData.size >= 2000 && heroData[0] == 0xff.toByte() && heroData[1] == 0xd8.toByte()) {
+            "Fotografia do hero Brother Matrizes ausente ou invalida"
+        }
+        heroDrawable.parentFile.mkdirs()
+        heroDrawable.writeBytes(heroData)
     }
 }
 tasks.configureEach {
