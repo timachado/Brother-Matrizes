@@ -1,33 +1,8 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <!-- Ícone BM + agulha/fio: versão vetorial, sem texto de leitura pequena. -->
-    <path android:fillColor="#081724" android:pathData="M0,0h108v108h-108z"/>
-    <path android:fillColor="#142839"
-        android:pathData="M13,17 Q13,13 17,13 L91,13 Q95,13 95,17 L95,91 Q95,95 91,95 L17,95 Q13,95 13,91z"/>
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#BD9048" android:strokeWidth="1.2"
-        android:pathData="M22,38 C22,18 46,14 63,24 C76,31 83,49 77,67 C72,84 56,90 38,84"/>
-    <!-- B -->
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#F4D38F" android:strokeWidth="5.0"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M31,27 L31,79 M31,27 C62,21 61,48 33,50 M33,50 C64,46 63,80 31,79"/>
-    <!-- M -->
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#D8A456" android:strokeWidth="4.7"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M51,78 L56,36 L70,56 L83,36 L83,78"/>
-    <!-- Agulha oblíqua, olho e fio em curva -->
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFE2A1" android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M68,17 L44,89"/>
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFE2A1" android:strokeWidth="1.5"
-        android:pathData="M69,16 C66,11 61,14 63,19 C64,22 68,20 69,16z"/>
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#D8A456" android:strokeWidth="1.35"
-        android:strokeLineCap="round"
-        android:pathData="M44,88 C32,96 17,82 24,67 C30,56 42,61 44,67"/>
-</vector>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone do mockup aprovado, com margem interna para máscaras adaptativas. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/brother_bm_premium_approved"
+    android:insetLeft="16dp"
+    android:insetTop="16dp"
+    android:insetRight="16dp"
+    android:insetBottom="16dp" />
