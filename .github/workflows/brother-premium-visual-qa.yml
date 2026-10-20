@@ -70,5 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: brother-premium-visual-home-android
-          path: premium-home-screenshot.png
+          path: |
+            premium-home-screenshot.png
+            premium-launcher-icon.png
           if-no-files-found: error
