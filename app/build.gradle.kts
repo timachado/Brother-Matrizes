@@ -141,8 +141,10 @@ dependencies {
 val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     val heroSource = rootProject.file("branding/brother_home_hero.base64")
     val heroDrawable = project.file("src/main/res/drawable-nodpi/brother_home_hero.jpg")
-    inputs.file(heroSource)
-    outputs.file(heroDrawable)
+    val approvedIconSource = rootProject.file("branding/brother_bm_premium_approved.webp.base64")
+    val approvedIconDrawable = project.file("src/main/res/drawable-nodpi/brother_bm_premium_approved.webp")
+    inputs.files(heroSource, approvedIconSource)
+    outputs.files(heroDrawable, approvedIconDrawable)
     // A remoção dos JPGs legados também ocorre quando o hero já existe no cache.
     outputs.upToDateWhen { false }
     doLast {
@@ -152,6 +154,17 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
             .delete()
         project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
             .delete()
+
+        // Recurso da arte BM metalizada aprovada. WEBP é suportado no Android
+        // minSdk 26; gravamos os bytes sem requantizar ou reimaginar o mockup.
+        val premiumData = Base64.getMimeDecoder().decode(approvedIconSource.readText())
+        check(premiumData.size >= 4000 &&
+            String(premiumData.copyOfRange(0, 4), Charsets.US_ASCII) == "RIFF" &&
+            String(premiumData.copyOfRange(8, 12), Charsets.US_ASCII) == "WEBP") {
+            "Icone metalizado premium ausente ou invalido"
+        }
+        approvedIconDrawable.parentFile.mkdirs()
+        approvedIconDrawable.writeBytes(premiumData)
 
         val heroData = Base64.getMimeDecoder().decode(heroSource.readText())
         check(heroData.size >= 2000 &&
