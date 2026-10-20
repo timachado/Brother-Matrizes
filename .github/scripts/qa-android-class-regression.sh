@@ -13,8 +13,8 @@ classes=(
 folder="app/build/qa-regressions"
 mkdir -p "$folder"
 failed=0
-for klass in "\${classes[@]}"; do
-  label="\${klass##*.}"
+for klass in "${classes[@]}"; do
+  label="${klass##*.}"
   echo "::group::Android QA class: $label"
   # Run connectedDebugAndroidTest once per requested class. Do not consider
   # a zero-test result to be a pass.
