@@ -19,6 +19,7 @@ internal data class RasterQaMicrodetailReport(
     val holeMaxY:Int,
     val sourceHolePixels:Int,
     val restoredPixels:List<Int>,
+    val sourceFingerprint:String,
     val counterRestoredInMask:Boolean,
     val topologyIntact:Boolean,
     val exportPermitted:Boolean=false,
@@ -37,6 +38,7 @@ internal data class RasterQaMicrodetailReport(
         }
         return "QA-MICRODETALHE-V5 | " +
             "imagem=${source.width}x${source.height} | " +
+            "fingerprint=${sourceFingerprint} | " +
             "largura-escolhida=${mm(sourceWidthMm)} mm | " +
             "escala=${mm(pixelSizeMm)} mm/px | " +
             "vazado=(${holeMinX},${holeMinY})–" +
@@ -130,6 +132,11 @@ internal object RasterQaMicrodetailReview {
             } &&
             closure.candidatePixels.containsAll(counter.openingPixels)
         ) { "Pixel ou vazado incompatível com a arte de origem." }
+        var sourceHash=1469598103934665603L
+        for(pixel in image.argb) {
+            sourceHash=(sourceHash xor (pixel.toLong() and 0xffffffffL)) *
+                1099511628211L
+        }
         RasterQaMicrodetailReport(
             source=image,sourceWidthMm=chosenWidthMm,
             pixelSizeMm=chosenWidthMm/image.width.toFloat(),
@@ -137,6 +144,7 @@ internal object RasterQaMicrodetailReview {
             holeMaxX=counter.holeMaxX,holeMaxY=counter.holeMaxY,
             sourceHolePixels=counter.holePixels,
             restoredPixels=closure.candidatePixels,
+            sourceFingerprint=java.lang.Long.toHexString(sourceHash),
             counterRestoredInMask=closure.holeRestored,
             topologyIntact=closure.regionTopologyPreserved
         )
