@@ -48,6 +48,17 @@ class PremiumHomeScreenshotTest {
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
         composeRule.onNodeWithText("Início").assertIsDisplayed()
+        // Validacao de primeira dobra no perfil Pixel 6 (1080x2400).
+        // O botao Recente deve estar inteiramente acima da barra inferior.
+        composeRule.onNodeWithText("Recente").assertIsDisplayed()
+        val recentButton = composeRule.onNodeWithText("Criar primeiro nome")
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val navLabel = composeRule.onNodeWithText("Início")
+            .fetchSemanticsNode().boundsInRoot
+        check(recentButton.bottom <= navLabel.top - 90f) {
+            "O CTA de Recente esta encoberto pela barra inferior: " +
+                "CTA.bottom=${recentButton.bottom}, nav.top=${navLabel.top}"
+        }
         composeRule.waitForIdle()
 
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
