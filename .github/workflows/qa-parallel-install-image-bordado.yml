@@ -1,10 +1,10 @@
-name: Brother Matrizes QA Auditoria Espacial V2
+name: Brother Matrizes QA Localizacao de Vazados V3
 
 on:
   push:
-    branches: ["qa/explicit-structural-audit-receipt-20261019"]
+    branches: ["qa/image-counter-opening-path-20261020"]
   pull_request:
-    branches: ["qa/image-alpha-bridge-and-counter-audit-20261019"]
+    branches: ["qa/explicit-structural-audit-receipt-20261019"]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
-          grep -F 'applicationIdSuffix = ".qaauditreceipt"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".qacounterpath"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
@@ -60,6 +60,6 @@ jobs:
       - name: Upload APK for QA only
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Auditoria-V2
+          name: Brother-Matrizes-QA-Vazados-V3
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
