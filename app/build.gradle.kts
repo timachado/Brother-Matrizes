@@ -143,6 +143,8 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     val heroDrawable = project.file("src/main/res/drawable-nodpi/brother_home_hero.jpg")
     inputs.file(heroSource)
     outputs.file(heroDrawable)
+    // A remoção dos JPGs legados também ocorre quando o hero já existe no cache.
+    outputs.upToDateWhen { false }
     doLast {
         // Remover somente os dois arquivos antigos gerados por builds anteriores.
         // Nunca apagar desenhos, projetos ou qualquer arquivo externo ao app.
