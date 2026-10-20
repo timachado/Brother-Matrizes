@@ -2,6 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application
-        android:label="Brother Matrizes QA Auditoria V2"
+        android:label="Brother Matrizes QA Vazados V3"
         tools:replace="android:label" />
 </manifest>
