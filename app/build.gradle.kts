@@ -7,6 +7,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Only a dedicated QA keystore can sign a distributable QA APK.
+// CI unit/smoke tests may compile with Gradle's ephemeral debug key,
+// but those APKs must NOT be published as if they were update-compatible.
+val qaSigningFile = providers.environmentVariable(
+    "BROTHER_QA_STORE_FILE"
+).orNull?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "com.timachado.brothermatrizes"
     compileSdk = 36
@@ -45,11 +52,36 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (qaSigningFile != null) {
+            create("qaStable") {
+                storeFile = file(qaSigningFile)
+                storePassword = providers.environmentVariable(
+                    "BROTHER_QA_STORE_PASSWORD"
+                ).orNull ?: error("QA keystore password not configured")
+                keyAlias = providers.environmentVariable(
+                    "BROTHER_QA_KEY_ALIAS"
+                ).orNull ?: error("QA key alias not configured")
+                keyPassword = providers.environmentVariable(
+                    "BROTHER_QA_KEY_PASSWORD"
+                ).orNull ?: error("QA key password not configured")
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // QA installs alongside the commercial release, without replacing it.
             // No production signing key is used. This suffix applies to debug ONLY.
+            // Permanent identity across all future QA versions.
+            // Keep Firebase debug client's package name identical.
             applicationIdSuffix = ".qaphysicalgate"
+            versionNameSuffix = "-qa"
+            if (qaSigningFile != null) {
+                signingConfig = signingConfigs.getByName("qaStable")
+            }
             /*
              * Project token do PostHog é um identificador público de cliente,
              * usado somente na build de diagnóstico. Nenhuma chave pessoal/API
@@ -81,6 +113,21 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+// Debug-only monotonic CI versionCode. Release stays at its original
+// commercial versionCode=184; this prevents Android downgrade errors on
+// subsequent QA updates and never alters release signing or product code.
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val ciRun = providers.environmentVariable("GITHUB_RUN_NUMBER")
+            .orNull?.toIntOrNull()
+        if (ciRun != null && ciRun in 1..1_000_000) {
+            variant.outputs.forEach { output ->
+                output.versionCode.set(100_000 + ciRun)
+            }
+        }
     }
 }
 
