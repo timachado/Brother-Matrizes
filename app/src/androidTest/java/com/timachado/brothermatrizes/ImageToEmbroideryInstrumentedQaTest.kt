@@ -89,7 +89,10 @@ class ImageToEmbroideryInstrumentedQaTest {
         composeRule.onNodeWithText("Da imagem para a matriz").assertExists()
         composeRule.onNodeWithText("Importar PNG, JPG ou WebP").assertExists()
         composeRule.onNodeWithText("Origem").assertDoesNotExist()
-        composeRule.onNodeWithText("Gerar matriz").assertExists()
+        // This image editor is experimental; its own button correctly
+        // advertises the QA export lock instead of promising PES.
+        composeRule.onNodeWithText("Exportação bloqueada — QA").assertExists()
+        composeRule.onNodeWithText("Gerar matriz").assertDoesNotExist()
     }
 
     @Test

@@ -1,10 +1,10 @@
-name: Brother Matrizes QA CI + Testes Android Virtual
+name: Brother Matrizes QA CI + Imagem Legada
 
 on:
   push:
-    branches: ["qa/brother-emulator-ui-regression-20261020"]
+    branches: ["qa/brother-image-legacy-ui-regression-20261020"]
   pull_request:
-    branches: ["qa/brother-stable-qa-ci-20261020"]
+    branches: ["qa/brother-emulator-ui-regression-20261020"]
   workflow_dispatch:
 
 permissions:
@@ -135,7 +135,7 @@ jobs:
           profile: pixel_5
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest --no-daemon --stacktrace
+          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest,com.timachado.brothermatrizes.ImageToEmbroideryInstrumentedQaTest --no-daemon --stacktrace
       - name: Upload Android UI test results
         if: always()
         uses: actions/upload-artifact@v4
