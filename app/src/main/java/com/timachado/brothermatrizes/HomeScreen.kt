@@ -94,7 +94,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Image(
-                    painter = painterResource(R.drawable.brother_matrizes_brand_logo),
+                    painter = painterResource(R.drawable.ic_launcher_brother_premium),
                     contentDescription = "Símbolo BM, Brother Matrizes",
                     modifier = Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)),
                     contentScale = ContentScale.Crop
