@@ -92,7 +92,7 @@ jobs:
           BROTHER_QA_STORE_PASSWORD: ${{ secrets.BROTHER_QA_STORE_PASSWORD }}
           BROTHER_QA_KEY_ALIAS: ${{ secrets.BROTHER_QA_KEY_ALIAS }}
           BROTHER_QA_KEY_PASSWORD: ${{ secrets.BROTHER_QA_KEY_PASSWORD }}
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
 
       - name: Upload update-compatible QA APK only when requested and signed
         if: github.event_name == 'workflow_dispatch' && env.QA_SIGNED == 'true'
@@ -135,7 +135,7 @@ jobs:
           profile: pixel_5
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace
+          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest --no-daemon --stacktrace
       - name: Upload Android UI test results
         if: always()
         uses: actions/upload-artifact@v4
