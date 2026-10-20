@@ -236,7 +236,7 @@ fun HomeScreen(
                         .heightIn(min = 136.dp),
                 iconRes = R.drawable.ic_ms_image_rounded,
                 title = "Imagem para bordado",
-                subtitle = "Digitalize logos e exporte PES",
+                subtitle = "Análise experimental de imagens • exportação PES indisponível",
                 enabled = true,
                 onClick = onImageToEmbroidery
             )
