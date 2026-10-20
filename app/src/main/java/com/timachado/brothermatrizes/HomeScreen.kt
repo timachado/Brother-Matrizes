@@ -651,8 +651,8 @@ private fun PremiumHeroCard() {
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to Color(0xFF071B2C),
-                    .48f to Color(0xE6081B2C),
-                    .84f to Color(0x44081B2C),
+                    0.48f to Color(0xE6081B2C),
+                    0.84f to Color(0x44081B2C),
                     1f to Color.Transparent
                 )
             )
