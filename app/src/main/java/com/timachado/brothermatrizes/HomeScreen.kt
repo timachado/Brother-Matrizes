@@ -1,6 +1,12 @@
 package com.timachado.brothermatrizes
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -109,7 +115,9 @@ fun HomeScreen(
                         maxLines = 2
                     )
                 }
-                Surface(shape = CircleShape, color = FioSurfaceHigh) {
+                ElevatedCard(onClick = onCommunity,
+                    shape = CircleShape,
+                    colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceHigh)) {
                     Icon(
                         painterResource(R.drawable.ic_notification_brother),
                         contentDescription = "Novidades disponíveis na seção Início",
@@ -228,8 +236,7 @@ fun HomeScreen(
                 title = "Simulador",
                 subtitle =
                     "Veja a sequência real",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -257,8 +264,7 @@ fun HomeScreen(
                 title = "Editor",
                 subtitle =
                     "Mover, girar e cores",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -286,8 +292,7 @@ fun HomeScreen(
                 title = "Converter",
                 subtitle =
                     "DST, PES e JEF",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -315,8 +320,7 @@ fun HomeScreen(
                 title = "Enviar",
                 subtitle =
                     "OTG ou Wi-Fi/app",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -330,22 +334,6 @@ fun HomeScreen(
             }
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            ElevatedCard(
-                onClick = onCommunity,
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceAlt),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
-                    Text("Comunidade e novidades  ›", color = FioGoldSoft,
-                         style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Feedbacks, sugestões e atualizações do Brother Matrizes.",
-                         color = FioTextMuted, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
 
 
         item(
@@ -607,6 +595,24 @@ fun HomeScreen(
             }
         }
 
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            ElevatedCard(
+                onClick = onCommunity,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceAlt),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+                    Text("Comunidade e novidades  ›", color = FioGoldSoft,
+                         style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Feedbacks, sugestões e atualizações do Brother Matrizes.",
+                         color = FioTextMuted, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+
+
         item(
             span = {
                 GridItemSpan(maxLineSpan)
@@ -633,6 +639,17 @@ fun HomeScreen(
 /** Mesma imagem do mockup aprovado, integrada ao card — não é banner externo. */
 @Composable
 private fun PremiumHeroCard() {
+    // Usa a fotografia da arte aprovada, removendo apenas a faixa esquerda
+    // que contém fragmentos do texto do mockup original.
+    val fullPhoto = ImageBitmap.imageResource(R.drawable.brother_home_hero)
+    val cropLeft = (fullPhoto.width * 0.35f).toInt()
+    val photo = remember(fullPhoto) {
+        BitmapPainter(
+            image = fullPhoto,
+            srcOffset = IntOffset(cropLeft, 0),
+            srcSize = IntSize(fullPhoto.width - cropLeft, fullPhoto.height)
+        )
+    }
     Box(
         modifier = Modifier.fillMaxWidth()
             .height(158.dp)
@@ -640,7 +657,7 @@ private fun PremiumHeroCard() {
             .background(Color(0xFF091C2D))
     ) {
         Image(
-            painter = painterResource(R.drawable.brother_home_hero),
+            painter = photo,
             contentDescription = "Agulha de máquina bordando detalhes dourados no tecido",
             contentScale = ContentScale.Crop,
             modifier = Modifier.align(Alignment.CenterEnd)
