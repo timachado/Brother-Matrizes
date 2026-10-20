@@ -1,10 +1,10 @@
-name: Brother Matrizes QA CI + Fontes Android
+name: Brother Matrizes QA CI + Sequencia Satin
 
 on:
   push:
-    branches: ["qa/brother-font-fixture-ci-20261020"]
+    branches: ["qa/brother-satin-sequence-diagnostics-20261020"]
   pull_request:
-    branches: ["qa/brother-image-legacy-ui-regression-20261020"]
+    branches: ["qa/brother-font-fixture-ci-20261020"]
   workflow_dispatch:
 
 permissions:
@@ -104,7 +104,7 @@ jobs:
           if-no-files-found: error
 
   android-emulator-ui:
-    name: QA de interface no Android virtual
+    name: QA da sequencia Satin e interface no Android virtual
     needs: qa-continuo
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -135,7 +135,32 @@ jobs:
           profile: pixel_5
           emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest,com.timachado.brothermatrizes.ImageToEmbroideryInstrumentedQaTest,com.timachado.brothermatrizes.ImportedFontSystemSmokeTest,com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest --no-daemon --stacktrace
+          script: gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.ImageToEmbroideryScreenSmokeTest,com.timachado.brothermatrizes.ImageToEmbroideryInstrumentedQaTest,com.timachado.brothermatrizes.ImportedFontSystemSmokeTest,com.timachado.brothermatrizes.GreatVibesStartDiagnosticTest,com.timachado.brothermatrizes.ImportedFontSatinSequenceTest --no-daemon --stacktrace
+      - name: Mostrar falhas JUnit Android em texto para triagem
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          base=pathlib.Path("app/build/outputs/androidTest-results/connected")
+          reports=sorted(base.rglob("*.xml")) if base.exists() else []
+          print("Relatorios JUnit Android encontrados:",len(reports))
+          for report in reports:
+              try:
+                  root=ET.parse(report).getroot()
+              except Exception as exc:
+                  print("XML invalido:",report.name,repr(exc))
+                  continue
+              for test in root.iter("testcase"):
+                  for kind in ("failure","error"):
+                      for issue in test.findall(kind):
+                          desc=issue.attrib.get("message","")
+                          trace=(issue.text or "").splitlines()
+                          print("FAIL:",test.attrib.get("classname"),
+                                test.attrib.get("name"),kind,desc[:500])
+                          for line in trace[:14]:
+                              print(" ",line[:350])
+          PY
       - name: Upload Android UI test results
         if: always()
         uses: actions/upload-artifact@v4
