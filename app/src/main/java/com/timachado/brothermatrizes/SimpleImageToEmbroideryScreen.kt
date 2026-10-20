@@ -89,6 +89,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyDiagnos
 import com.timachado.brothermatrizes.core.embroidery.RasterSourceTopologyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweep
 import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweepReport
+import com.timachado.brothermatrizes.core.embroidery.RasterQaStructuralAuditReceipt
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -604,6 +605,10 @@ fun SimpleImageToEmbroideryScreen(
                 Text("Imagem para Bordado", color = FioText, fontSize = 20.sp,
                     fontWeight = FontWeight.Bold)
                 Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
+                Text(
+                    "APK EXPERIMENTAL: QA AUDITORIA V2 — Ligações e Vazados",
+                    color = FioGold,fontSize = 11.sp
+                )
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -815,6 +820,40 @@ fun SimpleImageToEmbroideryScreen(
             alphaSweepReport?.let { alphaReport ->
                 Text(alphaReport.summary(), color=FioTextMuted,
                     fontSize=11.sp)
+                Text(
+                    "Este APK gera o relatório QA-AUDITORIA-ESTRUTURAL-V2. " +
+                        "O botão abaixo copia SOMENTE a auditoria espacial " +
+                        "desta imagem, sem repetir o relatório antigo.",
+                    color=FioGold,fontSize=12.sp
+                )
+                OutlinedButton(
+                    modifier=Modifier.fillMaxWidth(),
+                    enabled=alphaReport.structuralAudit!=null,
+                    onClick={
+                        RasterQaStructuralAuditReceipt.generate(alphaReport).fold(
+                            onSuccess={ receipt ->
+                                val clipboard=context.getSystemService(
+                                    android.content.Context.CLIPBOARD_SERVICE
+                                ) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(
+                                        "Brother Matrizes — Auditoria QA V2",
+                                        receipt
+                                    )
+                                )
+                                message="Auditoria QA V2 copiada: inclui " +
+                                    "conexões, vazados e fingerprint. " +
+                                    "Não contém arquivo de imagem nem PES."
+                            },
+                            onFailure={
+                                message=it.message ?: "Auditoria QA V2 ausente."
+                            }
+                        )
+                    }
+                ) {
+                    Text("Copiar SOMENTE auditoria espacial QA V2",
+                        color=FioGold)
+                }
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(
                         rememberScrollState()
