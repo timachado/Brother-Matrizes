@@ -68,28 +68,28 @@ internal data class RasterQaContourGeometryReport(
                 0xff939da7.toInt()
             else 0
         }
-        // Highlight original foreground cells bordering the contour.
-        // Counter cells use amber, outer perimeter cells cyan.
-        for (loop in loops) {
-            val paint = if (loop.isCounter)
+        // Highlight only retained original foreground pixels; do not
+        // wrap x=w into the next raster row at the right image edge.
+        fun paintIfInk(x:Int,y:Int,paint:Int) {
+            if(x in 0 until w && y in 0 until h) {
+                val i=y*w+x
+                if((source.argb[i] ushr 24)>=threshold) pixels[i]=paint
+            }
+        }
+        for(loop in loops) {
+            val paint=if(loop.isCounter)
                 0xffffab51.toInt() else 0xff31c7ee.toInt()
-            for (i in 0 until loop.vertices.size-1) {
-                val a = loop.vertices[i]
-                val b = loop.vertices[i+1]
-                // Preview paints only retained source ink, not a new bridge.
-                val candidates = if (a.x==b.x)
-                    listOf(
-                        (a.y.coerceAtMost(b.y))*w+(a.x-1),
-                        (a.y.coerceAtMost(b.y))*w+a.x
-                    )
-                else listOf(
-                    (a.y-1)*w+a.x.coerceAtMost(b.x),
-                    a.y*w+a.x.coerceAtMost(b.x)
-                )
-                for (id in candidates) {
-                    if (id in pixels.indices &&
-                        (source.argb[id] ushr 24)>=threshold
-                    ) pixels[id]=paint
+            for(i in 0 until loop.vertices.size-1) {
+                val a=loop.vertices[i]
+                val b=loop.vertices[i+1]
+                if(a.x==b.x) {
+                    val y=minOf(a.y,b.y)
+                    paintIfInk(a.x-1,y,paint)
+                    paintIfInk(a.x,y,paint)
+                } else {
+                    val x=minOf(a.x,b.x)
+                    paintIfInk(x,a.y-1,paint)
+                    paintIfInk(x,a.y,paint)
                 }
             }
         }
