@@ -1,10 +1,10 @@
-name: Brother Matrizes QA CI + Sequencia Satin
+name: Brother Matrizes QA CI + Contornos Vetoriais
 
 on:
   push:
-    branches: ["qa/brother-satin-sequence-diagnostics-20261020"]
+    branches: ["qa/brother-raster-contour-vectors-20261020"]
   pull_request:
-    branches: ["qa/brother-font-fixture-ci-20261020"]
+    branches: ["qa/brother-satin-sequence-diagnostics-20261020"]
   workflow_dispatch:
 
 permissions:
@@ -40,6 +40,7 @@ jobs:
           grep -F 'applicationIdSuffix = ".qaphysicalgate"' app/build.gradle.kts
           grep -F 'versionCode = 184' app/build.gradle.kts
           grep -F 'versionName = "1.10.8"' app/build.gradle.kts
+          grep -F 'const val EXPORT_ALLOWED = false' app/src/main/java/com/timachado/brothermatrizes/core/embroidery/RasterEmbroideryApproval.kt
           grep -F 'android:label="Brother Matrizes QA"' app/src/debug/AndroidManifest.xml
           grep -F '"package_name": "com.timachado.brothermatrizes.qaphysicalgate"' app/src/debug/google-services.json
           for file in MachineSimulationCanvas.kt SimulatorScreen.kt EmbroideryDisplay.kt; do
