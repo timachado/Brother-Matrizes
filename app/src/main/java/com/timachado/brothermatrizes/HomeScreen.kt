@@ -88,18 +88,18 @@ fun HomeScreen(
         horizontalArrangement =
             Arrangement.spacedBy(8.dp),
         verticalArrangement =
-            Arrangement.spacedBy(8.dp)
+            Arrangement.spacedBy(6.dp)
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_launcher_brother_premium),
                     contentDescription = "Símbolo BM, Brother Matrizes",
-                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)),
+                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)),
                     contentScale = ContentScale.Crop
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -145,7 +145,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 88.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -185,7 +185,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -205,7 +205,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -225,7 +225,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -253,7 +253,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -281,7 +281,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -309,7 +309,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 70.dp
+                            min = 64.dp
                         ),
                 iconRes =
                     R.drawable
@@ -604,7 +604,7 @@ fun HomeScreen(
 private fun PremiumHeroCard() {
     Box(
         modifier = Modifier.fillMaxWidth()
-            .height(142.dp)
+            .height(126.dp)
             .clip(RoundedCornerShape(28.dp))
             .background(Color(0xFF091C2D))
     ) {
@@ -639,8 +639,8 @@ private fun PremiumHeroCard() {
                     }
                 },
                 color = Color.White,
-                fontSize = 23.sp,
-                lineHeight = 27.sp,
+                fontSize = 22.sp,
+                lineHeight = 25.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(10.dp))
