@@ -29,8 +29,10 @@ internal data class RasterQaMicrodetailReport(
         (holeMaxX-holeMinX+1)*pixelSizeMm
     val detailHeightMm:Float get() =
         (holeMaxY-holeMinY+1)*pixelSizeMm
-    val centerX:Int get()=(holeMinX+holeMaxX)/2
-    val centerY:Int get()=(holeMinY+holeMaxY)/2
+    // Center on the actual pixel proposed for restoration. Centering
+    // only on a large hole can crop out the thin opening entirely.
+    val centerX:Int get()=restoredPixels.first()%source.width
+    val centerY:Int get()=restoredPixels.first()/source.width
 
     fun summary(operatorNote:String="não classificado"):String {
         val mm: (Float)->String={ value ->
