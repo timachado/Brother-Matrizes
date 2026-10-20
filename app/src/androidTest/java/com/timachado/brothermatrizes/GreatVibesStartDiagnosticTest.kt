@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import android.util.Log
+import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
@@ -14,11 +15,43 @@ import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import java.io.File
 import kotlin.math.abs
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class GreatVibesStartDiagnosticTest {
+
+    /**
+     * Comparisons against the reference video are meaningful ONLY with
+     * the actual Great Vibes test font. Android emulator system fonts
+     * MUST NOT be silently substituted for this typography.
+     *
+     * A missing optional licensed fixture is an explicit assumption skip,
+     * not a false product failure and not an assertion of success.
+     */
+    private fun greatVibesFixture(
+        instrumentationContext:Context,
+        targetContext:Context
+    ):File {
+        val fixtureName="GreatVibes-Regular.ttf"
+        val assets=instrumentationContext.assets.list("")
+            ?.toSet().orEmpty()
+        assumeTrue(
+            "REFERÊNCIA INDISPONÍVEL: forneça " +
+                "app/src/androidTest/assets/$fixtureName " +
+                "com licença adequada para comparar Great Vibes. " +
+                "Esse cenário foi IGNORADO, não validado.",
+            fixtureName in assets
+        )
+        val fontFile=File(targetContext.cacheDir,fixtureName)
+        instrumentationContext.assets.open(fixtureName).use { input ->
+            fontFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        return fontFile
+    }
 
     private data class Candidate(
         val heightMm: Float,
@@ -46,26 +79,7 @@ class GreatVibesStartDiagnosticTest {
         val targetContext =
             instrumentation.targetContext
 
-        val fontFile =
-            File(
-                targetContext.cacheDir,
-                "GreatVibes-Regular.ttf"
-            )
-
-        testContext.assets
-            .open(
-                "GreatVibes-Regular.ttf"
-            )
-            .use {
-                    input ->
-                fontFile.outputStream()
-                    .use {
-                        output ->
-                    input.copyTo(
-                        output
-                    )
-                }
-            }
+        val fontFile=greatVibesFixture(testContext,targetContext)
 
         val font =
             ImportedFont(
@@ -383,10 +397,9 @@ class GreatVibesStartDiagnosticTest {
     fun diagnoseMariaVisualStartOnGreatVibes() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val targetContext = instrumentation.targetContext
-        val fixture = File(targetContext.cacheDir, "GreatVibes-Regular.ttf")
-        instrumentation.context.assets.open("GreatVibes-Regular.ttf").use { input ->
-            fixture.outputStream().use { output -> input.copyTo(output) }
-        }
+        val fixture=greatVibesFixture(
+            instrumentation.context,targetContext
+        )
         val font = ImportedFont(
             id = fixture.name,
             displayName = "Great Vibes",
