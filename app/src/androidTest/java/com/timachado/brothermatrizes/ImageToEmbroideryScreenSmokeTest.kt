@@ -22,6 +22,10 @@ class ImageToEmbroideryScreenSmokeTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test fun emptyImageScreenStartsWithRealQaWarningAndNoPesExport() {
+        // The real screen automatically opens Android's file chooser on
+        // its first launch. Treat this scenario as a user who has closed
+        // the chooser without selecting a file, so the QA UI is foreground.
+        val session=SimpleImageSession().apply { pickerLaunched=true }
         compose.setContent {
             BrotherMatrizesTheme {
                 SimpleImageToEmbroideryScreen(
@@ -29,7 +33,7 @@ class ImageToEmbroideryScreenSmokeTest {
                     onSimulate={ _,_,_,_ ->
                         error("Empty image must never simulate stitches.")
                     },
-                    session=SimpleImageSession()
+                    session=session
                 )
             }
         }
