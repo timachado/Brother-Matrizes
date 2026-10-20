@@ -132,33 +132,30 @@ dependencies {
 
 
 /**
- * A arte oficial fica em branding/brother_matrizes_brand_logo.base64.
- * Gera sempre os recursos de ícone antes do processamento Android.
- * Evita empacotar recursos de marca obsoletos por acidente.
+ * A Home e o launcher premium utilizam o simbolo BM aprovado em
+ * R.drawable.ic_launcher_brother_premium e o adaptive-icon Android.
+ * O arquivo antigo de marca em branding permanece arquivado para rollback,
+ * mas nao e mais gerado nem empacotado automaticamente no APK premium.
+ * Mantemos o nome da tarefa por compatibilidade com os builds existentes.
  */
 val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
-    val source = rootProject.file("branding/brother_matrizes_brand_logo.base64")
-    val drawable = project.file("src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg")
-    val mipmap = project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
     val heroSource = rootProject.file("branding/brother_home_hero.base64")
     val heroDrawable = project.file("src/main/res/drawable-nodpi/brother_home_hero.jpg")
-    inputs.files(source, heroSource)
-    outputs.files(drawable, mipmap, heroDrawable)
+    inputs.file(heroSource)
+    outputs.file(heroDrawable)
     doLast {
-        val data = Base64.getMimeDecoder().decode(source.readText())
-        check(data.size >= 3000 && data[0] == 0xff.toByte() && data[1] == 0xd8.toByte()) {
-            "Imagem oficial Brother Matrizes ausente ou invalida"
-        }
-        drawable.parentFile.mkdirs()
-        mipmap.parentFile.mkdirs()
-        drawable.writeBytes(data)
-        mipmap.writeBytes(data)
+        // Remover somente os dois arquivos antigos gerados por builds anteriores.
+        // Nunca apagar desenhos, projetos ou qualquer arquivo externo ao app.
+        project.file("src/main/res/drawable-nodpi/brother_matrizes_brand_logo.jpg")
+            .delete()
+        project.file("src/main/res/mipmap-xxxhdpi/ic_launcher_brother_matrizes.jpg")
+            .delete()
+
         val heroData = Base64.getMimeDecoder().decode(heroSource.readText())
-        check(heroData.size >= 2000 && heroData[0] == 0xff.toByte() && heroData[1] == 0xd8.toByte()) {
+        check(heroData.size >= 2000 &&
+            heroData[0] == 0xff.toByte() && heroData[1] == 0xd8.toByte()) {
             "Fotografia do hero Brother Matrizes ausente ou invalida"
         }
-        // Usa a propria fotografia aprovada. O trecho esquerdo do recorte
-        // original contem letras do mockup, por isso removemos apenas essa faixa.
         val originalHero = javax.imageio.ImageIO.read(heroData.inputStream())
         check(originalHero != null && originalHero.width >= 150 && originalHero.height >= 100) {
             "Imagem original do hero invalida"
