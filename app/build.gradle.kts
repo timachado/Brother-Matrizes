@@ -157,8 +157,20 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
         check(heroData.size >= 2000 && heroData[0] == 0xff.toByte() && heroData[1] == 0xd8.toByte()) {
             "Fotografia do hero Brother Matrizes ausente ou invalida"
         }
+        // Usa a propria fotografia aprovada. O trecho esquerdo do recorte
+        // original contem letras do mockup, por isso removemos apenas essa faixa.
+        val originalHero = javax.imageio.ImageIO.read(heroData.inputStream())
+        check(originalHero != null && originalHero.width >= 150 && originalHero.height >= 100) {
+            "Imagem original do hero invalida"
+        }
+        val cropX = (originalHero.width * 0.35f).toInt()
+        val heroSemTexto = originalHero.getSubimage(
+            cropX, 0, originalHero.width - cropX, originalHero.height
+        )
         heroDrawable.parentFile.mkdirs()
-        heroDrawable.writeBytes(heroData)
+        check(javax.imageio.ImageIO.write(heroSemTexto, "jpg", heroDrawable)) {
+            "Falha ao preparar recorte da foto aprovada para Android"
+        }
     }
 }
 tasks.configureEach {
