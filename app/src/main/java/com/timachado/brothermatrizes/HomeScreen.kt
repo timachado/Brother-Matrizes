@@ -2,7 +2,6 @@ package com.timachado.brothermatrizes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.weight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
