@@ -92,6 +92,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterAlphaThresholdSweepRe
 import com.timachado.brothermatrizes.core.embroidery.RasterQaStructuralAuditReceipt
 import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterQaCounterClosureProposal
+import com.timachado.brothermatrizes.core.embroidery.RasterQaMicrodetailReview
 import com.timachado.brothermatrizes.core.embroidery.RasterExactColorComponentDetector
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualAudit
 import com.timachado.brothermatrizes.core.embroidery.RasterMixedStitchVisualEvidence
@@ -391,6 +392,12 @@ fun SimpleImageToEmbroideryScreen(
     var showCounterClosure by remember(prepared?.image) {
         mutableStateOf(false)
     }
+    var showMicrodetail by remember(prepared?.image) {
+        mutableStateOf(false)
+    }
+    var microdetailJudgment by remember(prepared?.image, counterClosureStudy) {
+        mutableStateOf("não classificado")
+    }
     val counterClosureOverlay=remember(
         counterClosureStudy,showCounterClosure
     ) {
@@ -427,6 +434,25 @@ fun SimpleImageToEmbroideryScreen(
         ImageHoopSizing.maximumWidthMm(it.width, it.height, hoop)
     } ?: 0f
     val widthMm = maxWidth * fill
+    val microdetail = remember(
+        counterClosureStudy,alphaSweepReport,stageImage,widthMm
+    ) {
+        val candidate=counterClosureStudy
+        val source=alphaSweepReport
+        if(candidate!=null && source!=null &&
+            candidate.source === source.source &&
+            stageImage === candidate.source
+        ) {
+            RasterQaMicrodetailReview.inspect(
+                candidate,
+                source.counterLeakEvidence ?: return@remember null,
+                widthMm
+            ).getOrNull()
+        } else null
+    }
+    val microdetailOverlay = remember(microdetail,showMicrodetail) {
+        if(showMicrodetail) microdetail?.zoomPreview() else null
+    }
     val heightMm = stageImage?.let {
         ImageHoopSizing.heightMm(it.width, it.height, widthMm.coerceAtLeast(.1f))
     } ?: 0f
@@ -626,7 +652,7 @@ fun SimpleImageToEmbroideryScreen(
                     fontWeight = FontWeight.Bold)
                 Text("Escolha a imagem e confira no bastidor", color = FioTextMuted, fontSize = 12.sp)
                 Text(
-                    "APK EXPERIMENTAL: QA V4 — Proteção de Vazados",
+                    "APK EXPERIMENTAL: QA V5 — Microdetalhes",
                     color = FioGold,fontSize = 11.sp
                 )
             }
@@ -645,12 +671,15 @@ fun SimpleImageToEmbroideryScreen(
             // overlay. Empty design: no fake stitch or PES is fabricated.
             EmbroideryCanvas(
                 design = if (alphaSweepOverlay != null ||
-                    counterClosureOverlay != null) placeholder
+                    counterClosureOverlay != null ||
+                    microdetailOverlay != null) placeholder
                     else mixedFullShown ?: mixedSplitShown ?: mixedShown ?: placeholder,
                 hoop = hoop,
                 displayMode = displayMode,
                 showConnections = showConnections,
-                rasterArtwork = if (counterClosureOverlay != null)
+                rasterArtwork = if (microdetailOverlay != null)
+                    microdetailOverlay
+                    else if (counterClosureOverlay != null)
                     counterClosureOverlay
                     else if (alphaSweepOverlay != null)
                     alphaSweepOverlay
@@ -661,14 +690,20 @@ fun SimpleImageToEmbroideryScreen(
                     flatStudy?.flatPreview ?: stageImage else stageImage,
                 rasterWidthMm = widthMm,
                 rasterOpacity = if (alphaSweepOverlay != null ||
-                    counterClosureOverlay != null) .99f
+                    counterClosureOverlay != null ||
+                    microdetailOverlay != null) .99f
                     else if (mixedFullShown != null) .12f
                     else if (mixedShown != null || mixedSplitShown != null)
                         .18f else .99f,
                 modifier = Modifier.fillMaxWidth().height(350.dp)
             )
             Text(
-                if (counterClosureOverlay != null)
+                if (microdetailOverlay != null)
+                    "MICRODETALHE QA: ampliação em blocos da foto original. " +
+                        "Cinza = tinta alfa ≥208; laranja = 180..207; " +
+                        "verde = pixel original recuperado; escuro = fundo. " +
+                        "A ampliação não modifica a arte nem cria STITCH/PES."
+                else if (counterClosureOverlay != null)
                     "PROTEÇÃO LOCALIZADA QA 180→208: cinza = pixels " +
                         "preservados; verde = pixels semitransparentes " +
                         "da imagem original reincluídos apenas na prévia. " +
@@ -807,6 +842,7 @@ fun SimpleImageToEmbroideryScreen(
                 onClick = {
                     val source=prepared?.image ?: return@OutlinedButton
                     showCounterClosure=false
+                    showMicrodetail=false
                     if(alphaSweepReport!=null) {
                         val closed = selectedAlphaThreshold!=null ||
                             selectedAlphaTransition!=null
@@ -896,6 +932,7 @@ fun SimpleImageToEmbroideryScreen(
                         OutlinedButton(
                             onClick = {
                                 showCounterClosure=false
+                                showMicrodetail=false
                                 selectedAlphaTransition=null
                                 selectedAlphaThreshold=level
                             }
@@ -934,6 +971,7 @@ fun SimpleImageToEmbroideryScreen(
                                             selectedAlphaTransition=null
                                             selectedAlphaThreshold=null
                                             showCounterClosure=true
+                                            showMicrodetail=false
                                             message=if(it.candidateForVisualReview)
                                                 "Prévia candidata pronta: " +
                                                     "revisão visual ainda obrigatória."
@@ -966,6 +1004,7 @@ fun SimpleImageToEmbroideryScreen(
                         modifier=Modifier.fillMaxWidth(),
                         onClick={
                             showCounterClosure=!showCounterClosure
+                            showMicrodetail=false
                             if(showCounterClosure) {
                                 selectedAlphaTransition=null
                                 selectedAlphaThreshold=null
@@ -978,6 +1017,81 @@ fun SimpleImageToEmbroideryScreen(
                             else "Exibir proteção localizada (QA)",
                             color=FioGold
                         )
+                    }
+                    microdetail?.let { detail ->
+                        Text(
+                            "Revisão física e visual do microdetalhe " +
+                                "(não é liberação para bordar):",
+                            color=FioGold,fontSize=12.sp
+                        )
+                        Text(detail.summary(microdetailJudgment),
+                            color=FioTextMuted,fontSize=11.sp)
+                        OutlinedButton(
+                            modifier=Modifier.fillMaxWidth(),
+                            onClick={
+                                showMicrodetail=!showMicrodetail
+                                if(showMicrodetail) {
+                                    showCounterClosure=false
+                                    selectedAlphaThreshold=null
+                                    selectedAlphaTransition=null
+                                }
+                            }
+                        ) {
+                            Text(
+                                if(showMicrodetail)
+                                    "Fechar detalhe ampliado QA"
+                                else
+                                    "Ampliar vazado crítico 12× (QA)",
+                                color=FioGold
+                            )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement=Arrangement.spacedBy(5.dp)
+                        ) {
+                            OutlinedButton(
+                                modifier=Modifier.weight(1f),
+                                onClick={
+                                    microdetailJudgment=
+                                        "aparenta ser detalhe intencional"
+                                }
+                            ) {
+                                Text("Detalhe intencional?",
+                                    color=FioGold,fontSize=10.sp)
+                            }
+                            OutlinedButton(
+                                modifier=Modifier.weight(1f),
+                                onClick={
+                                    microdetailJudgment=
+                                        "possível artefato de imagem"
+                                }
+                            ) {
+                                Text("Possível ruído?",
+                                    color=FioGold,fontSize=10.sp)
+                            }
+                        }
+                        OutlinedButton(
+                            modifier=Modifier.fillMaxWidth(),
+                            onClick={
+                                val textReport=detail.summary(
+                                    microdetailJudgment
+                                )
+                                val clipboard=context.getSystemService(
+                                    android.content.Context.CLIPBOARD_SERVICE
+                                ) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(
+                                        "Brother Matrizes — Microdetalhe QA V5",
+                                        textReport
+                                    )
+                                )
+                                message="Microdetalhe QA V5 copiado " +
+                                    "sem pixels ou arquivo PES."
+                            }
+                        ) {
+                            Text("Copiar microdetalhe QA V5",
+                                color=FioGold)
+                        }
                     }
                     OutlinedButton(
                         modifier=Modifier.fillMaxWidth(),
@@ -1026,6 +1140,7 @@ fun SimpleImageToEmbroideryScreen(
                             OutlinedButton(
                                 onClick = {
                                     showCounterClosure=false
+                                    showMicrodetail=false
                                     selectedAlphaThreshold=null
                                     selectedAlphaTransition=pair
                                 }
