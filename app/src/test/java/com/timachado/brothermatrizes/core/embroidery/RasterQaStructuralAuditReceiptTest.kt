@@ -24,11 +24,13 @@ class RasterQaStructuralAuditReceiptTest {
         val report=RasterAlphaThresholdSweep.inspect(image).getOrThrow()
         val receipt=RasterQaStructuralAuditReceipt.generate(report).getOrThrow()
         val topology=RasterSourceTopologyDiagnostics.inspect(image).getOrThrow()
-        assertTrue(receipt.startsWith("QA-AUDITORIA-ESTRUTURAL-V2 | "))
+        assertTrue(receipt.startsWith("QA-ABERTURA-DE-VAZADOS-V3 | "))
         assertTrue(receipt.contains("fingerprint=${topology.fingerprint}"))
         assertTrue(receipt.contains("Auditoria espacial alfa QA"))
         assertTrue(receipt.contains("conectores-frágeis="))
         assertTrue(receipt.contains("intervalos-com-mudança-de-vazados="))
+        assertTrue(receipt.contains("Localização de vazados perdidos QA"))
+        assertTrue(receipt.contains("vazados-com-rota-de-abertura="))
         assertTrue(receipt.contains("160→180"))
         assertTrue(receipt.contains("208→224"))
         assertTrue(receipt.contains("não é PES"))
@@ -41,6 +43,9 @@ class RasterQaStructuralAuditReceiptTest {
         val report=RasterAlphaThresholdSweep.inspect(raster()).getOrThrow()
         assertTrue(RasterQaStructuralAuditReceipt.generate(
             report.copy(structuralAudit=null)
+        ).isFailure)
+        assertTrue(RasterQaStructuralAuditReceipt.generate(
+            report.copy(counterLeakEvidence=null)
         ).isFailure)
         assertFalse(report.summary().startsWith(
             RasterQaStructuralAuditReceipt.BUILD_MARKER
