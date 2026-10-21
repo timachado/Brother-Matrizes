@@ -118,4 +118,52 @@ class RasterRunningPesInMemoryRoundTripTest {
     }
 
 
+    @Test fun completeMixedSatinTatamiArtworkCodecRoundTripIsOnlyInMemory() {
+        val w=180
+        val h=130
+        val gold=0xffcb943c.toInt()
+        val navy=0xff1c405e.toInt()
+        val white=0xffffffff.toInt()
+        val source=RasterImagePixels(w,h,IntArray(w*h) { i ->
+            val x=i%w
+            val y=i/w
+            when {
+                x in 40..129 && y in 30..97 &&
+                    !(x in 70..99 && y in 52..75) -> gold
+                x in 20..111 && y in 10..19 -> navy
+                else -> white
+            }
+        },"mixed artwork source")
+        // This artifact uses the actual per-object shape-aware generator,
+        // including a transparent COUNTER in the gold letter-shaped ring.
+        val qa=RasterAutomaticLogoPreview.create(
+            source,90f,HoopProfile.H130X180
+        ).getOrThrow()
+        assertEquals("QA_AUTO_STITCH",qa.format)
+        assertTrue(qa.stitchCount>100)
+        assertTrue(qa.jumpCount>1)
+        assertEquals(1,qa.colorChanges)
+        assertTrue(qa.points.any { it.command==StitchCommand.TRIM })
+        RasterThreadSequenceAudit.inspect(qa).getOrThrow()
+        RasterThreadDensityPreflight.inspect(qa).getOrThrow()
+        assertTrue(MatrixConverter.convert(qa,"PES").isFailure)
+        // Never exposed as an app workflow: codec investigation in JUnit.
+        val ephemeral=qa.copy(
+            fileName="MEMORY-ONLY-MIXED-DESIGN.pes",format="PES"
+        )
+        val bytes=MatrixConverter.convert(ephemeral,"PES","junit-review")
+            .getOrThrow()
+        val report=PesReadbackEvidence.inspect(
+            ephemeral,bytes.fileName,bytes.bytes
+        ).getOrThrow()
+        assertEquals(qa.stitchCount,report.originalStitches)
+        assertTrue(report.geometryPreserved)
+        assertTrue(report.stitchOrderPreserved)
+        assertFalse(report.externalDecoderVerified)
+        assertFalse(report.machineCertified)
+        assertFalse(report.authorizesImagePesExport)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
