@@ -112,11 +112,18 @@ internal fun PremiumImageLabScreen(
                 val decoded = withContext(Dispatchers.IO) {
                     runCatching {
                         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        context.contentResolver.openInputStream(uri)?.use {
+                        // inJustDecodeBounds MUST return a null Bitmap:
+                        // validate outWidth/outHeight instead of treating
+                        // that intentional null as a failed file import.
+                        val headerStream = context.contentResolver.openInputStream(uri)
+                            ?: error("Sem permissão de leitura da imagem selecionada.")
+                        headerStream.use {
                             BitmapFactory.decodeStream(it, null, bounds)
-                        } ?: error("Falha ao abrir a imagem.")
+                        }
                         require(bounds.outWidth in 8..12000 &&
-                            bounds.outHeight in 8..12000) { "PNG com dimensões inválidas." }
+                            bounds.outHeight in 8..12000) {
+                            "Não foi possível ler dimensões válidas do PNG."
+                        }
                         var sample = 1
                         while (bounds.outWidth / sample > 160 ||
                             bounds.outHeight / sample > 160) sample *= 2
