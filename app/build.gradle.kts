@@ -58,7 +58,12 @@ android {
         debug {
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+                // Certificados debug de runners GitHub podem mudar. Um novo ID
+                // evita conflito com o APK QA anterior e preserva seus dados.
+                applicationIdSuffix = ".qa2"
+                versionNameSuffix = "-QA2"
+            } else if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
                 applicationIdSuffix = ".qa"
                 versionNameSuffix = "-QA"
             }
