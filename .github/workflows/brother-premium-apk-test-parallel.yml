@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'applicationIdSuffix = ".qa2"' app/build.gradle.kts
-          grep -Fq 'versionNameSuffix = "-QA"' app/build.gradle.kts
+          grep -Fq 'versionNameSuffix = "-QA2"' app/build.gradle.kts
           mkdir -p app/src/debug
           jq --arg pkg "com.timachado.brothermatrizes.qa2" '
             .client += [(.client[] |
@@ -98,7 +98,7 @@ jobs:
         run: |
           {
             echo "## APK de teste Brother Matrizes 1.11.0"
-            echo "- Pacote de revisão independente: `com.timachado.brothermatrizes.qa2`."
+            echo '- Pacote de revisão independente: com.timachado.brothermatrizes.qa2.'
             echo "- Pode instalar ao lado do aplicativo comercial, sem desinstalação."
             echo "- Assinatura debug; não substitui o APK comercial."
             echo "- Checkout comercial desativado; login Google pode exigir configuração própria para identidade QA."
