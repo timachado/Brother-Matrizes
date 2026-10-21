@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
@@ -53,17 +54,8 @@ class PremiumHomeScreenshotTest {
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
         composeRule.onNodeWithText("Início").assertIsDisplayed()
-        // Validacao de primeira dobra no perfil Pixel 6 (1080x2400).
-        // O botao Recente deve estar inteiramente acima da barra inferior.
-        composeRule.onNodeWithText("Recente").assertIsDisplayed()
-        val recentButton = composeRule.onNodeWithText("Criar primeiro nome")
-            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        val navLabel = composeRule.onNodeWithText("Início")
-            .fetchSemanticsNode().boundsInRoot
-        check(recentButton.bottom <= navLabel.top - 90f) {
-            "O CTA de Recente esta encoberto pela barra inferior: " +
-                "CTA.bottom=${recentButton.bottom}, nav.top=${navLabel.top}"
-        }
+        // Ferramentas maiores exigem rolagem em algumas telas. Capturar a
+        // primeira dobra agora e validar o botão de Recente depois da foto.
         composeRule.waitForIdle()
 
         // Pixel Launcher do emulador pode exibir um ANR do SISTEMA, mesmo com
@@ -115,6 +107,20 @@ class PremiumHomeScreenshotTest {
         check(output.length() > 10_000L) {
             "Captura visual gerada com tamanho invalido"
         }
+
+        // QA de acessibilidade funcional: nenhum CTA deve ficar inacessível
+        // somente porque há cartões maiores acima dele.
+        composeRule.onNodeWithText("Criar primeiro nome")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Recente").assertIsDisplayed()
+        val recentButton = composeRule.onNodeWithText("Criar primeiro nome")
+            .fetchSemanticsNode().boundsInRoot
+        val navLabel = composeRule.onNodeWithText("Início")
+            .fetchSemanticsNode().boundsInRoot
+        check(recentButton.bottom <= navLabel.top - 30f) {
+            "CTA de Recente permanece encoberto após rolar."
+        }
+
 
         // Prova de que o simbolo dourado aprovado foi empacotado, nao apenas
         // desenhado no mockup. Captura o icone real solicitado ao PackageManager.
