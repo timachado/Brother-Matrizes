@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ícone do mockup aprovado, com margem interna para máscaras adaptativas. -->
+<!-- Ícone do mockup aprovado, com margem segura 28dp para máscaras adaptativas e escala extra do launcher. -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/brother_bm_premium_approved"
-    android:insetLeft="16dp"
-    android:insetTop="16dp"
-    android:insetRight="16dp"
-    android:insetBottom="16dp" />
+    android:insetLeft="28dp"
+    android:insetTop="28dp"
+    android:insetRight="28dp"
+    android:insetBottom="28dp" />
