@@ -44,6 +44,9 @@ internal object RasterSourceInkProvenanceAudit {
         val expectedB = part.color and 255
         var occupied = 0
         for (index in part.mask.pixels.indices) {
+            require(part.mask.pixels[index] == 0 || part.mask.pixels[index] == -1) {
+                "Máscara contém rótulo inesperado; refaça a seleção."
+            }
             val maskInk = part.mask.pixels[index] == 0
             if (!maskInk) continue
             val x = index % source.width
@@ -70,12 +73,11 @@ internal object RasterSourceInkProvenanceAudit {
             "A contagem de tinta da máscara diverge da imagem original."
         }
 
-        // Also screen the opposite direction. A user can add new ink after
-        // selecting a component while leaving the stored mask unchanged.
-        // It would otherwise pass all needle-versus-mask checks and silently
-        // omit that stroke. Only nearby SAME-COLOR ink in this component's
-        // bounding rectangle is considered; disconnected components are
-        // reviewed independently by the multi-layer planner.
+        // Examine the mask's bounding rectangle PLUS its 1-pixel halo.
+        // Newly connected ink can extend *outside* the previous bounding
+        // box; limiting this check to the old box would silently drop a new
+        // stroke from the final embroidery. Disconnected components remain
+        // the responsibility of whole-artwork retention/multi-layer QA.
         fun sameSourceColor(index: Int): Boolean {
             val pixel = source.argb[index]
             if ((pixel ushr 24) < 180) return false
@@ -85,8 +87,12 @@ internal object RasterSourceInkProvenanceAudit {
             return dr * dr + dg * dg + db * db <=
                 MAX_CHANNEL_COLOR_DISTANCE_SQUARED
         }
-        for (y in part.mask.minY..part.mask.maxY) {
-            for (x in part.mask.minX..part.mask.maxX) {
+        val x0 = (part.mask.minX - 1).coerceAtLeast(0)
+        val x1 = (part.mask.maxX + 1).coerceAtMost(source.width - 1)
+        val y0 = (part.mask.minY - 1).coerceAtLeast(0)
+        val y1 = (part.mask.maxY + 1).coerceAtMost(source.height - 1)
+        for (y in y0..y1) {
+            for (x in x0..x1) {
                 val index = y * source.width + x
                 if (part.mask.pixels[index] == 0 ||
                     !sameSourceColor(index)) continue
@@ -95,8 +101,8 @@ internal object RasterSourceInkProvenanceAudit {
                     if (dx == 0 && dy == 0) continue
                     val xx = x + dx
                     val yy = y + dy
-                    if (xx !in part.mask.minX..part.mask.maxX ||
-                        yy !in part.mask.minY..part.mask.maxY) continue
+                    if (xx !in 0 until source.width ||
+                        yy !in 0 until source.height) continue
                     if (part.mask.pixels[yy * source.width + xx] == 0)
                         touchesSelectedInk = true
                 }
