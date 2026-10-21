@@ -36,6 +36,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.PremiumImagePhysicalLab
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageVisualStitchPreview
+import com.timachado.brothermatrizes.core.embroidery.PremiumImageSatinVisualPreview
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -194,10 +195,16 @@ internal fun PremiumImageLabScreen(
                     message=""
                     scope.launch {
                         val generated=withContext(Dispatchers.Default) {
-                            val contour=PremiumImagePhysicalLab.propose(
-                                selected.width,selected.height,selected.argb,width,hoop
+                            // The visual Satin-style study is the primary
+                            // simulator product. Do NOT silently replace it
+                            // with exportable contours or horizontal scans.
+                            // If a region cannot be visually filled, only
+                            // then offer closed outline playback instead.
+                            val satin=PremiumImageSatinVisualPreview.create(
+                                selected.width,selected.height,
+                                selected.argb,width,hoop
                             )
-                            if(contour.isSuccess) contour else
+                            if(satin.isSuccess) satin else
                                 PremiumImageVisualStitchPreview.create(
                                     selected.width,selected.height,
                                     selected.argb,width,hoop
@@ -212,9 +219,9 @@ internal fun PremiumImageLabScreen(
                                     session.prepared=preview
                                     session.simulated=preview
                                     message=if(preview.format=="QA_IMAGE_VISUAL") {
-                                        "Simulação aproximada de pontos, sem PES: " +
-                                            "cobertura, tecido e pontos finais " +
-                                            "ainda exigem digitalização."
+                                        "Arte original no fundo com pontos Satin visuais " +
+                                            "por cima. Esta prévia NÃO é uma matriz " +
+                                            "PES pronta para a máquina."
                                     } else {
                                         "Prévia de contorno com pontos reais. " +
                                             "Confira o desenho antes do teste na máquina."
@@ -243,9 +250,9 @@ internal fun PremiumImageLabScreen(
                     color=FioText)
                 if(prepared.format=="QA_IMAGE_VISUAL") {
                     Text(
-                        "Visualização aproximada de pontos e cores. " +
-                            "Não representa digitalização final nem autoriza PES. " +
-                            "A imagem permanece disponível para revisar a simulação.",
+                        "Prévia Satin visual sobre o desenho original. " +
+                            "Não possui a compensação/validação de pontos para " +
+                            "uma máquina e não autoriza exportar este estudo para PES.",
                         color=FioGold
                     )
                 } else {
