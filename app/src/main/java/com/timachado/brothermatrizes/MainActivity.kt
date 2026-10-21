@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
@@ -1693,7 +1694,8 @@ private fun BrotherMatrizesApp(
                 NavigationBar(
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(28.dp)),
+                        .clip(RoundedCornerShape(28.dp))
+                        .testTag("brother_premium_bottom_bar"),
                     containerColor =
                         FioNavigationSurface,
                     // Sem tonalizacao Material 3 para preservar o azul exato.
