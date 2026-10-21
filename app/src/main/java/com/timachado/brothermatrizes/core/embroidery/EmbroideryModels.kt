@@ -66,7 +66,12 @@ data class EmbroideryDesign(
     val hoopProfile: HoopProfile? = null,
     val fabricProfile: FabricProfile? = null,
     val machineFinishing:
-        MachineFinishingInfo? = null
+        MachineFinishingInfo? = null,
+    // Provenance is captured ONCE when the QA preview is created.
+    // Kotlin data-class copy(format = "PES") preserves this flag by default,
+    // rather than laundering an experimental image into a released design.
+    val isExperimentalImageQa: Boolean =
+        format.startsWith("QA_", ignoreCase = true)
 ) {
     val colorCount: Int
         get() = maxOf(
