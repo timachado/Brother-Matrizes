@@ -105,6 +105,11 @@ internal object RasterMixedTechniqueComposer {
             require(inkCount == part.pixelCount) {
                 "Contagem de tinta da máscara foi alterada."
             }
+            // The positive mask check above alone misses newly connected
+            // same-color ink outside an old component bounding box.
+            // Before composing verified Satin/Tatami/Running sequences,
+            // compare both directions with the ORIGINAL raw image.
+            RasterSourceInkProvenanceAudit.inspect(source,part).getOrThrow()
             val fidelity = RasterStitchFidelityAudit.compare(
                 source,part,input,widthMm
             ).getOrThrow()
