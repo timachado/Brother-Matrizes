@@ -38,6 +38,21 @@ internal object RasterTatamiRectanglePreview {
             heightMm <= hoop.usableHeightMm) {
             "A arte ultrapassa o bastidor selecionado."
         }
+        // A forged or stale component could otherwise fill a rectangle
+        // despite an actual counter being present in the source artwork.
+        val sourceParts = RasterSatinObjectEditor.detect(image).getOrThrow()
+        require(sourceParts.any { original ->
+            original.id == part.id &&
+                original.color == part.color &&
+                original.pixelCount == part.pixelCount &&
+                original.mask.minX == part.mask.minX &&
+                original.mask.maxX == part.mask.maxX &&
+                original.mask.minY == part.mask.minY &&
+                original.mask.maxY == part.mask.maxY &&
+                original.mask.pixels.contentEquals(part.mask.pixels)
+        }) {
+            "A região retangular foi alterada desde a imagem importada."
+        }
         val mask = part.mask
         val w = mask.maxX - mask.minX + 1
         val h = mask.maxY - mask.minY + 1
@@ -141,7 +156,11 @@ internal object RasterTatamiRectanglePreview {
         )
         // Physical needle audit is a software screen only. A passed draft
         // remains non-exportable until machine-specific fabric QA.
-        RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
+        val needle = RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(draft).getOrThrow()
+        require(needle.stitchesExamined == density.sewnSegments) {
+            "A sequência retangular possui densidade não verificada."
+        }
         // Validate the INTEGER commands after 0.1 mm quantization: no
         // stitched line may pass through an original counter or empty pixel.
         RasterSewnMaskGate.inspect(image, part, draft, fullWidthMm).getOrThrow()
