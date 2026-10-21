@@ -35,6 +35,7 @@ import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.PremiumImagePhysicalLab
+import com.timachado.brothermatrizes.core.embroidery.PremiumImageVisualStitchPreview
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -174,62 +175,105 @@ internal fun PremiumImageLabScreen(
                     }
                 }
             }
+            // One primary action: generate a safe outline when possible;
+            // otherwise show a clearly named, non-exportable scanned stitch
+            // STUDY in the official simulator. Never block visualization
+            // merely because two isolated glyph pixels touch diagonally.
             Button(
-                modifier=Modifier.fillMaxWidth().testTag("premium_qa_generate"),
-                enabled=!busy,onClick={
+                modifier=Modifier.fillMaxWidth().testTag("premium_qa_simulate"),
+                enabled=!busy,
+                onClick={
                     val selected=source
                     val stamp=session.revision
                     val width=session.widthMm
                     val hoop=session.hoop
                     busy=true
+                    message=""
                     scope.launch {
-                        val result=withContext(Dispatchers.Default) {
-                            PremiumImagePhysicalLab.propose(
-                                selected.width,selected.height,selected.argb,width,hoop)
+                        val generated=withContext(Dispatchers.Default) {
+                            val contour=PremiumImagePhysicalLab.propose(
+                                selected.width,selected.height,selected.argb,width,hoop
+                            )
+                            if(contour.isSuccess) contour else
+                                PremiumImageVisualStitchPreview.create(
+                                    selected.width,selected.height,
+                                    selected.argb,width,hoop
+                                )
                         }
                         busy=false
-                        if(stamp==session.revision) result.fold(
-                            onSuccess = {
-                                session.prepared=it
-                                session.simulated=null
-                                message="Pontos gerados: ${it.stitchCount} pontos. Toque em SIMULAR."
-                            },
-                            onFailure = { message="Prévia recusada: "+(it.message?:"simplifique o desenho PNG") }
-                        )
+                        if(stamp==session.revision &&
+                            selected===session.photo &&
+                            width==session.widthMm && hoop==session.hoop) {
+                            generated.fold(
+                                onSuccess={ preview ->
+                                    session.prepared=preview
+                                    session.simulated=preview
+                                    message=if(preview.format=="QA_IMAGE_VISUAL") {
+                                        "Simulação aproximada de pontos, sem PES: " +
+                                            "cobertura, tecido e pontos finais " +
+                                            "ainda exigem digitalização."
+                                    } else {
+                                        "Prévia de contorno com pontos reais. " +
+                                            "Confira o desenho antes do teste na máquina."
+                                    }
+                                    onSimulate(preview,hoop)
+                                },
+                                onFailure={
+                                    message="Não foi possível preparar nem a prévia " +
+                                        "de pontos: "+(it.message ?:
+                                            "verifique o arquivo e o bastidor.")
+                                }
+                            )
+                        }
                     }
                 }
-            ) { Text(if (busy) "Analisando pontos..." else "1. Gerar pontos de contorno") }
+            ) {
+                Text(if(busy) "Preparando simulação de pontos..."
+                    else "Simular bordado")
+            }
             val prepared=session.prepared
-            if(prepared!=null) {
-                Text("${prepared.stitchCount} pontos • ${prepared.jumpCount} deslocamentos • " +
-                    "${prepared.bounds.widthMm.roundToInt()} × ${prepared.bounds.heightMm.roundToInt()} mm",
+            if(prepared!=null && session.simulated===prepared) {
+                Text("${prepared.stitchCount} pontos de prévia • " +
+                    "${prepared.jumpCount} saltos • " +
+                    "${prepared.bounds.widthMm.roundToInt()} × " +
+                    "${prepared.bounds.heightMm.roundToInt()} mm",
                     color=FioText)
-                Button(
-                    onClick = {
-                        session.simulated=prepared
-                        onSimulate(prepared,session.hoop)
-                    },
-                    enabled=!busy,
-                    modifier=Modifier.fillMaxWidth().testTag("premium_qa_simulate")
-                ) { Text("2. Simular pontos no bastidor") }
-                OutlinedButton(
-                    onClick = {
-                        val reviewed=session.simulated
-                        if(reviewed !== prepared) {
-                            message="Abra primeiro o simulador do Brother Matrizes."
-                            return@OutlinedButton
-                        }
-                        val sample=PremiumImagePhysicalLab.pesForBench(reviewed)
-                        sample.fold(onSuccess={
-                            pending=it
-                            save.launch(it.fileName)
-                        },onFailure={
-                            message="PES de ensaio recusado: "+(it.message?:"auditoria não concluída")
-                        })
-                    },
-                    enabled=!busy && session.simulated === prepared,
-                    modifier=Modifier.fillMaxWidth().testTag("premium_qa_save")
-                ) { Text("3. Salvar PES de teste físico (não homologado)",color=FioGold) }
+                if(prepared.format=="QA_IMAGE_VISUAL") {
+                    Text(
+                        "Visualização aproximada de pontos e cores. " +
+                            "Não representa digitalização final nem autoriza PES. " +
+                            "A imagem permanece disponível para revisar a simulação.",
+                        color=FioGold
+                    )
+                } else {
+                    OutlinedButton(
+                        onClick={
+                            val reviewed=session.simulated
+                            if(reviewed !== prepared) {
+                                message="Simule primeiro o bordado."
+                                return@OutlinedButton
+                            }
+                            val sample=PremiumImagePhysicalLab.pesForBench(reviewed)
+                            sample.fold(
+                                onSuccess={
+                                    pending=it
+                                    save.launch(it.fileName)
+                                },
+                                onFailure={
+                                    message="A amostra física ainda não pode " +
+                                        "ser exportada: "+(it.message?:
+                                            "requer avaliação do contorno.")
+                                }
+                            )
+                        },
+                        enabled=!busy,
+                        modifier=Modifier.fillMaxWidth()
+                            .testTag("premium_qa_save")
+                    ) {
+                        Text("Após simular: salvar PES experimental",
+                            color=FioGold)
+                    }
+                }
             }
         }
         if(message.isNotBlank()) Text(message,color=FioGold)
