@@ -1602,11 +1602,15 @@ fun SimpleImageToEmbroideryScreen(
                                         source, snapshotWidth, snapshotHoop
                                     )
                                 }
+                                // Always release the progress state, even
+                                // when the user resized the artwork or chose
+                                // a different hoop while QA was running.
+                                // Stale results must NEVER reach Simulator.
+                                testingRunningOutline = false
                                 if (snapshotRevision == revision &&
                                     prepared?.image === source &&
                                     widthMm == snapshotWidth &&
                                     hoop == snapshotHoop) {
-                                    testingRunningOutline = false
                                     draft.fold(
                                         onSuccess = {
                                             qaTechnicalReport =
