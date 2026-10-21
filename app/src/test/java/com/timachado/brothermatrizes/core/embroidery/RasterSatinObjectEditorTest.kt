@@ -154,4 +154,35 @@ class RasterSatinObjectEditorTest {
     }
 
 
+    @Test fun newAdjacentInkJustOutsidePreviousBoundingBoxInvalidatesSourceMask() {
+        val original=image { x,y ->
+            x in 10..100 && y in 29..36
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(original,part).isSuccess)
+        val withExtension=original.copy(argb=original.argb.copyOf().apply {
+            this[32*original.width+101]=0xffea8721.toInt()
+        })
+        assertTrue("A nova extensão não pode desaparecer do bordado",
+            RasterSourceInkProvenanceAudit.inspect(withExtension,part).isFailure)
+        assertTrue(RasterSatinObjectEditor.preview(
+            withExtension,part,railSet(),60f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun unexpectedMaskLabelsFailBeforeNeedleGeneration() {
+        val original=image { x,y ->
+            x in 10..100 && y in 29..36
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        val broken=part.mask.pixels.copyOf().apply {
+            this[20*original.width+20]=3
+        }
+        val invalid=part.copy(mask=part.mask.copy(pixels=broken))
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,invalid
+        ).isFailure)
+    }
+
 }
