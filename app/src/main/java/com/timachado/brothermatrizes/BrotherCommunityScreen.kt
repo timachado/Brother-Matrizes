@@ -63,6 +63,10 @@ import java.net.URL
 
 private const val COMMUNITY_API_PATH = "/wp-json/tim-brother-sync/v1/community"
 private const val COMMUNITY_FALLBACK_PAGE = "/aplicativos/brother-matrizes/"
+// Convite oficial fornecido pelo proprietário da T.I. Machado em 21/10/2026.
+// A fonte remota validada poderá substituí-lo futuramente.
+internal const val BROTHER_OFFICIAL_GROUP_URL =
+    "https://chat.whatsapp.com/BXbLoaQXC9dFIJdEzwmwB2"
 
 internal fun isOfficialGroup(value: String): Boolean {
     val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
@@ -118,12 +122,12 @@ private suspend fun getOfficialGroup(): String? = withContext(Dispatchers.IO) {
         }.getOrNull()
         if (value != null) return@withContext value
     }
-    null
+    BROTHER_OFFICIAL_GROUP_URL.takeIf(::isOfficialGroup)
 }
 @Composable
 fun BrotherCommunityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var groupUrl by remember { mutableStateOf<String?>(null) }
+    var groupUrl by remember { mutableStateOf<String?>(BROTHER_OFFICIAL_GROUP_URL) }
     var updateEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
     var communityEnabled by remember { mutableStateOf(BrotherFirebasePush.isCommunityEnabled(context)) }
     var permissionDenied by remember { mutableStateOf(false) }
@@ -334,69 +338,32 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     fontWeight = FontWeight.Bold)
                 Text("Converse com outros usuários, relate erros e envie sugestões para as próximas versões.",
                     color = FioTextMuted)
-                if (groupUrl != null) {
-                    Text(
-                        "O grupo oficial de feedbacks no WhatsApp está disponível. Participe, compartilhe suas ideias e ajude a evoluir o Brother Matrizes.",
-                        color = FioTextMuted
-                    )
-                } else {
-                    Text(
-                        "O convite direto ainda não foi confirmado pelo canal oficial. Consulte a central da T.I. Machado para participar.",
-                        color = FioTextMuted
-                    )
-                }
-                if (groupUrl != null) {
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = FioGold,
-                            contentColor = FioBackground
-                        ),
-                        onClick = { groupUrl?.let(::openHttps) }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_whatsapp_group_bm),
-                                contentDescription = null,
-                                modifier = Modifier.size(23.dp)
-                            )
-                            Text("Entrar no grupo do WhatsApp", fontWeight = FontWeight.Bold)
-                        }
+                Text(
+                    "O grupo oficial está disponível. Participe, compartilhe suas ideias e ajude a evoluir o Brother Matrizes.",
+                    color = FioTextMuted
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FioGold,
+                        contentColor = FioBackground
+                    ),
+                    onClick = {
+                        val trustedGroup = groupUrl?.takeIf(::isOfficialGroup)
+                            ?: BROTHER_OFFICIAL_GROUP_URL
+                        openHttps(trustedGroup)
                     }
-                } else {
-                    // Sem convite público verificado, o usuário solicita
-                    // voluntariamente o acesso ao suporte comercial oficial.
-                    // Não inventar links de grupo nem enviar mensagens sem ação.
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = FioGold,
-                            contentColor = FioBackground
-                        ),
-                        onClick = {
-                            val message = Uri.encode(
-                                "Olá! Gostaria de receber o convite do grupo oficial de feedbacks do Brother Matrizes."
-                            )
-                            openHttps(
-                                "https://wa.me/" + BrotherFeedbackDelivery.WHATSAPP_PHONE +
-                                    "?text=" + message
-                            )
-                        }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_whatsapp_group_bm),
-                                contentDescription = null,
-                                modifier = Modifier.size(23.dp)
-                            )
-                            Text("Solicitar convite pelo WhatsApp", fontWeight = FontWeight.Bold)
-                        }
+                        Icon(
+                            painter = painterResource(R.drawable.ic_whatsapp_group_bm),
+                            contentDescription = null,
+                            modifier = Modifier.size(23.dp)
+                        )
+                        Text("Entrar no grupo do WhatsApp", fontWeight = FontWeight.Bold)
                     }
                 }
                 Text(
