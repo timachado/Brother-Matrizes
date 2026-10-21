@@ -165,20 +165,6 @@ fun HomeScreen(
             )
         }
 
-        if (BuildConfig.DEBUG) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                ExpressiveFeatureCard(
-                    modifier=Modifier.fillMaxWidth().heightIn(min=78.dp)
-                        .testTag("premium_image_qa_home"),
-                    iconRes=R.drawable.ic_ms_edit_rounded,
-                    title="Imagem para Bordado • QA",
-                    subtitle="Importar PNG → simular pontos → PES de teste físico",
-                    enabled=true,
-                    onClick=onImageQa
-                )
-            }
-        }
-
         item(
             span = {
                 GridItemSpan(maxLineSpan)
@@ -196,6 +182,22 @@ fun HomeScreen(
                         bottom = 2.dp
                     )
             )
+        }
+
+        // Keep experimental image digitization WITH the other tool
+        // tiles, rather than presenting it as a second Home primary CTA.
+        if (BuildConfig.DEBUG) {
+            item {
+                ExpressiveFeatureCard(
+                    modifier=Modifier.fillMaxWidth().heightIn(min=78.dp)
+                        .testTag("premium_image_qa_tools"),
+                    iconRes=R.drawable.ic_ms_edit_rounded,
+                    title="Imagem para Bordado",
+                    subtitle="PNG • Simular • PES de teste (QA)",
+                    enabled=true,
+                    onClick=onImageQa
+                )
+            }
         }
 
         item {
