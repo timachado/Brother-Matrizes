@@ -69,6 +69,43 @@ internal object RasterSourceInkProvenanceAudit {
         require(occupied == part.pixelCount) {
             "A contagem de tinta da máscara diverge da imagem original."
         }
+
+        // Also screen the opposite direction. A user can add new ink after
+        // selecting a component while leaving the stored mask unchanged.
+        // It would otherwise pass all needle-versus-mask checks and silently
+        // omit that stroke. Only nearby SAME-COLOR ink in this component's
+        // bounding rectangle is considered; disconnected components are
+        // reviewed independently by the multi-layer planner.
+        fun sameSourceColor(index: Int): Boolean {
+            val pixel = source.argb[index]
+            if ((pixel ushr 24) < 180) return false
+            val dr = ((pixel ushr 16) and 255) - expectedR
+            val dg = ((pixel ushr 8) and 255) - expectedG
+            val db = (pixel and 255) - expectedB
+            return dr * dr + dg * dg + db * db <=
+                MAX_CHANNEL_COLOR_DISTANCE_SQUARED
+        }
+        for (y in part.mask.minY..part.mask.maxY) {
+            for (x in part.mask.minX..part.mask.maxX) {
+                val index = y * source.width + x
+                if (part.mask.pixels[index] == 0 ||
+                    !sameSourceColor(index)) continue
+                var touchesSelectedInk = false
+                for (dy in -1..1) for (dx in -1..1) {
+                    if (dx == 0 && dy == 0) continue
+                    val xx = x + dx
+                    val yy = y + dy
+                    if (xx !in part.mask.minX..part.mask.maxX ||
+                        yy !in part.mask.minY..part.mask.maxY) continue
+                    if (part.mask.pixels[yy * source.width + xx] == 0)
+                        touchesSelectedInk = true
+                }
+                require(!touchesSelectedInk) {
+                    "A imagem original ganhou tinta conectada fora da máscara " +
+                        "em $x,$y. Refaça a seleção para não perder detalhes."
+                }
+            }
+        }
         RasterSourceInkProvenanceReport(originalInkPixelsChecked = occupied)
     }
 }
