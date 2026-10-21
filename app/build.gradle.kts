@@ -193,9 +193,49 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
         val heroSemTexto = originalHero.getSubimage(
             cropX, 0, originalHero.width - cropX, originalHero.height
         )
+        // Melhorar a apresentação do recorte aprovado sem alterar o conteúdo:
+        // upscale bicúbico, contraste suave e nitidez localizada. A fonte é
+        // a mesma fotografia; não substituímos por foto genérica.
+        val width = heroSemTexto.width * 3
+        val height = heroSemTexto.height * 3
+        val expanded = java.awt.image.BufferedImage(
+            width, height, java.awt.image.BufferedImage.TYPE_INT_RGB
+        )
+        val graphics = expanded.createGraphics()
+        try {
+            graphics.setRenderingHint(
+                java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC
+            )
+            graphics.drawImage(heroSemTexto, 0, 0, width, height, null)
+        } finally {
+            graphics.dispose()
+        }
+        val contrast = java.awt.image.RescaleOp(1.07f, 3f, null)
+        val balanced = contrast.filter(expanded, null)
+        val sharpen = java.awt.image.ConvolveOp(
+            java.awt.image.Kernel(3, 3, floatArrayOf(
+                0f, -0.22f, 0f,
+                -0.22f, 1.88f, -0.22f,
+                0f, -0.22f, 0f
+            )), java.awt.image.ConvolveOp.EDGE_NO_OP, null
+        )
+        val enhanced = sharpen.filter(balanced, null)
         heroDrawable.parentFile.mkdirs()
-        check(javax.imageio.ImageIO.write(heroSemTexto, "jpg", heroDrawable)) {
-            "Falha ao preparar recorte da foto aprovada para Android"
+        val writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg").next()
+        javax.imageio.ImageIO.createImageOutputStream(heroDrawable).use { stream ->
+            try {
+                writer.output = stream
+                val params = writer.defaultWriteParam
+                params.compressionMode = javax.imageio.ImageWriteParam.MODE_EXPLICIT
+                params.compressionQuality = 0.92f
+                writer.write(null, javax.imageio.IIOImage(enhanced, null, null), params)
+            } finally {
+                writer.dispose()
+            }
+        }
+        check(heroDrawable.length() >= 2_000) {
+            "Falha ao preparar fotografia premium do bordado"
         }
     }
 }
