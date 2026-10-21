@@ -61,13 +61,10 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      # A permanently update-compatible APK needs an actual persistent
-      # QA key. Ephemeral GitHub runner debug keys CANNOT update each other.
-      # This step only prepares a private QA signer during an explicit
-      # manual distribution request. Never publish an unsigned or
-      # ephemeral-debug-key APK as if it were update-compatible.
-      - name: Prepare persistent QA signer (manual distribution only)
-        if: github.event_name == 'workflow_dispatch'
+      # Prefer the persistent QA key whenever CI has it. If not, still
+      # provide an explicitly ONE-TIME debug-signed laboratory build;
+      # unlike a persistent QA key, its signature cannot update future APKs.
+      - name: Prepare persistent QA signer for private physical tests
         shell: bash
         env:
           QA_KEYSTORE_B64: ${{ secrets.BROTHER_QA_KEYSTORE_BASE64 }}
@@ -77,7 +74,7 @@ jobs:
         run: |
           if [ -z "$QA_KEYSTORE_B64" ] || [ -z "$QA_STORE_PASSWORD" ] || \
              [ -z "$QA_KEY_ALIAS" ] || [ -z "$QA_KEY_PASSWORD" ]; then
-            echo "::warning::QA signer not configured; automated tests remain usable, but no installable APK will be published."
+            echo "::warning::No stable QA key configured. Test APK uses ephemeral Android debug signing; future builds may require uninstall/reinstall. Never install over commercial package."
             echo "QA_SIGNED=false" >> "$GITHUB_ENV"
           else
             umask 077
@@ -95,13 +92,22 @@ jobs:
           BROTHER_QA_KEY_PASSWORD: ${{ secrets.BROTHER_QA_KEY_PASSWORD }}
         run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
 
-      - name: Upload update-compatible QA APK only when requested and signed
-        if: github.event_name == 'workflow_dispatch' && env.QA_SIGNED == 'true'
+      - name: Upload installable stable-signed physical QA APK
+        if: success() && env.QA_SIGNED == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-QA-Estavel
+          name: Brother-Matrizes-Laboratorio-PES-QA-Atualizavel
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload ONE-TIME debug-signed physical QA APK when stable key absent
+        if: success() && env.QA_SIGNED != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Laboratorio-PES-QA-Instalacao-Unica
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
           if-no-files-found: error
 
   android-emulator-ui:
