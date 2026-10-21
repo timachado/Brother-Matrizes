@@ -145,6 +145,10 @@ object RasterSatinObjectEditor {
         require(fullWidthMm <= hoop.usableWidthMm && fullHeightMm <= hoop.usableHeightMm) {
             "A arte não cabe na área útil do bastidor."
         }
+        // The Satin rail and coverage logic below reads component.mask.
+        // Recheck that mask against RAW imported pixels first, so a stale
+        // region cannot hide a newly transparent counter or changed color.
+        RasterSourceInkProvenanceAudit.inspect(source, item).getOrThrow()
         val mask = item.mask
         val w = mask.maxX - mask.minX + 1
         val h = mask.maxY - mask.minY + 1
