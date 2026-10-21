@@ -37,6 +37,13 @@ internal object RasterQaRunningStitchDraft {
         require(!RasterEmbroideryApproval.canExportFromImageTool()) {
             "Exportação experimental não autorizada."
         }
+        // An opaque photograph produces a rectangular image boundary, NOT a
+        // meaningful running-stitch contour. Only isolated transparency
+        // artwork is eligible for this limited outline QA path.
+        require(source.argb.any { (it ushr 24) < 128 }) {
+            "Contorno corrido exige arte recortada com fundo transparente. " +
+                "Fotografias opacas precisam primeiro de separação e revisão."
+        }
         val geometry = RasterQaContourGeometry.inspect(
             source, chosenWidthMm, threshold
         ).getOrThrow()
