@@ -39,7 +39,25 @@ internal object RasterPhysicalQaTestBridge {
         ) { "A amostra excede o escopo seguro de avaliação inicial." }
         // Trust no stale/modified stitch metadata. Software-only proof;
         // physical compatibility is precisely what this sample will test.
-        RasterThreadSequenceAudit.inspect(design).getOrThrow()
+        require(design.points.count {
+            it.command == StitchCommand.STITCH
+        } == design.stitchCount &&
+            design.points.count {
+                it.command == StitchCommand.JUMP
+            } == design.jumpCount &&
+            design.points.count {
+                it.command == StitchCommand.END
+            } == 1 &&
+            design.points.all {
+                it.colorIndex == 0 &&
+                    it.command in setOf(
+                        StitchCommand.STITCH,
+                        StitchCommand.JUMP,
+                        StitchCommand.TRIM,
+                        StitchCommand.END
+                    )
+            }
+        ) { "Contorno QA tem comandos inesperados para a amostra física." }
         RasterNeedleRiskAudit.inspect(design,hoop).getOrThrow()
         RasterThreadDensityPreflight.inspect(design).getOrThrow()
         // App-level QA exports remain denied even in the DEBUG build.
