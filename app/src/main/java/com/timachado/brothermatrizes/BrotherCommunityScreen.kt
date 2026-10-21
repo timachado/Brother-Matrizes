@@ -367,11 +367,36 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                         }
                     }
                 } else {
-                    OutlinedButton(
+                    // Sem convite público verificado, o usuário solicita
+                    // voluntariamente o acesso ao suporte comercial oficial.
+                    // Não inventar links de grupo nem enviar mensagens sem ação.
+                    Button(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = { openHttps(productPage) }
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FioGold,
+                            contentColor = FioBackground
+                        ),
+                        onClick = {
+                            val message = Uri.encode(
+                                "Olá! Gostaria de receber o convite do grupo oficial de feedbacks do Brother Matrizes."
+                            )
+                            openHttps(
+                                "https://wa.me/" + BrotherFeedbackDelivery.WHATSAPP_PHONE +
+                                    "?text=" + message
+                            )
+                        }
                     ) {
-                        Text("Consultar convite no site oficial")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_whatsapp_group_bm),
+                                contentDescription = null,
+                                modifier = Modifier.size(23.dp)
+                            )
+                            Text("Solicitar convite pelo WhatsApp", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
                 Text(
