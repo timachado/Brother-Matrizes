@@ -185,7 +185,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -205,7 +205,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -225,7 +225,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -253,7 +253,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -281,7 +281,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -309,7 +309,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 64.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -604,7 +604,7 @@ fun HomeScreen(
 private fun PremiumHeroCard() {
     Box(
         modifier = Modifier.fillMaxWidth()
-            .height(126.dp)
+            .height(146.dp)
             .clip(RoundedCornerShape(28.dp))
             .background(Color(0xFF091C2D))
     ) {
@@ -613,22 +613,23 @@ private fun PremiumHeroCard() {
             contentDescription = "Agulha de máquina bordando detalhes dourados no tecido",
             contentScale = ContentScale.Crop,
             modifier = Modifier.align(Alignment.CenterEnd)
-                .fillMaxWidth(0.64f)
+                .fillMaxWidth(0.77f)
                 .fillMaxHeight()
         )
         Box(
             Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to Color(0xFF071B2C),
-                    0.48f to Color(0xE6081B2C),
-                    0.84f to Color(0x44081B2C),
+                    0.37f to Color(0xE0081B2C),
+                    0.65f to Color(0x55081B2C),
+                    0.82f to Color.Transparent,
                     1f to Color.Transparent
                 )
             )
         )
         Column(
             modifier = Modifier.align(Alignment.CenterStart)
-                .fillMaxWidth(0.75f).padding(start = 18.dp, end = 4.dp),
+                .fillMaxWidth(0.72f).padding(start = 18.dp, end = 4.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Text(
@@ -707,31 +708,31 @@ private fun ExpressiveFeatureCard(
             }
         } else {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
                     shape = CircleShape,
                     color = if (enabled) FioGold.copy(alpha = 0.14f) else FioSurfaceAlt,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(38.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = painterResource(iconRes),
                             contentDescription = null,
                             tint = if (enabled) FioGoldSoft else FioTextMuted,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, color = foreground,
-                         fontSize = 12.sp, lineHeight = 15.sp,
+                         fontSize = 13.sp, lineHeight = 17.sp,
                          fontWeight = FontWeight.SemiBold, maxLines = 2,
                          overflow = TextOverflow.Ellipsis)
                     Text(subtitle, color = FioTextMuted,
-                         fontSize = 10.sp, lineHeight = 12.sp,
+                         fontSize = 11.sp, lineHeight = 14.sp,
                          maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text("›", fontSize = 20.sp, color = if (enabled) FioGoldSoft else FioTextMuted)
