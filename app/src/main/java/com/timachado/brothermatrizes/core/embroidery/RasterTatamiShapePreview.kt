@@ -45,6 +45,23 @@ internal object RasterTatamiShapePreview {
             heightMm <= hoop.usableHeightMm) {
             "Imagem fora da área útil do bastidor."
         }
+        // The mask is supplied by the caller, so it must not be allowed
+        // to invent or remove ink while its STITCH paths appear valid.
+        // Re-detect the exact source component before any Tatami planning.
+        val sourceParts = RasterSatinObjectEditor.detect(image).getOrThrow()
+        require(sourceParts.any { original ->
+            original.id == part.id &&
+                original.color == part.color &&
+                original.pixelCount == part.pixelCount &&
+                original.mask.minX == part.mask.minX &&
+                original.mask.maxX == part.mask.maxX &&
+                original.mask.minY == part.mask.minY &&
+                original.mask.maxY == part.mask.maxY &&
+                original.mask.pixels.contentEquals(part.mask.pixels)
+        }) {
+            "A máscara Tatami divergiu da arte importada. Reimporte ou refaça a seleção."
+        }
+
         val m = part.mask
         val w = m.maxX - m.minX + 1
         val h = m.maxY - m.minY + 1
@@ -201,7 +218,11 @@ internal object RasterTatamiShapePreview {
             threadColors = listOf(part.color),
             isModified = true,hoopProfile = hoop
         )
-        RasterNeedleRiskAudit.inspect(draft,hoop).getOrThrow()
+        val needle = RasterNeedleRiskAudit.inspect(draft,hoop).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(draft).getOrThrow()
+        require(needle.stitchesExamined == density.sewnSegments) {
+            "A sequência Tatami possui contagens divergentes na auditoria física preliminar."
+        }
         // Validate the INTEGER commands after 0.1 mm quantization: no
         // stitched line may pass through an original counter or empty pixel.
         RasterSewnMaskGate.inspect(image, part, draft, widthMm).getOrThrow()
