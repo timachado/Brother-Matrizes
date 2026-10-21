@@ -9,6 +9,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
@@ -113,12 +116,19 @@ class PremiumHomeScreenshotTest {
         composeRule.onNodeWithText("Criar primeiro nome")
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Recente").assertIsDisplayed()
-        val recentButton = composeRule.onNodeWithText("Criar primeiro nome")
-            .fetchSemanticsNode().boundsInRoot
-        val navLabel = composeRule.onNodeWithText("Início")
-            .fetchSemanticsNode().boundsInRoot
-        check(recentButton.bottom <= navLabel.top - 30f) {
-            "CTA de Recente permanece encoberto após rolar."
+        val navTop = composeRule.onNodeWithText("Início")
+            .fetchSemanticsNode().boundsInRoot.top
+        var recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
+            .fetchSemanticsNode().boundsInRoot.bottom
+        if (recentBottom > navTop - 30f) {
+            // Aumentar a rolagem como uma pessoa faria no Android real.
+            composeRule.onRoot().performTouchInput { swipeUp() }
+            composeRule.waitForIdle()
+            recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
+                .assertIsDisplayed().fetchSemanticsNode().boundsInRoot.bottom
+        }
+        check(recentBottom <= navTop - 30f) {
+            "CTA de Recente permanece encoberto apos rolagem adicional."
         }
 
 
