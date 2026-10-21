@@ -26,6 +26,10 @@ private object BrotherPalette {
 val FioBackground: Color get() = if (BrotherPalette.dark.value) Color(0xFF08131D) else Color(0xFFF7F5F0)
 val FioSurface: Color get() = if (BrotherPalette.dark.value) Color(0xFF101D28) else Color(0xFFFFFFFF)
 val FioSurfaceAlt: Color get() = if (BrotherPalette.dark.value) Color(0xFF172632) else Color(0xFFEAEFF0)
+// A navegacao principal acompanha o azul-noite da Home, sem a tonalizacao
+// acinzentada do surface Material 3. Modo claro usa azul muito suave.
+val FioNavigationSurface: Color get() = if (BrotherPalette.dark.value) Color(0xFF102A40) else Color(0xFFE8F0F6)
+val FioNavigationMuted: Color get() = if (BrotherPalette.dark.value) Color(0xFFB7CBDA) else Color(0xFF526575)
 val FioSurfaceHigh: Color get() = if (BrotherPalette.dark.value) Color(0xFF20313E) else Color(0xFFDFE8EA)
 val FioGold: Color get() = if (BrotherPalette.dark.value) Color(0xFFE6BE70) else Color(0xFF936616)
 val FioGoldSoft: Color get() = if (BrotherPalette.dark.value) Color(0xFFF6E7C4) else Color(0xFF675018)

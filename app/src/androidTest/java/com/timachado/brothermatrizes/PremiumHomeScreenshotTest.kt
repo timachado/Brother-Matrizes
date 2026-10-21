@@ -58,6 +58,9 @@ class PremiumHomeScreenshotTest {
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
         composeRule.onNodeWithText("Início").assertIsDisplayed()
+        // A navegação Premium deve existir nas cinco abas superiores e manter
+        // a superfície azul independente dos cartões da Home.
+        composeRule.onNodeWithTag("brother_premium_bottom_bar").assertIsDisplayed()
         // Ferramentas maiores exigem rolagem em algumas telas. Capturar a
         // primeira dobra agora e validar o botão de Recente depois da foto.
         composeRule.waitForIdle()

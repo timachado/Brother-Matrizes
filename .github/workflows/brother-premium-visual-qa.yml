@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/brother-premium-visual-20261020
+      - fix/brother-1.11.1-navigation-blue-20261021
   workflow_dispatch:
 
 permissions:
