@@ -152,4 +152,23 @@ class RasterTatamiRectanglePreviewTest {
     }
 
 
+    @Test fun freshInkOutsideRectangleNeedsReselectionBeforeFill() {
+        val original=image { x,y ->
+            if (x in 48..132 && y in 35..90) navy else white
+        }
+        val selected=RasterSatinObjectEditor.detect(original)
+            .getOrThrow().single()
+        val altered=original.copy(argb=original.argb.copyOf().apply {
+            this[60*original.width+133]=navy
+        })
+        assertTrue(RasterTatamiRectanglePreview.create(
+            altered,selected,90f,HoopProfile.H130X180
+        ).isFailure)
+        assertTrue(RasterTatamiRectanglePreview.create(
+            original,selected,90f,HoopProfile.H130X180
+        ).isSuccess)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
