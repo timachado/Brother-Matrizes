@@ -345,7 +345,9 @@ fun SimpleImageToEmbroideryScreen(
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
-    var testingRunningOutline by remember(stageImage, widthMm, hoop) {
+    // widthMm is calculated later in this composable. Source changes
+    // invalidate the QA operation; width and hoop are rechecked on return.
+    var testingRunningOutline by remember(stageImage) {
         mutableStateOf(false)
     }
     var elementPlan by remember(stageImage) {
