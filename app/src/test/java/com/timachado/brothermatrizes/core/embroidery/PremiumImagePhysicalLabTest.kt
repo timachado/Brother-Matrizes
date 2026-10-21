@@ -47,4 +47,49 @@ class PremiumImagePhysicalLabTest {
             64,64,ring(),60f,HoopProfile.H100X100
         ).isFailure)
     }
+    @Test fun diagonallyTouchingInkIslandsAreTwoClosedOutlinesNotOneBridge() {
+        val w=64
+        val h=64
+        val pixels=IntArray(w*h) { index ->
+            val x=index%w
+            val y=index/w
+            if ((x in 8..24 && y in 8..24) ||
+                (x in 25..42 && y in 25..42)
+            ) 0xffeab85d.toInt() else 0
+        }
+        val design=PremiumImagePhysicalLab.propose(
+            w,h,pixels,65f,HoopProfile.H100X100
+        ).getOrThrow()
+        assertEquals(
+            "Dois elementos só tocam no canto; não costurar entre eles",
+            2,design.jumpCount
+        )
+        assertTrue(design.points.any { it.command==StitchCommand.TRIM })
+        assertTrue(design.stitchCount>60)
+        assertTrue(HoopValidator.validate(design,HoopProfile.H100X100).fits)
+    }
+
+    @Test fun multipleTextLikeDisconnectedContoursCanBeSimulatedBeyondOldEightLoopLimit() {
+        val w=160
+        val h=100
+        val pixels=IntArray(w*h) { index ->
+            val x=index%w
+            val y=index/w
+            val column=(x-9)/12
+            if(x>=9 && column in 0..11 &&
+                x in (9+column*12)..(15+column*12) &&
+                y in 30..63
+            ) 0xffeeac51.toInt() else 0
+        }
+        val design=PremiumImagePhysicalLab.propose(
+            w,h,pixels,92f,HoopProfile.H130X180
+        ).getOrThrow()
+        assertEquals(12,design.jumpCount)
+        assertTrue(design.points.count {
+            it.command==StitchCommand.TRIM
+        }>=11)
+        assertTrue(design.stitchCount>150)
+    }
+
+
 }
