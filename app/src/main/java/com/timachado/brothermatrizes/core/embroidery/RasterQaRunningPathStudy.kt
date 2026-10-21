@@ -45,6 +45,7 @@ internal data class RasterQaRunningPathReport(
             " | vazados=${outlines.count { it.isCounter }}" +
             " | contornos-finos-para-revisar=${outlines.count { it.thinFeatureWarning }}" +
             " | coordenadas-candidatas=${outlines.sumOf { it.waypoints.size }}" +
+            " | cantos-originais-preservados=true" +
             " | SEM STITCH/JUMP/TRIM/PES: trajetos separados, não conectados " +
             "nem aprovados para bordado físico."
     }
@@ -82,6 +83,16 @@ internal object RasterQaRunningPathStudy {
             report.mmPerPixel*image.width-report.chosenWidthMm
         )<0.0002f) { "Escala física dos contornos inconsistente." }
 
+        // Rebuild contours from the exact bitmap and alpha threshold.
+        // A copied report with plausible area/perimeter is not trusted.
+        val reconstructed=RasterQaContourGeometry.inspect(
+            image,report.chosenWidthMm,report.threshold
+        ).getOrThrow()
+        require(reconstructed.fingerprint==report.fingerprint &&
+            reconstructed.inkPixels==report.inkPixels &&
+            reconstructed.loops==report.loops
+        ) { "Contornos QA alterados ou não correspondem ao bitmap." }
+
         var totalSamples=0
         val outlines=report.loops.mapIndexed { loopIndex,loop ->
             val vertices=loop.vertices
@@ -117,31 +128,59 @@ internal object RasterQaRunningPathStudy {
             ) { "Área ou perímetro do contorno QA foi alterado." }
 
             val perimeterMm=perimeter*report.mmPerPixel
-            val steps=ceil(perimeterMm/maxWaypointSpacingMm).toInt()
-            require(steps in 2..4096) {
-                "Rota muito curta ou extensa para amostragem QA automática."
+
+            // Uniform sampling over the WHOLE perimeter cuts sharp corners:
+            // connecting two samples can cross a counter or empty pixel.
+            // Retain EVERY change of direction, then subdivide each straight
+            // grid-aligned side. Never create a diagonal shortcut.
+            val corners=ArrayList<RasterQaContourVertex>()
+            corners+=vertices.first()
+            for(i in 1 until vertices.lastIndex) {
+                val a=vertices[i-1]
+                val b=vertices[i]
+                val c=vertices[i+1]
+                val straight=(b.x-a.x==c.x-b.x) &&
+                    (b.y-a.y==c.y-b.y)
+                if(!straight) corners+=b
             }
-            totalSamples+=steps+1
-            require(totalSamples<=16_384) {
-                "Excesso de coordenadas de QA, requer simplificação supervisionada."
+            corners+=vertices.last()
+            require(corners.size>=5) {
+                "Contorno sem cantos suficientes para revisão geométrica."
             }
-            val cumulative=DoubleArray(edges.size+1)
-            for(i in edges.indices)cumulative[i+1]=cumulative[i]+edges[i]
-            val path=ArrayList<RasterQaWaypointMm>(steps+1)
-            var edge=0
-            for(k in 0 until steps) {
-                val at=k.toDouble()*perimeter/steps
-                while(edge<edges.size-1 && cumulative[edge+1]<=at)
-                    edge++
-                val a=vertices[edge]
-                val b=vertices[edge+1]
-                val ratio=((at-cumulative[edge])/edges[edge]).toFloat()
-                path+=RasterQaWaypointMm(
-                    (a.x+(b.x-a.x)*ratio)*report.mmPerPixel,
-                    (a.y+(b.y-a.y)*ratio)*report.mmPerPixel
+            val path=ArrayList<RasterQaWaypointMm>()
+            path+=RasterQaWaypointMm(
+                corners.first().x*report.mmPerPixel,
+                corners.first().y*report.mmPerPixel
+            )
+            for(i in 0 until corners.lastIndex) {
+                val a=corners[i]
+                val b=corners[i+1]
+                val lengthMm=hypot(
+                    (b.x-a.x).toDouble()*report.mmPerPixel,
+                    (b.y-a.y).toDouble()*report.mmPerPixel
                 )
+                val divisions=ceil(lengthMm/maxWaypointSpacingMm).toInt()
+                    .coerceAtLeast(1)
+                require(path.size+divisions<=4097 &&
+                    totalSamples+path.size+divisions<=16_384
+                ) { "Excesso de cantos ou pontos QA: revisão manual obrigatória." }
+                for(k in 1..divisions) {
+                    val waypoint=if(i==corners.lastIndex-1 && k==divisions)
+                        path.first()
+                    else {
+                        val ratio=k.toFloat()/divisions
+                        RasterQaWaypointMm(
+                            (a.x+(b.x-a.x)*ratio)*report.mmPerPixel,
+                            (a.y+(b.y-a.y)*ratio)*report.mmPerPixel
+                        )
+                    }
+                    path+=waypoint
+                }
             }
-            path+=path.first()
+            totalSamples+=path.size
+            require(path.size in 5..4097 && path.first()==path.last()) {
+                "Cadeia QA deve ser fechada e preservar todos os cantos."
+            }
             val minX=vertices.minOf { it.x }
             val maxX=vertices.maxOf { it.x }
             val minY=vertices.minOf { it.y }
