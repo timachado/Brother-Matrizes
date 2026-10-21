@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onRoot
@@ -120,15 +121,19 @@ class PremiumHomeScreenshotTest {
             .fetchSemanticsNode().boundsInRoot.top
         var recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
             .fetchSemanticsNode().boundsInRoot.bottom
-        if (recentBottom > navTop - 30f) {
-            // Aumentar a rolagem como uma pessoa faria no Android real.
-            composeRule.onRoot().performTouchInput { swipeUp() }
+        // Deslizar na propria area rolavel, nao na raiz do Scaffold.
+        // A raiz tambem contem a NavigationBar e pode ignorar o gesto.
+        repeat(4) { attempt ->
+            if (recentBottom <= navTop - 30f) return@repeat
+            composeRule.onNodeWithTag("brother_home_scroll")
+                .performTouchInput { swipeUp() }
             composeRule.waitForIdle()
             recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
                 .assertIsDisplayed().fetchSemanticsNode().boundsInRoot.bottom
+            println("QA Recente: tentativa=$attempt, CTA.bottom=$recentBottom, nav.top=$navTop")
         }
         check(recentBottom <= navTop - 30f) {
-            "CTA de Recente permanece encoberto apos rolagem adicional."
+            "CTA de Recente permanece encoberto mesmo apos rolar grid: bottom=$recentBottom nav=$navTop"
         }
 
 
