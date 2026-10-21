@@ -18,7 +18,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: brother-release-signing
-    timeout-minutes: 80
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,6 +88,21 @@ jobs:
           [[ "$badging" == *"versionCode='186'"* ]]
           [[ "$badging" == *"versionName='1.11.0'"* ]]
           sha256sum "dist/$apk" > dist/SHA256.txt
+      - name: Habilitar KVM para testes de interface Android
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Validar Home, icone e acesso ao CTA Recente antes de assinar
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/brother-premium-capture.sh
+
       - name: Baixar APK atual para ensaio de upgrade e conferir sua assinatura
         shell: bash
         env:
