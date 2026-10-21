@@ -38,20 +38,43 @@ internal object RasterTatamiRectanglePreview {
             heightMm <= hoop.usableHeightMm) {
             "A arte ultrapassa o bastidor selecionado."
         }
-        // A forged or stale component could otherwise fill a rectangle
-        // despite an actual counter being present in the source artwork.
-        val sourceParts = RasterSatinObjectEditor.detect(image).getOrThrow()
-        require(sourceParts.any { original ->
-            original.id == part.id &&
-                original.color == part.color &&
-                original.pixelCount == part.pixelCount &&
-                original.mask.minX == part.mask.minX &&
-                original.mask.maxX == part.mask.maxX &&
-                original.mask.minY == part.mask.minY &&
-                original.mask.maxY == part.mask.maxY &&
-                original.mask.pixels.contentEquals(part.mask.pixels)
-        }) {
-            "A região retangular foi alterada desde a imagem importada."
+        // Verify actual source pixels, not a second palette clustering that
+        // may produce a different but equivalent thread-color value. This
+        // also supports legitimate manually reviewed components. A stale or
+        // forged mask must never hide a source counter or invent filled ink.
+        val maskSource = part.mask
+        require(part.pixelCount > 0 &&
+            maskSource.minX in 0 until image.width &&
+            maskSource.maxX in maskSource.minX until image.width &&
+            maskSource.minY in 0 until image.height &&
+            maskSource.maxY in maskSource.minY until image.height
+        ) { "Máscara fora dos pixels originais." }
+        val threadRgb = part.color and 0xffffff
+        fun matchesSource(pixel: Int): Boolean {
+            if ((pixel ushr 24) < 180) return false
+            val dr = ((pixel ushr 16) and 255) - ((threadRgb ushr 16) and 255)
+            val dg = ((pixel ushr 8) and 255) - ((threadRgb ushr 8) and 255)
+            val db = (pixel and 255) - (threadRgb and 255)
+            return dr*dr + dg*dg + db*db <= 45*45
+        }
+        var actualMaskCount = 0
+        for (index in maskSource.pixels.indices) {
+            val x = index % image.width
+            val y = index / image.width
+            val inBounds = x in maskSource.minX..maskSource.maxX &&
+                y in maskSource.minY..maskSource.maxY
+            val maskInk = maskSource.pixels[index] == 0
+            require(!maskInk || inBounds) { "Máscara contém pixels fora da região." }
+            if (!inBounds) continue
+            // Check BOTH directions: no fictional ink inside an original
+            // counter, and no ignored original same-color ink within bbox.
+            require(maskInk == matchesSource(image.argb[index])) {
+                "Máscara Tatami não corresponde à tinta original em $x,$y."
+            }
+            if (maskInk) actualMaskCount++
+        }
+        require(actualMaskCount == part.pixelCount) {
+            "Contagem de tinta retangular diferente da imagem importada."
         }
         val mask = part.mask
         val w = mask.maxX - mask.minX + 1
