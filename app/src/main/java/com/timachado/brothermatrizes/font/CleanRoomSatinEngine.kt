@@ -96,6 +96,7 @@ internal object CleanRoomSatinEngine {
             rotationDegrees = options.rotationDegrees
         )
         val points = mutableListOf<EmbroideryPoint>()
+        val guide = mutableListOf<EmbroideryPoint>()
         val stitcher = Stitcher(points)
         var sewnGlyphs = 0
         outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
@@ -110,6 +111,9 @@ internal object CleanRoomSatinEngine {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
             }
+            // Visual centerline of the SAME rails used to sew the glyph.
+            // Review overlays are geometry, never additional needle commands.
+            guide += centerlineGuide(plan.rails)
             stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
             sewnGlyphs++
         }
@@ -138,6 +142,7 @@ internal object CleanRoomSatinEngine {
             colorChanges = 0,
             endFound = true,
             sourceBytes = ByteArray(0),
+            guidePoints = guide,
             threadColors = listOf(options.color),
             sourceYAxisDown = true,
             isModified = true,
@@ -811,6 +816,22 @@ internal object CleanRoomSatinEngine {
         )
     }
 
+    internal fun centerlineGuide(paths: List<List<Rail>>): List<EmbroideryPoint> =
+        buildList {
+            paths.forEach { rails ->
+                if (rails.isEmpty()) return@forEach
+                rails.forEachIndexed { index, rail ->
+                    val center = rail.middle
+                    val point = EmbroideryPoint(
+                        center.x.roundToInt(), center.y.roundToInt(),
+                        if (index == 0) StitchCommand.JUMP else StitchCommand.STITCH,
+                        0
+                    )
+                    if (lastOrNull() != point) add(point)
+                }
+            }
+        }
+
     internal fun stitchPlannedGlyphForTest(
         planned: PlannedGlyph,
         underlay: SatinUnderlayMode = SatinUnderlayMode.NONE
@@ -854,6 +875,7 @@ internal object CleanRoomSatinEngine {
         }
         fun sewGlyph(paths: List<List<Rail>>, underlay: SatinUnderlayMode) {
             var anchored = false
+            var finalRail: Rail? = null
             paths.forEach { rows ->
                 if (rows.isEmpty()) return@forEach
                 // Orientação já calculada pelo planejador de traços.
@@ -861,7 +883,11 @@ internal object CleanRoomSatinEngine {
                 val begin = rows.first().middle
                 val doUnderlay = underlay != SatinUnderlayMode.NONE && rows.size >= 6
                 if (doUnderlay) {
-                    jump(begin)
+                    // Position at the visible edge first. The center-run is a
+                    // stitched underlay entered FROM the edge, not a hidden
+                    // first jump into the middle of the visible Satin column.
+                    jump(rows.first().a)
+                    sew(begin)
                     // One center run, then satin in reverse without
                     // retracing the center back to the start.
                     for (index in rows.indices step 5) sew(rows[index].middle)
@@ -884,10 +910,27 @@ internal object CleanRoomSatinEngine {
                 cover.forEach { rail ->
                     sew(rail.a)
                     sew(rail.b)
+                    finalRail = rail
                 }
             }
-            // There are deliberately NO per-path tie-off round trips.
-            // The machine-facing finishing policy handles last tie/trim.
+            // Exactly one short tie-off at the final covered rail of this
+            // glyph. No finishing pass over its outline and no per-rail lock.
+            val endRail = finalRail
+            if (endRail != null) {
+                val span = length(endRail.a, endRail.b)
+                if (span >= 1f) {
+                    val distance = minOf(6f, span * 0.5f)
+                    if (distance >= 0.5f) {
+                        val t = distance / span
+                        val inward = V(
+                            endRail.b.x + (endRail.a.x - endRail.b.x) * t,
+                            endRail.b.y + (endRail.a.y - endRail.b.y) * t
+                        )
+                        sew(inward)
+                        sew(endRail.b)
+                    }
+                }
+            }
         }
     }
 

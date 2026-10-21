@@ -8,6 +8,33 @@ import org.junit.Test
 class MatrixConverterTest {
 
     @Test
+    fun experimentalImageQaNeverExportsThroughAnyReleasedFormat() {
+        val source = sampleDesign()
+        for (internalFormat in listOf(
+            "QA_RUNNING_REVIEW",
+            "QA_TATAMI_REVIEW",
+            "QA_SATIN_REVIEW",
+            "QA_AUTO_STITCH",
+            "QA_ARTWORK",
+            "qa_running_review"
+        )) {
+            val preview = source.copy(
+                format = internalFormat,
+                sourceBytes = ByteArray(0)
+            )
+            for (destination in MatrixConverter.supportedFormats) {
+                val conversion = MatrixConverter.convert(
+                    preview, destination, "blocked-qa"
+                )
+                assertTrue(
+                    "QA $internalFormat cannot be converted into $destination",
+                    conversion.isFailure
+                )
+            }
+        }
+    }
+
+    @Test
     fun convertsNormalizedDesignToAllReleasedFormats() {
         val source = sampleDesign()
 

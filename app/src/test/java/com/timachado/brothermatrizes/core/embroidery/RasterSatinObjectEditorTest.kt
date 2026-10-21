@@ -55,6 +55,12 @@ class RasterSatinObjectEditorTest {
         assertTrue(out.jumpCount > 0)
         assertTrue(out.isModified)
         assertTrue(out.endFound)
+        val needle = RasterNeedleRiskAudit.inspect(
+            out, HoopProfile.H130X180
+        ).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(out).getOrThrow()
+        assertEquals(out.stitchCount, needle.stitchesExamined)
+        assertEquals(out.stitchCount, density.sewnSegments)
         assertEquals(HoopProfile.H130X180, out.hoopProfile)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
@@ -87,4 +93,96 @@ class RasterSatinObjectEditorTest {
             source, part, emptyList(), 60f, HoopProfile.H130X180
         ).isFailure)
     }
+    @Test fun staleSatinMaskCannotCoverNewTransparentCounter() {
+        val original = image { x,y -> x in 10..100 && y in 29..36 }
+        val selected = RasterSatinObjectEditor.detect(original)
+            .getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,selected
+        ).isSuccess)
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            for(y in 31..34) for(x in 42..52)
+                this[y*original.width+x]=0
+        })
+        assertTrue(RasterSatinObjectEditor.preview(
+            changed,selected,railSet(),60f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun satinMaskCannotInventInkOrReuseAlteredOriginalColor() {
+        val original=image { x,y -> x in 10..100 && y in 29..36 }
+        val selected=RasterSatinObjectEditor.detect(original)
+            .getOrThrow().single()
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            this[33*original.width+47]=0xff126abc.toInt()
+        })
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            changed,selected
+        ).isFailure)
+
+        val forgedPixels=selected.mask.pixels.copyOf()
+        val emptyOutside=33*original.width+9
+        forgedPixels[emptyOutside]=0
+        val forged=selected.copy(
+            pixelCount=selected.pixelCount+1,
+            mask=selected.mask.copy(pixels=forgedPixels)
+        )
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,forged
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
+    @Test fun newInkConnectedOutsideOldMaskIsNotSilentlyOmitted() {
+        val original=image { x,y ->
+            (x in 15..23 && y in 20..52) ||
+                (x in 15..65 && y in 47..52)
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(original,part).isSuccess)
+        // The added orange pixel is inside the old bounding rectangle and
+        // directly connects to its left stroke, but is absent from the old
+        // segmentation. A needle path could otherwise omit it silently.
+        val updated=original.copy(argb=original.argb.copyOf().apply {
+            this[32*original.width+24]=0xffea8721.toInt()
+        })
+        val audit=RasterSourceInkProvenanceAudit.inspect(updated,part)
+        assertTrue(audit.isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
+    @Test fun newAdjacentInkJustOutsidePreviousBoundingBoxInvalidatesSourceMask() {
+        val original=image { x,y ->
+            x in 10..100 && y in 29..36
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(original,part).isSuccess)
+        val withExtension=original.copy(argb=original.argb.copyOf().apply {
+            this[32*original.width+101]=0xffea8721.toInt()
+        })
+        assertTrue("A nova extensão não pode desaparecer do bordado",
+            RasterSourceInkProvenanceAudit.inspect(withExtension,part).isFailure)
+        assertTrue(RasterSatinObjectEditor.preview(
+            withExtension,part,railSet(),60f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun unexpectedMaskLabelsFailBeforeNeedleGeneration() {
+        val original=image { x,y ->
+            x in 10..100 && y in 29..36
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        val broken=part.mask.pixels.copyOf().apply {
+            this[20*original.width+20]=3
+        }
+        val invalid=part.copy(mask=part.mask.copy(pixels=broken))
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,invalid
+        ).isFailure)
+    }
+
 }

@@ -75,6 +75,9 @@ class RasterTatamiShapePreviewTest {
             fidelity.offInkFraction<=.10)
         RasterNeedleRiskAudit.inspect(design,HoopProfile.H130X180)
             .getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(design).getOrThrow()
+        assertEquals(design.stitchCount,density.sewnSegments)
+        assertTrue(density.cellsObserved>0)
         assertTrue(design.sourceBytes.isEmpty())
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
@@ -128,4 +131,59 @@ class RasterTatamiShapePreviewTest {
         assertTrue(result.sourceBytes.isEmpty())
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
+    @Test fun tamperedMaskCannotBeUsedAsIfItWereTheImportedSource() {
+        val img=picture { x,y ->
+            if (x in 40..129 && y in 30..97 &&
+                !(x in 70..99 && y in 52..75)) navy else white
+        }
+        val valid=part(img)
+        // Invent foreground inside the original counter while preserving
+        // the same dimensions and metadata to bypass simple size checks.
+        val changedPixels=valid.mask.pixels.copyOf()
+        changedPixels[60*img.width+80]=0
+        val forged=valid.copy(mask=valid.mask.copy(pixels=changedPixels))
+        assertTrue(RasterTatamiShapePreview.create(
+            img,forged,90f,HoopProfile.H130X180
+        ).isFailure)
+        // The source and its genuine segmentation must still work.
+        assertTrue(RasterTatamiShapePreview.create(
+            img,valid,90f,HoopProfile.H130X180
+        ).isSuccess)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun changingPhotoAfterComponentDetectionInvalidatesTatamiDraft() {
+        val img=picture { x,y ->
+            if (x in 40..129 && y in 30..97) navy else white
+        }
+        val stale=part(img)
+        val changed=img.copy(argb=img.argb.copyOf().apply {
+            this[50*img.width+54]=white
+        })
+        assertTrue(RasterTatamiShapePreview.create(
+            changed,stale,90f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
+    @Test fun newInkOutsideTheSelectedTatamiRegionRequiresFreshReview() {
+        val original=picture { x,y ->
+            if (x in 40..129 && y in 30..97 &&
+                !(x in 70..99 && y in 52..75)) navy else white
+        }
+        val oldPart=part(original)
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,oldPart
+        ).isSuccess)
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            this[49*original.width+130]=navy
+        })
+        assertTrue(RasterTatamiShapePreview.create(
+            changed,oldPart,90f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }

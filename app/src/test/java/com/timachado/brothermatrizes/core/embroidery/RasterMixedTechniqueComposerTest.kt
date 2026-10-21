@@ -245,4 +245,22 @@ class RasterMixedTechniqueComposerTest {
         ).isFailure)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
+    @Test fun staleComponentMissingNewBoundaryInkCannotEnterMixedSequence() {
+        val (source,tatami,running)=fixture()
+        val newPixels=source.argb.copyOf().apply {
+            this[25*source.width+46]=navy
+        }
+        val changed=source.copy(argb=newPixels)
+        assertTrue(RasterMixedTechniqueComposer.compose(
+            changed,width,hoop,listOf(tatami,running)
+        ).isFailure)
+        // The component is still non-exportable even if software checks
+        // accepted the unmodified original source.
+        assertTrue(RasterMixedTechniqueComposer.compose(
+            source,width,hoop,listOf(tatami,running)
+        ).isSuccess)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }

@@ -145,6 +145,10 @@ object RasterSatinObjectEditor {
         require(fullWidthMm <= hoop.usableWidthMm && fullHeightMm <= hoop.usableHeightMm) {
             "A arte não cabe na área útil do bastidor."
         }
+        // The Satin rail and coverage logic below reads component.mask.
+        // Recheck that mask against RAW imported pixels first, so a stale
+        // region cannot hide a newly transparent counter or changed color.
+        RasterSourceInkProvenanceAudit.inspect(source, item).getOrThrow()
         val mask = item.mask
         val w = mask.maxX - mask.minX + 1
         val h = mask.maxY - mask.minY + 1
@@ -244,7 +248,7 @@ object RasterSatinObjectEditor {
         val all = positioned + EmbroideryPoint(
             final.xUnits, final.yUnits, StitchCommand.END, 0
         )
-        EmbroideryDesign(
+        val draft = EmbroideryDesign(
             fileName = "SATIN-MANUAL-REVISAO.qa",
             format = "QA_SATIN_REVIEW",
             label = "Parte ${item.id}: Satin manual, prévia sem exportação",
@@ -259,5 +263,18 @@ object RasterSatinObjectEditor {
             sourceBytes = ByteArray(0), threadColors = listOf(item.color),
             isModified = true, hoopProfile = hoop
         )
+        // Standalone Satin drafts can be previewed before a whole-logo
+        // composer runs, so screen the FINAL 0.1-mm stitch commands here.
+        // A valid editable rail is not evidence of a safe needle path or
+        // acceptable cumulative same-color thread density.
+        val needle = RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(draft).getOrThrow()
+        require(needle.stitchesExamined == density.sewnSegments) {
+            "Prévia Satin possui contagem de pontos inconsistente."
+        }
+        require(!RasterEmbroideryApproval.canExportFromImageTool()) {
+            "Satin experimental não pode ser exportado."
+        }
+        draft
     }
 }

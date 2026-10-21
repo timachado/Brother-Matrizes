@@ -54,6 +54,17 @@ object MatrixConverter {
                 "Formato de saída ainda não suportado."
             }
 
+            // Preview designs are not a release format. Even a caller that
+            // directly invokes MatrixConverter must not turn an image QA
+            // command stream into transferable PES/JEF/DST bytes.
+            // This guard leaves existing, released imported/generated formats
+            // unchanged.
+            require(!design.isExperimentalImageQa &&
+                !design.format.uppercase(Locale.ROOT).startsWith("QA_")) {
+                "Prévia de Imagem para Bordado não pode ser exportada. " +
+                    "É necessária homologação antes do formato de máquina."
+            }
+
             val normalized =
                 EmbroideryIntegrity
                     .normalize(

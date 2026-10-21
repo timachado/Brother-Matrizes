@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
+import com.timachado.brothermatrizes.core.embroidery.RasterPhysicalQaTestBridge
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.PreparedRasterPhoto
 import com.timachado.brothermatrizes.core.embroidery.RasterArtworkAutoCrop
@@ -67,6 +69,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionGate
 import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionReport
+import com.timachado.brothermatrizes.core.embroidery.RasterQaRunningStitchDraft
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
@@ -213,6 +216,47 @@ fun SimpleImageToEmbroideryScreen(
     var analyzingTechniques by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
+    // Debug-only bench-sample transfer via Android's document picker. The
+    // operator chooses where to write it (e.g. a mounted USB-C stick).
+    // No PNG/PES is sent to a server and no app cache retains PES files.
+    var confirmingPhysicalQa by remember { mutableStateOf(false) }
+    var preparingPhysicalQa by remember { mutableStateOf(false) }
+    var pendingPhysicalQa by remember { mutableStateOf<ConvertedMatrix?>(null) }
+    var pendingPhysicalQaRevision by remember { mutableIntStateOf(-1) }
+    val physicalQaSaver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        val toSave = pendingPhysicalQa
+        val sameArtwork = pendingPhysicalQaRevision == revision
+        pendingPhysicalQa = null
+        pendingPhysicalQaRevision = -1
+        if (uri != null && toSave != null && sameArtwork) {
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val stream = context.contentResolver.openOutputStream(uri, "w")
+                            ?: error("Sem acesso de gravação ao destino selecionado.")
+                        stream.use { it.write(toSave.bytes); it.flush() }
+                    }
+                }
+                message = saved.fold(
+                    onSuccess = {
+                        "PES DE TESTE QA salvo no local escolhido. " +
+                            "NÃO homologado: conferir no visor da Brother, " +
+                            "bastidor e teste inicial em retalho."
+                    },
+                    onFailure = {
+                        "Falha ao salvar amostra QA: " +
+                            (it.message ?: "Escolha outra pasta/pendrive.")
+                    }
+                )
+            }
+        } else if (uri != null && !sameArtwork) {
+            message = "Imagem alterada durante o salvamento. " +
+                "Refaça o teste para evitar PES desatualizado."
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             revision++
@@ -344,6 +388,11 @@ fun SimpleImageToEmbroideryScreen(
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
+    // widthMm is calculated later in this composable. Source changes
+    // invalidate the QA operation; width and hoop are rechecked on return.
+    var testingRunningOutline by remember(stageImage) {
+        mutableStateOf(false)
+    }
     var elementPlan by remember(stageImage) {
         mutableStateOf<RasterAssistedElementPlan?>(null)
     }
@@ -1571,10 +1620,170 @@ fun SimpleImageToEmbroideryScreen(
                         color = FioGold
                     )
                 }
+                // Operator-facing QA proof of the independent raster
+                // boundary-to-running-needle pipeline. Not a generic fill,
+                // and never an exportable image matrix.
+                if (BuildConfig.DEBUG) {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = prepared?.image != null && fitted &&
+                            !preparing && !simulating && !testingFlatStitches &&
+                            !testingRunningOutline && !studyingTexture &&
+                            regionalSampling?.needsDetailReview == false,
+                        onClick = {
+                            val source = prepared?.image ?: return@OutlinedButton
+                            val snapshotRevision = revision
+                            val snapshotWidth = widthMm
+                            val snapshotHoop = hoop
+                            val snapshotMode = displayMode
+                            val snapshotConnections = showConnections
+                            testingRunningOutline = true
+                            message = ""
+                            scope.launch {
+                                val draft = withContext(Dispatchers.Default) {
+                                    RasterQaRunningStitchDraft.create(
+                                        source, snapshotWidth, snapshotHoop
+                                    )
+                                }
+                                // Always release the progress state, even
+                                // when the user resized the artwork or chose
+                                // a different hoop while QA was running.
+                                // Stale results must NEVER reach Simulator.
+                                testingRunningOutline = false
+                                if (snapshotRevision == revision &&
+                                    prepared?.image === source &&
+                                    widthMm == snapshotWidth &&
+                                    hoop == snapshotHoop) {
+                                    draft.fold(
+                                        onSuccess = {
+                                            qaTechnicalReport =
+                                                "QA: contornos em STITCH/JUMP/TRIM; " +
+                                                it.outlineCount + " contorno(s), " +
+                                                it.counterCount + " vazado(s), " +
+                                                it.thinContoursRequiringReview +
+                                                " detalhe(s) finos; " +
+                                                "bordado físico e PES NÃO aprovados."
+                                            qaReportRevision = revision
+                                            onSimulate(
+                                                it.design, snapshotHoop,
+                                                snapshotMode, snapshotConnections
+                                            )
+                                        },
+                                        onFailure = {
+                                            message =
+                                                "Contorno corrido QA recusado: " +
+                                                (it.message ?:
+                                                    "Revisão manual necessária.")
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            if (testingRunningOutline)
+                                "Auditando contornos reais..."
+                            else "Simular contornos em ponto corrido (QA)",
+                            color = FioGold
+                        )
+                    }
+                    Text(
+                        "A simulação de contorno preserva vazados e separa " +
+                            "regiões sem costura. Apenas o laboratório QA " +
+                            "abaixo gera uma amostra PES experimental.",
+                        color = FioTextMuted, fontSize = 11.sp
+                    )
+                    Text(
+                        "LABORATÓRIO BROTHER • SOMENTE APK QA: " +
+                            "gera PES de CONTORNO, sem preenchimento automático. " +
+                            "O arquivo não está homologado; use retalho, " +
+                            "linha/bastidor corretos e confira a prévia da máquina.",
+                        color = FioGold,fontSize = 12.sp
+                    )
+                    if (!confirmingPhysicalQa) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = prepared?.image != null && fitted &&
+                                !preparing && !simulating && !preparingPhysicalQa &&
+                                regionalSampling?.needsDetailReview == false,
+                            onClick = {
+                                confirmingPhysicalQa = true
+                                message = "A exportação física é apenas QA: " +
+                                    "pode falhar no visor ou durante o bordado. " +
+                                    "A versão comercial não muda."
+                            }
+                        ) {
+                            Text("Preparar PES de teste para minha Brother",
+                                color = FioGold)
+                        }
+                    } else {
+                        Text(
+                            "Confirmação: este PES não foi validado numa máquina. " +
+                                "Confira a área do bastidor e teste em tecido " +
+                                "descartável, nunca em peça de cliente.",
+                            color = FioTextMuted,fontSize = 12.sp
+                        )
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = prepared?.image != null && fitted &&
+                                !preparing && !simulating && !preparingPhysicalQa &&
+                                regionalSampling?.needsDetailReview == false,
+                            onClick = {
+                                val source = prepared?.image
+                                    ?: return@OutlinedButton
+                                val selectedRevision = revision
+                                val selectedWidth = widthMm
+                                val selectedHoop = hoop
+                                confirmingPhysicalQa = false
+                                preparingPhysicalQa = true
+                                message = ""
+                                scope.launch {
+                                    val generated = withContext(Dispatchers.Default) {
+                                        RasterPhysicalQaTestBridge.createOutlinePes(
+                                            source, selectedWidth, selectedHoop
+                                        )
+                                    }
+                                    preparingPhysicalQa = false
+                                    if (selectedRevision != revision ||
+                                        prepared?.image !== source ||
+                                        selectedWidth != widthMm ||
+                                        selectedHoop != hoop) {
+                                        message = "Arte ou bastidor mudou. " +
+                                            "Refaça a amostra para evitar erro."
+                                    } else {
+                                        generated.fold(
+                                            onSuccess = { sample ->
+                                                pendingPhysicalQa = sample
+                                                pendingPhysicalQaRevision = revision
+                                                physicalQaSaver.launch(sample.fileName)
+                                            },
+                                            onFailure = {
+                                                message = "PES QA de contorno recusado: " +
+                                                    (it.message ?:
+                                                        "Somente PNG de formas " +
+                                                        "simples transparentes.")
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                if (preparingPhysicalQa) "Auditando PES de teste..."
+                                else "Confirmo • Gerar e salvar PES de teste",
+                                color = FioGold
+                            )
+                        }
+                        TextButton(onClick = { confirmingPhysicalQa = false }) {
+                            Text("Cancelar teste físico QA",color = FioTextMuted)
+                        }
+                    }
+                }
                 Text(
                     "Usa as cores planas apenas como hipótese; confere " +
                         "as pontadas contra a máscara ORIGINAL e reprova " +
-                        "texturas/cores ambíguas. Não cria PES.",
+                        "texturas/cores ambíguas. O fluxo comercial " +
+                        "continua sem exportação PES de imagem.",
                     color = FioTextMuted, fontSize = 11.sp
                 )
             }

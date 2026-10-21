@@ -45,6 +45,14 @@ internal object RasterTatamiShapePreview {
             heightMm <= hoop.usableHeightMm) {
             "Imagem fora da área útil do bastidor."
         }
+        // Provenance is checked against RAW imported pixels rather than a
+        // fresh palette clustering. It catches fabricated or stale counters,
+        // changed colors and new ink adjoining the old component boundary,
+        // including a stroke extending beyond the previous bounding box.
+        // This works for manually reviewed masks without forcing a new
+        // auto-segmentation or silently shifting their original placement.
+        RasterSourceInkProvenanceAudit.inspect(image,part).getOrThrow()
+
         val m = part.mask
         val w = m.maxX - m.minX + 1
         val h = m.maxY - m.minY + 1
@@ -201,7 +209,11 @@ internal object RasterTatamiShapePreview {
             threadColors = listOf(part.color),
             isModified = true,hoopProfile = hoop
         )
-        RasterNeedleRiskAudit.inspect(draft,hoop).getOrThrow()
+        val needle = RasterNeedleRiskAudit.inspect(draft,hoop).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(draft).getOrThrow()
+        require(needle.stitchesExamined == density.sewnSegments) {
+            "A sequência Tatami possui contagens divergentes na auditoria física preliminar."
+        }
         // Validate the INTEGER commands after 0.1 mm quantization: no
         // stitched line may pass through an original counter or empty pixel.
         RasterSewnMaskGate.inspect(image, part, draft, widthMm).getOrThrow()

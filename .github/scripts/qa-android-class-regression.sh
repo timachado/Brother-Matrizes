@@ -23,8 +23,12 @@ for klass in "${classes[@]}"; do
       --no-daemon --stacktrace; then
     echo "Gradle finished: $label"
   else
-    echo "::error::Failed Android QA class: $label"
-    failed=1
+    if [[ "$label" == "GreatVibesStartDiagnosticTest" ]]; then
+      echo "::warning::Great Vibes instrumented execution returned nonzero. The XML gate below must distinguish a missing licensed fixture from a genuine assertion failure."
+    else
+      echo "::error::Failed Android QA class: $label"
+      failed=1
+    fi
   fi
   xml_dir="app/build/outputs/androidTest-results/connected"
   python3 - "$xml_dir" "$folder/$label" <<'PY'
@@ -62,15 +66,29 @@ for klass in classes:
                      if t.attrib.get("classname","").endswith("."+klass))
     total=len(cases)
     skipped=sum(c.find("skipped") is not None for c in cases)
-    errors=sum(c.find("failure") is not None or c.find("error") is not None
-               for c in cases)
-    print(f"{klass}: total={total}, skipped={skipped}, failed={errors}")
+    errors=0
+    fixture_missing=0
     for case in cases:
         for kind in ("failure","error"):
             for err in case.findall(kind):
-                print("  FAIL",case.attrib.get("name",""),
-                      err.attrib.get("message","")[:500])
-                print("  ",(err.text or "")[:800])
+                combined=(err.attrib.get("message","") or "")+"\n"+(err.text or "")
+                # AndroidX's instrumentation JUnit report may serialize an
+                # AssumptionViolatedException as <failure> instead of <skipped>.
+                # Accept ONLY this exact optional font-fixture case. An
+                # unrelated assumption or real test assertion still fails.
+                if (klass=="GreatVibesStartDiagnosticTest"
+                    and "org.junit.AssumptionViolatedException" in combined
+                    and "REFERÊNCIA INDISPONÍVEL:" in combined
+                    and "GreatVibes-Regular.ttf" in combined):
+                    fixture_missing+=1
+                    print("  NOT EXECUTED (source font unavailable):",
+                          case.attrib.get("name",""))
+                else:
+                    errors+=1
+                    print("  FAIL",case.attrib.get("name",""),
+                          err.attrib.get("message","")[:500])
+                    print("  ",(err.text or "")[:800])
+    print(f"{klass}: total={total}, skipped={skipped}, unavailable_source={fixture_missing}, failed={errors}")
     if total==0:
         print("  ERROR: no testcases executed. Invalid filter or missing tests.")
         failed+=1
@@ -78,8 +96,8 @@ for klass in classes:
     if klass!="GreatVibesStartDiagnosticTest" and skipped==total:
         print("  ERROR: required class did not execute a test.")
         failed+=1
-    if klass=="GreatVibesStartDiagnosticTest" and skipped:
-        print("  NOTE: missing reference font fixture: SKIPPED, NOT PASSED.")
+    if klass=="GreatVibesStartDiagnosticTest" and (skipped or fixture_missing):
+        print("  NOTE: comparison requires licensed font fixture: NOT EXECUTED, NOT PASSED.")
 print("Instrumented class report gate failures:",failed)
 sys.exit(1 if failed else 0)
 PY
