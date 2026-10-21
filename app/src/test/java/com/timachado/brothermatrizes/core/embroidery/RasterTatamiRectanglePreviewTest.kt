@@ -45,6 +45,9 @@ class RasterTatamiRectanglePreviewTest {
         assertTrue("off=${measured.offInkFraction}",
             measured.offInkFraction<=.10)
         RasterNeedleRiskAudit.inspect(preview,HoopProfile.H130X180).getOrThrow()
+        val density=RasterThreadDensityPreflight.inspect(preview).getOrThrow()
+        assertEquals(preview.stitchCount,density.sewnSegments)
+        assertTrue(density.cellsObserved>0)
     }
 
     @Test fun rectangularCounterIsNeverFilledByAutomatedTatami() {
@@ -108,4 +111,45 @@ class RasterTatamiRectanglePreviewTest {
         ).getOrThrow()
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
+    @Test fun staleSolidRectangleCannotFillNewHoleInOriginalImage() {
+        val original=image { x,y ->
+            if(x in 48..132 && y in 35..90) navy else white
+        }
+        val selected=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        val changedPixels=original.argb.copyOf().apply {
+            for (y in 54..75) for (x in 73..104)
+                this[y*original.width+x]=white
+        }
+        val withCounter=original.copy(argb=changedPixels)
+        assertTrue(RasterTatamiRectanglePreview.create(
+            withCounter,selected,90f,HoopProfile.H130X180
+        ).isFailure)
+        // No path is generated through the new empty counter.
+        assertTrue(RasterTatamiRectanglePreview.create(
+            original,selected,90f,HoopProfile.H130X180
+        ).isSuccess)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun forgedRectangularMaskCannotInventSolidForeground() {
+        val source=image { x,y ->
+            if(x in 48..132 && y in 35..90 &&
+                !(x in 72..106 && y in 52..76)) navy else white
+        }
+        val part=RasterSatinObjectEditor.detect(source).getOrThrow().single()
+        val forgedPixels=part.mask.pixels.copyOf()
+        for(y in 52..76) for(x in 72..106)
+            forgedPixels[y*source.width+x]=0
+        val forged=part.copy(
+            pixelCount=(part.mask.maxX-part.mask.minX+1)*
+                (part.mask.maxY-part.mask.minY+1),
+            mask=part.mask.copy(pixels=forgedPixels)
+        )
+        assertTrue(RasterTatamiRectanglePreview.create(
+            source,forged,90f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
