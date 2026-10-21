@@ -267,4 +267,55 @@ class CleanRoomSatinEngineTest {
             underlayStitches < plainStitches * 1.5f
         )
     }
+    @Test
+    fun centerUnderlayPositionsAtVisibleEdgeAndEndsWithSingleLock() {
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(0f, 0f, 22f, 145f)), densityMm = 0.4f
+        )
+        val firstRail = plan.rails.first().first()
+        val output = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+            plan, SatinUnderlayMode.CENTER
+        )
+        val firstJump = output.first { it.command == StitchCommand.JUMP }
+        assertEquals("A primeira posição deve ser a borda real da coluna.",
+            firstRail.a.x.roundToInt(), firstJump.xUnits)
+        assertEquals(firstRail.a.y.roundToInt(), firstJump.yUnits)
+
+        val sewn = output.filter { it.command == StitchCommand.STITCH }
+        assertTrue("A cobertura precisa anteceder o arremate.", sewn.size > 12)
+        val a = sewn[sewn.lastIndex - 2]
+        val inside = sewn[sewn.lastIndex - 1]
+        val back = sewn.last()
+        assertEquals("Trava final volta exatamente à âncora X.", a.xUnits, back.xUnits)
+        assertEquals("Trava final volta exatamente à âncora Y.", a.yUnits, back.yUnits)
+        val delta = kotlin.math.hypot(
+            (inside.xUnits - a.xUnits).toDouble(),
+            (inside.yUnits - a.yUnits).toDouble()
+        )
+        assertTrue("Trava interna de aproximadamente 0,6 mm: $delta",
+            delta in 4.0..8.0)
+        assertEquals("Arremate curto não implica corte adicional.", 0,
+            output.count { it.command == StitchCommand.TRIM })
+    }
+
+    @Test
+    fun centerlineGuideUsesSamePlannedGlyphGeometryWithoutExtraStitches() {
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(rectangle(4f, 3f, 22f, 145f)), densityMm = 0.4f
+        )
+        val guide = CleanRoomSatinEngine.centerlineGuide(plan.rails)
+        assertTrue("Guia de revisão precisa conter seu percurso.", guide.any {
+            it.command == StitchCommand.STITCH
+        })
+        assertEquals("Cada ramo do guia começa por posicionamento.",
+            StitchCommand.JUMP, guide.first().command)
+        assertTrue("Guia não pode incluir comandos de corte ou travamento.",
+            guide.all { it.command == StitchCommand.JUMP ||
+                it.command == StitchCommand.STITCH })
+        val center = plan.rails.first().first().middle
+        assertEquals(center.x.roundToInt(), guide.first().xUnits)
+        assertEquals(center.y.roundToInt(), guide.first().yUnits)
+    }
+
+
 }
