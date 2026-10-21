@@ -76,6 +76,10 @@ internal object RasterTatamiRectanglePreview {
         require(actualMaskCount == part.pixelCount) {
             "Contagem de tinta retangular diferente da imagem importada."
         }
+        // The exact-RGB rectangle check below protects internal holes,
+        // while this independent provenance audit also catches newly
+        // connected ink just OUTSIDE the previous bounding rectangle.
+        RasterSourceInkProvenanceAudit.inspect(image,part).getOrThrow()
         val mask = part.mask
         val w = mask.maxX - mask.minX + 1
         val h = mask.maxY - mask.minY + 1
