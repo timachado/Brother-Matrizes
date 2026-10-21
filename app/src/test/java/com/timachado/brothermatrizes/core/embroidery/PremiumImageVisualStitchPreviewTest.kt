@@ -67,7 +67,10 @@ class PremiumImageVisualStitchPreviewTest {
         val preview=PremiumImageVisualStitchPreview.create(
             w,h,image,55f,HoopProfile.H100X100
         ).getOrThrow()
-        assertTrue(preview.jumpCount>4)
+        // Two squares touching at one diagonal pixel vertex must remain
+        // two independent stitched outlines, never a bridge.
+        assertEquals(2,preview.jumpCount)
+        assertTrue(preview.points.any { it.command==StitchCommand.TRIM })
         assertTrue(preview.stitchCount>10)
         assertTrue(preview.points.any { it.command==StitchCommand.JUMP })
         assertTrue(MatrixConverter.convert(preview,"PES").isFailure)
@@ -86,4 +89,29 @@ class PremiumImageVisualStitchPreviewTest {
         ).isFailure)
         assertFalse(MatrixConverter.supportedFormats.contains("QA_IMAGE_VISUAL"))
     }
+    @Test fun transparentCounterIsNotFilledByHorizontalStitchScan() {
+        val w=80
+        val h=80
+        val source=IntArray(w*h) { i ->
+            val x=i%w
+            val y=i/w
+            if(x in 10..70 && y in 10..70 &&
+                !(x in 26..54 && y in 26..54)
+            ) 0xffffa12c.toInt() else 0
+        }
+        val draft=PremiumImageVisualStitchPreview.create(
+            w,h,source,60f,HoopProfile.H100X100
+        ).getOrThrow()
+        assertEquals(2,draft.jumpCount)
+        assertTrue(draft.points.any { it.command==StitchCommand.TRIM })
+        // The open middle of the logo must remain transparent.
+        assertFalse(draft.points.any { p ->
+            p.command==StitchCommand.STITCH &&
+                p.xUnits in -75..75 && p.yUnits in -75..75
+        })
+        // No simulated raster draft, even one that looks plausible, gets PES.
+        assertTrue(MatrixConverter.convert(draft,"PES").isFailure)
+    }
+
+
 }
