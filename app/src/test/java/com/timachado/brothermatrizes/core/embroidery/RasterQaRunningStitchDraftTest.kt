@@ -31,6 +31,9 @@ class RasterQaRunningStitchDraftTest {
         assertEquals(1, design.points.count { it.command == StitchCommand.TRIM })
         assertTrue(design.stitchCount > 20)
         assertTrue(result.needleRisk.stitchesExamined == design.stitchCount)
+        assertEquals(design.stitchCount, result.threadDensity.sewnSegments)
+        assertTrue(result.threadDensity.cellsObserved > 0)
+        assertTrue(result.threadDensity.peakThreadLengthMmPerCell <= 20.0)
         assertTrue(design.points.first().command == StitchCommand.JUMP)
         assertTrue(design.points.last().command == StitchCommand.END)
         assertTrue(design.points.zipWithNext().any { (a,b) ->
