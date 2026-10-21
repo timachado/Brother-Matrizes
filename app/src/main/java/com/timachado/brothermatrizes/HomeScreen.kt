@@ -6,6 +6,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -79,13 +80,14 @@ fun HomeScreen(
         modifier =
             Modifier
                 .fillMaxSize()
+                .testTag("brother_home_scroll")
                 .padding(horizontal = 12.dp),
         contentPadding =
             PaddingValues(
                 top = 4.dp,
                 // Reserva zona de rolagem além da barra inferior do aplicativo:
                 // os cartões maiores não devem esconder Recente nem sua CTA.
-                bottom = 110.dp
+                bottom = 160.dp
             ),
         horizontalArrangement =
             Arrangement.spacedBy(8.dp),
