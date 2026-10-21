@@ -87,4 +87,46 @@ class RasterSatinObjectEditorTest {
             source, part, emptyList(), 60f, HoopProfile.H130X180
         ).isFailure)
     }
+    @Test fun staleSatinMaskCannotCoverNewTransparentCounter() {
+        val original = image { x,y -> x in 10..100 && y in 29..36 }
+        val selected = RasterSatinObjectEditor.detect(original)
+            .getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,selected
+        ).isSuccess)
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            for(y in 31..34) for(x in 42..52)
+                this[y*original.width+x]=0
+        })
+        assertTrue(RasterSatinObjectEditor.preview(
+            changed,selected,railSet(),60f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+    @Test fun satinMaskCannotInventInkOrReuseAlteredOriginalColor() {
+        val original=image { x,y -> x in 10..100 && y in 29..36 }
+        val selected=RasterSatinObjectEditor.detect(original)
+            .getOrThrow().single()
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            this[33*original.width+47]=0xff126abc.toInt()
+        })
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            changed,selected
+        ).isFailure)
+
+        val forgedPixels=selected.mask.pixels.copyOf()
+        val emptyOutside=33*original.width+9
+        forgedPixels[emptyOutside]=0
+        val forged=selected.copy(
+            pixelCount=selected.pixelCount+1,
+            mask=selected.mask.copy(pixels=forgedPixels)
+        )
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,forged
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
