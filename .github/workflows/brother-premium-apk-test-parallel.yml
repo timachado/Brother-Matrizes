@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build-test-apk:
-    name: Compilar APK 1.11.0 QA independente do comercial
+    name: Compilar APK 1.11.0 QA2 ao lado dos anteriores
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -42,15 +42,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'applicationIdSuffix = ".qa"' app/build.gradle.kts
+          grep -Fq 'applicationIdSuffix = ".qa2"' app/build.gradle.kts
           grep -Fq 'versionNameSuffix = "-QA"' app/build.gradle.kts
           mkdir -p app/src/debug
-          jq --arg pkg "com.timachado.brothermatrizes.qa" '
+          jq --arg pkg "com.timachado.brothermatrizes.qa2" '
             .client += [(.client[] |
               select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
               .client_info.android_client_info.package_name = $pkg)]
           ' app/google-services.json > app/src/debug/google-services.json
-          jq -e '.client[]|select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.qa")' app/src/debug/google-services.json >/dev/null
+          jq -e '.client[]|select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.qa2")' app/src/debug/google-services.json >/dev/null
           # Alteração só no workspace temporário do CI, sem modificar arquivos comerciais.
           python3 - <<'PY'
           from pathlib import Path
@@ -58,14 +58,14 @@ jobs:
           s=p.read_text()
           old='android:label="Brother Matrizes"'
           assert s.count(old)==1
-          p.write_text(s.replace(old,'android:label="Brother Matrizes QA"'))
+          p.write_text(s.replace(old,'android:label="Brother Matrizes QA 2"'))
           PY
       - name: Verificar segurança e compilar APK paralelo de teste
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/pre_release_static_check.sh
-          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug -PbrotherCheckoutQaParallel=true --stacktrace
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug -PbrotherPremiumQaV2=true --stacktrace
       - name: Conferir APK de instalação independente
         shell: bash
         run: |
@@ -74,22 +74,22 @@ jobs:
           test -s "$apk"
           aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
           badging="$("$aapt" dump badging "$apk" | head -n1)"
-          echo "$badging" | grep -Fq "package: name='com.timachado.brothermatrizes.qa'"
+          echo "$badging" | grep -Fq "package: name='com.timachado.brothermatrizes.qa2'"
           echo "$badging" | grep -Fq "versionCode='187'"
-          echo "$badging" | grep -Fq "versionName='1.11.0-QA'"
-          "$aapt" dump badging "$apk" | grep -Fq "application-label:'Brother Matrizes QA'"
+          echo "$badging" | grep -Fq "versionName='1.11.0-QA2'"
+          "$aapt" dump badging "$apk" | grep -Fq "application-label:'Brother Matrizes QA 2'"
           # Checkout comercial não deve ser ativado nesta distribuição QA visual.
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = false' app/build/generated/source/buildConfig/debug
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > apk-verification.txt
           grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' apk-verification.txt
           mkdir -p qa-apk
-          cp "$apk" qa-apk/Brother-Matrizes-Premium-1.11.0-QA-PARALELO.apk
+          cp "$apk" qa-apk/Brother-Matrizes-Premium-1.11.0-QA2-PARALELO.apk
           sha256sum qa-apk/*.apk > qa-apk/SHA256.txt
           echo "APK de teste separado validado, sem uso da chave comercial."
       - name: Entregar APK de teste como artefato privado de Actions
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-Premium-1.11.0-QA-PARALELO
+          name: Brother-Matrizes-Premium-1.11.0-QA2-PARALELO
           path: qa-apk/
           if-no-files-found: error
           retention-days: 14
@@ -98,7 +98,7 @@ jobs:
         run: |
           {
             echo "## APK de teste Brother Matrizes 1.11.0"
-            echo "- Pacote separado: `com.timachado.brothermatrizes.qa`."
+            echo "- Pacote de revisão independente: `com.timachado.brothermatrizes.qa2`."
             echo "- Pode instalar ao lado do aplicativo comercial, sem desinstalação."
             echo "- Assinatura debug; não substitui o APK comercial."
             echo "- Checkout comercial desativado; login Google pode exigir configuração própria para identidade QA."
