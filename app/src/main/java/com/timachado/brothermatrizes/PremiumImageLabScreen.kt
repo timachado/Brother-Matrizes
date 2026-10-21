@@ -138,11 +138,14 @@ internal fun PremiumImageLabScreen(
         Text("Imagem para Bordado",style = MaterialTheme.typography.headlineSmall,color=FioText)
         Text("Laboratório QA • Visual Premium 1.11.x",color=FioGold)
         Text(
-            "Importe PNG transparente, gere pontos corridos reais, simule no bastidor do aplicativo e só depois salve o PES de ensaio.",
+            "Importe um PNG e toque em Simular bordado. " +
+                "Veja os pontos e a sequência no simulador antes de qualquer teste físico.",
             color=FioTextMuted
         )
         Text(
-            "ATENÇÃO: apenas contorno experimental. Não há preenchimento Satin/Tatami nem aprovação de máquina. Confira a prévia e use apenas retalho.",
+            "Imagens complexas recebem uma prévia aproximada de pontos e cores, " +
+                "não uma matriz final de Satin/Tatami. " +
+                "A exportação PES só aparece para contornos simples validados.",
             color=FioGold,style=MaterialTheme.typography.bodyMedium
         )
         Button(onClick = { open.launch(arrayOf("image/png","image/*")) },
