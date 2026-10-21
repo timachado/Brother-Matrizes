@@ -55,6 +55,12 @@ class RasterSatinObjectEditorTest {
         assertTrue(out.jumpCount > 0)
         assertTrue(out.isModified)
         assertTrue(out.endFound)
+        val needle = RasterNeedleRiskAudit.inspect(
+            out, HoopProfile.H130X180
+        ).getOrThrow()
+        val density = RasterThreadDensityPreflight.inspect(out).getOrThrow()
+        assertEquals(out.stitchCount, needle.stitchesExamined)
+        assertEquals(out.stitchCount, density.sewnSegments)
         assertEquals(HoopProfile.H130X180, out.hoopProfile)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
