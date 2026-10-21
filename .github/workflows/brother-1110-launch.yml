@@ -1,5 +1,5 @@
 name: Brother Matrizes 1.11.0 — GitHub OTA e site
-# Reexecucao apos correcao da checagem de permissao POST_NOTIFICATIONS.
+# Reexecucao apos validacao de POST_NOTIFICATIONS no worker de notificacao OTA.
 
 on:
   push:
