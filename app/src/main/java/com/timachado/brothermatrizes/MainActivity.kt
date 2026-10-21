@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -2436,7 +2437,28 @@ private fun BrotherMatrizesApp(
                 }
 
                 is Screen.Simulator -> {
+                    // The original PNG must stay on the hoop as a translucent
+                    // guide for the entire Satin visual playback, like the
+                    // existing name simulator's complete ghost lettering.
+                    val rasterSource = if (BuildConfig.DEBUG &&
+                        current.design === premiumImageQaSession.simulated)
+                        premiumImageQaSession.photo else null
+                    val rasterGhost = remember(rasterSource,
+                        premiumImageQaSession.widthMm) {
+                        rasterSource?.let { image ->
+                            PremiumImageGhost(
+                                bitmap = android.graphics.Bitmap.createBitmap(
+                                    image.argb, image.width,image.height,
+                                    android.graphics.Bitmap.Config.ARGB_8888
+                                ).asImageBitmap(),
+                                widthMm = premiumImageQaSession.widthMm,
+                                heightMm = premiumImageQaSession.widthMm *
+                                    image.height / image.width
+                            )
+                        }
+                    }
                     SimulatorScreen(
+                        ghostArtwork = rasterGhost,
                         design =
                             current.design,
                         displayMode =
