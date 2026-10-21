@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.ImageBitmap
  * Always scaled to the SAME center and physical dimensions as QA stitches.
  * Image data never becomes a PES color map or a machine command.
  */
-internal data class PremiumImageGhost(
+data class PremiumImageGhost(
     val bitmap: ImageBitmap,
     val widthMm: Float,
     val heightMm: Float
