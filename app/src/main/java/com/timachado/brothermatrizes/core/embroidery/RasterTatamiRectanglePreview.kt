@@ -179,9 +179,9 @@ internal object RasterTatamiRectanglePreview {
         )
         // Physical needle audit is a software screen only. A passed draft
         // remains non-exportable until machine-specific fabric QA.
-        val needle = RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
+        val needleRisk = RasterNeedleRiskAudit.inspect(draft, hoop).getOrThrow()
         val density = RasterThreadDensityPreflight.inspect(draft).getOrThrow()
-        require(needle.stitchesExamined == density.sewnSegments) {
+        require(needleRisk.stitchesExamined == density.sewnSegments) {
             "A sequência retangular possui densidade não verificada."
         }
         // Validate the INTEGER commands after 0.1 mm quantization: no
