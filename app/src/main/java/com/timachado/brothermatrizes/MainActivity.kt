@@ -69,6 +69,8 @@ import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioSurface
+import com.timachado.brothermatrizes.ui.theme.FioNavigationSurface
+import com.timachado.brothermatrizes.ui.theme.FioNavigationMuted
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1693,9 +1695,10 @@ private fun BrotherMatrizesApp(
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(28.dp)),
                     containerColor =
-                        FioSurface,
+                        FioNavigationSurface,
+                    // Sem tonalizacao Material 3 para preservar o azul exato.
                     tonalElevation =
-                        4.dp
+                        0.dp
                 ) {
                     val navigationColors =
                         NavigationBarItemDefaults
@@ -1707,9 +1710,9 @@ private fun BrotherMatrizesApp(
                                 indicatorColor =
                                     FioGold,
                                 unselectedIconColor =
-                                    FioTextMuted,
+                                    FioNavigationMuted,
                                 unselectedTextColor =
-                                    FioTextMuted
+                                    FioNavigationMuted
                             )
 
                     NavigationBarItem(
