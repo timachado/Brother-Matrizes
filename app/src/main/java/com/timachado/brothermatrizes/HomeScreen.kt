@@ -83,7 +83,9 @@ fun HomeScreen(
         contentPadding =
             PaddingValues(
                 top = 4.dp,
-                bottom = 18.dp
+                // Reserva zona de rolagem além da barra inferior do aplicativo:
+                // os cartões maiores não devem esconder Recente nem sua CTA.
+                bottom = 110.dp
             ),
         horizontalArrangement =
             Arrangement.spacedBy(8.dp),
