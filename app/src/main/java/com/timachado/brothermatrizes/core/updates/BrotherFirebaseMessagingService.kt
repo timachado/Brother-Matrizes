@@ -1,11 +1,15 @@
 package com.timachado.brothermatrizes.core.updates
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.graphics.Color
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -98,6 +102,13 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
             .build()
+        // Permissao de runtime exigida no Android 13+; a checagem
+        // explicita protege a chamada e e reconhecida pelo Android Lint.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return@runCatching false
         NotificationManagerCompat.from(this).notify(
             BrotherUpdateNotificationWorker.NOTIFICATION_ID, notification
         )
@@ -137,6 +148,13 @@ class BrotherFirebaseMessagingService : FirebaseMessagingService() {
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
             .build()
+        // Permissao de runtime exigida no Android 13+; a checagem
+        // explicita protege a chamada e e reconhecida pelo Android Lint.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return@runCatching false
         NotificationManagerCompat.from(this).notify(COMMUNITY_NOTIFICATION_ID, notification)
         true
     }.getOrDefault(false)
