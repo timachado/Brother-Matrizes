@@ -1,39 +1,44 @@
-# Brother Matrizes Premium — publicação em duas fases
+# Brother Matrizes Premium — GitHub como origem única, OTA + site automáticos
 
-**Decisão do responsável — 20/10/2026:** a próxima versão comercial será disponibilizada **primeiro no site oficial da T.I. Machado e ao grupo de bordados**. A Google Play fica para os dias seguintes. Não antecipar a publicação na Play e **não publicar automaticamente** nenhum dos canais.
+**Correção de escopo em 21/10/2026, recuperada do histórico do projeto:** não reinventar a distribuição. O proprietário já definiu o fluxo **GitHub Releases → manifesto OTA verificado → aviso e atualização dentro do app + espelho automático no WordPress → comunicação ao grupo**. A **Google Play é uma fase posterior**. O APK não é hospedado uma segunda vez pelo WordPress.
 
-## Ordem de distribuição aprovada
+## Etapas e componentes realmente existentes
 
-1. **Homologação interna:** aprovar PR #188, imagem BM sem corte, Home sem janelas do sistema, QA Android e testes de regressão das funções existentes. O sucesso do build de debug não aprova sozinho a release.
-2. **Preparar APK comercial:** definir uma nova versão e `versionCode` monotônico acima do APK público atual (1.10.10, `versionCode=186`; conferir estado real antes de atribuir o próximo número). Compilar variante **release**, assinar com a **mesma identidade comercial oficial** previamente utilizada, executar `zipalign`/`apksigner verify`, conferir fingerprint SHA-256 do certificado, ID de pacote `com.timachado.brothermatrizes`, hash SHA-256 do artefato e ausência de segredos.
-3. **Validar atualização real:** instalar a release assinada **sobre a última versão pública assinada com o mesmo certificado**; conferir preservação de projetos, fontes, login Google, sessão, biblioteca, ferramentas PES/JEF/DST, licenças, assinatura, abertura de arquivos, simulador, editor, conversor, envio e atualizações. Se não for compatível, **bloquear o lançamento** e corrigir; não exigir desinstalação como solução.
-4. **Publicar primeiro no site oficial:** atualizar o download Android em `https://timachado.ifree.page/` (preferencialmente apontando para um único APK oficial, hospedado em release verificada ou local equivalente), nome e versão, notas de atualização, tamanho, hash SHA-256 e instruções curtas de atualização. Confirmar pelo celular Android que o botão baixa exatamente o pacote assinado e íntegro.
-5. **Distribuir ao grupo de bordados:** somente depois de conferir o link do site, divulgar o **mesmo endereço oficial**, a versão e as novidades. Evitar enviar APK diferente por WhatsApp; centralizar download e futuras atualizações no site.
-6. **Google Play apenas posteriormente:** abrir etapa separada de preparação do AAB, ficha da loja, testes e publicação depois da validação inicial e de nova autorização. Não configurar upload automático nesta fase.
+1. **QA e aprovação, ANTES de tornar uma versão pública** — validar Home, imagem do bordado, ícone BM, acesso ao grupo oficial, fluxos PES/JEF/DST, Criar, Biblioteca, Simulador, Editor, Converter, Enviar, login, licenciamento e checkout. Validar atualização real sobre o APK público 1.10.10 e preservação dos dados.
+2. **Assinatura do APK oficial** — gerar `com.timachado.brothermatrizes` (sem sufixo QA), candidata 1.11.0 / versionCode 187, com certificado comercial **idêntico ao original**. Fazer `zipalign`, `apksigner verify` e SHA-256 do arquivo. A chave deve permanecer em segredos protegidos do Actions; jamais enviar JKS/senhas para README ou repositório.
+3. **Publicar uma GitHub Release oficial após autorização** — tag `v1.11.0`, exatamente um APK com nome no padrão `Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk`, release pública (não prerelease). Este é o **único arquivo oficial de download**; não enviar APK QA ao site ou ao grupo.
+4. **Disparo OTA existente no repositório** — `.github/workflows/brother-ota-after-published.yml` executa em `release: published`; confere nome, tag, digest SHA-256, certificado da assinatura comercial e versionCode, então atualiza `main/updates/stable.json`. O workflow histórico 1.10.10 também solicita manualmente esse mesmo OTA. Jamais modificar o manifesto antes da publicação validada.
+5. **Aviso e atualização no aplicativo** — `BrotherUpdateClient` consulta o GitHub Raw, com fallback WordPress. `BrotherUpdateNotificationWorker` usa WorkManager periódico de 1 hora, sujeito a disponibilidade de rede, permissões e políticas do Android. O módulo Firebase FCM está implementado, com tópico `brother_matrizes_updates_stable` e consentimento, e já houve confirmação histórica de recebimento. **A workflow OTA atual NÃO contém envio automático obrigatório ao FCM**: validar o mecanismo de disparo e, se desejado aviso push imediato a cada Release, integrar/testar em etapa protegida após verificação do manifesto, sem duplicar notificações.
+6. **Download e atualização dentro do app** — `BrotherApkUpdater` obtém a URL oficial verificada do manifesto, baixa APK, confere SHA-256, pacote, versão e certificado, depois abre o instalador nativo do Android. Usuário pode precisar conceder permissão e confirmar **Instalar**. Não prometer instalação silenciosa.
+7. **Atualização automática do site, sem reupload** — plugin `wordpress/tim-brother-sync` e vitrine da página `/aplicativos/brother-matrizes/` leem `main/updates/stable.json`. O plugin oferece sincronização REST com cache de 3 minutos e vitrine dinâmica via navegador. **Não altera automaticamente todo botão comercial existente nem substitui as regras de acesso do App Commerce Core**; verificar plugin instalado/atualizado, shortcodes, versão exibida e link efetivo no Android. WordPress continua sem armazenar o APK.
+8. **Comunicar ao grupo de bordados** — somente depois da GitHub Release e do site estarem verificadamente consistentes, enviar o link do site; a infraestrutura OTA alcança os usuários do aplicativo sem requerer download manual do grupo.
+9. **Google Play** — preparar e publicar depois, mediante nova aprovação e estratégia de compatibilidade da app signing key para quem instalou o APK do site.
 
-## Cuidados específicos da migração para Google Play
+## Workflow de assinatura — atenção a versões obsoletas
 
-- Manter `applicationId`/nome de pacote oficial e `versionCode` crescente.
-- Antes de usar Play App Signing, **verificar cuidadosamente** qual certificado assinará os APKs distribuídos pela Google Play e se ele é compatível com a identidade dos APKs já instalados do site. O certificado da *upload key* não substitui o certificado da *app signing key*.
-- Se o certificado de assinatura entregue pela Play for diferente daquele da versão instalada pelo site, uma atualização normal poderá falhar. Resolver a estratégia com a Play **antes de publicar**, sem trocar silenciosamente a identidade de assinatura nem prometer atualização direta.
-- A disponibilidade posterior na Play não significa que as instalações via site sejam automaticamente transferidas à loja; validar o caminho de atualização/distribuição.
-- Não inserir .jks, senhas, Base64 da keystore ou segredos no GitHub, em artefatos públicos ou no chat.
+- `.github/workflows/android-production-sign.yml` é manual e destina-se a artefatos candidatos, sem publicação automática. Confirmar build release com checkout ativo e fingerprint correta.
+- `.github/workflows/brother-11010-publish-commercial.yml` é específico da versão 1.10.10: **não reutilizar para 1.11.0** sem generalizar e testar. Ele faz publicação e dispara OTA para 1.10.10.
+- O README do plugin ainda cita `brother-commercial-release.yml`, que não foi encontrado entre os workflows da branch main em 21/10; não assumir que exista um botão pronto de publicação genérica sem verificação.
+- Um GitHub Actions que publica uma Release via `GITHUB_TOKEN` pode exigir disparo explícito por `workflow_dispatch` ou token permitido para acionar outro workflow. Validar realmente o gatilho OTA; o workflow 1.10.10 prevê disparo explícito.
+- A publicação pública é o gatilho que pode anunciar uma versão a todos os usuários: nunca usá-la como teste.
 
-## Segurança dos fluxos existentes
+## Critérios de conclusão
 
-- O workflow `.github/workflows/android-production-sign.yml` é manual e gera um **candidato assinado privado**, não publica site nem loja.
-- O workflow `.github/workflows/brother-11010-publish-commercial.yml` está **vinculado à versão antiga 1.10.10** e não deve ser reutilizado como se fosse o novo release premium.
-- O workflow `.github/workflows/brother-ota-after-published.yml` pode ser acionado quando uma GitHub Release **pública** é publicada, atualizando o manifesto OTA. Verificar e autorizar essa mudança antes de publicar uma nova GitHub Release, pois a comunicação de atualização aos usuários pode começar nesse instante.
-- Não alterar `updates/stable.json`, links comerciais, Firebase, Supabase, chaves, cobranças ou `main` até conclusão da homologação e aprovação de lançamento.
+- [ ] Tela premium e ícone aprovados em Android e QA funcional concluído.
+- [ ] Convite oficial do grupo WhatsApp abre diretamente o grupo.
+- [ ] APK oficial 1.11.0 assinado com a chave existente e instala por cima da versão 1.10.10 sem perda de dados.
+- [ ] GitHub Release publicada somente mediante autorização explícita, com nome, versão, certificado e SHA-256 corretos.
+- [ ] Workflow OTA realmente atualizou o manifesto estável após a publicação.
+- [ ] Notificação de nova versão validada (checagem periódica; FCM imediato somente se verificado).
+- [ ] Aplicativo verifica, baixa e oferece instalação do APK oficial.
+- [ ] Página e download do site refletem a nova versão sem upload redundante; regras comerciais preservadas.
+- [ ] Comunicado do grupo apenas após validação.
+- [ ] Nenhuma publicação Google Play nesta fase.
 
-## Gate de publicação
+## Referências
 
-**NÃO PUBLICAR** enquanto qualquer item estiver pendente:
-
-- [ ] Home premium e launcher adaptativo aprovados por captura Android real, sem ANR e sem corte.
-- [ ] Build release e regressões funcionais aprovados.
-- [ ] Certificado de assinatura idêntico ao comercial anterior, com upgrade preservando dados.
-- [ ] Versão/código novos confirmados, hash do APK registrado e integridade verificada.
-- [ ] Site pronto e download Android testado (sem expor arquivos privados).
-- [ ] Autorização explícita para publicar o APK no site, e depois comunicar ao grupo.
-- [ ] Etapa Google Play mantida separada e posterior.
+- GitHub Releases: `https://github.com/timachado/Brother-Matrizes/releases`.
+- Manifesto oficial: `https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json`.
+- Página no site: `https://timachado.ifree.page/aplicativos/brother-matrizes/`.
+- Código de sincronização: `wordpress/tim-brother-sync/`.
+- PR de homologação: `https://github.com/timachado/Brother-Matrizes/pull/188`.
