@@ -21,6 +21,25 @@ que a digitalização automática de imagens esteja pronta ou homologada.
   preparada em **somente leitura**, com recusa de vértices ambíguos.
 - Nenhuma dessas provas autoriza exportação da imagem para STITCH/PES.
 
+## Escopo de entrega confirmado — APK antes da Google Play
+
+**Decisão de produto (20/10/2026):** a entrega atual é **concluir Imagem para Bordado e disponibilizar uma atualização APK do Brother Matrizes** pelos canais oficiais já usados pela T.I. Machado. **Google Play/AAB, cadastro da loja e publicação na Play Store NÃO fazem parte deste escopo**. Serão tratados em projeto e autorização separados, depois.
+
+### Definição de pronto para o APK comercial
+
+1. Fluxo Android integrado: importar imagem, selecionar regiões/cores e escala/bastidor, pré-visualizar camadas, ajustar trilhos e confirmar limitações de cada técnica, sem falsos estados de "exportado".
+2. Motor raster → pontos de máquina com técnicas adequadas por região (corrido, Satin e Tatami). Preservar vazados, cantos, letras, cores e tolerâncias; não afirmar que fotos ou logos complexos se convertem corretamente sem reconstrução/revisão.
+3. Validação independente de sequência: início/fim, densidade, comprimentos, JUMP/TRIM, arremates, underlay, limites de bastidor, transição de cores e falha segura. Corrigir regressões antes de avançar, sem silenciar testes reprovados.
+4. Gerar **PES real** pelo exportador existente, reabrir no leitor e simulador e comparar quantitativamente pontos, cores, limites físicos e comportamento do formato. JEF/DST apenas após verificações por formato; nenhum formato habilitado por analogia.
+5. Registrar ao menos um bordado físico em máquina Brother do caso homologado, com dados de tamanho, tecido, entretela, linha, modelo, falhas e correções. Arte complexa e microvazados exigem revisão explícita, sem aprovar geometria só pelo raster.
+6. Gerar **APK release** assinado com a identidade comercial correta, conferir atualização in-place por cima da versão oficial atual, preservação de login, licenças, arquivos e dados, e verificar a URL de distribuição no site da T.I. Machado antes de anunciar. Nunca distribuir debug QA ou chave temporária como atualização comercial.
+
+### Bloqueios preservados
+
+- `RasterEmbroideryApproval.EXPORT_ALLOWED=false` permanece até a prova completa de ponta a ponta; **não inverter a flag por prazo ou por conclusão parcial do CI**.
+- `main` e a versão comercial ficam intocados até revisão de integração e aprovação dos critérios acima. PRs de QA não equivalem a entrega.
+- O teste físico e o artefato release não são substituídos por JUnit/Android emulado. O Jam ajuda a diagnosticar relatos capturados, mas não testa a máquina automaticamente.
+
 ## Critérios obrigatórios pendentes para versão definitiva
 
 1. **Segmentação e revisão da arte:** selecionar regiões, detectar ruído,
