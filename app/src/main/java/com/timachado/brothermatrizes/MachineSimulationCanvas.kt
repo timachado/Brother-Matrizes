@@ -11,6 +11,10 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathFillType
@@ -48,6 +52,7 @@ fun MachineSimulationCanvas(
     showConnections:
         Boolean =
         false,
+    ghostArtwork: PremiumImageGhost? = null,
     modifier: Modifier = Modifier
 ) {
     // For raster QA, show the ghost outline and progressively sewn
@@ -113,6 +118,36 @@ fun MachineSimulationCanvas(
                             transform =
                                 cachedTransform
                         )
+
+                        // Render the EXACT imported source PNG on the same
+                        // measured hoop coordinates as the embroidery points.
+                        // Its faint opacity never changes with progress.
+                        if (BuildConfig.DEBUG && ghostArtwork != null) {
+                            val sourceWidth = ghostArtwork.widthMm * 10f
+                            val sourceHeight = ghostArtwork.heightMm * 10f
+                            val topLeft = cachedTransform.point(
+                                EmbroideryPoint(
+                                    (-sourceWidth / 2f).roundToInt(),
+                                    (sourceHeight / 2f).roundToInt(),
+                                    StitchCommand.JUMP,0
+                                )
+                            )
+                            drawImage(
+                                image = ghostArtwork.bitmap,
+                                dstOffset = IntOffset(
+                                    topLeft.x.roundToInt(),
+                                    topLeft.y.roundToInt()
+                                ),
+                                dstSize = IntSize(
+                                    (sourceWidth * cachedTransform.scale)
+                                        .roundToInt().coerceAtLeast(1),
+                                    (sourceHeight * cachedTransform.scale)
+                                        .roundToInt().coerceAtLeast(1)
+                                ),
+                                alpha = 0.21f,
+                                filterQuality = FilterQuality.Low
+                            )
+                        }
 
                         /*
                          * Referência do vídeo: toda a matriz permanece visível
@@ -619,7 +654,9 @@ private data class SimulationTransform(
             2f
 
     private val centerXUnits =
-        if (
+        if (design.format == "QA_IMAGE_VISUAL") {
+            0f // align the source PNG ghost and generated points at origin
+        } else if (
             referenceTextMode
         ) {
             (
@@ -640,7 +677,9 @@ private data class SimulationTransform(
         }
 
     private val centerYUnits =
-        if (
+        if (design.format == "QA_IMAGE_VISUAL") {
+            0f
+        } else if (
             referenceTextMode
         ) {
             (
