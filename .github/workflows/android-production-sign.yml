@@ -97,7 +97,7 @@ jobs:
           cfg=app/build/generated/source/buildConfig/release
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' "$cfg"
           grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' "$cfg"
-          code="$(sed -n 's/.*versionCode = \\([0-9]*\\).*/\\1/p' app/build.gradle.kts | head -n 1)"
+          code="$(awk '$1 == "versionCode" { print $3; exit }' app/build.gradle.kts)"
           published="$(python3 -c 'import json; print(json.load(open("updates/stable.json"))["versionCode"])')"
           test -n "$code" && test "$code" -gt "$published" || {
             echo "::error::Nao assinar pacote com versionCode inferior ou igual ao publicado."
