@@ -62,6 +62,7 @@ fun SimulatorScreen(
     showConnections:
         Boolean =
         false,
+    ghostArtwork: PremiumImageGhost? = null,
     onBack: () -> Unit
 ) {
     val points =
@@ -338,6 +339,7 @@ fun SimulatorScreen(
             MachineSimulationCanvas(
                 design =
                     design,
+                ghostArtwork = ghostArtwork,
                 pointLimit =
                     index,
                 displayMode =
