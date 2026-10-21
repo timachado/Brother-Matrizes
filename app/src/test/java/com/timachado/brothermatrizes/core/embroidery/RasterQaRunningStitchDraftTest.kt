@@ -92,6 +92,18 @@ class RasterQaRunningStitchDraftTest {
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
 
+    @Test fun opaquePhotographCannotMasqueradeAsAnEmbroideryOutline() {
+        val opaque = RasterImagePixels(
+            12, 12,
+            IntArray(12 * 12) { 0xff777777.toInt() },
+            "fotografia sem recorte"
+        )
+        assertTrue(RasterQaRunningStitchDraft.create(
+            opaque, 120f, HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
     @Test fun qaStitchPreviewCannotBePassedDirectlyToReleasedPesConverter() {
         val preview = RasterQaRunningStitchDraft.create(
             ring(), 120f, HoopProfile.H130X180
