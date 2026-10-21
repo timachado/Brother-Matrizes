@@ -45,22 +45,13 @@ internal object RasterTatamiShapePreview {
             heightMm <= hoop.usableHeightMm) {
             "Imagem fora da área útil do bastidor."
         }
-        // The mask is supplied by the caller, so it must not be allowed
-        // to invent or remove ink while its STITCH paths appear valid.
-        // Re-detect the exact source component before any Tatami planning.
-        val sourceParts = RasterSatinObjectEditor.detect(image).getOrThrow()
-        require(sourceParts.any { original ->
-            original.id == part.id &&
-                original.color == part.color &&
-                original.pixelCount == part.pixelCount &&
-                original.mask.minX == part.mask.minX &&
-                original.mask.maxX == part.mask.maxX &&
-                original.mask.minY == part.mask.minY &&
-                original.mask.maxY == part.mask.maxY &&
-                original.mask.pixels.contentEquals(part.mask.pixels)
-        }) {
-            "A máscara Tatami divergiu da arte importada. Reimporte ou refaça a seleção."
-        }
+        // Provenance is checked against RAW imported pixels rather than a
+        // fresh palette clustering. It catches fabricated or stale counters,
+        // changed colors and new ink adjoining the old component boundary,
+        // including a stroke extending beyond the previous bounding box.
+        // This works for manually reviewed masks without forcing a new
+        // auto-segmentation or silently shifting their original placement.
+        RasterSourceInkProvenanceAudit.inspect(image,part).getOrThrow()
 
         val m = part.mask
         val w = m.maxX - m.minX + 1
