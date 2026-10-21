@@ -50,12 +50,17 @@ fun MachineSimulationCanvas(
         false,
     modifier: Modifier = Modifier
 ) {
+    // For raster QA, show the ghost outline and progressively sewn
+    // contour at the REAL hoop scale (same frame/timeline behavior as the
+    // existing text simulator), never draw fabricated horizontal fills.
     val referenceTextSimulation =
         design.isModified &&
-        design.fileName
-            .startsWith(
-                "nome-"
-            )
+            (design.fileName.startsWith("nome-") ||
+                (BuildConfig.DEBUG &&
+                    (design.format=="QA_IMAGE_VISUAL" ||
+                        design.fileName.startsWith(
+                            "laboratorio_img_contorno"
+                        ))))
 
     Box(
         modifier =
