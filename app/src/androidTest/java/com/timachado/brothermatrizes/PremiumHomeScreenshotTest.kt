@@ -138,5 +138,34 @@ class PremiumHomeScreenshotTest {
         check(launcherOutput.length() > 5_000) {
             "Captura do icone Android invalida"
         }
+        // Verificar a zona segura do monograma no launcher REAL.
+        // No primeiro PNG o dourado encostava nas bordas e letras foram cortadas.
+        var minGoldX = 432
+        var maxGoldX = -1
+        var minGoldY = 432
+        var maxGoldY = -1
+        for (y in 0 until 432 step 2) {
+            for (x in 0 until 432 step 2) {
+                val pixel = launcherBitmap.getPixel(x, y)
+                val red = android.graphics.Color.red(pixel)
+                val green = android.graphics.Color.green(pixel)
+                val blue = android.graphics.Color.blue(pixel)
+                if (android.graphics.Color.alpha(pixel) > 200 &&
+                    red > 110 && green > 65 &&
+                    red > green * 1.14 && green > blue * 1.23
+                ) {
+                    minGoldX = minOf(minGoldX, x)
+                    maxGoldX = maxOf(maxGoldX, x)
+                    minGoldY = minOf(minGoldY, y)
+                    maxGoldY = maxOf(maxGoldY, y)
+                }
+            }
+        }
+        check(maxGoldX >= 0) { "O monograma BM nao foi identificado no launcher" }
+        check(minGoldX >= 30 && maxGoldX <= 402 &&
+              minGoldY >= 30 && maxGoldY <= 402) {
+            "Monograma fora da zona segura: x=$minGoldX..$maxGoldX, " +
+                "y=$minGoldY..$maxGoldY"
+        }
     }
 }
