@@ -1,4 +1,9 @@
 import java.util.Base64
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.awt.image.ConvolveOp
+import java.awt.image.Kernel
+import java.awt.image.RescaleOp
 
 plugins {
     id("com.android.application")
@@ -198,27 +203,27 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
         // a mesma fotografia; não substituímos por foto genérica.
         val width = heroSemTexto.width * 3
         val height = heroSemTexto.height * 3
-        val expanded = java.awt.image.BufferedImage(
-            width, height, java.awt.image.BufferedImage.TYPE_INT_RGB
+        val expanded = BufferedImage(
+            width, height, BufferedImage.TYPE_INT_RGB
         )
         val graphics = expanded.createGraphics()
         try {
             graphics.setRenderingHint(
-                java.awt.RenderingHints.KEY_INTERPOLATION,
-                java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC
+                RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BICUBIC
             )
             graphics.drawImage(heroSemTexto, 0, 0, width, height, null)
         } finally {
             graphics.dispose()
         }
-        val contrast = java.awt.image.RescaleOp(1.07f, 3f, null)
+        val contrast = RescaleOp(1.07f, 3f, null)
         val balanced = contrast.filter(expanded, null)
-        val sharpen = java.awt.image.ConvolveOp(
-            java.awt.image.Kernel(3, 3, floatArrayOf(
+        val sharpen = ConvolveOp(
+            Kernel(3, 3, floatArrayOf(
                 0f, -0.22f, 0f,
                 -0.22f, 1.88f, -0.22f,
                 0f, -0.22f, 0f
-            )), java.awt.image.ConvolveOp.EDGE_NO_OP, null
+            )), ConvolveOp.EDGE_NO_OP, null
         )
         val enhanced = sharpen.filter(balanced, null)
         heroDrawable.parentFile.mkdirs()
