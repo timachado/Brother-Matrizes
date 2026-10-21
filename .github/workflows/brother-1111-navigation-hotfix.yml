@@ -1,5 +1,5 @@
-name: Brother Matrizes 1.11.1 — GitHub OTA e site
-# Reexecucao apos validacao de POST_NOTIFICATIONS no worker de notificacao OTA.
+name: Brother Matrizes 1.11.1 — Correção Barra Azul Premium
+# Patch independente da 1.11.0: validar, assinar e publicar apos QA.
 
 on:
   push:
@@ -87,7 +87,7 @@ jobs:
           badging="$("$sdk/aapt" dump badging "dist/$apk")"
           echo "Conferindo packageName e versionCode comercial 187"
           [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]] || { echo "::error::Identidade Android comercial divergente"; exit 1; }
-          [[ "$badging" == *"versionCode='188'"* ]] || { echo "::error::VersionCode comercial deveria ser 187"; exit 1; }
+          [[ "$badging" == *"versionCode='188'"* ]] || { echo "::error::VersionCode comercial deveria ser 188"; exit 1; }
           [[ "$badging" == *"versionName='1.11.1'"* ]] || { echo "::error::VersionName comercial deveria ser 1.11.1"; exit 1; }
           sha256sum "dist/$apk" > dist/SHA256.txt
       - name: Habilitar KVM para testes de interface Android
@@ -166,7 +166,7 @@ jobs:
           apk=Brother-Matrizes-1.11.1-OFICIAL-COMERCIAL-ASSINADO.apk
           gh release create v1.11.1 "dist/$apk" --repo "$GH_REPO" \
             --target "$(git rev-parse HEAD)" \
-            --title "Brother Matrizes 1.11.1 — Visual Premium" \
+            --title "Brother Matrizes 1.11.1 — Barra Azul Premium" \
             --notes-file /tmp/brother-notes.md --latest
           gh api "repos/$GH_REPO/releases/tags/v1.11.1" > /tmp/release.json
           jq -e --arg name "$apk" '.draft == false and .prerelease == false and
@@ -201,7 +201,7 @@ jobs:
               jq -e '.versionName=="1.11.1" and (.downloadApkUrl|contains("/releases/download/v1.11.1/"))' /tmp/live-stable.json >/dev/null
               sha="$(cut -d' ' -f1 dist/SHA256.txt)"
               jq -e --arg sha "$sha" '.sha256 == $sha' /tmp/live-stable.json >/dev/null
-              echo "Manifesto oficial 1.11.1/187 validado, pronto para avisos."
+              echo "Manifesto oficial 1.11.1/188 validado, pronto para avisos."
               exit 0
             fi
             sleep 15
