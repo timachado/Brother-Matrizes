@@ -78,4 +78,44 @@ class RasterRunningPesInMemoryRoundTripTest {
     @Test fun concaveLShapeHasOrderedPesCodecReadbackWithoutRotation() {
         verifyOnlyInMemory(image(true),1)
     }
+    @Test fun twoColorFlatArtRetainsSewnOrderThroughPesCodec() {
+        val width=160
+        val height=100
+        val pixels=IntArray(width*height) { i ->
+            val x=i%width
+            val y=i/width
+            when {
+                x in 15..95 && y in 23..31 -> 0xffda761a.toInt()
+                x in 20..100 && y in 64..72 -> 0xff193e6a.toInt()
+                else -> 0
+            }
+        }
+        val original=RasterImagePixels(width,height,pixels,"two-color QA strokes")
+        val before=pixels.copyOf()
+        val qa=RasterFlatColorStitchCandidate.create(
+            original,90f,HoopProfile.H130X180
+        ).getOrThrow().design
+        assertEquals("QA_AUTO_STITCH",qa.format)
+        assertEquals(2,qa.threadColors.size)
+        assertEquals(1,qa.colorChanges)
+        assertTrue(MatrixConverter.convert(qa,"PES").isFailure)
+        val fixture=qa.copy(
+            format="PES",
+            fileName="MEMORY-ONLY-MULTICOLOR-NOT-RELEASED.pes"
+        )
+        val encoded=MatrixConverter.convert(
+            fixture,"PES","junit-only"
+        ).getOrThrow()
+        val review=PesReadbackEvidence.inspect(
+            fixture,encoded.fileName,encoded.bytes
+        ).getOrThrow()
+        assertTrue(review.geometryPreserved)
+        assertTrue(review.stitchOrderPreserved)
+        assertFalse(review.machineCertified)
+        assertFalse(review.authorizesImagePesExport)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+        assertTrue(pixels.contentEquals(before))
+    }
+
+
 }
