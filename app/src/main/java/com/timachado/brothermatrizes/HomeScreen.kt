@@ -73,7 +73,8 @@ fun HomeScreen(
     onClearRecent: () -> Unit,
     onUnavailable: (String) -> Unit,
     onCommunity: () -> Unit,
-    updateRefreshRequest: Int = 0
+    updateRefreshRequest: Int = 0,
+    onImageQa: () -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -162,6 +163,20 @@ fun HomeScreen(
                 onClick =
                     onCreateName
             )
+        }
+
+        if (BuildConfig.DEBUG) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ExpressiveFeatureCard(
+                    modifier=Modifier.fillMaxWidth().heightIn(min=78.dp)
+                        .testTag("premium_image_qa_home"),
+                    iconRes=R.drawable.ic_ms_edit_rounded,
+                    title="Imagem para Bordado • QA",
+                    subtitle="Importar PNG → simular pontos → PES de teste físico",
+                    enabled=true,
+                    onClick=onImageQa
+                )
+            }
         }
 
         item(
