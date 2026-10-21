@@ -56,6 +56,10 @@ android {
 
     buildTypes {
         debug {
+            // Premium laboratory runs alongside the released 1.11.x app.
+            // Never overwrite the commercial package or its saved projects.
+            applicationIdSuffix = ".premiumimageqa"
+            versionNameSuffix = "-PremiumImageQA"
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
             if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
