@@ -9,6 +9,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import java.io.File
 import org.junit.Rule
 import org.junit.Test
@@ -63,10 +66,45 @@ class PremiumHomeScreenshotTest {
         }
         composeRule.waitForIdle()
 
+        // Pixel Launcher do emulador pode exibir um ANR do SISTEMA, mesmo com
+        // o Brother Matrizes funcionando normalmente. Fechamos apenas esse
+        // processo de launcher e falhamos para qualquer outro ANR.
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        repeat(3) {
+            val launcherAnr = device.findObject(
+                By.textContains("Pixel Launcher isn't responding")
+            )
+            if (launcherAnr != null) {
+                val closeLauncher = device.findObject(By.text("Close app"))
+                check(closeLauncher != null) {
+                    "Pixel Launcher ANR sem opcao segura para fechar"
+                }
+                closeLauncher.click()
+                device.wait(
+                    Until.gone(By.textContains("Pixel Launcher isn't responding")),
+                    6_000L
+                )
+            }
+        }
+        check(!device.hasObject(By.textContains("isn't responding"))) {
+            "Janela ANR detectada sobre a Home; captura nao sera aceita"
+        }
+
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
         val screenshot = InstrumentationRegistry.getInstrumentation()
             .uiAutomation.takeScreenshot()
         requireNotNull(screenshot) { "Android nao gerou a captura da Home premium" }
+        // A Home sempre é azul-noite: um centro muito claro indica modal do
+        // sistema/consentimento sobre a tela, mesmo se aparecer após o check.
+        val center = screenshot.getPixel(screenshot.width / 2, screenshot.height / 2)
+        val brightness = (
+            android.graphics.Color.red(center) +
+            android.graphics.Color.green(center) +
+            android.graphics.Color.blue(center)
+        ) / 3
+        check(brightness < 175) {
+            "Captura rejeitada: possivel dialogo claro sobre a Home (centro=$brightness)"
+        }
         val output = File(targetContext.filesDir, "premium-home-screenshot.png")
         output.outputStream().use { stream ->
             check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
