@@ -84,10 +84,11 @@ jobs:
           grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$tmp/audit.txt"
           grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$tmp/audit.txt"
           grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' "$tmp/audit.txt"
-          badging="$("$sdk/aapt" dump badging "dist/$apk" | head -n1)"
-          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
-          [[ "$badging" == *"versionCode='186'"* ]]
-          [[ "$badging" == *"versionName='1.11.0'"* ]]
+          badging="$("$sdk/aapt" dump badging "dist/$apk")"
+          echo "Conferindo packageName e versionCode comercial 187"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]] || { echo "::error::Identidade Android comercial divergente"; exit 1; }
+          [[ "$badging" == *"versionCode='187'"* ]] || { echo "::error::VersionCode comercial deveria ser 187"; exit 1; }
+          [[ "$badging" == *"versionName='1.11.0'"* ]] || { echo "::error::VersionName comercial deveria ser 1.11.0"; exit 1; }
           sha256sum "dist/$apk" > dist/SHA256.txt
       - name: Habilitar KVM para testes de interface Android
         shell: bash
@@ -155,17 +156,18 @@ jobs:
             exit 1
           fi
           cat > /tmp/brother-notes.md <<'NOTES'
-          # Brother Matrizes 1.11.0 — Login Google e Checkout Integrado
-          - Login Google integrado a conta comercial sem segundo cadastro.
-          - Planos Mensal, Anual, Vitalicio e Vitalicio de Lancamento abrem checkout WooCommerce.
-          - Troca de planos Brother no carrinho; confirmacao para outros produtos.
-          - Pagamentos e licencas preservam validacao WooCommerce/Efi.
-          - APK assinado com certificado comercial original; motor de bordado preservado.
+          # Brother Matrizes 1.11.0 — Visual Premium
+          - Novo visual Premium em azul-noite e dourado, com monograma BM.
+          - Destaque da imagem de bordado e ferramentas com cartoes maiores.
+          - Acesso direto ao grupo oficial de feedbacks no WhatsApp.
+          - Biblioteca, Criar nome, Simulador, Editor, Converter e Enviar preservados.
+          - Login Google, checkout comercial e licencas preservados.
+          - Atualizacao segura no app com verificacao de certificado e SHA-256.
           NOTES
           apk=Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk
           gh release create v1.11.0 "dist/$apk" --repo "$GH_REPO" \
             --target "$(git rev-parse HEAD)" \
-            --title "Brother Matrizes 1.11.0 — Login Google e Checkout" \
+            --title "Brother Matrizes 1.11.0 — Visual Premium" \
             --notes-file /tmp/brother-notes.md --latest
           gh api "repos/$GH_REPO/releases/tags/v1.11.0" > /tmp/release.json
           jq -e --arg name "$apk" '.draft == false and .prerelease == false and
