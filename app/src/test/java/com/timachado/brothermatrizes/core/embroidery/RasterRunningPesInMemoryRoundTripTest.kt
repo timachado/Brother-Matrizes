@@ -45,13 +45,20 @@ class RasterRunningPesInMemoryRoundTripTest {
         assertTrue(qa.sourceBytes.isEmpty())
         assertTrue("O conversor público deve recusar o formato experimental.",
             MatrixConverter.convert(qa,"PES","proibido").isFailure)
+        assertTrue(qa.isExperimentalImageQa)
+        assertTrue(MatrixConverter.convert(
+            qa.copy(format="PES"),"PES","no-format-laundering"
+        ).isFailure)
 
         // Only a disposable test-local representation: the application
         // never exposes this promotion and never receives its bytes.
         val ephemeral = qa.copy(
             format="PES",
             fileName="APENAS-JUNIT-NAO-ENVIAR.pes",
-            label="PES in-memory readback; never a machine file"
+            label="PES in-memory readback; never a machine file",
+            // Test-only explicit override to exercise the real codec.
+            // App preview paths must never perform this override.
+            isExperimentalImageQa=false
         )
         val encoded = MatrixConverter.convert(
             ephemeral,"PES","in-memory-only"
@@ -99,9 +106,14 @@ class RasterRunningPesInMemoryRoundTripTest {
         assertEquals(2,qa.threadColors.size)
         assertEquals(1,qa.colorChanges)
         assertTrue(MatrixConverter.convert(qa,"PES").isFailure)
+        assertTrue(qa.isExperimentalImageQa)
+        assertTrue(MatrixConverter.convert(
+            qa.copy(format="PES"),"PES","no-qa-promotion"
+        ).isFailure)
         val fixture=qa.copy(
             format="PES",
-            fileName="MEMORY-ONLY-MULTICOLOR-NOT-RELEASED.pes"
+            fileName="MEMORY-ONLY-MULTICOLOR-NOT-RELEASED.pes",
+            isExperimentalImageQa=false // test-only codec fixture
         )
         val encoded=MatrixConverter.convert(
             fixture,"PES","junit-only"
@@ -148,8 +160,14 @@ class RasterRunningPesInMemoryRoundTripTest {
         RasterThreadDensityPreflight.inspect(qa).getOrThrow()
         assertTrue(MatrixConverter.convert(qa,"PES").isFailure)
         // Never exposed as an app workflow: codec investigation in JUnit.
+        assertTrue(qa.isExperimentalImageQa)
+        assertTrue(MatrixConverter.convert(
+            qa.copy(format="PES"),"PES","no-qa-promotion"
+        ).isFailure)
         val ephemeral=qa.copy(
-            fileName="MEMORY-ONLY-MIXED-DESIGN.pes",format="PES"
+            fileName="MEMORY-ONLY-MIXED-DESIGN.pes",
+            format="PES",
+            isExperimentalImageQa=false // test-only codec fixture
         )
         val bytes=MatrixConverter.convert(ephemeral,"PES","junit-review")
             .getOrThrow()
