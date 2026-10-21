@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# Only the newest branch revision needs a physical-test APK.
+# Cancel older queued builds to avoid wasting CI minutes and shipping
+# a stale APK when the user is waiting for the latest simulator fix.
+concurrency:
+  group: brother-premium-image-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
