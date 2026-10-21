@@ -129,4 +129,23 @@ class RasterSatinObjectEditorTest {
     }
 
 
+    @Test fun newInkConnectedOutsideOldMaskIsNotSilentlyOmitted() {
+        val original=image { x,y ->
+            (x in 15..23 && y in 20..52) ||
+                (x in 15..65 && y in 47..52)
+        }
+        val part=RasterSatinObjectEditor.detect(original).getOrThrow().single()
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(original,part).isSuccess)
+        // The added orange pixel is inside the old bounding rectangle and
+        // directly connects to its left stroke, but is absent from the old
+        // segmentation. A needle path could otherwise omit it silently.
+        val updated=original.copy(argb=original.argb.copyOf().apply {
+            this[32*original.width+24]=0xffea8721.toInt()
+        })
+        val audit=RasterSourceInkProvenanceAudit.inspect(updated,part)
+        assertTrue(audit.isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
