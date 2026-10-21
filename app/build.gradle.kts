@@ -144,8 +144,10 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
     val heroDrawable = project.file("src/main/res/drawable-nodpi/brother_home_hero.jpg")
     val approvedIconSource = rootProject.file("branding/brother_bm_premium_approved.webp.base64")
     val approvedIconDrawable = project.file("src/main/res/drawable-nodpi/brother_bm_premium_approved.webp")
-    inputs.files(heroSource, approvedIconSource)
-    outputs.files(heroDrawable, approvedIconDrawable)
+    val safeLauncherSource = rootProject.file("branding/brother_bm_launcher_safe.webp.base64")
+    val safeLauncherDrawable = project.file("src/main/res/drawable-nodpi/brother_bm_launcher_safe.webp")
+    inputs.files(heroSource, approvedIconSource, safeLauncherSource)
+    outputs.files(heroDrawable, approvedIconDrawable, safeLauncherDrawable)
     // A remoção dos JPGs legados também ocorre quando o hero já existe no cache.
     outputs.upToDateWhen { false }
     doLast {
@@ -166,6 +168,17 @@ val prepareBrotherBrandAssets = tasks.register("prepareBrotherBrandAssets") {
         }
         approvedIconDrawable.parentFile.mkdirs()
         approvedIconDrawable.writeBytes(premiumData)
+
+        // O foreground adaptativo requer margem incorporada à imagem:
+        // somente Insets em XML não impedem que alguns launchers ampliem o símbolo.
+        val safeData = Base64.getMimeDecoder().decode(safeLauncherSource.readText())
+        check(safeData.size >= 1800 &&
+            String(safeData.copyOfRange(0, 4), Charsets.US_ASCII) == "RIFF" &&
+            String(safeData.copyOfRange(8, 12), Charsets.US_ASCII) == "WEBP") {
+            "Icone BM com margem de seguranca ausente ou invalido"
+        }
+        safeLauncherDrawable.parentFile.mkdirs()
+        safeLauncherDrawable.writeBytes(safeData)
 
         val heroData = Base64.getMimeDecoder().decode(heroSource.readText())
         check(heroData.size >= 2000 &&
