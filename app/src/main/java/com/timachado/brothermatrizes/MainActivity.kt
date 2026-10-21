@@ -295,6 +295,7 @@ private sealed interface Screen {
     data object CreateName : Screen
     data object CreateMonogram : Screen
     data object CreateDrawing : Screen
+    data object PremiumImageLab : Screen
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
@@ -388,6 +389,7 @@ private fun BrotherMatrizesApp(
             Screen.Home
         )
     }
+    val premiumImageQaSession = remember { PremiumImageLabSession() }
 
     var recent by remember {
         mutableStateOf<
@@ -723,7 +725,8 @@ private fun BrotherMatrizesApp(
                 Screen.FontLibrary,
                 Screen.CreateName,
                 Screen.CreateMonogram,
-                Screen.CreateDrawing ->
+                Screen.CreateDrawing,
+                Screen.PremiumImageLab ->
                     Screen.Home
 
                 is Screen.ArchiveImport -> current.returnTo
@@ -737,7 +740,10 @@ private fun BrotherMatrizesApp(
                     Screen.Home
 
                 is Screen.Simulator ->
-                    Screen.Viewer(
+                    if (BuildConfig.DEBUG &&
+                        current.design === premiumImageQaSession.simulated)
+                        Screen.PremiumImageLab
+                    else Screen.Viewer(
                         design =
                             current.design,
                         displayMode =
@@ -1922,6 +1928,9 @@ private fun BrotherMatrizesApp(
                             clearRecentDesign()
                         },
                         onCommunity = { screen = Screen.Community },
+                        onImageQa = {
+                            if (BuildConfig.DEBUG) screen = Screen.PremiumImageLab
+                        },
                         onUnavailable = {
                                 message ->
                             scope.launch {
@@ -1932,6 +1941,22 @@ private fun BrotherMatrizesApp(
                             }
                         }
                     )
+                }
+
+                Screen.PremiumImageLab -> {
+                    if (BuildConfig.DEBUG) {
+                        PremiumImageLabScreen(
+                            session=premiumImageQaSession,
+                            onBack={ goBack() },
+                            onSimulate={ design,hoop ->
+                                screen=Screen.Simulator(
+                                    design=design,referenceHoop=hoop
+                                )
+                            }
+                        )
+                    } else {
+                        LaunchedEffect(Unit) { screen = Screen.Home }
+                    }
                 }
 
                 Screen.Community -> {
