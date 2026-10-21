@@ -109,7 +109,7 @@ object PremiumImagePhysicalLab {
 
     fun pesForBench(design:EmbroideryDesign):Result<ConvertedMatrix> = runCatching {
         require(design.format=="PES" &&
-            design.fileName.startsWith("LABORATORIO_IMG_CONTORNO") &&
+            design.fileName.startsWith("laboratorio_img_contorno") &&
             design.stitchCount in 10..3500 &&
             design.threadColors.size==1 &&
             design.colorChanges==0 &&
