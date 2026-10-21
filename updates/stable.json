@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.0",
-  "versionCode": 187,
+  "versionName": "1.11.1",
+  "versionCode": 188,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.0/Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "4dbe03d209d6c41e61867a89b1b777ded5879596d7b56f00250e6be98ceef940",
-  "releaseNotes": "Novo visual Premium em azul-noite e dourado, com monograma BM.; Destaque da imagem de bordado e ferramentas com cartoes maiores.; Acesso direto ao grupo oficial de feedbacks no WhatsApp.; Biblioteca, Criar nome, Simulador, Editor, Converter e Enviar preservados.; Login Google, checkout comercial e licencas preservados.; Atualizacao segura no app com verificacao de certificado e SHA-256.",
-  "publishedAt": "2026-10-21T04:46:27Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.0/Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.1/Brother-Matrizes-1.11.1-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "2afae99cd28833e7bde4bee57656a2b612763e46f7bf14246a0e91a84e0b8cf2",
+  "releaseNotes": "Barra inferior com azul-marinho consistente com a nova Home.; Ícones inativos mais legíveis e destaque dourado preservado.; Acesso ao grupo oficial do WhatsApp mantido.; Atualização corretiva sobre 1.11.0 sem desinstalar.; Login Google, biblioteca, matrizes, checkout e licenças preservados.",
+  "publishedAt": "2026-10-21T05:48:48Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.1/Brother-Matrizes-1.11.1-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
