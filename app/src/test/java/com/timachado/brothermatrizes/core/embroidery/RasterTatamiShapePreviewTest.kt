@@ -167,4 +167,23 @@ class RasterTatamiShapePreviewTest {
     }
 
 
+    @Test fun newInkOutsideTheSelectedTatamiRegionRequiresFreshReview() {
+        val original=picture { x,y ->
+            if (x in 40..129 && y in 30..97 &&
+                !(x in 70..99 && y in 52..75)) navy else white
+        }
+        val oldPart=part(original)
+        assertTrue(RasterSourceInkProvenanceAudit.inspect(
+            original,oldPart
+        ).isSuccess)
+        val changed=original.copy(argb=original.argb.copyOf().apply {
+            this[49*original.width+130]=navy
+        })
+        assertTrue(RasterTatamiShapePreview.create(
+            changed,oldPart,90f,HoopProfile.H130X180
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
+
+
 }
