@@ -112,4 +112,42 @@ class RasterQaRunningPathStudyTest {
         ).isFailure)
         assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
     }
+
+    @Test fun concaveCornerRemainsOnOriginalBoundaryWithoutDiagonalShortcut() {
+        val colors=IntArray(width*height)
+        for(y in 2..9) for(x in 2..4)
+            colors[y*width+x]=0xf0a63829.toInt()
+        for(y in 6..9) for(x in 2..9)
+            colors[y*width+x]=0xf0a63829.toInt()
+        val source=RasterImagePixels(width,height,colors,"formato L QA")
+        val original=source.argb.copyOf()
+        val geom=RasterQaContourGeometry.inspect(source,120f,208).getOrThrow()
+        assertEquals(1,geom.loops.size)
+        val plan=RasterQaRunningPathStudy.prepare(geom,5f).getOrThrow()
+        val points=plan.outlines.single().waypoints
+        assertTrue("A quina interna do L deve permanecer na rota",
+            points.contains(RasterQaWaypointMm(50f,60f)))
+        for((a,b) in points.zipWithNext()) {
+            assertTrue("Corte diagonal entre cantos do raster não permitido",
+                a.x==b.x || a.y==b.y)
+            assertTrue(hypot(
+                (a.x-b.x).toDouble(),(a.y-b.y).toDouble()
+            )<=5.001)
+        }
+        assertTrue(plan.summary().contains("cantos-originais-preservados=true"))
+        assertFalse(plan.exportPermitted)
+        assertTrue(source.argb.contentEquals(original))
+    }
+
+    @Test fun replacedOrReorderedGeometryMustMatchExactBitmap() {
+        val geom=RasterQaContourGeometry.inspect(ring(),120f,208).getOrThrow()
+        assertEquals(2,geom.loops.size)
+        assertTrue(RasterQaRunningPathStudy.prepare(
+            geom.copy(loops=geom.loops.reversed()),5f
+        ).isFailure)
+        assertTrue(RasterQaRunningPathStudy.prepare(
+            geom.copy(threshold=255),5f
+        ).isFailure)
+        assertFalse(RasterEmbroideryApproval.canExportFromImageTool())
+    }
 }
