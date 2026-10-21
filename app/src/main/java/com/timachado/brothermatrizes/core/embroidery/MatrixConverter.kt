@@ -54,6 +54,13 @@ object MatrixConverter {
                 "Formato de saída ainda não suportado."
             }
 
+            // QA_IMAGE_VISUAL is SIMULATOR ONLY. A caller must never turn
+            // this approximate raster scan into a machine PES/DST/JEF.
+            require(!design.format.startsWith("QA_",ignoreCase=true)) {
+                "Prévia visual de imagem não é matriz de máquina. " +
+                    "Exporte somente um contorno QA que passou por revisão."
+            }
+
             val normalized =
                 EmbroideryIntegrity
                     .normalize(
