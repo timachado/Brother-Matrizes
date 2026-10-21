@@ -67,6 +67,7 @@ import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudy
 import com.timachado.brothermatrizes.core.embroidery.RasterThreadTextureStudyReport
 import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionGate
 import com.timachado.brothermatrizes.core.embroidery.RasterTextureReconstructionReport
+import com.timachado.brothermatrizes.core.embroidery.RasterQaRunningStitchDraft
 import com.timachado.brothermatrizes.core.embroidery.RasterFlatColorStitchCandidate
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlanner
 import com.timachado.brothermatrizes.core.embroidery.RasterAssistedElementPlan
@@ -344,6 +345,9 @@ fun SimpleImageToEmbroideryScreen(
     var showFlatStudy by remember(stageImage) { mutableStateOf(false) }
     var studyingTexture by remember(stageImage) { mutableStateOf(false) }
     var testingFlatStitches by remember(stageImage) { mutableStateOf(false) }
+    var testingRunningOutline by remember(stageImage, widthMm, hoop) {
+        mutableStateOf(false)
+    }
     var elementPlan by remember(stageImage) {
         mutableStateOf<RasterAssistedElementPlan?>(null)
     }
@@ -1569,6 +1573,76 @@ fun SimpleImageToEmbroideryScreen(
                             "Auditando trajetórias de agulha..."
                         else "Testar pontos reais QA (somente formas simples)",
                         color = FioGold
+                    )
+                }
+                // Operator-facing QA proof of the independent raster
+                // boundary-to-running-needle pipeline. Not a generic fill,
+                // and never an exportable image matrix.
+                if (BuildConfig.DEBUG) {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = prepared?.image != null && fitted &&
+                            !preparing && !simulating && !testingFlatStitches &&
+                            !testingRunningOutline && !studyingTexture &&
+                            regionalSampling?.needsDetailReview == false,
+                        onClick = {
+                            val source = prepared?.image ?: return@OutlinedButton
+                            val snapshotRevision = revision
+                            val snapshotWidth = widthMm
+                            val snapshotHoop = hoop
+                            val snapshotMode = displayMode
+                            val snapshotConnections = showConnections
+                            testingRunningOutline = true
+                            message = ""
+                            scope.launch {
+                                val draft = withContext(Dispatchers.Default) {
+                                    RasterQaRunningStitchDraft.create(
+                                        source, snapshotWidth, snapshotHoop
+                                    )
+                                }
+                                if (snapshotRevision == revision &&
+                                    prepared?.image === source &&
+                                    widthMm == snapshotWidth &&
+                                    hoop == snapshotHoop) {
+                                    testingRunningOutline = false
+                                    draft.fold(
+                                        onSuccess = {
+                                            qaTechnicalReport =
+                                                "QA: contornos em STITCH/JUMP/TRIM; " +
+                                                it.outlineCount + " contorno(s), " +
+                                                it.counterCount + " vazado(s), " +
+                                                it.thinContoursRequiringReview +
+                                                " detalhe(s) finos; " +
+                                                "bordado físico e PES NÃO aprovados."
+                                            qaReportRevision = revision
+                                            onSimulate(
+                                                it.design, snapshotHoop,
+                                                snapshotMode, snapshotConnections
+                                            )
+                                        },
+                                        onFailure = {
+                                            message =
+                                                "Contorno corrido QA recusado: " +
+                                                (it.message ?:
+                                                    "Revisão manual necessária.")
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            if (testingRunningOutline)
+                                "Auditando contornos reais..."
+                            else "Simular contornos em ponto corrido (QA)",
+                            color = FioGold
+                        )
+                    }
+                    Text(
+                        "Experimento somente do contorno: preserva vazados, " +
+                            "salta entre regiões e recusa trajetos inseguros. " +
+                            "Não preenche a imagem nem gera PES.",
+                        color = FioTextMuted, fontSize = 11.sp
                     )
                 }
                 Text(
