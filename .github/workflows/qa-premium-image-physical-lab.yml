@@ -44,7 +44,7 @@ jobs:
           grep -F 'data object PremiumImageLab' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
           grep -F 'onSimulate(preview,hoop)' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
           grep -F 'Simular bordado' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
-          grep -F 'format = "QA_IMAGE_VISUAL"' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImageVisualStitchPreview.kt
+          grep -Eq 'format *= *"QA_IMAGE_VISUAL"' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImageVisualStitchPreview.kt
           grep -F 'private data class Edge' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
           test -s branding/brother_bm_premium_approved.webp.base64
           test -s branding/brother_bm_launcher_safe.webp.base64
