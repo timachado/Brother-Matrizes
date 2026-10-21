@@ -26,7 +26,10 @@ class PremiumImagePhysicalLabTest {
         assertEquals(StitchCommand.END,design.points.last().command)
         assertTrue(HoopValidator.validate(design,HoopProfile.H100X100).fits)
         assertTrue(design.sourceBytes.isEmpty())
-        val pes=PremiumImagePhysicalLab.pesForBench(design).getOrThrow()
+        val encoded=PremiumImagePhysicalLab.pesForBench(design)
+        assertTrue("PES readback: " +
+            encoded.exceptionOrNull()?.stackTraceToString(),encoded.isSuccess)
+        val pes=encoded.getOrThrow()
         assertTrue(pes.fileName.endsWith(".pes"))
         assertTrue(pes.bytes.size>=512)
         assertTrue(pes.bytes.copyOfRange(0,4).toString(Charsets.US_ASCII)=="#PES")
