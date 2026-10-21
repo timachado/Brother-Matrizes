@@ -1,0 +1,53 @@
+name: Brother Premium 1.11.x Image Physical QA APK
+
+on:
+  push:
+    branches: ["qa/brother-premium-image-simulation-20261021"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Guard official premium identity and standalone experimental package
+        shell: bash
+        run: |
+          grep -F 'versionName = "1.11.1"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".premiumimageqa"' app/build.gradle.kts
+          grep -F 'versionNameSuffix = "-PremiumImageQA"' app/build.gradle.kts
+          grep -F 'data object PremiumImageLab' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
+          grep -F 'onSimulate(prepared,session.hoop)' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
+          grep -F 'private data class Edge' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
+          test -s branding/brother_bm_premium_approved.webp.base64
+          test -s branding/brother_bm_launcher_safe.webp.base64
+          test -s app/src/release/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
+      - name: Test the Premium app and physical image QA draft
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Compile installable separate Premium QA APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Publish Premium QA APK with simulator and image flow
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.11.x-Premium-Imagem-Simulador-QA
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
