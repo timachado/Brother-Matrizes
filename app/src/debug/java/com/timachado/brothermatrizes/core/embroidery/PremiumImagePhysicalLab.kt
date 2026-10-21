@@ -31,15 +31,25 @@ object PremiumImagePhysicalLab {
         fun point(v:Int) = VectorPoint(
             (v % (width+1)).toFloat(), (v / (width+1)).toFloat()
         )
-        val outgoing = HashMap<Int,Int>()
-        val inbound = HashMap<Int,Int>()
-        var edges=0
+        // A binary raster often has diagonal-only pixel contact (especially
+        // antialiased text). It creates two incoming and two outgoing edges
+        // at the same geometric vertex. That is NOT an open outline.
+        // Pair each incoming edge with its RIGHTMOST outgoing turn: for a
+        // clockwise pixel boundary this keeps 4-connected ink islands
+        // separate instead of stitching diagonally across transparency.
+        // Preserve all source boundaries; no dilation, deletion or invented
+        // connecting bridge is permitted.
+        val boundaryEdges = ArrayList<Edge>()
+        val outgoing = HashMap<Int,MutableList<Int>>()
+        val incoming = HashMap<Int,Int>()
         fun edge(a:Int,b:Int) {
-            require(outgoing.putIfAbsent(a,b)==null && inbound.putIfAbsent(b,a)==null) {
-                "Contorno com toque diagonal ou ramificação ambígua; separe os detalhes."
+            require(a!=b && boundaryEdges.size < 25_000) {
+                "Contorno excessivamente complexo para este laboratório."
             }
-            edges++
-            require(edges<=14_000) { "Contorno excessivamente complexo." }
+            val id=boundaryEdges.size
+            boundaryEdges+=Edge(a,b)
+            outgoing.getOrPut(a){ArrayList(2)}.add(id)
+            incoming[b]=(incoming[b]?:0)+1
         }
         for (y in 0 until height) for (x in 0 until width) {
             if (!filled(x,y)) continue
@@ -48,27 +58,69 @@ object PremiumImagePhysicalLab {
             if (!filled(x,y+1)) edge(key(x+1,y+1),key(x,y+1))
             if (!filled(x-1,y)) edge(key(x,y+1),key(x,y))
         }
-        require(edges in 12..14_000 && outgoing.size == inbound.size &&
-            outgoing.keys == inbound.keys
-        ) { "Borda alfa aberta, conectividade ambígua ou imagem sem contorno." }
-        val pending = outgoing.keys.toMutableSet()
-        val loops = ArrayList<VectorPath>()
-        while (pending.isNotEmpty()) {
-            val start=pending.first()
+        val edgeCount=boundaryEdges.size
+        require(edgeCount in 12..25_000 &&
+            outgoing.keys == incoming.keys &&
+            outgoing.all { (node, exits) ->
+                exits.size in 1..2 && incoming[node]==exits.size
+            }
+        ) { "Borda alfa aberta ou topologia inválida." }
+
+        // Build a permutation over directed boundary edges. Rightmost exit
+        // is deterministic at a shared corner; its mate takes the other
+        // exit. Thus each edge participates in exactly one closed contour.
+        fun turnScore(from:Edge,to:Edge):Int {
+            val ax=from.to%(width+1)-from.from%(width+1)
+            val ay=from.to/(width+1)-from.from/(width+1)
+            val bx=to.to%(width+1)-to.from%(width+1)
+            val by=to.to/(width+1)-to.from/(width+1)
+            val cross=ax*by-ay*bx
+            val dot=ax*bx+ay*by
+            return when {
+                cross>0 -> 3    // right turn around the source ink
+                dot>0 -> 2      // straight
+                cross<0 -> 1    // left turn
+                else -> 0       // reversals are not allowed
+            }
+        }
+        val nextEdge=IntArray(edgeCount)
+        boundaryEdges.forEachIndexed { id, segment ->
+            val exits=outgoing[segment.to]
+                ?: error("Contorno sem segmento de saída.")
+            val chosen=exits.maxByOrNull { turnScore(segment,boundaryEdges[it]) }
+                ?: error("Contorno sem continuação.")
+            require(turnScore(segment,boundaryEdges[chosen])>0) {
+                "Borda tenta voltar sobre o próprio pixel."
+            }
+            nextEdge[id]=chosen
+        }
+        // Two incoming branches may never use the same outgoing edge.
+        val arrivalCount=IntArray(edgeCount)
+        for (following in nextEdge) arrivalCount[following]++
+        require(arrivalCount.all { it==1 }) {
+            "Contorno duplicado no ponto de contato diagonal."
+        }
+
+        val visited=BooleanArray(edgeCount)
+        val loops=ArrayList<VectorPath>()
+        for (initial in boundaryEdges.indices) {
+            if (visited[initial]) continue
             val vertices=ArrayList<Int>()
-            var current=start
+            var current=initial
             do {
-                require(pending.remove(current)) {
-                    "Contorno cruzado: existe ponto repetido antes de fechar."
+                require(!visited[current]) {
+                    "A sequência de contorno retornou a um trecho já visitado."
                 }
-                vertices += current
-                current = outgoing[current]
-                    ?: error("Borda sem continuação.")
-                require(vertices.size<=edges) { "Contorno sem fechamento." }
-            } while (current != start)
-            require(vertices.size>=4) { "Ilha menor que o permitido." }
-            // Keep every true bend, so a diagonal shortcut can never cross
-            // an original transparent counter after raster->vector conversion.
+                visited[current]=true
+                vertices+=boundaryEdges[current].from
+                current=nextEdge[current]
+                require(vertices.size<=edgeCount) {
+                    "Contorno com fechamento inválido."
+                }
+            } while(current!=initial)
+            require(vertices.size>=4) {
+                "Contorno menor que quatro segmentos."
+            }
             val turns=ArrayList<VectorPoint>()
             for (i in vertices.indices) {
                 val prev=point(vertices[(i+vertices.size-1)%vertices.size])
@@ -78,11 +130,18 @@ object PremiumImagePhysicalLab {
                 val ay=here.y-prev.y
                 val bx=next.x-here.x
                 val by=next.y-here.y
-                if (ax*by!=ay*bx) turns+=here
+                if(ax*by!=ay*bx) turns+=here
             }
-            require(turns.size in 4..3000) { "Contorno com cantos excessivos." }
+            require(turns.size in 4..3000) {
+                "Contorno excede o limite de detalhes para simulação."
+            }
             loops+=VectorPath(turns,closed=true)
-            require(loops.size<=8) { "Mais de oito contornos: divida a imagem." }
+            require(loops.size<=256) {
+                "Mais de 256 contornos. Separe a imagem em elementos."
+            }
+        }
+        require(visited.all { it }) {
+            "Existem partes do contorno que não foram analisadas."
         }
         val draft=VectorMatrixGenerator.generate(
             VectorArtwork(loops,label="LABORATORIO_IMG_CONTORNO"),
@@ -96,7 +155,10 @@ object PremiumImagePhysicalLab {
                 enforceHoop=true
             )
         ).getOrThrow()
-        require(draft.stitchCount in 10..3500 &&
+        // Complex artwork can be SIMULATED to reveal omissions before a
+        // file is considered for physical testing. PES remains separately
+        // limited to <=3500 stitches by pesForBench.
+        require(draft.stitchCount in 10..15_000 &&
             draft.colorChanges==0 &&
             draft.threadColors.size==1 &&
             draft.points.lastOrNull()?.command==StitchCommand.END &&
