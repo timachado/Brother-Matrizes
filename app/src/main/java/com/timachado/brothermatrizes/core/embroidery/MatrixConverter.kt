@@ -59,7 +59,8 @@ object MatrixConverter {
             // command stream into transferable PES/JEF/DST bytes.
             // This guard leaves existing, released imported/generated formats
             // unchanged.
-            require(!design.format.uppercase(Locale.ROOT).startsWith("QA_")) {
+            require(!design.isExperimentalImageQa &&
+                !design.format.uppercase(Locale.ROOT).startsWith("QA_")) {
                 "Prévia de Imagem para Bordado não pode ser exportada. " +
                     "É necessária homologação antes do formato de máquina."
             }
