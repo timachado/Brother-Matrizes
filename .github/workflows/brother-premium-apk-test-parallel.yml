@@ -77,10 +77,11 @@ jobs:
           # falhar mesmo quando o pacote foi gerado corretamente.
           full_badging="$("$aapt" dump badging "$apk")"
           echo "Verificando identidade, versão e rótulo Android QA2"
-          [[ "$full_badging" == *"package: name='com.timachado.brothermatrizes.qa2'"* ]]
-          [[ "$full_badging" == *"versionCode='187'"* ]]
-          [[ "$full_badging" == *"versionName='1.11.0-QA2'"* ]]
-          [[ "$full_badging" == *"Brother Matrizes QA 2"* ]]
+          printf '%s\\n' "$full_badging" | sed -n '1,4p'
+          [[ "$full_badging" == *"package: name='com.timachado.brothermatrizes.qa2'"* ]] || { echo "::error::applicationId QA2 divergente"; exit 1; }
+          [[ "$full_badging" == *"versionCode='187'"* ]] || { echo "::error::versionCode QA2 divergente"; exit 1; }
+          [[ "$full_badging" == *"versionName='1.11.0-QA2'"* ]] || { echo "::error::versionName QA2 divergente"; exit 1; }
+          [[ "$full_badging" == *"Brother Matrizes QA 2"* ]] || { echo "::error::rotulo QA2 divergente"; exit 1; }
           # Checkout comercial não deve ser ativado nesta distribuição QA visual.
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = false' app/build/generated/source/buildConfig/debug
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > apk-verification.txt
