@@ -20,6 +20,7 @@ internal data class RasterQaRunningStitchDraftReport(
     val counterCount: Int,
     val thinContoursRequiringReview: Int,
     val needleRisk: RasterNeedleRiskReport,
+    val threadDensity: RasterThreadDensityReport,
     val needsOperatorReview: Boolean = true,
     val needsMachineStitchOut: Boolean = true,
     val exportPermitted: Boolean = false
@@ -113,6 +114,12 @@ internal object RasterQaRunningStitchDraft {
         )
         EmbroideryStressPolicy.requireGeneratedSafe(candidate)
         val risk = RasterNeedleRiskAudit.inspect(candidate, hoop).getOrThrow()
+        // A safe needle pitch does not imply safe accumulated thread density.
+        // Audit the ENTIRE sewn outline after converting mm to 0.1-mm units.
+        val density = RasterThreadDensityPreflight.inspect(candidate).getOrThrow()
+        require(density.sewnSegments == risk.stitchesExamined) {
+            "Auditorias de pontos e densidade discordam."
+        }
         require(!RasterEmbroideryApproval.canExportFromImageTool()) {
             "Bloqueio de exportação foi alterado durante a análise."
         }
@@ -123,7 +130,8 @@ internal object RasterQaRunningStitchDraft {
             counterCount = outlineReport.outlines.count { it.isCounter },
             thinContoursRequiringReview =
                 outlineReport.outlines.count { it.thinFeatureWarning },
-            needleRisk = risk
+            needleRisk = risk,
+            threadDensity = density
         )
     }
 }
