@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.10.10",
-  "versionCode": 186,
+  "versionName": "1.11.0",
+  "versionCode": 187,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.10/Brother-Matrizes-1.10.10-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "13aad7267b6b3b616a8cf5e224e37245ec612f3922cbc1ff8c24ba349eb6c73f",
-  "releaseNotes": "Login Google integrado a conta comercial sem segundo cadastro.; Planos Mensal, Anual, Vitalicio e Vitalicio de Lancamento abrem checkout WooCommerce.; Troca de planos Brother no carrinho; confirmacao para outros produtos.; Pagamentos e licencas preservam validacao WooCommerce/Efi.; APK assinado com certificado comercial original; motor de bordado preservado.",
-  "publishedAt": "2026-10-17T06:28:27Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.10.10/Brother-Matrizes-1.10.10-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.0/Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "4dbe03d209d6c41e61867a89b1b777ded5879596d7b56f00250e6be98ceef940",
+  "releaseNotes": "Novo visual Premium em azul-noite e dourado, com monograma BM.; Destaque da imagem de bordado e ferramentas com cartoes maiores.; Acesso direto ao grupo oficial de feedbacks no WhatsApp.; Biblioteca, Criar nome, Simulador, Editor, Converter e Enviar preservados.; Login Google, checkout comercial e licencas preservados.; Atualizacao segura no app com verificacao de certificado e SHA-256.",
+  "publishedAt": "2026-10-21T04:46:27Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.0/Brother-Matrizes-1.11.0-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
