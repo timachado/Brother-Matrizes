@@ -1,10 +1,10 @@
-name: Brother Matrizes QA CI + Contornos Vetoriais
+name: Brother Matrizes QA CI + Candidatos de Ponto Corrido
 
 on:
   push:
-    branches: ["qa/brother-raster-contour-vectors-20261020"]
+    branches: ["qa/brother-running-stitch-candidates-20261020"]
   pull_request:
-    branches: ["qa/brother-satin-sequence-diagnostics-20261020"]
+    branches: ["qa/brother-raster-contour-vectors-20261020"]
   workflow_dispatch:
 
 permissions:
