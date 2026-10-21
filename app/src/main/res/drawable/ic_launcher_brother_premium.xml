@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground com margem incorporada no WebP original, pois apenas inset XML
+     pode ser ampliado pelo launcher adaptativo e cortar o monograma. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/brother_bm_launcher_safe"
+    android:gravity="fill" />

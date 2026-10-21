@@ -47,9 +47,15 @@ jobs:
           grep -F 'namespace = "com.timachado.brothermatrizes"' app/build.gradle.kts
           grep -F 'android:scheme="com.timachado.brothermatrizes"' app/src/main/AndroidManifest.xml
 
-      - name: Prepare Brother brand assets
+      - name: Conferir fontes premium sem recriar logo legada
         shell: bash
-        run: bash scripts/prepare_brand_assets.sh
+        run: |
+          set -euo pipefail
+          test -s branding/brother_bm_premium_approved.webp.base64
+          test -s branding/brother_bm_launcher_safe.webp.base64
+          test -s branding/brother_home_hero.base64
+          # A tarefa prepareBrotherBrandAssets do Gradle materializa estes
+          # recursos durante o build e remove imagens de identidade antiga.
 
       - name: Repository safety checks
         run: bash scripts/pre_release_static_check.sh
@@ -83,8 +89,20 @@ jobs:
           chmod 600 "$KEYSTORE"
           test -s "$KEYSTORE"
 
-      - name: Build unsigned release
-        run: gradle :app:assembleRelease --stacktrace
+      - name: Build unsigned release comercial com checkout preservado
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          cfg=app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' "$cfg"
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' "$cfg"
+          code="$(awk '$1 == "versionCode" { print $3; exit }' app/build.gradle.kts)"
+          published="$(python3 -c 'import json; print(json.load(open("updates/stable.json"))["versionCode"])')"
+          test -n "$code" && test "$code" -gt "$published" || {
+            echo "::error::Nao assinar pacote com versionCode inferior ou igual ao publicado."
+            exit 1
+          }
 
       - name: Align and sign Brother production APK
         shell: bash

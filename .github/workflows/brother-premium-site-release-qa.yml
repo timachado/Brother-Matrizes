@@ -1,0 +1,77 @@
+name: Brother Matrizes Premium — APK para site (QA sem publicação)
+
+# O primeiro canal será timachado.ifree.page e depois o grupo de bordados.
+# NUNCA assinar, divulgar nem publicar por este workflow.
+on:
+  push:
+    branches:
+      - feature/brother-premium-visual-20261020
+    paths:
+      - 'app/**'
+      - 'branding/**'
+      - 'scripts/**'
+      - '.github/workflows/brother-premium-site-release-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  commercial-release-readiness:
+    name: Validar variante release e checkout sem assinatura
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar SDK Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Checagem estática e identidade do aplicativo
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/pre_release_static_check.sh
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Fq 'namespace = "com.timachado.brothermatrizes"' app/build.gradle.kts
+      - name: Compilar release com checkout comercial habilitado
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Inspecionar release sem expor chaves ou publicar
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release-unsigned.apk
+          generated=app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' "$generated"
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' "$generated"
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' "$generated"
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          badging="$("$aapt" dump badging "$apk" | head -n 1)"
+          echo "$badging" | grep -Fq "package: name='com.timachado.brothermatrizes'"
+          echo "$badging" | grep -Eq "versionCode='[0-9]+'"
+          echo "QA da variante release concluído. Não é um APK assinado nem publicável."
+          echo "$badging" | sed -E "s/(versionCode='[0-9]+' versionName='[^']+').*/\1/"
+          sha256sum "$apk" | cut -d ' ' -f 1 | sed 's/^/SHA256 da build NAO ASSINADA (QA): /'
+      - name: Resumo dos bloqueios comerciais
+        shell: bash
+        run: |
+          {
+            echo "## Preparação da versão APK para site — somente QA"
+            echo "- Build release compilado com checkout ativo."
+            echo "- Ainda não há assinatura comercial, teste de atualização sobre 1.10.10 ou publicação."
+            echo "- A versão precisa ser incrementada acima do código público 186 antes do APK definitivo."
+            echo "- Este workflow não publica no site, WhatsApp, GitHub Releases nem Google Play."
+          } >> "$GITHUB_STEP_SUMMARY"

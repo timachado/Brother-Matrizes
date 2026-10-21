@@ -2,7 +2,6 @@ package com.timachado.brothermatrizes.core.updates
 
 import android.Manifest
 import android.app.NotificationChannel
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -85,7 +84,7 @@ class BrotherUpdateNotificationWorker(
         )
         val notice = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_brother)
-            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.brother_matrizes_brand_logo))
+            .setLargeIcon(BrotherNotificationBrand.largeIcon(context))
             .setColor(Color.rgb(234, 192, 110))
             .setContentTitle("Brother Matrizes: uma nova versão chegou!")
             .setContentText(

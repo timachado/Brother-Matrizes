@@ -16,6 +16,8 @@ import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +42,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,8 +63,12 @@ import java.net.URL
 
 private const val COMMUNITY_API_PATH = "/wp-json/tim-brother-sync/v1/community"
 private const val COMMUNITY_FALLBACK_PAGE = "/aplicativos/brother-matrizes/"
+// Convite oficial fornecido pelo proprietário da T.I. Machado em 21/10/2026.
+// A fonte remota validada poderá substituí-lo futuramente.
+internal const val BROTHER_OFFICIAL_GROUP_URL =
+    "https://chat.whatsapp.com/BXbLoaQXC9dFIJdEzwmwB2"
 
-private fun isOfficialGroup(value: String): Boolean {
+internal fun isOfficialGroup(value: String): Boolean {
     val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
     return uri.scheme == "https" &&
         uri.host == "chat.whatsapp.com" &&
@@ -113,12 +122,12 @@ private suspend fun getOfficialGroup(): String? = withContext(Dispatchers.IO) {
         }.getOrNull()
         if (value != null) return@withContext value
     }
-    null
+    BROTHER_OFFICIAL_GROUP_URL.takeIf(::isOfficialGroup)
 }
 @Composable
 fun BrotherCommunityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var groupUrl by remember { mutableStateOf<String?>(null) }
+    var groupUrl by remember { mutableStateOf<String?>(BROTHER_OFFICIAL_GROUP_URL) }
     var updateEnabled by remember { mutableStateOf(BrotherFirebasePush.isEnabled(context)) }
     var communityEnabled by remember { mutableStateOf(BrotherFirebasePush.isCommunityEnabled(context)) }
     var permissionDenied by remember { mutableStateOf(false) }
@@ -329,17 +338,38 @@ fun BrotherCommunityScreen(onBack: () -> Unit) {
                     fontWeight = FontWeight.Bold)
                 Text("Converse com outros usuários, relate erros e envie sugestões para as próximas versões.",
                     color = FioTextMuted)
-                Text("Atenção: membros do grupo podem visualizar seu número de telefone. Não envie dados pessoais, senhas ou arquivos sigilosos.", color = FioTextMuted)
-                if (groupUrl != null) {
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = FioGold, contentColor = FioBackground),
-                        onClick = { groupUrl?.let(::openHttps) }
-                    ) { Text("Entrar no grupo") }
-                } else {
-                    Text("O grupo poderá ser acessado aqui assim que o convite estiver disponível. Consulte a central no site.",
-                        color = FioTextMuted)
+                Text(
+                    "O grupo oficial está disponível. Participe, compartilhe suas ideias e ajude a evoluir o Brother Matrizes.",
+                    color = FioTextMuted
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FioGold,
+                        contentColor = FioBackground
+                    ),
+                    onClick = {
+                        val trustedGroup = groupUrl?.takeIf(::isOfficialGroup)
+                            ?: BROTHER_OFFICIAL_GROUP_URL
+                        openHttps(trustedGroup)
+                    }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_whatsapp_group_bm),
+                            contentDescription = null,
+                            modifier = Modifier.size(23.dp)
+                        )
+                        Text("Entrar no grupo do WhatsApp", fontWeight = FontWeight.Bold)
+                    }
                 }
+                Text(
+                    "Ao participar, outros membros poderão visualizar seu número de telefone. Nunca compartilhe senhas ou arquivos sigilosos.",
+                    color = FioTextMuted
+                )
             }
         }
         Card(

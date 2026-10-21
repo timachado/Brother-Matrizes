@@ -138,13 +138,17 @@ internal object BrotherNewsSource {
         "https://raw.githubusercontent.com/timachado/Brother-Matrizes/main/updates/stable.json"
 
     /** Notas de homologação para a versão ainda não publicada no manifesto. */
-    fun localFallback(): String = if (BuildConfig.VERSION_CODE == 184) {
-        "Limites do plano Gratuito detalhados em Planos e benefícios; " +
+    fun localFallback(): String = when (BuildConfig.VERSION_CODE) {
+        187 -> "Novo visual Premium em azul-noite e dourado; " +
+            "Nova identidade BM no ícone e cabeçalho; " +
+            "Acesso mais rápido a Criar nome, Biblioteca, Simulador, Editor, Converter e Enviar; " +
+            "Bordado em destaque na tela inicial; " +
+            "Compatibilidade com projetos, login, licenças e arquivos preservada"
+        184 -> "Limites do plano Gratuito detalhados em Planos e benefícios; " +
             "Novidades da versão exibidas após atualizar, uma vez por versão; " +
             "Histórico de novidades acessível em Minha Conta; " +
             "Melhorias de apresentação, sem alterações nas licenças e pagamentos"
-    } else {
-        "Consulte as melhorias e correções incluídas nesta versão no canal oficial do Brother Matrizes."
+        else -> "Consulte as melhorias e correções incluídas nesta versão no canal oficial do Brother Matrizes."
     }
 
     suspend fun loadCurrentOrFallback(): String = withContext(Dispatchers.IO) {

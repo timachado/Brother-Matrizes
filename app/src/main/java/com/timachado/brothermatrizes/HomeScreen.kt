@@ -1,5 +1,17 @@
 package com.timachado.brothermatrizes
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -64,56 +76,56 @@ fun HomeScreen(
     updateRefreshRequest: Int = 0
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 150.dp),
+        columns = GridCells.Fixed(2),
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
+                .testTag("brother_home_scroll")
+                .padding(horizontal = 12.dp),
         contentPadding =
             PaddingValues(
-                top = 10.dp,
-                bottom = 28.dp
+                top = 4.dp,
+                // Reserva zona de rolagem além da barra inferior do aplicativo:
+                // os cartões maiores não devem esconder Recente nem sua CTA.
+                bottom = 160.dp
             ),
         horizontalArrangement =
-            Arrangement.spacedBy(12.dp),
+            Arrangement.spacedBy(8.dp),
         verticalArrangement =
-            Arrangement.spacedBy(12.dp)
+            Arrangement.spacedBy(6.dp)
     ) {
-        item(
-            span = {
-                GridItemSpan(maxLineSpan)
-            }
-        ) {
-            Column(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalAlignment =
-                    Alignment.CenterHorizontally
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Image(
-                    painter =
-                        painterResource(
-                            R.drawable.brother_matrizes_brand_logo
-                        ),
-                    contentDescription =
-                        "Brother Matrizes",
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(112.dp),
-                    contentScale =
-                        ContentScale.Fit
+                    painter = painterResource(R.drawable.brother_bm_premium_approved),
+                    contentDescription = "Símbolo BM, Brother Matrizes",
+                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
                 )
-
-                Text(
-                    "Do nome à máquina, direto pelo celular.",
-                    color = FioTextMuted,
-                    style =
-                        MaterialTheme.typography
-                            .bodyMedium,
-                    textAlign =
-                        TextAlign.Center
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Brother", style = MaterialTheme.typography.titleLarge, color = FioGold)
+                    Text("Matrizes", style = MaterialTheme.typography.titleMedium, color = FioGoldSoft)
+                    Text(
+                        "Matrizes que transformam ideias em grandes projetos.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = FioTextMuted,
+                        maxLines = 2
+                    )
+                }
+                ElevatedCard(onClick = onCommunity,
+                    shape = CircleShape,
+                    colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceHigh)) {
+                    Icon(
+                        painterResource(R.drawable.ic_premium_bell),
+                        contentDescription = "Novidades disponíveis na seção Início",
+                        tint = FioGoldSoft,
+                        modifier = Modifier.padding(12.dp).size(22.dp)
+                    )
+                }
             }
         }
 
@@ -124,62 +136,7 @@ fun HomeScreen(
         }
 
         item(span = { GridItemSpan(maxLineSpan) }) {
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onCommunity,
-                colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceHigh),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-                    Text("Comunidade e feedbacks", color = FioText,
-                        style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(5.dp))
-                    Text("Novidades, enquetes, sugestões e melhorias do Brother Matrizes.",
-                        color = FioTextMuted,
-                        style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-
-        item(
-            span = {
-                GridItemSpan(maxLineSpan)
-            }
-        ) {
-            Surface(
-                color = FioSurface,
-                shape =
-                    MaterialTheme.shapes
-                        .extraLarge,
-                tonalElevation = 2.dp
-            ) {
-                Column(
-                    Modifier.padding(
-                        horizontal = 20.dp,
-                        vertical = 18.dp
-                    )
-                ) {
-                    Text(
-                        "O que vamos bordar hoje?",
-                        color = FioText,
-                        style =
-                            MaterialTheme.typography
-                                .headlineSmall
-                    )
-
-                    Spacer(
-                        Modifier.height(6.dp)
-                    )
-
-                    Text(
-                        "Comece pelo nome ou escolha uma ferramenta.",
-                        color = FioTextMuted,
-                        style =
-                            MaterialTheme.typography
-                                .bodyMedium
-                    )
-                }
-            }
+            PremiumHeroCard()
         }
 
         item(
@@ -192,7 +149,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 132.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -232,7 +189,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -252,7 +209,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -272,7 +229,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -280,8 +237,7 @@ fun HomeScreen(
                 title = "Simulador",
                 subtitle =
                     "Veja a sequência real",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -301,7 +257,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -309,8 +265,7 @@ fun HomeScreen(
                 title = "Editor",
                 subtitle =
                     "Mover, girar e cores",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -330,7 +285,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -338,8 +293,7 @@ fun HomeScreen(
                 title = "Converter",
                 subtitle =
                     "DST, PES e JEF",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -359,7 +313,7 @@ fun HomeScreen(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(
-                            min = 136.dp
+                            min = 78.dp
                         ),
                 iconRes =
                     R.drawable
@@ -367,8 +321,7 @@ fun HomeScreen(
                 title = "Enviar",
                 subtitle =
                     "OTG ou Wi-Fi/app",
-                enabled =
-                    recent != null
+                enabled = true
             ) {
                 if (
                     recent != null
@@ -381,6 +334,8 @@ fun HomeScreen(
                 }
             }
         }
+
+
 
         item(
             span = {
@@ -439,81 +394,47 @@ fun HomeScreen(
                 GridItemSpan(maxLineSpan)
             }
         ) {
-            if (
-                recent ==
-                    null
-            ) {
+            if (recent == null) {
                 Surface(
-                    color = FioSurface,
-                    shape =
-                        MaterialTheme.shapes
-                            .large
+                    color = FioSurfaceAlt,
+                    shape = RoundedCornerShape(28.dp)
                 ) {
                     Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            "Nenhuma matriz nesta sessão.",
-                            color = FioTextMuted,
-                            style =
-                                MaterialTheme.typography
-                                    .bodyMedium,
-                            textAlign =
-                                TextAlign.Center
-                        )
-
-                        Spacer(
-                            Modifier.height(
-                                12.dp
-                            )
-                        )
-
-                        Button(
-                            onClick =
-                                onCreateName,
-                            colors =
-                                ButtonDefaults
-                                    .buttonColors(
-                                        containerColor =
-                                            FioGold,
-                                        contentColor =
-                                            FioBackground
-                                    ),
-                            shape =
-                                MaterialTheme.shapes
-                                    .large
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_text_fields_rounded
-                                    ),
-                                contentDescription =
-                                    null,
-                                modifier =
-                                    Modifier.size(
-                                        20.dp
-                                    )
+                                painter = painterResource(R.drawable.ic_ms_folder_open_rounded),
+                                contentDescription = null,
+                                tint = FioTextMuted,
+                                modifier = Modifier.size(32.dp)
                             )
-
-                            Spacer(
-                                Modifier.size(
-                                    8.dp
-                                )
-                            )
-
                             Text(
-                                "Criar primeiro nome",
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .labelLarge
+                                "Nenhuma matriz nesta sessão.",
+                                color = FioTextMuted,
+                                style = MaterialTheme.typography.bodyMedium
                             )
+                        }
+                        Button(
+                            onClick = onCreateName,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = FioGold,
+                                contentColor = FioBackground
+                            ),
+                            shape = RoundedCornerShape(50.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_ms_text_fields_rounded),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text("Criar primeiro nome", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -641,6 +562,24 @@ fun HomeScreen(
             }
         }
 
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            ElevatedCard(
+                onClick = onCommunity,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(containerColor = FioSurfaceAlt),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+                    Text("Comunidade e novidades  ›", color = FioGoldSoft,
+                         style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Feedbacks, sugestões e atualizações do Brother Matrizes.",
+                         color = FioTextMuted, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+
+
         item(
             span = {
                 GridItemSpan(maxLineSpan)
@@ -663,6 +602,63 @@ fun HomeScreen(
     }
 }
 
+
+/** Mesma imagem do mockup aprovado, integrada ao card — não é banner externo. */
+@Composable
+private fun PremiumHeroCard() {
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .height(146.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color(0xFF091C2D))
+    ) {
+        Image(
+            painter = painterResource(R.drawable.brother_home_hero),
+            contentDescription = "Agulha de máquina bordando detalhes dourados no tecido",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.align(Alignment.CenterEnd)
+                .fillMaxWidth(0.77f)
+                .fillMaxHeight()
+        )
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.horizontalGradient(
+                    0f to Color(0xFF071B2C),
+                    0.37f to Color(0xE0081B2C),
+                    0.65f to Color(0x55081B2C),
+                    0.82f to Color.Transparent,
+                    1f to Color.Transparent
+                )
+            )
+        )
+        Column(
+            modifier = Modifier.align(Alignment.CenterStart)
+                .fillMaxWidth(0.72f).padding(start = 18.dp, end = 4.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    append("O que vamos\n")
+                    withStyle(SpanStyle(color = FioGoldSoft)) {
+                        append("bordar hoje?")
+                    }
+                },
+                color = Color.White,
+                fontSize = 22.sp,
+                lineHeight = 25.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Comece pelo nome ou escolha uma ferramenta.",
+                color = Color(0xFFD7E1E9),
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
 @Composable
 private fun ExpressiveFeatureCard(
     modifier: Modifier,
@@ -673,261 +669,81 @@ private fun ExpressiveFeatureCard(
     primary: Boolean = false,
     onClick: () -> Unit
 ) {
-    val container =
-        when {
-            primary ->
-                FioGold
-
-            enabled ->
-                FioSurfaceHigh
-
-            else ->
-                FioSurface
-        }
-
-    val titleColor =
-        if (
-            primary
-        ) {
-            FioBackground
-        } else if (
-            enabled
-        ) {
-            FioText
-        } else {
-            FioTextMuted
-        }
-
-    val subtitleColor =
-        if (
-            primary
-        ) {
-            Color(
-                0xCC241704
-            )
-        } else {
-            FioTextMuted
-        }
-
+    val dark = FioBackground
+    val foreground = if (primary) Color(0xFF091724) else if (enabled) FioText else FioTextMuted
+    val surface = if (primary) FioGold else if (enabled) FioSurfaceHigh else FioSurface
     ElevatedCard(
-        modifier =
-            modifier,
-        onClick =
-            onClick,
-        enabled =
-            enabled,
-        colors =
-            CardDefaults
-                .elevatedCardColors(
-                    containerColor =
-                        container,
-                    disabledContainerColor =
-                        FioSurface,
-                    disabledContentColor =
-                        FioTextMuted
-                ),
-        elevation =
-            CardDefaults
-                .elevatedCardElevation(
-                    defaultElevation =
-                        if (
-                            primary
-                        ) {
-                            6.dp
-                        } else {
-                            2.dp
-                        },
-                    pressedElevation =
-                        1.dp
-                ),
-        shape =
-            if (
-                primary
-            ) {
-                MaterialTheme.shapes
-                    .extraLarge
-            } else {
-                MaterialTheme.shapes
-                    .large
-            }
+        modifier = modifier,
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(if (primary) 28.dp else 22.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = surface,
+            disabledContainerColor = FioSurface,
+            disabledContentColor = FioTextMuted
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (primary) 5.dp else 1.dp)
     ) {
-        if (
-            primary
-        ) {
+        if (primary) {
             Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                verticalAlignment =
-                    Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth()
+                    .background(Brush.horizontalGradient(
+                        listOf(Color(0xFFFFDD91), Color(0xFFE2B461), Color(0xFFD59A3E))
+                    ))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
-                    modifier =
-                        Modifier.size(
-                            58.dp
-                        ),
-                    shape =
-                        MaterialTheme.shapes
-                            .large,
-                    color =
-                        FioBackground.copy(
-                            alpha =
-                                .12f
-                        )
-                ) {
-                    Box(
-                        contentAlignment =
-                            Alignment.Center
-                    ) {
-                        Icon(
-                            painter =
-                                painterResource(
-                                    iconRes
-                                ),
-                            contentDescription =
-                                null,
-                            tint =
-                                FioBackground,
-                            modifier =
-                                Modifier.size(
-                                    30.dp
-                                )
-                        )
+                Surface(color = dark, shape = CircleShape, modifier = Modifier.size(50.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(painterResource(iconRes), null, tint = FioGold,
+                             modifier = Modifier.size(28.dp))
                     }
                 }
-
-                Column(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .padding(
-                                start =
-                                    16.dp
-                            )
-                ) {
-                    Text(
-                        title,
-                        color =
-                            titleColor,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleLarge
-                    )
-
-                    Spacer(
-                        Modifier.height(
-                            4.dp
-                        )
-                    )
-
-                    Text(
-                        subtitle,
-                        color =
-                            subtitleColor,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium
-                    )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                         color = Color(0xFF081724))
+                    Spacer(Modifier.height(2.dp))
+                    Text(subtitle, style = MaterialTheme.typography.bodyMedium,
+                         color = Color(0xFF3D301B), maxLines = 3)
                 }
+                Text("›", fontSize = 31.sp, fontWeight = FontWeight.Medium,
+                     color = Color(0xFF081724))
             }
         } else {
-            Column(
-                Modifier.padding(
-                    16.dp
-                )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
-                    modifier =
-                        Modifier.size(
-                            46.dp
-                        ),
-                    shape =
-                        CircleShape,
-                    color =
-                        if (
-                            enabled
-                        ) {
-                            FioGold.copy(
-                                alpha =
-                                    .16f
-                            )
-                        } else {
-                            FioSurfaceAlt
-                        }
+                    shape = CircleShape,
+                    color = if (enabled) FioGold.copy(alpha = 0.14f) else FioSurfaceAlt,
+                    modifier = Modifier.size(38.dp)
                 ) {
-                    Box(
-                        contentAlignment =
-                            Alignment.Center
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            painter =
-                                painterResource(
-                                    iconRes
-                                ),
-                            contentDescription =
-                                null,
-                            tint =
-                                if (
-                                    enabled
-                                ) {
-                                    FioGoldSoft
-                                } else {
-                                    FioTextMuted
-                                },
-                            modifier =
-                                Modifier.size(
-                                    24.dp
-                                )
+                            painter = painterResource(iconRes),
+                            contentDescription = null,
+                            tint = if (enabled) FioGoldSoft else FioTextMuted,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
-
-                Spacer(
-                    Modifier.height(
-                        16.dp
-                    )
-                )
-
-                Text(
-                    title,
-                    color =
-                        titleColor,
-                    style =
-                        MaterialTheme
-                            .typography
-                            .titleMedium
-                )
-
-                Spacer(
-                    Modifier.height(
-                        4.dp
-                    )
-                )
-
-                Text(
-                    subtitle,
-                    color =
-                        subtitleColor,
-                    style =
-                        MaterialTheme
-                            .typography
-                            .labelMedium
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, color = foreground,
+                         fontSize = 13.sp, lineHeight = 17.sp,
+                         fontWeight = FontWeight.SemiBold, maxLines = 2,
+                         overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, color = FioTextMuted,
+                         fontSize = 11.sp, lineHeight = 14.sp,
+                         maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Text("›", fontSize = 20.sp, color = if (enabled) FioGoldSoft else FioTextMuted)
             }
         }
     }
 }
 
-private fun formatMm(
-    value: Float
-): String =
-    String.format(
-        Locale.forLanguageTag(
-            "pt-BR"
-        ),
-        "%.1f",
-        value
-    )
+private fun formatMm(value: Float): String =
+    String.format(Locale.forLanguageTag("pt-BR"), "%.1f", value)
