@@ -36,6 +36,7 @@ import com.timachado.brothermatrizes.core.embroidery.ConvertedMatrix
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.PremiumImagePhysicalLab
+import com.timachado.brothermatrizes.core.embroidery.PremiumImageQaDiagnostics
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageVisualStitchPreview
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageSatinVisualPreview
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageDigitizedFillPreview
@@ -313,6 +314,28 @@ internal fun PremiumImageLabScreen(
             }
             val prepared=session.prepared
             if(prepared!=null && session.simulated===prepared) {
+                val diagnostic = remember(prepared,source,session.widthMm) {
+                    PremiumImageQaDiagnostics.inspect(
+                        prepared,source.width,source.height,
+                        source.argb,session.widthMm
+                    )
+                }
+                Text(
+                    "AUDITORIA DOS PONTOS: " +
+                        "${diagnostic.trims} cortes • " +
+                        "${diagnostic.jumpMoves} saltos • " +
+                        "${diagnostic.veryShortStitches} pontos curtos • " +
+                        "${diagnostic.transparentCrossings} trajetos em vazados",
+                    color=FioGold,
+                    modifier=Modifier.testTag("premium_qa_stitch_audit")
+                )
+                if(diagnostic.warnings.size>1) {
+                    Text(
+                        diagnostic.warnings.dropLast(1).take(3)
+                            .joinToString("  "),
+                        color=FioGold
+                    )
+                }
                 Text("${prepared.stitchCount} pontos de prévia • " +
                     "${prepared.jumpCount} saltos • " +
                     "${prepared.bounds.widthMm.roundToInt()} × " +
