@@ -86,6 +86,24 @@ class PremiumImageQaDiagnosticsTest {
         assertTrue(r.warnings.any { it.contains("SEM liberação") })
     }
 
+    @Test fun renamingQaFormatToPesCannotBypassPhysicalExportLock() {
+        val preview=design(listOf(
+            point(0,0,StitchCommand.JUMP),
+            point(10,0,StitchCommand.STITCH),
+            point(10,0,StitchCommand.END)
+        ))
+        assertTrue(MatrixConverter.convert(preview,"PES").isFailure)
+        assertTrue(MatrixConverter.convert(
+            preview.copy(format="PES"),"PES"
+        ).isFailure)
+        assertTrue(MatrixConverter.convert(
+            preview.copy(format="DST"),"DST"
+        ).isFailure)
+        assertTrue(MatrixConverter.convert(
+            preview.copy(format="JEF"),"JEF"
+        ).isFailure)
+    }
+
     @Test fun sourceFreePreviewDoesNotClaimOpaqueHoleAudit() {
         val preview=design(listOf(
             point(0,0,StitchCommand.JUMP),
