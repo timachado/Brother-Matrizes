@@ -87,7 +87,13 @@ internal object PremiumImageCrossStitchPreview {
                 val rightUnits=ux(right-margin)
                 val topUnits=uy(y+margin)
                 val bottomUnits=uy(bottom-margin)
-                if(stitches>0) {
+                // Within one cluster, jumping to the next X is not a
+                // reason to cut the thread on every single cell.
+                // Frequent unnecessary cuts made the earlier simulation
+                // unrealistic and hide discontinuities in the source.
+                if(stitches>0 &&
+                    kotlin.math.abs(lastX-leftUnits)+
+                        kotlin.math.abs(lastY-topUnits)>60) {
                     commands+=EmbroideryPoint(lastX,lastY,
                         StitchCommand.TRIM,index)
                 }
