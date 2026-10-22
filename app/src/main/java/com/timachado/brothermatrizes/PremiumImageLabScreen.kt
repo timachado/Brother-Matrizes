@@ -39,6 +39,7 @@ import com.timachado.brothermatrizes.core.embroidery.PremiumImagePhysicalLab
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageVisualStitchPreview
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageSatinVisualPreview
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageDigitizedFillPreview
+import com.timachado.brothermatrizes.core.embroidery.PremiumImageCrossStitchPreview
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -54,7 +55,7 @@ internal data class PremiumImageLabPhoto(
 )
 
 /** User-controlled QA modes: independently implemented; not Artspira code. */
-internal enum class PremiumImageMode { DIGITIZED_FILL, SATIN_STUDY }
+internal enum class PremiumImageMode { DIGITIZED_FILL, CROSS_STITCH, SATIN_STUDY }
 
 /** Survives navigation to SimulatorScreen without persisting experimental PES. */
 internal class PremiumImageLabSession {
@@ -151,8 +152,8 @@ internal fun PremiumImageLabScreen(
             color=FioTextMuted
         )
         Text(
-            "Escolha o modo: preenchimento digitalizado ou estudo Satin direcional. " +
-                "Ambos são prévias experimentais, não matrizes físicas homologadas.",
+            "Escolha o modo: Digitalizado, Ponto cruz ou Satin direcional. " +
+                "Todos são estudos de pontos em QA, ainda sem exportação física.",
             color=FioGold,style=MaterialTheme.typography.bodyMedium
         )
         Button(onClick = { open.launch(arrayOf("image/png","image/*")) },
@@ -186,16 +187,25 @@ internal fun PremiumImageLabScreen(
                 OutlinedButton(
                     enabled=!busy,
                     onClick={
-                        session.selectedMode=PremiumImageMode.SATIN_STUDY
+                        session.selectedMode=PremiumImageMode.CROSS_STITCH
                         session.invalidate()
                     }
                 ) {
-                    Text((if(session.selectedMode==PremiumImageMode.SATIN_STUDY)
-                        "✓ " else "")+"Satin visual",
-                        color=FioGold)
+                    Text((if(session.selectedMode==PremiumImageMode.CROSS_STITCH)
+                        "✓ " else "")+"Ponto cruz",color=FioGold)
                 }
             }
-            if(session.selectedMode==PremiumImageMode.DIGITIZED_FILL) {
+            OutlinedButton(
+                enabled=!busy,
+                onClick={
+                    session.selectedMode=PremiumImageMode.SATIN_STUDY
+                    session.invalidate()
+                }
+            ) {
+                Text((if(session.selectedMode==PremiumImageMode.SATIN_STUDY)
+                    "✓ " else "")+"Satin direcional",color=FioGold)
+            }
+            if(session.selectedMode!=PremiumImageMode.SATIN_STUDY) {
                 Text("Quantidade de cores: ${session.colorLimit}",color=FioText)
                 Slider(
                     value=session.colorLimit.toFloat(),
@@ -245,16 +255,22 @@ internal fun PremiumImageLabScreen(
                             // with exportable contours or horizontal scans.
                             // If a region cannot be visually filled, only
                             // then offer closed outline playback instead.
-                            val primary=if(mode==PremiumImageMode.DIGITIZED_FILL) {
-                                PremiumImageDigitizedFillPreview.create(
-                                    selected.width,selected.height,selected.argb,
-                                    width,hoop,numberOfColors
-                                )
-                            } else {
-                                PremiumImageSatinVisualPreview.create(
-                                    selected.width,selected.height,selected.argb,
-                                    width,hoop
-                                )
+                            val primary=when(mode) {
+                                PremiumImageMode.DIGITIZED_FILL ->
+                                    PremiumImageDigitizedFillPreview.create(
+                                        selected.width,selected.height,selected.argb,
+                                        width,hoop,numberOfColors
+                                    )
+                                PremiumImageMode.CROSS_STITCH ->
+                                    PremiumImageCrossStitchPreview.create(
+                                        selected.width,selected.height,selected.argb,
+                                        width,hoop,numberOfColors
+                                    )
+                                PremiumImageMode.SATIN_STUDY ->
+                                    PremiumImageSatinVisualPreview.create(
+                                        selected.width,selected.height,selected.argb,
+                                        width,hoop
+                                    )
                             }
                             if(primary.isSuccess) primary else
                                 PremiumImageVisualStitchPreview.create(
