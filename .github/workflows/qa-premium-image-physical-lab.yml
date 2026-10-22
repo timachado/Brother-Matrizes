@@ -1,0 +1,110 @@
+name: Brother Premium 1.11.x Image Physical QA APK
+
+on:
+  push:
+    branches: ["qa/brother-premium-image-simulation-20261021"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only the newest branch revision needs a physical-test APK.
+# Cancel older queued builds to avoid wasting CI minutes and shipping
+# a stale APK when the user is waiting for the latest simulator fix.
+concurrency:
+  group: brother-premium-image-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Guard official premium identity and standalone experimental package
+        shell: bash
+        run: |
+          grep -F 'versionName = "1.11.1"' app/build.gradle.kts
+          grep -F 'applicationIdSuffix = ".premiumimageqa"' app/build.gradle.kts
+          grep -F 'versionNameSuffix = "-PremiumImageQA"' app/build.gradle.kts
+          grep -F 'data object PremiumImageLab' app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt
+          grep -F 'onSimulate(preview,hoop)' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
+          grep -F 'Simular bordado' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
+          grep -Eq 'format *= *"QA_IMAGE_VISUAL"' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImageVisualStitchPreview.kt
+          # Keep the unvalidated physical-image exporter unreachable from UI
+          # until a separate mechanical stitchout/review authorization.
+          grep -F 'premium_qa_export_locked' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
+          if grep -F 'PremiumImagePhysicalLab.pesForBench(' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt; then
+            echo '::error::Physical PES export accidentally re-enabled for unvalidated image preview'
+            exit 1
+          fi
+          grep -F '!design.format.startsWith("QA_",ignoreCase=true)' app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt
+          grep -F 'private data class Edge' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
+          test -s branding/brother_bm_premium_approved.webp.base64
+          test -s branding/brother_bm_launcher_safe.webp.base64
+          test -s app/src/release/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
+      - name: Test the Premium app and physical image QA draft
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Compile installable separate Premium QA APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Publish Premium QA APK with simulator and image flow
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.11.x-Premium-Imagem-Simulador-QA
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
+
+
+  png-import-android:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Enable Android virtual device acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify actual PNG import on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          disable-animations: true
+          script: gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.PremiumImageLabDecoderAndroidTest
+      - name: Upload Android PNG regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Premium-Importar-PNG-Android-QA
+          path: |
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: warn

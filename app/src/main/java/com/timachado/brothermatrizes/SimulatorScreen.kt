@@ -62,6 +62,7 @@ fun SimulatorScreen(
     showConnections:
         Boolean =
         false,
+    ghostArtwork: PremiumImageGhost? = null,
     onBack: () -> Unit
 ) {
     val points =
@@ -102,34 +103,26 @@ fun SimulatorScreen(
             }
         }
 
-    var index by remember(
-        design.fileName
-    ) {
-        mutableIntStateOf(0)
+    // Each imported raster gets its own independent playback, even when
+    // two previews share the same generated filename. Previewing a second
+    // image must never resume the previous image's timeline.
+    val isExperimentalImagePreview = BuildConfig.DEBUG &&
+        (design.format == "QA_IMAGE_VISUAL" ||
+            design.fileName.startsWith("laboratorio_img_contorno"))
+    var index by remember(design) { mutableIntStateOf(0) }
+    var playing by remember(design) {
+        // Tapping "Simular bordado" opens AND starts the visual playback.
+        mutableStateOf(isExperimentalImagePreview)
     }
-
-    var playing by remember(
-        design.fileName
-    ) {
-        mutableStateOf(false)
+    var speed by remember(design) {
+        mutableFloatStateOf(if (isExperimentalImagePreview) 2.5f else 1f)
     }
-
-    var speed by remember(
-        design.fileName
-    ) {
-        mutableFloatStateOf(1f)
-    }
-
-    var stoppedForStop by remember(
-        design.fileName
-    ) {
-        mutableStateOf(false)
-    }
+    var stoppedForStop by remember(design) { mutableStateOf(false) }
 
     LaunchedEffect(
         playing,
         speed,
-        design.fileName
+        design
     ) {
         while (
             playing &&
@@ -346,6 +339,7 @@ fun SimulatorScreen(
             MachineSimulationCanvas(
                 design =
                     design,
+                ghostArtwork = ghostArtwork,
                 pointLimit =
                     index,
                 displayMode =

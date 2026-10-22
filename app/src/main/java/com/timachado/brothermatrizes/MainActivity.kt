@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -295,6 +296,7 @@ private sealed interface Screen {
     data object CreateName : Screen
     data object CreateMonogram : Screen
     data object CreateDrawing : Screen
+    data object PremiumImageLab : Screen
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
@@ -388,6 +390,7 @@ private fun BrotherMatrizesApp(
             Screen.Home
         )
     }
+    val premiumImageQaSession = remember { PremiumImageLabSession() }
 
     var recent by remember {
         mutableStateOf<
@@ -723,7 +726,8 @@ private fun BrotherMatrizesApp(
                 Screen.FontLibrary,
                 Screen.CreateName,
                 Screen.CreateMonogram,
-                Screen.CreateDrawing ->
+                Screen.CreateDrawing,
+                Screen.PremiumImageLab ->
                     Screen.Home
 
                 is Screen.ArchiveImport -> current.returnTo
@@ -737,7 +741,10 @@ private fun BrotherMatrizesApp(
                     Screen.Home
 
                 is Screen.Simulator ->
-                    Screen.Viewer(
+                    if (BuildConfig.DEBUG &&
+                        current.design === premiumImageQaSession.simulated)
+                        Screen.PremiumImageLab
+                    else Screen.Viewer(
                         design =
                             current.design,
                         displayMode =
@@ -1922,6 +1929,9 @@ private fun BrotherMatrizesApp(
                             clearRecentDesign()
                         },
                         onCommunity = { screen = Screen.Community },
+                        onImageQa = {
+                            if (BuildConfig.DEBUG) screen = Screen.PremiumImageLab
+                        },
                         onUnavailable = {
                                 message ->
                             scope.launch {
@@ -1932,6 +1942,22 @@ private fun BrotherMatrizesApp(
                             }
                         }
                     )
+                }
+
+                Screen.PremiumImageLab -> {
+                    if (BuildConfig.DEBUG) {
+                        PremiumImageLabScreen(
+                            session=premiumImageQaSession,
+                            onBack={ goBack() },
+                            onSimulate={ design,hoop ->
+                                screen=Screen.Simulator(
+                                    design=design,referenceHoop=hoop
+                                )
+                            }
+                        )
+                    } else {
+                        LaunchedEffect(Unit) { screen = Screen.Home }
+                    }
                 }
 
                 Screen.Community -> {
@@ -2411,7 +2437,28 @@ private fun BrotherMatrizesApp(
                 }
 
                 is Screen.Simulator -> {
+                    // The original PNG must stay on the hoop as a translucent
+                    // guide for the entire Satin visual playback, like the
+                    // existing name simulator's complete ghost lettering.
+                    val rasterSource = if (BuildConfig.DEBUG &&
+                        current.design === premiumImageQaSession.simulated)
+                        premiumImageQaSession.photo else null
+                    val rasterGhost = remember(rasterSource,
+                        premiumImageQaSession.widthMm) {
+                        rasterSource?.let { image ->
+                            PremiumImageGhost(
+                                bitmap = android.graphics.Bitmap.createBitmap(
+                                    image.argb, image.width,image.height,
+                                    android.graphics.Bitmap.Config.ARGB_8888
+                                ).asImageBitmap(),
+                                widthMm = premiumImageQaSession.widthMm,
+                                heightMm = premiumImageQaSession.widthMm *
+                                    image.height / image.width
+                            )
+                        }
+                    }
                     SimulatorScreen(
+                        ghostArtwork = rasterGhost,
                         design =
                             current.design,
                         displayMode =
