@@ -128,7 +128,7 @@ internal fun PremiumImageLabScreen(
                     decoded.fold(
                         onSuccess = {
                             session.photo = it
-                            message = "Imagem carregada. Gere os pontos e abra o simulador antes de salvar o PES."
+                            message = "Imagem carregada. Simule os pontos para revisão visual; nenhuma matriz física será exportada nesta versão QA."
                         },
                         onFailure = { message = it.message ?: "Importação recusada." }
                     )
@@ -152,8 +152,9 @@ internal fun PremiumImageLabScreen(
             color=FioTextMuted
         )
         Text(
-            "Escolha o modo: Digitalizado, Ponto cruz ou Satin direcional. " +
-                "Todos são estudos de pontos em QA, ainda sem exportação física.",
+            "MODO DE PESQUISA: estes movimentos NÃO estão homologados para uma máquina. " +
+                "A simulação pode ter cortes, saltos e densidade inadequados. " +
+                "Não copie nem tente converter a prévia para PES/DST/JEF.",
             color=FioGold,style=MaterialTheme.typography.bodyMedium
         )
         Button(onClick = { open.launch(arrayOf("image/png","image/*")) },
@@ -317,42 +318,15 @@ internal fun PremiumImageLabScreen(
                     "${prepared.bounds.widthMm.roundToInt()} × " +
                     "${prepared.bounds.heightMm.roundToInt()} mm",
                     color=FioText)
-                if(prepared.format=="QA_IMAGE_VISUAL") {
-                    Text(
-                        "Enchimento ou Satin visual aproximado sobre a imagem original. " +
-                            "Não possui underlay, densidade de fio ou compensação " +
-                            "de tecido homologados; não exportável para a máquina.",
-                        color=FioGold
-                    )
-                } else {
-                    OutlinedButton(
-                        onClick={
-                            val reviewed=session.simulated
-                            if(reviewed !== prepared) {
-                                message="Simule primeiro o bordado."
-                                return@OutlinedButton
-                            }
-                            val sample=PremiumImagePhysicalLab.pesForBench(reviewed)
-                            sample.fold(
-                                onSuccess={
-                                    pending=it
-                                    save.launch(it.fileName)
-                                },
-                                onFailure={
-                                    message="A amostra física ainda não pode " +
-                                        "ser exportada: "+(it.message?:
-                                            "requer avaliação do contorno.")
-                                }
-                            )
-                        },
-                        enabled=!busy,
-                        modifier=Modifier.fillMaxWidth()
-                            .testTag("premium_qa_save")
-                    ) {
-                        Text("Após simular: salvar PES experimental",
-                            color=FioGold)
-                    }
-                }
+                Text(
+                    "Exportação para máquina desativada nesta versão QA. " +
+                        "Antes de um teste físico precisamos homologar geometria, " +
+                        "densidade, compensação, saltos, cortes e o arquivo PES " +
+                        "com um leitor independente. A prévia serve apenas " +
+                        "para identificar erros, não como matriz pronta.",
+                    color=FioGold,
+                    modifier=Modifier.testTag("premium_qa_export_locked")
+                )
             }
         }
         if(message.isNotBlank()) Text(message,color=FioGold)
