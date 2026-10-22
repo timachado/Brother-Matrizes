@@ -22,13 +22,13 @@ internal object PremiumImageDigitizedFillPreview {
         val minX:Int,val maxX:Int,val minY:Int,val maxY:Int
     )
     private fun channel(rgb:Int,shift:Int) = (rgb ushr shift) and 255
-    private fun distance(a:Int,b:Int):Int {
+    internal fun distance(a:Int,b:Int):Int {
         val dr=channel(a,16)-channel(b,16)
         val dg=channel(a,8)-channel(b,8)
         val db=channel(a,0)-channel(b,0)
         return dr*dr+dg*dg+db*db
     }
-    private fun dominantColors(argb:IntArray,maxColors:Int):List<Int> {
+    internal fun dominantColors(argb:IntArray,maxColors:Int):List<Int> {
         val counts=HashMap<Int,Int>()
         for(p in argb) {
             if((p ushr 24)<176)continue
