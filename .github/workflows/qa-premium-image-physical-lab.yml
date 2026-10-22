@@ -45,6 +45,14 @@ jobs:
           grep -F 'onSimulate(preview,hoop)' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
           grep -F 'Simular bordado' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
           grep -Eq 'format *= *"QA_IMAGE_VISUAL"' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImageVisualStitchPreview.kt
+          # Keep the unvalidated physical-image exporter unreachable from UI
+          # until a separate mechanical stitchout/review authorization.
+          grep -F 'premium_qa_export_locked' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt
+          if grep -F 'PremiumImagePhysicalLab.pesForBench(' app/src/main/java/com/timachado/brothermatrizes/PremiumImageLabScreen.kt; then
+            echo '::error::Physical PES export accidentally re-enabled for unvalidated image preview'
+            exit 1
+          fi
+          grep -F '!design.format.startsWith("QA_",ignoreCase=true)' app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt
           grep -F 'private data class Edge' app/src/debug/java/com/timachado/brothermatrizes/core/embroidery/PremiumImagePhysicalLab.kt
           test -s branding/brother_bm_premium_approved.webp.base64
           test -s branding/brother_bm_launcher_safe.webp.base64
