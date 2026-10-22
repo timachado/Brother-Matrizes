@@ -175,6 +175,26 @@ internal object PremiumImageDigitizedFillPreview {
             val colorIndex=threadColors.lastIndex
             val regionMask=BooleanArray(indices.size)
             region.pixels.forEach {regionMask[it]=true}
+            // A sewn transition is permitted ONLY inside this exact
+            // original component. Previous code trimmed/jumped for EVERY
+            // stripe, creating an implausible rapid-fire command sequence.
+            // A line-of-sight check also prevents traversing a letter
+            // counter (transparent hole) with the needle down.
+            fun sameInkPath(ax:Float,ay:Float,bx:Float,by:Float):Boolean {
+                val length=kotlin.math.hypot((bx-ax).toDouble(),(by-ay).toDouble())
+                val samples=ceil(length/0.30).toInt().coerceAtLeast(1)
+                for(k in 0..samples) {
+                    val amount=k.toFloat()/samples
+                    val ix=(ax+(bx-ax)*amount).toInt()
+                    val iy=(ay+(by-ay)*amount).toInt()
+                    if(ix !in 0 until width || iy !in 0 until height ||
+                        !regionMask[iy*width+ix])return false
+                }
+                return true
+            }
+            var previousInkX=0f
+            var previousInkY=0f
+            var hasPreviousInk=false
             // Direction follows the component's long axis: vertical letter
             // stalks receive transverse horizontal fill, horizontal strokes
             // transverse vertical fill. This is NOT global horizontal scan.
@@ -200,20 +220,43 @@ internal object PremiumImageDigitizedFillPreview {
                 val ordered=if(reverse)starts.asReversed() else starts
                 for(span in ordered) {
                     if(span.last-span.first<1)continue
-                    val a=if(reverse)span.last+1f else span.first.toFloat()
-                    val b=if(reverse)span.first.toFloat() else span.last+1f
+                    // Use centers of ORIGINAL ink pixels, not the outside
+                    // edge of each run. This avoids crossing background
+                    // during a travel check or stitching into a counter.
+                    val a=if(reverse)span.last+0.5f else span.first+0.5f
+                    val b=if(reverse)span.first+0.5f else span.last+0.5f
                     val x0=if(tall) ux(a) else ux(slice+.5f)
                     val y0=if(tall) uy(slice+.5f) else uy(a)
                     val x1=if(tall) ux(b) else ux(slice+.5f)
                     val y1=if(tall) uy(slice+.5f) else uy(b)
                     if(x0==x1 && y0==y1)continue
-                    if(stitchCount>0) {
+                    val previousX=lastX
+                    val previousY=lastY
+                    val canSew=hasPreviousInk &&
+                        sameInkPath(previousInkX,previousInkY,
+                            if(tall)a else slice+0.5f,
+                            if(tall)slice+0.5f else a) &&
+                        (abs(previousX-x0)+abs(previousY-y0)) <= 30
+                    if(canSew) {
+                        if(previousX!=x0 || previousY!=y0) {
+                            points+=EmbroideryPoint(
+                                x0,y0,StitchCommand.STITCH,colorIndex)
+                            stitchCount++
+                        }
+                    } else {
+                        // Never fake continuous stitches between separated
+                        // letters/regions. Reserve a TRIM for nontrivial
+                        // movement, not for every neighboring scan line.
+                        if(stitchCount>0 &&
+                            abs(previousX-x0)+abs(previousY-y0)>60) {
+                            points+=EmbroideryPoint(
+                                previousX,previousY,StitchCommand.TRIM,colorIndex
+                            )
+                        }
                         points+=EmbroideryPoint(
-                            lastX,lastY,StitchCommand.TRIM,colorIndex)
+                            x0,y0,StitchCommand.JUMP,colorIndex)
+                        jumpCount++
                     }
-                    points+=EmbroideryPoint(
-                        x0,y0,StitchCommand.JUMP,colorIndex)
-                    jumpCount++
                     // At most 1.8mm per simulated segment. NO intended
                     // physical Satin stitches or thread density implied.
                     val len=abs(x1-x0)+abs(y1-y0)
@@ -230,6 +273,9 @@ internal object PremiumImageDigitizedFillPreview {
                         px=xx;py=yy
                     }
                     lastX=x1;lastY=y1
+                    previousInkX=if(tall)b else slice+0.5f
+                    previousInkY=if(tall)slice+0.5f else b
+                    hasPreviousInk=true
                     require(points.size<=50_000) {
                         "Pontos demais; diminua as cores ou dimensões."
                     }
