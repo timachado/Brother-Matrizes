@@ -21,6 +21,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.PremiumImagePhysicalLab
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageVisualStitchPreview
 import com.timachado.brothermatrizes.core.embroidery.PremiumImageSatinVisualPreview
+import com.timachado.brothermatrizes.core.embroidery.PremiumImageDigitizedFillPreview
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -51,11 +53,16 @@ internal data class PremiumImageLabPhoto(
     val argb: IntArray, val reduced: Boolean
 )
 
+/** User-controlled QA modes: independently implemented; not Artspira code. */
+internal enum class PremiumImageMode { DIGITIZED_FILL, SATIN_STUDY }
+
 /** Survives navigation to SimulatorScreen without persisting experimental PES. */
 internal class PremiumImageLabSession {
     var photo by mutableStateOf<PremiumImageLabPhoto?>(null)
     var widthMm by mutableFloatStateOf(60f)
     var hoop by mutableStateOf(HoopProfile.H100X100)
+    var selectedMode by mutableStateOf(PremiumImageMode.DIGITIZED_FILL)
+    var colorLimit by mutableIntStateOf(4)
     var prepared by mutableStateOf<EmbroideryDesign?>(null)
     var simulated by mutableStateOf<EmbroideryDesign?>(null)
     var revision: Int = 0
@@ -144,9 +151,8 @@ internal fun PremiumImageLabScreen(
             color=FioTextMuted
         )
         Text(
-            "Imagens complexas recebem uma prévia aproximada de pontos e cores, " +
-                "não uma matriz final de Satin/Tatami. " +
-                "A exportação PES só aparece para contornos simples validados.",
+            "Escolha o modo: preenchimento digitalizado ou estudo Satin direcional. " +
+                "Ambos são prévias experimentais, não matrizes físicas homologadas.",
             color=FioGold,style=MaterialTheme.typography.bodyMedium
         )
         Button(onClick = { open.launch(arrayOf("image/png","image/*")) },
@@ -164,6 +170,43 @@ internal fun PremiumImageLabScreen(
             Text("${source.width} × ${source.height} px" +
                 if (source.reduced) " • Redimensionada para QA: confira detalhes e vazados." else "",
                 color=FioTextMuted)
+            Text("Tipo de bordado",color=FioText)
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(
+                    enabled=!busy,
+                    onClick={
+                        session.selectedMode=PremiumImageMode.DIGITIZED_FILL
+                        session.invalidate()
+                    }
+                ) {
+                    Text((if(session.selectedMode==PremiumImageMode.DIGITIZED_FILL)
+                        "✓ " else "")+"Digitalizado",
+                        color=FioGold)
+                }
+                OutlinedButton(
+                    enabled=!busy,
+                    onClick={
+                        session.selectedMode=PremiumImageMode.SATIN_STUDY
+                        session.invalidate()
+                    }
+                ) {
+                    Text((if(session.selectedMode==PremiumImageMode.SATIN_STUDY)
+                        "✓ " else "")+"Satin visual",
+                        color=FioGold)
+                }
+            }
+            if(session.selectedMode==PremiumImageMode.DIGITIZED_FILL) {
+                Text("Quantidade de cores: ${session.colorLimit}",color=FioText)
+                Slider(
+                    value=session.colorLimit.toFloat(),
+                    onValueChange={
+                        session.colorLimit=it.roundToInt().coerceIn(2,8)
+                        session.invalidate()
+                    },
+                    valueRange=2f..8f,steps=5,enabled=!busy,
+                    modifier=Modifier.testTag("premium_qa_color_limit")
+                )
+            }
             Text("Largura: ${session.widthMm.roundToInt()} mm",color=FioText)
             Slider(value=session.widthMm,onValueChange = {
                 session.widthMm=it;session.invalidate()
@@ -191,6 +234,8 @@ internal fun PremiumImageLabScreen(
                     val stamp=session.revision
                     val width=session.widthMm
                     val hoop=session.hoop
+                    val mode=session.selectedMode
+                    val numberOfColors=session.colorLimit
                     busy=true
                     message=""
                     scope.launch {
@@ -200,11 +245,18 @@ internal fun PremiumImageLabScreen(
                             // with exportable contours or horizontal scans.
                             // If a region cannot be visually filled, only
                             // then offer closed outline playback instead.
-                            val satin=PremiumImageSatinVisualPreview.create(
-                                selected.width,selected.height,
-                                selected.argb,width,hoop
-                            )
-                            if(satin.isSuccess) satin else
+                            val primary=if(mode==PremiumImageMode.DIGITIZED_FILL) {
+                                PremiumImageDigitizedFillPreview.create(
+                                    selected.width,selected.height,selected.argb,
+                                    width,hoop,numberOfColors
+                                )
+                            } else {
+                                PremiumImageSatinVisualPreview.create(
+                                    selected.width,selected.height,selected.argb,
+                                    width,hoop
+                                )
+                            }
+                            if(primary.isSuccess) primary else
                                 PremiumImageVisualStitchPreview.create(
                                     selected.width,selected.height,
                                     selected.argb,width,hoop
@@ -213,15 +265,16 @@ internal fun PremiumImageLabScreen(
                         busy=false
                         if(stamp==session.revision &&
                             selected===session.photo &&
-                            width==session.widthMm && hoop==session.hoop) {
+                            width==session.widthMm && hoop==session.hoop &&
+                            mode==session.selectedMode &&
+                            numberOfColors==session.colorLimit) {
                             generated.fold(
                                 onSuccess={ preview ->
                                     session.prepared=preview
                                     session.simulated=preview
                                     message=if(preview.format=="QA_IMAGE_VISUAL") {
-                                        "Arte original no fundo com pontos Satin visuais " +
-                                            "por cima. Esta prévia NÃO é uma matriz " +
-                                            "PES pronta para a máquina."
+                                        "Arte original no fundo com pontos de preenchimento " +
+                                            "por cima. Prévia NÃO homologada para PES."
                                     } else {
                                         "Prévia de contorno com pontos reais. " +
                                             "Confira o desenho antes do teste na máquina."
@@ -250,9 +303,9 @@ internal fun PremiumImageLabScreen(
                     color=FioText)
                 if(prepared.format=="QA_IMAGE_VISUAL") {
                     Text(
-                        "Prévia Satin visual sobre o desenho original. " +
-                            "Não possui a compensação/validação de pontos para " +
-                            "uma máquina e não autoriza exportar este estudo para PES.",
+                        "Enchimento ou Satin visual aproximado sobre a imagem original. " +
+                            "Não possui underlay, densidade de fio ou compensação " +
+                            "de tecido homologados; não exportável para a máquina.",
                         color=FioGold
                     )
                 } else {
