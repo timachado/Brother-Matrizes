@@ -6,4 +6,8 @@
     <cache-path
         name="verified_apk_updates"
         path="verified_apk_updates/" />
+    <!-- Fotos temporárias da câmera para pesquisa pontual; sem acesso público. -->
+    <cache-path
+        name="brother_vision_camera"
+        path="vision_camera/" />
 </paths>
