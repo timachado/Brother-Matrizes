@@ -67,7 +67,12 @@ fun TelegramMatrixSearchScreen(
                 it.fileName.contains(query.trim(), ignoreCase = true)
         }
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+        Column {
         Row(Modifier.fillMaxWidth()) {
             TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
         }
@@ -85,7 +90,9 @@ fun TelegramMatrixSearchScreen(
         BrotherVisionSearch(
             incomingImageUri = incomingImageUri,
             onIncomingImageConsumed = onIncomingImageConsumed,
-            onRecognizedTerms = { suggested -> query = suggested.take(100) }
+            onRecognizedTerms = { suggested -> query = suggested.take(100) },
+            projects = projects,
+            onOpenSavedProject = onOpenSavedProject
         )
         OutlinedTextField(
             value = query,
@@ -161,8 +168,9 @@ fun TelegramMatrixSearchScreen(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(vertical = 10.dp)
         )
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(matching, key = { it.id }) { project ->
+        }
+        }
+        items(matching, key = { it.id }) { project ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = FioSurface),
                     modifier = Modifier.fillMaxWidth()
@@ -191,6 +199,5 @@ fun TelegramMatrixSearchScreen(
                     color = FioTextMuted
                 )
             }
-        }
     }
 }
