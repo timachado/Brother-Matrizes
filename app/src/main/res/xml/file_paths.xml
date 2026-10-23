@@ -6,4 +6,7 @@
     <cache-path
         name="verified_apk_updates"
         path="verified_apk_updates/" />
+    <cache-path
+        name="telegram_image_camera"
+        path="vision_camera/" />
 </paths>
