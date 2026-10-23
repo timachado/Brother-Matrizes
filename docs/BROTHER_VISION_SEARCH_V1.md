@@ -33,3 +33,23 @@ Uma pesquisa visual real com retornos de arquivo PES/DST/JEF só deve usar catá
 7. Checar aprovação e testes Android antes de qualquer merge e release.
 
 Dependência nova: `com.google.mlkit:image-labeling:17.0.9` (modelo embarcado).
+
+
+## Fase 2 — busca por semelhança visual no catálogo pessoal
+- Impressão digital dHash 64-bit calculada localmente a partir da foto escolhida.
+- Cadastro **voluntário** de uma foto de referência por matriz **já salva**; a interface solicita confirmação explícita.
+- Guarda apenas o identificador da matriz e um hash visual no armazenamento privado do app; a foto original não é copiada para o catálogo.
+- A imagem pesquisada é comparada com referências previamente cadastradas; exibe até cinco resultados a partir do limiar heurístico de 72%.
+- Abre os projetos correspondentes pela função da biblioteca atual, sem importação nem cobrança de nova cota.
+- Permite remover referências, sem apagar a matriz; imagens com pouco detalhe são rejeitadas.
+- Esta busca é local, experimental e não cobre imagens de qualquer canal do Telegram. Fotos desconhecidas não ficam automaticamente disponíveis para comparação.
+
+O percentual exibido representa uma medida matemática baseada na distância entre hashes, **não** uma probabilidade calibrada de que a matriz seja a mesma. dHash pode falhar com recortes, rotações, fotos de tecido ou desenhos parecidos; não deve ser anunciado como reconhecimento visual universal. Para pesquisa em catálogo amplo, é preciso obter fontes licenciadas e testar representações de imagem mais robustas.
+
+### QA adicional
+- Cadastrar a referência de uma matriz salva e confirmar que a mesma foto aparece no topo dos resultados.
+- Testar imagem diferente, foto sem detalhes, exclusão de referência e troca de uma referência existente.
+- Confirmar que referência não aparece para projeto não mais presente na biblioteca (nenhuma busca por conteúdo externo).
+- Testar o encaminhamento de arquivos PES/DST/JEF/ZIP e as quotas de Telegram sem mudanças.
+- Verificar desempenho com dezenas e centenas de projetos em celulares Android de entrada.
+- Validar a permanência das referências entre reinicializações e a legibilidade em telas pequenas.
