@@ -1,19 +1,24 @@
 package com.timachado.brothermatrizes
 
+import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,11 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import com.timachado.brothermatrizes.core.telegramvision.TelegramAuthorizationStage
 import com.timachado.brothermatrizes.core.telegramvision.TelegramGroup
 import com.timachado.brothermatrizes.core.telegramvision.TelegramGroupSession
@@ -52,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.File
 
 /** Login Telegram próprio, não usa nem copia credenciais do Telegram instalado. */
 @Composable
@@ -74,6 +86,9 @@ fun TelegramGroupVisionScreen(
     var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var consent by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Uri?>(null) }
+    var photoPreview by remember { mutableStateOf<ImageBitmap?>(null) }
+    var pendingCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingCameraFile by rememberSaveable { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
     var didSearch by remember { mutableStateOf(false) }
     var hits by remember { mutableStateOf<List<TelegramPhotoHit>>(emptyList()) }
@@ -81,6 +96,42 @@ fun TelegramGroupVisionScreen(
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) photo = uri
+    }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val captured = pendingCameraUri?.let(Uri::parse)
+        if (success && captured != null) {
+            photo = captured
+        } else {
+            pendingCameraFile?.let { File(it).delete() }
+        }
+        pendingCameraUri = null
+        pendingCameraFile = null
+    }
+
+    fun openCamera() {
+        runCatching {
+            val folder = File(context.cacheDir, "vision_camera").apply { mkdirs() }
+            // Delete abandoned captures from older sessions, never users' files.
+            folder.listFiles()?.filter {
+                it.isFile && it.lastModified() < System.currentTimeMillis() - 24L * 60 * 60 * 1000
+            }?.forEach { it.delete() }
+            val outputFile = File.createTempFile("lens_", ".jpg", folder)
+            val uri = FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", outputFile
+            )
+            pendingCameraUri = uri.toString()
+            pendingCameraFile = outputFile.absolutePath
+            takePhoto.launch(uri)
+        }.onFailure {
+            error = "Não foi possível abrir a câmera: ${it.message ?: "verifique o aplicativo de câmera"}."
+        }
+    }
+
+    LaunchedEffect(photo) {
+        val uri = photo
+        photoPreview = if (uri != null) withContext(Dispatchers.IO) {
+            runCatching { loadVisionPreview(context, uri) }.getOrNull()
+        } else null
     }
 
     LaunchedEffect(imageSharedWithApp) {
@@ -176,6 +227,47 @@ fun TelegramGroupVisionScreen(
                         "acessíveis à sua conta Telegram. Não examina grupos de terceiros.",
                     color = FioTextMuted, fontSize = 12.sp
                 )
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FioSurface)) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Pesquisar pela foto", color = FioText, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Fotografe o bordado ou escolha uma imagem da galeria. " +
+                            "A busca começa quando a conexão e a autorização dos grupos estiverem prontas.",
+                        color = FioTextMuted, fontSize = 12.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { openCamera() },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Abrir câmera") }
+                        OutlinedButton(
+                            onClick = { pickImage.launch("image/*") },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Galeria") }
+                    }
+                    photoPreview?.let {
+                        Image(
+                            bitmap = it,
+                            contentDescription = "Foto do bordado selecionada para busca",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(126.dp).clip(RoundedCornerShape(12.dp))
+                        )
+                    }
+                    if (photo != null &&
+                        (auth != TelegramAuthorizationStage.READY || !consent || selectedGroupIds.isEmpty())
+                    ) {
+                        Text(
+                            "Foto selecionada. Conecte o Telegram e autorize seus grupos para iniciar a busca.",
+                            color = FioGold, fontSize = 11.sp
+                        )
+                    }
+                }
             }
         }
         if (auth != TelegramAuthorizationStage.READY) {
@@ -284,11 +376,6 @@ fun TelegramGroupVisionScreen(
                             color = FioTextMuted, fontSize = 12.sp
                         )
                     }
-                    OutlinedButton(
-                        enabled = !searching,
-                        onClick = { pickImage.launch("image/*") },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Selecionar imagem e pesquisar automaticamente") }
                     if (searching) {
                         CircularProgressIndicator(color = FioGold)
                         Text("Comparando fotos nos meus grupos…", color = FioText)
@@ -335,5 +422,25 @@ fun TelegramGroupVisionScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
         }
+    }
+}
+
+
+/** Preview bounded to avoid decoding multi-megapixel camera photos into Compose memory. */
+private fun loadVisionPreview(context: Context, uri: Uri): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, bounds)
+    } ?: return null
+    if (bounds.outWidth !in 1..30000 || bounds.outHeight !in 1..30000) return null
+    var sample = 1
+    while (bounds.outWidth / sample > 600 || bounds.outHeight / sample > 600) {
+        sample *= 2
+    }
+    return context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+        })?.asImageBitmap()
     }
 }
