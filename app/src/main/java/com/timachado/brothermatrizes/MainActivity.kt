@@ -93,6 +93,9 @@ class MainActivity : ComponentActivity() {
             null
         )
 
+    // Imagens compartilhadas abrem a pesquisa visual, não o importador PES/DST.
+    private var externalImageUri by mutableStateOf<Uri?>(null)
+
     private fun captureExternalOpenIntent(
         sourceIntent: Intent?
     ) {
@@ -115,12 +118,12 @@ class MainActivity : ComponentActivity() {
                     null
             }
 
-        if (
-            uri !=
-                null
-        ) {
-            externalOpenUri =
-                uri
+        if (uri != null) {
+            if (sourceIntent.type?.startsWith("image/") == true) {
+                externalImageUri = uri
+            } else {
+                externalOpenUri = uri
+            }
         }
     }
 
@@ -196,6 +199,10 @@ class MainActivity : ComponentActivity() {
                     updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
+                    externalImageUri = externalImageUri,
+                    onExternalImageConsumed = { consumedUri ->
+                        if (externalImageUri == consumedUri) externalImageUri = null
+                    },
                     onExternalOpenConsumed = {
                             consumedUri ->
                         if (
@@ -366,6 +373,8 @@ private fun BrotherMatrizesApp(
     openCommunityRequest: Int = 0,
     updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
+    externalImageUri: Uri? = null,
+    onExternalImageConsumed: (Uri) -> Unit = {},
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -594,6 +603,10 @@ private fun BrotherMatrizesApp(
                 )
             }
         }
+    }
+
+    LaunchedEffect(externalImageUri) {
+        if (externalImageUri != null) screen = Screen.TelegramSearch
     }
 
     LaunchedEffect(externalOpenUri, openAccountRequest) {
@@ -2061,6 +2074,8 @@ private fun BrotherMatrizesApp(
                 Screen.TelegramSearch -> {
                     TelegramMatrixSearchScreen(
                         projects = savedProjects,
+                        incomingImageUri = externalImageUri,
+                        onIncomingImageConsumed = onExternalImageConsumed,
                         onBack = { goBack() },
                         onImport = {
                             launchMatrixPicker(fromTelegram = true)
