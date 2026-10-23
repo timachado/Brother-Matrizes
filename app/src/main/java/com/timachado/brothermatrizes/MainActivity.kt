@@ -93,6 +93,9 @@ class MainActivity : ComponentActivity() {
             null
         )
 
+    // A foto compartilhada deve iniciar uma busca visual, não importação PES/DST.
+    private var externalSearchImageUri by mutableStateOf<Uri?>(null)
+
     private fun captureExternalOpenIntent(
         sourceIntent: Intent?
     ) {
@@ -115,12 +118,12 @@ class MainActivity : ComponentActivity() {
                     null
             }
 
-        if (
-            uri !=
-                null
-        ) {
-            externalOpenUri =
-                uri
+        if (uri != null) {
+            if (sourceIntent?.type?.startsWith("image/") == true) {
+                externalSearchImageUri = uri
+            } else {
+                externalOpenUri = uri
+            }
         }
     }
 
@@ -196,6 +199,10 @@ class MainActivity : ComponentActivity() {
                     updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
+                    externalSearchImageUri = externalSearchImageUri,
+                    onExternalSearchImageConsumed = { consumed ->
+                        if (externalSearchImageUri == consumed) externalSearchImageUri = null
+                    },
                     onExternalOpenConsumed = {
                             consumedUri ->
                         if (
@@ -366,6 +373,8 @@ private fun BrotherMatrizesApp(
     openCommunityRequest: Int = 0,
     updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
+    externalSearchImageUri: Uri? = null,
+    onExternalSearchImageConsumed: (Uri) -> Unit = {},
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -594,6 +603,10 @@ private fun BrotherMatrizesApp(
                 )
             }
         }
+    }
+
+    LaunchedEffect(externalSearchImageUri) {
+        if (externalSearchImageUri != null) screen = Screen.TelegramSearch
     }
 
     LaunchedEffect(externalOpenUri, openAccountRequest) {
@@ -2059,16 +2072,11 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.TelegramSearch -> {
-                    TelegramMatrixSearchScreen(
-                        projects = savedProjects,
+                    VisualTelegramSearchScreen(
+                        incomingImageUri = externalSearchImageUri,
+                        onIncomingConsumed = onExternalSearchImageConsumed,
                         onBack = { goBack() },
-                        onImport = {
-                            launchMatrixPicker(fromTelegram = true)
-                        },
-                        onRequireGoogle = { screen = Screen.Account },
-                        onOpenSavedProject = { saved ->
-                            loadProject(saved, transferDirectly = false)
-                        }
+                        onRequireGoogle = { screen = Screen.Account }
                     )
                 }
 
