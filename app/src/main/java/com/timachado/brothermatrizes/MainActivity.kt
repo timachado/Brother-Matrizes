@@ -309,6 +309,7 @@ private sealed interface Screen {
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
+    data object TelegramImageSearch : Screen
     data class ArchiveImport(
         val uri: Uri,
         val returnTo: Screen = ProjectLibrary
@@ -610,7 +611,7 @@ private fun BrotherMatrizesApp(
     }
 
     LaunchedEffect(externalGroupSearchImageUri) {
-        if (externalGroupSearchImageUri != null) screen = Screen.TelegramSearch
+        if (externalGroupSearchImageUri != null) screen = Screen.TelegramImageSearch
     }
 
     LaunchedEffect(externalOpenUri, openAccountRequest) {
@@ -742,6 +743,8 @@ private fun BrotherMatrizesApp(
                 Screen.CreateMonogram,
                 Screen.CreateDrawing ->
                     Screen.Home
+
+                Screen.TelegramImageSearch -> Screen.TelegramSearch
 
                 is Screen.ArchiveImport -> current.returnTo
 
@@ -2076,10 +2079,23 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.TelegramSearch -> {
+                    TelegramMatrixSearchScreen(
+                        projects = savedProjects,
+                        onBack = { goBack() },
+                        onImport = { launchMatrixPicker(fromTelegram = true) },
+                        onSearchImage = { screen = Screen.TelegramImageSearch },
+                        onRequireGoogle = { screen = Screen.Account },
+                        onOpenSavedProject = { saved ->
+                            loadProject(saved, transferDirectly = false)
+                        }
+                    )
+                }
+
+                Screen.TelegramImageSearch -> {
                     TelegramGroupVisionScreen(
                         imageSharedWithApp = externalGroupSearchImageUri,
                         onSharedImageConsumed = onGroupSearchImageConsumed,
-                        onBack = { goBack() },
+                        onBack = { screen = Screen.TelegramSearch },
                         onImportFile = { launchMatrixPicker(fromTelegram = true) }
                     )
                 }
