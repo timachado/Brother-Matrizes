@@ -47,7 +47,9 @@ import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
@@ -108,7 +110,7 @@ fun TelegramGroupVisionScreen(
         try {
             val fingerprint = withContext(Dispatchers.IO) {
                 SelectedTelegramImage.grayscale9x8(context, selectedPhoto)
-            } ?: error("Foto inválida. Tente outra imagem.")
+            } ?: throw IllegalArgumentException("Foto inválida. Tente outra imagem.")
             val results = withTimeout(120_000L) {
                 withContext(Dispatchers.IO) {
                     TelegramGroupVisualSearch(client).search(
@@ -119,6 +121,8 @@ fun TelegramGroupVisionScreen(
             scanned = selectedGroupIds.size
             hits = results
             didSearch = true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: Exception) {
             error = failure.message ?: "Não foi possível comparar as fotos dos grupos."
         } finally {
