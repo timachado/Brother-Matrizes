@@ -37,10 +37,25 @@ jobs:
           gradle-version: '9.6.0'
       - name: Testes de permissões, segurança e compilação Android
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherGroupQaParallel=true --stacktrace
-      - name: Garantir que não há APK indevidamente distribuído
+      - name: Verificar pacote separado e assinatura
         shell: bash
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep -F "package: name='com.timachado.brothermatrizes.groupqa'"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
-          echo 'A compilação é diagnóstica; não há distribuição nem release comercial.'
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > vision-ocr-badging.txt
+          grep -F "package: name='com.timachado.brothermatrizes.groupqa'" vision-ocr-badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > vision-ocr-signature.txt
+          sha256sum "$apk" > vision-ocr-sha256.txt
+          echo 'Diagnóstico apenas: sem credenciais Telegram, sem release comercial.'
+
+      - name: Disponibilizar APK para testar câmera e OCR, sem acesso a grupos
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Lens-OCR-Camera-QA-SEM-TELEGRAM
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            vision-ocr-badging.txt
+            vision-ocr-signature.txt
+            vision-ocr-sha256.txt
+          if-no-files-found: error
