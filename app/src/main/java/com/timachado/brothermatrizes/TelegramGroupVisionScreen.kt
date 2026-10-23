@@ -388,22 +388,48 @@ fun TelegramGroupVisionScreen(
                 }
             }
             items(hits, key = { "${it.chatId}-${it.messageId}" }) { hit ->
+                var resultPreview by remember(hit.localPreviewPath) {
+                    mutableStateOf<ImageBitmap?>(null)
+                }
+                LaunchedEffect(hit.localPreviewPath) {
+                    val path = hit.localPreviewPath
+                    resultPreview = if (path != null) withContext(Dispatchers.IO) {
+                        runCatching { loadLocalTelegramPreview(context, path) }.getOrNull()
+                    } else null
+                }
                 Card(colors = CardDefaults.cardColors(containerColor = FioSurface)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(hit.groupTitle, color = FioText, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Semelhança aproximada: ${(hit.similarity * 100).toInt()}%",
-                            color = FioTextMuted, fontSize = 11.sp
-                        )
-                        hit.publicPostUrl?.let { url ->
-                            TextButton(onClick = {
-                                runCatching {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                            .addCategory(Intent.CATEGORY_BROWSABLE)
-                                    )
-                                }
-                            }) { Text("Abrir mensagem no Telegram", color = FioGold) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        resultPreview?.let { image ->
+                            Image(
+                                bitmap = image,
+                                contentDescription = "Foto semelhante encontrada no Telegram",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(104.dp).clip(RoundedCornerShape(10.dp))
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(hit.groupTitle, color = FioText, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Semelhança aproximada: ${(hit.similarity * 100).toInt()}%",
+                                color = FioTextMuted, fontSize = 11.sp
+                            )
+                            hit.publicPostUrl?.let { url ->
+                                TextButton(onClick = {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                .addCategory(Intent.CATEGORY_BROWSABLE)
+                                        )
+                                    }
+                                }) { Text("Abrir publicação", color = FioGold) }
+                            } ?: Text(
+                                "Publicação sem link compartilhável",
+                                color = FioTextMuted, fontSize = 10.sp
+                            )
                         }
                     }
                 }
@@ -443,4 +469,13 @@ private fun loadVisionPreview(context: Context, uri: Uri): ImageBitmap? {
             inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
         })?.asImageBitmap()
     }
+}
+
+
+/** Never interpret a Telegram response as an arbitrary filesystem path. */
+private fun loadLocalTelegramPreview(context: Context, filePath: String): ImageBitmap? {
+    val file = File(filePath).canonicalFile
+    val privateRoot = context.filesDir.canonicalFile.path + File.separator
+    if (!file.path.startsWith(privateRoot) || !file.isFile) return null
+    return loadVisionPreview(context, Uri.fromFile(file))
 }
