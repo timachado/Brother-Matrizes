@@ -55,6 +55,7 @@ import com.timachado.brothermatrizes.core.telegramvision.TelegramGroupVisualSear
 import com.timachado.brothermatrizes.core.telegramvision.TelegramPhotoHit
 import com.timachado.brothermatrizes.core.telegramvision.SelectedTelegramImage
 import com.timachado.brothermatrizes.core.telegramvision.LocalVisionAnalyzer
+import com.timachado.brothermatrizes.core.telegramvision.LocalVisionClues
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -88,6 +89,8 @@ fun TelegramGroupVisionScreen(
     var consent by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Uri?>(null) }
     var photoPreview by remember { mutableStateOf<ImageBitmap?>(null) }
+    var analyzedClues by remember { mutableStateOf<LocalVisionClues?>(null) }
+    var analyzingImage by remember { mutableStateOf(false) }
     var pendingCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingCameraFile by rememberSaveable { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
@@ -131,9 +134,23 @@ fun TelegramGroupVisionScreen(
 
     LaunchedEffect(photo) {
         val uri = photo
-        photoPreview = if (uri != null) withContext(Dispatchers.IO) {
-            runCatching { loadVisionPreview(context, uri) }.getOrNull()
-        } else null
+        analyzedClues = null
+        photoPreview = null
+        if (uri != null) {
+            analyzingImage = true
+            try {
+                photoPreview = withContext(Dispatchers.IO) {
+                    runCatching { loadVisionPreview(context, uri) }.getOrNull()
+                }
+                analyzedClues = LocalVisionAnalyzer.analyze(context, uri)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                error = "Não foi possível reconhecer a foto: ${e.message ?: "formato inválido"}."
+            } finally {
+                analyzingImage = false
+            }
+        }
     }
 
     LaunchedEffect(imageSharedWithApp) {
@@ -154,8 +171,9 @@ fun TelegramGroupVisionScreen(
                 .onFailure { error = it.message ?: "Não foi possível listar os grupos." }
         }
     }
-    LaunchedEffect(photo, selectedGroupIds, consent, auth) {
+    LaunchedEffect(photo, analyzedClues, selectedGroupIds, consent, auth) {
         val selectedPhoto = photo ?: return@LaunchedEffect
+        val clues = analyzedClues ?: return@LaunchedEffect
         if (!consent || auth != TelegramAuthorizationStage.READY ||
             selectedGroupIds.isEmpty()) return@LaunchedEffect
         searching = true
@@ -166,15 +184,12 @@ fun TelegramGroupVisionScreen(
             val fingerprint = withContext(Dispatchers.IO) {
                 SelectedTelegramImage.grayscale9x8(context, selectedPhoto)
             } ?: throw IllegalArgumentException("Foto inválida. Tente outra imagem.")
-            val cues = withContext(Dispatchers.IO) {
-                LocalVisionAnalyzer.analyze(context, selectedPhoto)
-            }
-            ocrHintUsed = cues.ocrTerms.isNotEmpty()
+            ocrHintUsed = clues.ocrTerms.isNotEmpty()
             val results = withTimeout(120_000L) {
                 withContext(Dispatchers.IO) {
                     TelegramGroupVisualSearch(client).search(
                         true, selectedGroupIds, fingerprint,
-                        textQueries = cues.searchTerms
+                        textQueries = clues.searchTerms
                     )
                 }
             }
@@ -264,6 +279,16 @@ fun TelegramGroupVisionScreen(
                             contentDescription = "Foto do bordado selecionada para busca",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.size(126.dp).clip(RoundedCornerShape(12.dp))
+                        )
+                    }
+                    if (analyzingImage) {
+                        CircularProgressIndicator(color = FioGold, modifier = Modifier.size(20.dp))
+                        Text("Reconhecendo a foto no aparelho…", color = FioTextMuted)
+                    } else if (analyzedClues != null) {
+                        Text(
+                            "Imagem analisada. ${if (analyzedClues!!.textFound) "OCR disponível" else "Sem texto legível"}; " +
+                                "a correspondência será verificada nos grupos após a conexão.",
+                            color = FioTextMuted, fontSize = 11.sp
                         )
                     }
                     if (photo != null &&
