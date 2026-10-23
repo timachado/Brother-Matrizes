@@ -34,6 +34,11 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun BrotherVersionGate(resumeRequest: Int, content: @Composable () -> Unit) {
+    // Diagnostic variant cannot be forced onto the commercial OTA track.
+    if (BuildConfig.BROTHER_NATIVE_IMAGE_QA) {
+        content()
+        return
+    }
     val context = LocalContext.current
     val prefs = remember(context) {
         context.getSharedPreferences("brother_verified_version_gate", Context.MODE_PRIVATE)

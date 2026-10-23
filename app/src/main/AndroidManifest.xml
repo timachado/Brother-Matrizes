@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <queries>
         <package android:name="com.rarlab.rar" />
+        <!-- Only the Telegram packages needed for native search; no broad app listing. -->
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="org.telegram.messenger.beta" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/*" />

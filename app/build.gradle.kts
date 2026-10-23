@@ -7,10 +7,15 @@ import java.awt.image.RescaleOp
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// Image-assist QA uses another application ID, to protect commercial data.
+// It never stores Telegram session credentials or accesses chat messages.
+val nativeImageQa = providers.gradleProperty("brotherNativeImageQa").orNull == "true"
+if (!nativeImageQa) apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.timachado.brothermatrizes"
@@ -22,6 +27,7 @@ android {
         targetSdk = 36
         versionCode = 188
         versionName = "1.11.1"
+        buildConfigField("boolean", "BROTHER_NATIVE_IMAGE_QA", "false")
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
@@ -56,14 +62,19 @@ android {
 
     buildTypes {
         debug {
+            if (nativeImageQa) {
+                applicationIdSuffix = ".nativeimageqa"
+                versionNameSuffix = "-NATIVE-IMAGE-QA"
+                buildConfigField("boolean", "BROTHER_NATIVE_IMAGE_QA", "true")
+            }
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (!nativeImageQa && providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"
                 versionNameSuffix = "-QA2"
-            } else if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+            } else if (!nativeImageQa && providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
                 applicationIdSuffix = ".qa"
                 versionNameSuffix = "-QA"
             }
@@ -119,6 +130,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    // Selected-photo inference runs locally, without reading Telegram group data.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
 
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
 

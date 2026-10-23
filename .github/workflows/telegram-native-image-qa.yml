@@ -1,0 +1,56 @@
+name: Brother Native Telegram Image Assist — QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/telegram-native-image-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-image-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Testes, lint e build QA independente
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherNativeImageQa=true --stacktrace
+      - name: Verificação de assinatura e package id
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > native-image-badging.txt
+          grep -F "package: name='com.timachado.brothermatrizes.nativeimageqa'" native-image-badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > native-image-signature.txt
+          sha256sum "$apk" > native-image-sha256.txt
+      - name: Guardar APK apenas para homologação
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Native-Image-Assist-QA-NOT-REVERSE-SEARCH
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            native-image-badging.txt
+            native-image-signature.txt
+            native-image-sha256.txt
+          if-no-files-found: error
