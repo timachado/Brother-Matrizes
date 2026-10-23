@@ -7,9 +7,18 @@ import java.awt.image.RescaleOp
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+// O APK de homologação visual não usa a configuração Firebase de produção.
+// Aplicar Google Services continua sendo obrigatório na compilação oficial.
+val brotherVisionQaParallel =
+    providers.gradleProperty("brotherVisionQaParallel").orNull == "true"
+
+if (!brotherVisionQaParallel) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -51,19 +60,27 @@ android {
         buildConfigField(
             "String", "WORDPRESS_URL", "\"https://timachado.ifree.page\""
         )
+        // Proteção do aplicativo comercial: só a build debug com propriedade
+        // explícita deve receber identidade distinta e desativar integrações OTA/FCM.
+        buildConfigField("boolean", "BROTHER_VISION_QA", "false")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         debug {
+            if (brotherVisionQaParallel) {
+                applicationIdSuffix = ".visionqa"
+                versionNameSuffix = "-VISION-QA"
+                buildConfigField("boolean", "BROTHER_VISION_QA", "true")
+            }
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (!brotherVisionQaParallel && providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"
                 versionNameSuffix = "-QA2"
-            } else if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+            } else if (!brotherVisionQaParallel && providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
                 applicationIdSuffix = ".qa"
                 versionNameSuffix = "-QA"
             }
