@@ -23,6 +23,18 @@ android {
         versionCode = 188
         versionName = "1.11.1"
 
+        // TDLib requires application-owned Telegram API credentials and a
+        // separate Telegram sign-in; omitted in commercial builds until QA.
+        val telegramId = providers.gradleProperty("brotherTelegramApiId").orNull
+            ?.toIntOrNull()?.takeIf { it > 0 } ?: 0
+        val telegramHash = providers.gradleProperty("brotherTelegramApiHash")
+            .orNull.orEmpty()
+        require(telegramHash.isEmpty() || telegramHash.matches(Regex("[0-9a-fA-F]{32}"))) {
+            "Invalid Telegram API hash configuration."
+        }
+        buildConfigField("int", "BROTHER_TELEGRAM_API_ID", telegramId.toString())
+        buildConfigField("String", "BROTHER_TELEGRAM_API_HASH", "\"$telegramHash\"")
+
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
         buildConfigField(
@@ -119,6 +131,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+
+    // Native Telegram client for scoped, consented access to the user's groups.
+    implementation("io.github.tdlib-android:core:0.1.1")
+    implementation("io.github.tdlib-android:ktx:0.1.1")
 
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
 
