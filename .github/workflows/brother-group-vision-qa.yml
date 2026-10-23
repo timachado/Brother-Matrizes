@@ -1,0 +1,45 @@
+name: Brother Vision grupos — QA de segurança
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/src/main/java/com/timachado/brothermatrizes/core/telegramvision/**"
+      - "app/src/test/java/com/timachado/brothermatrizes/core/telegramvision/**"
+      - "docs/BROTHER_VISION_GROUPS_SECURITY.md"
+      - ".github/workflows/brother-group-vision-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-group-vision-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Testes de permissões, segurança e compilação Android
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+      - name: Garantir que não há APK indevidamente distribuído
+        shell: bash
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          echo 'A compilação é diagnóstica; não há distribuição nem release comercial.'
