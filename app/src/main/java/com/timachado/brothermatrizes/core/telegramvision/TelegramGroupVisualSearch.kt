@@ -79,8 +79,8 @@ class TelegramGroupVisualSearch(
     private val media: TelegramGroupMediaSource
 ) {
     companion object {
-        const val MAX_GROUPS = 20
-        const val MAX_PHOTOS_PER_GROUP = 60
+        const val MAX_GROUPS = 10
+        const val MAX_PHOTOS_PER_GROUP = 25
         const val MAX_RESULTS = 8
         const val MIN_SIMILARITY = 0.80f
     }
@@ -142,5 +142,6 @@ class TelegramGroupVisualSearch(
 
     /** Never manufacture a permalink for a private group. */
     private fun isSafeTelegramPostUrl(input: String): Boolean =
-        input.matches(Regex("https://t\\.me/[A-Za-z][A-Za-z0-9_]{4,31}/[1-9][0-9]*"))
+        input.matches(Regex("https://t\\.me/[A-Za-z][A-Za-z0-9_]{4,31}/[1-9][0-9]*")) ||
+            input.matches(Regex("https://t\\.me/c/[1-9][0-9]*/[1-9][0-9]*"))
 }
