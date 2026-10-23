@@ -22,7 +22,9 @@ data class TelegramPhotoCandidate(
     val messageId: Long,
     val title: String,
     val publicPostUrl: String?,
-    val grayscale9x8: IntArray
+    val grayscale9x8: IntArray,
+    /** TDLib's app-private cached preview. Never a remote URL or upload. */
+    val localPreviewPath: String? = null
 )
 
 data class TelegramPhotoHit(
@@ -30,6 +32,7 @@ data class TelegramPhotoHit(
     val messageId: Long,
     val groupTitle: String,
     val publicPostUrl: String?,
+    val localPreviewPath: String? = null,
     /** Similaridade heurística, não probabilidade de ser a mesma matriz. */
     val similarity: Float
 )
@@ -127,7 +130,8 @@ class TelegramGroupVisualSearch(
                             groupTitle = title,
                             publicPostUrl = candidate.publicPostUrl
                                 ?.takeIf { isSafeTelegramPostUrl(it) },
-                            similarity = score
+                            similarity = score,
+                            localPreviewPath = candidate.localPreviewPath
                         )
                     )
                 }
