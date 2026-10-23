@@ -37,3 +37,17 @@ Fontes oficiais: https://core.telegram.org/api/terms ; https://telegram.org/tos/
 - Não reutilizar o PR #197 (catálogo externo) ou #196 (palavras-chave/local).
 
 **Segurança de release:** manter a versão comercial inalterada até testes em aparelho e avaliação dos termos. Nunca pedir que o usuário desinstale a versão oficial. Nenhum token, número de telefone ou código Telegram deve ser enviado a WordPress, Supabase ou T.I. Machado.
+
+
+## Fase OCR e reconhecimento visual — 23/10/2026
+- A imagem enviada (foto da câmera, galeria ou compartilhamento) é processada **localmente** com ML Kit OCR Latin e classificação visual de imagem, modelos embarcados no APK.
+- O usuário não vê nem escolhe palavras de reconhecimento. As pistas são usadas automaticamente para procurar mensagens/captions e documentos de matriz PES/DST/JEF/EXP/VP3/XXX nos grupos que autorizou via TDLib.
+- A comparação por imagem em miniaturas de grupos permanece **dHash local**, para fotos similares. OCR não identifica desenhos sem texto; rotulagem visual genérica pode sugerir posts apenas relacionados e **nunca confirma a matriz exata**.
+- O resultado diferencia claramente **imagem visualmente semelhante** de **mensagem ou arquivo relacionado ao texto/assunto da foto**. Arquivo só recebe extensão quando uma postagem realmente contém documento de bordado; nenhuma matriz é inventada.
+- Limites automáticos: até 4 consultas derivadas da foto por grupo, no máximo 12 mensagens por consulta, até 10 grupos selecionados; sem varredura ilimitada.
+- QA separado `.groupqa` usa apenas câmera/galeria/OCR se faltar api_id/api_hash; nesse caso **não acessa grupos reais** nem produz resultados de Telegram.
+- `app/build.gradle.kts` adiciona dependências `com.google.mlkit:text-recognition:16.0.1` e `com.google.mlkit:image-labeling:17.0.9`.
+- A rotina CI publica um APK **diagnóstico não comercial** para câmera/galeria/OCR após JUnit, lint e compilação, com manifesto e SHA-256. Esse APK não testa a busca de grupos sem autorização Telegram.
+- O teste do Tio Edvaldo ocorreu no APK velho de chips de palavras (Brother Vision Search 1.11.1), expressamente **rejeitado**. Esse modelo não deve ser redistribuído.
+
+Testes necessários: foto com nome bordado (OCR), foto sem texto (rotulagem visual apenas como pista), imagem de baixa qualidade, câmera Android 15, grupos privados acessíveis, foto e arquivo publicados separados, acesso e restrições reais de Telegram.
