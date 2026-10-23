@@ -36,7 +36,16 @@ jobs:
         with:
           gradle-version: '9.6.0'
       - name: Testes de permissões, segurança e compilação Android
-        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherGroupQaParallel=true --stacktrace
+        # Telegram Desktop publishes TEST-ONLY app keys for debugging unofficial
+        # clients. They are rate-limited and MUST NOT be used for production.
+        # Source: https://github.com/telegramdesktop/tdesktop/blob/dev/docs/api_credentials.md
+        run: >-
+          gradle --no-daemon
+          :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+          -PbrotherGroupQaParallel=true
+          -PbrotherTelegramApiId=17349
+          -PbrotherTelegramApiHash=344583e45741c457fe1862106095a5eb
+          --stacktrace
       - name: Verificar pacote separado e assinatura
         shell: bash
         run: |
@@ -47,12 +56,12 @@ jobs:
           grep -F "package: name='com.timachado.brothermatrizes.groupqa'" vision-ocr-badging.txt
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > vision-ocr-signature.txt
           sha256sum "$apk" > vision-ocr-sha256.txt
-          echo 'Diagnóstico apenas: sem credenciais Telegram, sem release comercial.'
+          echo 'TEST-ONLY Telegram API credentials: limited login; no commercial distribution.'
 
-      - name: Disponibilizar APK para testar câmera e OCR, sem acesso a grupos
+      - name: Disponibilizar APK experimental com Telegram TEST ONLY limitado
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Lens-OCR-Camera-QA-SEM-TELEGRAM
+          name: Brother-Lens-Telegram-TEST-ONLY-QA-NAO-COMERCIAL
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             vision-ocr-badging.txt
