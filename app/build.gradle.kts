@@ -7,10 +7,22 @@ import java.awt.image.RescaleOp
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+val brotherVisionQa = providers.gradleProperty("brotherLensQaParallel").orNull == "true"
+if (!brotherVisionQa) {
+    apply(plugin = "com.google.gms.google-services")
+}
+val visionApiUrl = providers.gradleProperty("brotherVisionSearchUrl")
+    .orNull.orEmpty().trim()
+require(visionApiUrl.isEmpty() || (
+    visionApiUrl.startsWith("https://") &&
+    !visionApiUrl.contains('"') &&
+    !visionApiUrl.contains('\\')
+)) { "A URL pública do serviço visual deve utilizar HTTPS." }
 
 android {
     namespace = "com.timachado.brothermatrizes"
@@ -22,6 +34,8 @@ android {
         targetSdk = 36
         versionCode = 188
         versionName = "1.11.1"
+        buildConfigField("String", "BROTHER_VISION_SEARCH_URL", "\"$visionApiUrl\"")
+        buildConfigField("boolean", "BROTHER_LENS_QA", "false")
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
@@ -56,14 +70,19 @@ android {
 
     buildTypes {
         debug {
+            if (brotherVisionQa) {
+                applicationIdSuffix = ".lensqa"
+                versionNameSuffix = "-LENS-QA"
+                buildConfigField("boolean", "BROTHER_LENS_QA", "true")
+            }
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (!brotherVisionQa && providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"
                 versionNameSuffix = "-QA2"
-            } else if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+            } else if (!brotherVisionQa && providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
                 applicationIdSuffix = ".qa"
                 versionNameSuffix = "-QA"
             }
