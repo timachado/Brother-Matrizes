@@ -146,7 +146,7 @@ class TelegramGroupVisualSearch(
                     !EphemeralImageFingerprint.hasDetail(candidate.grayscale9x8)
                 ) continue
                 val score = EphemeralImageFingerprint.similarity(
-                    wanted, EphemeralImageFingerprint.fromGray9x8(candidate.grayscale9x8)
+                    wanted ?: continue, EphemeralImageFingerprint.fromGray9x8(candidate.grayscale9x8)
                 )
                 if (score >= MIN_SIMILARITY) {
                     hits.add(
