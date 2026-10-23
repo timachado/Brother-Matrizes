@@ -213,6 +213,44 @@ class TelegramGroupSession private constructor(private val context: Context) :
         }
     }
 
+    override suspend fun searchMessagesByText(
+        groupId: Long, query: String, maxCount: Int
+    ): List<TelegramTextCandidate> {
+        require(query.length in 4..48 && maxCount in 1..12)
+        val td = session()
+        td.awaitReady()
+        check(authorizedGroups().any { it.id == groupId && it.isMember }) {
+            "Não é permitido pesquisar neste grupo."
+        }
+        // Searches within this authorized chat only — not all of Telegram.
+        val messages = td.send(
+            TdApi.SearchChatMessages(groupId, null, query, null, 0L, 0, maxCount, null)
+        )
+        return messages.messages.mapNotNull { message ->
+            val content = message.content
+            val matrixFormat = if (content is TdApi.MessageDocument) {
+                content.document.fileName.substringAfterLast('.', "")
+                    .uppercase(java.util.Locale.ROOT)
+                    .takeIf { it in setOf("PES", "DST", "JEF", "EXP", "VP3", "XXX") }
+            } else null
+            // Only texts, photos with relevant captions, or real attached design
+            // documents returned by the Telegram search.
+            val relevant = content is TdApi.MessageText ||
+                content is TdApi.MessagePhoto ||
+                matrixFormat != null
+            if (!relevant) return@mapNotNull null
+            val link = runCatching {
+                td.send(
+                    TdApi.GetMessageLink(groupId, message.id, 0, 0, "", false, false)
+                ).link
+            }.getOrNull()
+            TelegramTextCandidate(
+                chatId = groupId, messageId = message.id,
+                publicPostUrl = link, matrixFileFormat = matrixFormat
+            )
+        }
+    }
+
     /** Small, temporary decoding; no separate Brother image database. */
     private fun decodeGray9x8(filePath: String): IntArray? {
         if (filePath.isBlank()) return null
