@@ -385,6 +385,12 @@ object BrotherMatrizesAccountService {
         return session.accessToken
     }
 
+    /** Autentica a busca visual usando a sessão Google já existente.
+     * O backend valida este JWT junto ao Supabase; não cria uma segunda conta.
+     */
+    suspend fun visionSearchAccessToken(): Result<String> =
+        runCatching { verifiedAccessToken() }
+
     /** Pré-checagem: sem abrir seletores ou outros aplicativos para usuários não autenticados. */
     suspend fun ensureGoogleSession(): Result<Unit> = runCatching {
         check(verifiedAccessToken().isNotBlank()) { "Conta Google indisponível." }
