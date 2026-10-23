@@ -128,7 +128,7 @@ class TelegramGroupVisualSearch(
             EphemeralImageFingerprint.fromGray9x8(selectedPhotoGray9x8)
         } else null
         val safeQueries = textQueries
-            .filter { it.length in 4..48 && '\\n' !in it }
+            .filter { it.length in 4..48 && '\n' !in it }
             .distinct()
             .take(4)
         val hits = ArrayList<TelegramPhotoHit>()
