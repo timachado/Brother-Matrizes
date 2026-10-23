@@ -429,9 +429,9 @@ fun TelegramGroupVisionScreen(
 /** Preview bounded to avoid decoding multi-megapixel camera photos into Compose memory. */
 private fun loadVisionPreview(context: Context, uri: Uri): ImageBitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, bounds)
-    } ?: return null
+    val boundsStream = context.contentResolver.openInputStream(uri) ?: return null
+    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+    // BitmapFactory's bounds-only probe has no Bitmap return value.
     if (bounds.outWidth !in 1..30000 || bounds.outHeight !in 1..30000) return null
     var sample = 1
     while (bounds.outWidth / sample > 600 || bounds.outHeight / sample > 600) {
