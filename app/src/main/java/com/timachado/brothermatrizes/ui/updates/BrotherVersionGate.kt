@@ -34,6 +34,11 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun BrotherVersionGate(resumeRequest: Int, content: @Composable () -> Unit) {
+    // A QA visual nunca deve bloquear a interface nem instalar OTA comercial.
+    if (BuildConfig.BROTHER_VISION_QA) {
+        content()
+        return
+    }
     val context = LocalContext.current
     val prefs = remember(context) {
         context.getSharedPreferences("brother_verified_version_gate", Context.MODE_PRIVATE)
