@@ -10,9 +10,9 @@ import android.net.Uri
 object SelectedTelegramImage {
     fun grayscale9x8(context: Context, uri: Uri): IntArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: return null
+        val boundsStream = context.contentResolver.openInputStream(uri) ?: return null
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+        // In bounds-only mode BitmapFactory returns null by design; dimensions are in Options.
         if (bounds.outWidth !in 1..20000 || bounds.outHeight !in 1..20000) return null
         var sample = 1
         while (bounds.outWidth / sample > 1024 || bounds.outHeight / sample > 1024) {
