@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -93,9 +94,7 @@ fun VisualTelegramSearchScreen(
         state = VisionState.Searching
         preview = withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                }
+                decodeSmallPreview(context, uri)
             }.getOrNull()
         }
         val endpoint = BuildConfig.BROTHER_VISION_SEARCH_URL
@@ -246,5 +245,22 @@ private fun VisionResultCard(match: AuthorizedMatrixMatch) {
                 }) { Text("Abrir no Telegram", color = FioGold) }
             }
         }
+    }
+}
+
+/** Keep the image preview bounded on entry-level Android devices. */
+private fun decodeSmallPreview(context: Context, uri: Uri): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, bounds)
+    } ?: return null
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (bounds.outWidth / sample > 1024 || bounds.outHeight / sample > 1024) {
+        sample *= 2
+    }
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, options)?.asImageBitmap()
     }
 }
