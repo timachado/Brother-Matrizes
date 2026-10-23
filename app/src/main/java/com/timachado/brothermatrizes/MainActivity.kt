@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
         mutableStateOf<Uri?>(
             null
         )
+    private var externalPhotoSearchUri by mutableStateOf<Uri?>(null)
 
     private fun captureExternalOpenIntent(
         sourceIntent: Intent?
@@ -115,12 +116,12 @@ class MainActivity : ComponentActivity() {
                     null
             }
 
-        if (
-            uri !=
-                null
-        ) {
-            externalOpenUri =
-                uri
+        if (uri != null) {
+            if (sourceIntent?.type?.startsWith("image/") == true) {
+                externalPhotoSearchUri = uri
+            } else {
+                externalOpenUri = uri
+            }
         }
     }
 
@@ -129,11 +130,13 @@ class MainActivity : ComponentActivity() {
 
         // A verificação periódica continua após o aplicativo ser fechado.
         // Não usa FCM/Supabase nem consulta assinaturas comerciais.
-        runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        if (!BuildConfig.BROTHER_NATIVE_IMAGE_QA) {
+            runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        }
 
-        DebugTelemetry.setup(
-            applicationContext
-        )
+        if (!BuildConfig.BROTHER_NATIVE_IMAGE_QA) {
+            DebugTelemetry.setup(applicationContext)
+        }
 
         captureExternalOpenIntent(
             intent
@@ -182,12 +185,14 @@ class MainActivity : ComponentActivity() {
                 darkTheme = darkTheme
             ) {
                 BrotherVersionGate(resumeRequest = updateResumeRequest) {
-                BrotherFirebasePushOptIn()
-                BrotherUpdateReminder(
-                    endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
-                        "/wp-json/tim-brother-updates/v1/latest?channel=stable"
-                )
-                BrotherPostUpdateNews()
+                if (!BuildConfig.BROTHER_NATIVE_IMAGE_QA) {
+                    BrotherFirebasePushOptIn()
+                    BrotherUpdateReminder(
+                        endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
+                            "/wp-json/tim-brother-updates/v1/latest?channel=stable"
+                    )
+                    BrotherPostUpdateNews()
+                }
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
@@ -196,6 +201,10 @@ class MainActivity : ComponentActivity() {
                     updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
+                    externalPhotoSearchUri = externalPhotoSearchUri,
+                    onPhotoSearchConsumed = { consumed ->
+                        if (externalPhotoSearchUri == consumed) externalPhotoSearchUri = null
+                    },
                     onExternalOpenConsumed = {
                             consumedUri ->
                         if (
@@ -298,6 +307,7 @@ private sealed interface Screen {
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
+    data object TelegramImageAssist : Screen
     data class ArchiveImport(
         val uri: Uri,
         val returnTo: Screen = ProjectLibrary
@@ -366,6 +376,8 @@ private fun BrotherMatrizesApp(
     openCommunityRequest: Int = 0,
     updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
+    externalPhotoSearchUri: Uri? = null,
+    onPhotoSearchConsumed: (Uri) -> Unit = {},
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -596,6 +608,10 @@ private fun BrotherMatrizesApp(
         }
     }
 
+    LaunchedEffect(externalPhotoSearchUri) {
+        if (externalPhotoSearchUri != null) screen = Screen.TelegramImageAssist
+    }
+
     LaunchedEffect(externalOpenUri, openAccountRequest) {
         val uri =
             externalOpenUri
@@ -725,6 +741,8 @@ private fun BrotherMatrizesApp(
                 Screen.CreateMonogram,
                 Screen.CreateDrawing ->
                     Screen.Home
+
+                Screen.TelegramImageAssist -> Screen.TelegramSearch
 
                 is Screen.ArchiveImport -> current.returnTo
 
@@ -2065,10 +2083,20 @@ private fun BrotherMatrizesApp(
                         onImport = {
                             launchMatrixPicker(fromTelegram = true)
                         },
+                        onSearchImage = { screen = Screen.TelegramImageAssist },
                         onRequireGoogle = { screen = Screen.Account },
                         onOpenSavedProject = { saved ->
                             loadProject(saved, transferDirectly = false)
                         }
+                    )
+                }
+
+                Screen.TelegramImageAssist -> {
+                    TelegramNativeImageAssistScreen(
+                        incomingImageUri = externalPhotoSearchUri,
+                        onImageConsumed = onPhotoSearchConsumed,
+                        onBack = { screen = Screen.TelegramSearch },
+                        onRequireGoogle = { screen = Screen.Account }
                     )
                 }
 
