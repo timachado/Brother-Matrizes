@@ -34,6 +34,10 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun BrotherVersionGate(resumeRequest: Int, content: @Composable () -> Unit) {
+    if (BuildConfig.BROTHER_GROUP_VISION_QA) {
+        content()
+        return
+    }
     val context = LocalContext.current
     val prefs = remember(context) {
         context.getSharedPreferences("brother_verified_version_gate", Context.MODE_PRIVATE)
