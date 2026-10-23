@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
         mutableStateOf<Uri?>(
             null
         )
+    private var externalGroupSearchImageUri by mutableStateOf<Uri?>(null)
 
     private fun captureExternalOpenIntent(
         sourceIntent: Intent?
@@ -115,12 +116,12 @@ class MainActivity : ComponentActivity() {
                     null
             }
 
-        if (
-            uri !=
-                null
-        ) {
-            externalOpenUri =
-                uri
+        if (uri != null) {
+            if (sourceIntent?.type?.startsWith("image/") == true) {
+                externalGroupSearchImageUri = uri
+            } else {
+                externalOpenUri = uri
+            }
         }
     }
 
@@ -129,11 +130,13 @@ class MainActivity : ComponentActivity() {
 
         // A verificação periódica continua após o aplicativo ser fechado.
         // Não usa FCM/Supabase nem consulta assinaturas comerciais.
-        runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        if (!BuildConfig.BROTHER_GROUP_VISION_QA) {
+            runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        }
 
-        DebugTelemetry.setup(
-            applicationContext
-        )
+        if (!BuildConfig.BROTHER_GROUP_VISION_QA) {
+            DebugTelemetry.setup(applicationContext)
+        }
 
         captureExternalOpenIntent(
             intent
@@ -182,12 +185,14 @@ class MainActivity : ComponentActivity() {
                 darkTheme = darkTheme
             ) {
                 BrotherVersionGate(resumeRequest = updateResumeRequest) {
-                BrotherFirebasePushOptIn()
-                BrotherUpdateReminder(
-                    endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
-                        "/wp-json/tim-brother-updates/v1/latest?channel=stable"
-                )
-                BrotherPostUpdateNews()
+                if (!BuildConfig.BROTHER_GROUP_VISION_QA) {
+                    BrotherFirebasePushOptIn()
+                    BrotherUpdateReminder(
+                        endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
+                            "/wp-json/tim-brother-updates/v1/latest?channel=stable"
+                    )
+                    BrotherPostUpdateNews()
+                }
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
@@ -196,6 +201,12 @@ class MainActivity : ComponentActivity() {
                     updateResumeRequest = updateResumeRequest,
                     externalOpenUri =
                         externalOpenUri,
+                    externalGroupSearchImageUri = externalGroupSearchImageUri,
+                    onGroupSearchImageConsumed = { imageUri ->
+                        if (externalGroupSearchImageUri == imageUri) {
+                            externalGroupSearchImageUri = null
+                        }
+                    },
                     onExternalOpenConsumed = {
                             consumedUri ->
                         if (
@@ -366,6 +377,8 @@ private fun BrotherMatrizesApp(
     openCommunityRequest: Int = 0,
     updateResumeRequest: Int = 0,
     externalOpenUri: Uri? = null,
+    externalGroupSearchImageUri: Uri? = null,
+    onGroupSearchImageConsumed: (Uri) -> Unit = {},
     onExternalOpenConsumed: (Uri) -> Unit = {},
     textScale: Float,
     onTextScaleChange: (Float) -> Unit,
@@ -594,6 +607,10 @@ private fun BrotherMatrizesApp(
                 )
             }
         }
+    }
+
+    LaunchedEffect(externalGroupSearchImageUri) {
+        if (externalGroupSearchImageUri != null) screen = Screen.TelegramSearch
     }
 
     LaunchedEffect(externalOpenUri, openAccountRequest) {
@@ -2059,16 +2076,11 @@ private fun BrotherMatrizesApp(
                 }
 
                 Screen.TelegramSearch -> {
-                    TelegramMatrixSearchScreen(
-                        projects = savedProjects,
+                    TelegramGroupVisionScreen(
+                        imageSharedWithApp = externalGroupSearchImageUri,
+                        onSharedImageConsumed = onGroupSearchImageConsumed,
                         onBack = { goBack() },
-                        onImport = {
-                            launchMatrixPicker(fromTelegram = true)
-                        },
-                        onRequireGoogle = { screen = Screen.Account },
-                        onOpenSavedProject = { saved ->
-                            loadProject(saved, transferDirectly = false)
-                        }
+                        onImportFile = { launchMatrixPicker(fromTelegram = true) }
                     )
                 }
 
