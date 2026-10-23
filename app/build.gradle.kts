@@ -7,10 +7,13 @@ import java.awt.image.RescaleOp
 
 plugins {
     id("com.android.application")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+val groupVisionQa = providers.gradleProperty("brotherGroupQaParallel").orNull == "true"
+if (!groupVisionQa) apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.timachado.brothermatrizes"
@@ -34,6 +37,7 @@ android {
         }
         buildConfigField("int", "BROTHER_TELEGRAM_API_ID", telegramId.toString())
         buildConfigField("String", "BROTHER_TELEGRAM_API_HASH", "\"$telegramHash\"")
+        buildConfigField("boolean", "BROTHER_GROUP_VISION_QA", "false")
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
@@ -68,14 +72,19 @@ android {
 
     buildTypes {
         debug {
+            if (groupVisionQa) {
+                applicationIdSuffix = ".groupqa"
+                versionNameSuffix = "-GROUP-QA"
+                buildConfigField("boolean", "BROTHER_GROUP_VISION_QA", "true")
+            }
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (!groupVisionQa && providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"
                 versionNameSuffix = "-QA2"
-            } else if (providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
+            } else if (!groupVisionQa && providers.gradleProperty("brotherCheckoutQaParallel").orNull == "true") {
                 applicationIdSuffix = ".qa"
                 versionNameSuffix = "-QA"
             }
