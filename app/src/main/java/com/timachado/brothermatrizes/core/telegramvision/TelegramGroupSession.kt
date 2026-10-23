@@ -156,7 +156,11 @@ class TelegramGroupSession private constructor(private val context: Context) :
         )
         return results.messages.mapNotNull { message ->
             val photo = (message.content as? TdApi.MessagePhoto)?.photo ?: return@mapNotNull null
-            val sourceFile = photo.sizes.lastOrNull()?.photo ?: return@mapNotNull null
+            val smallestUsefulSize = photo.sizes
+                .filter { it.width >= 128 && it.height >= 128 }
+                .minByOrNull { it.width.toLong() * it.height.toLong() }
+                ?: photo.sizes.minByOrNull { it.width.toLong() * it.height.toLong() }
+            val sourceFile = smallestUsefulSize?.photo ?: return@mapNotNull null
             if (sourceFile.expectedSize > 4 * 1024 * 1024) return@mapNotNull null
             val fetched = runCatching {
                 td.send(TdApi.DownloadFile(sourceFile.id, 1, 0, 0, true))
