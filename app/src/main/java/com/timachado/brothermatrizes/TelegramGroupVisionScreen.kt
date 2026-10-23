@@ -65,6 +65,8 @@ fun TelegramGroupVisionScreen(
     val client = remember { TelegramGroupSession.get(context) }
     val auth by client.stage.collectAsState()
     var phone by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var emailCode by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -134,6 +136,16 @@ fun TelegramGroupVisionScreen(
         runCatching { client.submitPhone(phone.trim()) }
             .onFailure { error = it.message ?: "Falha no Telegram." }
     }
+    suspend fun sendEmail() {
+        runCatching { client.submitEmail(email.trim()) }
+            .onFailure { error = it.message ?: "E-mail não aceito pelo Telegram." }
+    }
+    suspend fun sendEmailCode() {
+        val sentCode = emailCode.trim()
+        emailCode = ""
+        runCatching { client.submitEmailCode(sentCode) }
+            .onFailure { error = it.message ?: "Código de e-mail não aceito." }
+    }
     suspend fun sendCode() {
         runCatching { client.submitCode(code.trim()) }
             .onFailure { error = it.message ?: "Código não aceito." }
@@ -189,6 +201,29 @@ fun TelegramGroupVisionScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Button(onClick = { scope.launch { sendPhone() } }) { Text("Receber código") }
+                            }
+                            TelegramAuthorizationStage.EMAIL -> {
+                                OutlinedTextField(
+                                    value = email, onValueChange = { email = it.take(254) },
+                                    label = { Text("E-mail solicitado pelo Telegram") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Button(onClick = { scope.launch { sendEmail() } }) {
+                                    Text("Receber código por e-mail")
+                                }
+                            }
+                            TelegramAuthorizationStage.EMAIL_CODE -> {
+                                OutlinedTextField(
+                                    value = emailCode,
+                                    onValueChange = { emailCode = it.take(12) },
+                                    label = { Text("Código enviado por e-mail") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Button(onClick = { scope.launch { sendEmailCode() } }) {
+                                    Text("Confirmar e-mail")
+                                }
                             }
                             TelegramAuthorizationStage.CODE -> {
                                 OutlinedTextField(
