@@ -4,8 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "app/src/main/java/com/timachado/brothermatrizes/core/telegramvision/**"
-      - "app/src/test/java/com/timachado/brothermatrizes/core/telegramvision/**"
+      - "app/**"
       - "docs/BROTHER_VISION_GROUPS_SECURITY.md"
       - ".github/workflows/brother-group-vision-qa.yml"
   workflow_dispatch:
@@ -37,9 +36,11 @@ jobs:
         with:
           gradle-version: '9.6.0'
       - name: Testes de permissões, segurança e compilação Android
-        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherGroupQaParallel=true --stacktrace
       - name: Garantir que não há APK indevidamente distribuído
         shell: bash
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep -F "package: name='com.timachado.brothermatrizes.groupqa'"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           echo 'A compilação é diagnóstica; não há distribuição nem release comercial.'
