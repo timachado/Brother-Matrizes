@@ -310,6 +310,16 @@ fun TelegramGroupVisionScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text("Conectar minha conta Telegram", color = FioText, fontWeight = FontWeight.Bold)
+                        if (BuildConfig.BROTHER_GROUP_VISION_QA &&
+                            BuildConfig.BROTHER_TELEGRAM_API_ID == 17349
+                        ) {
+                            Text(
+                                "Modo experimental: credenciais Telegram TEST ONLY. " +
+                                    "A plataforma pode limitar ou recusar o login. " +
+                                    "Não é uma versão para clientes.",
+                                color = FioGold, fontSize = 11.sp
+                            )
+                        }
                         when (auth) {
                             TelegramAuthorizationStage.NOT_CONFIGURED -> Text(
                                 "Esta compilação ainda não possui as credenciais oficiais " +
