@@ -51,6 +51,7 @@ fun TelegramMatrixSearchScreen(
     projects: List<SavedProjectSummary>,
     onBack: () -> Unit,
     onImport: () -> Unit,
+    onSearchImage: () -> Unit,
     onRequireGoogle: () -> Unit,
     onOpenSavedProject: (SavedProjectSummary) -> Unit
 ) {
@@ -132,15 +133,22 @@ fun TelegramMatrixSearchScreen(
             Text("Pesquisar no Telegram")
         }
         OutlinedButton(
+            onClick = onSearchImage,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Pesquisar por imagem nos meus grupos do Telegram")
+        }
+        OutlinedButton(
             onClick = onImport,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Importar matriz do Telegram / Arquivos")
         }
         Text(
-            "A pesquisa em grupos e canais privados ocorre no Telegram, usando sua sessão. " +
-                "Para importar, compartilhe um arquivo PES, DST ou JEF com o Brother Matrizes, " +
-                "ou selecione-o em Arquivos. Não acessamos suas conversas sem autorização.",
+            "A pesquisa por texto continua abrindo o Telegram normalmente. " +
+                "A pesquisa por imagem usa uma sessão Telegram autorizada separadamente " +
+                "e consulta somente os grupos escolhidos. Para importar, compartilhe " +
+                "o arquivo PES, DST ou JEF ou selecione-o em Arquivos.",
             color = FioTextMuted,
             fontSize = 11.sp,
             modifier = Modifier.padding(vertical = 9.dp)
