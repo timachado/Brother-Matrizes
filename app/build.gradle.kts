@@ -86,7 +86,7 @@ android {
     buildTypes {
         debug {
             if (groupVisionQa) {
-                applicationIdSuffix = ".groupqa"
+                applicationIdSuffix = ".telegramqa"
                 versionNameSuffix = "-GROUP-QA"
                 buildConfigField("boolean", "BROTHER_GROUP_VISION_QA", "true")
             }
