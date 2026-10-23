@@ -32,9 +32,9 @@ data class TelegramPhotoHit(
     val messageId: Long,
     val groupTitle: String,
     val publicPostUrl: String?,
-    val localPreviewPath: String? = null,
     /** Similaridade heurística, não probabilidade de ser a mesma matriz. */
-    val similarity: Float
+    val similarity: Float,
+    val localPreviewPath: String? = null
 )
 
 /**
