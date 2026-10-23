@@ -18,7 +18,7 @@ import org.drinkless.tdlib.TdApi
 import java.io.File
 
 enum class TelegramAuthorizationStage {
-    NOT_CONFIGURED, INITIALIZING, PHONE, CODE, PASSWORD, READY, NEEDS_OTHER_METHOD, CLOSED
+    NOT_CONFIGURED, INITIALIZING, PHONE, EMAIL, EMAIL_CODE, CODE, PASSWORD, READY, NEEDS_OTHER_METHOD, CLOSED
 }
 
 /**
@@ -54,19 +54,32 @@ class TelegramGroupSession private constructor(private val context: Context) :
             scope.launch {
                 td.updates.collect { update ->
                     if (update is TdApi.UpdateAuthorizationState) {
-                        _stage.value = when (update.authorizationState) {
-                            is TdApi.AuthorizationStateReady -> TelegramAuthorizationStage.READY
-                            is TdApi.AuthorizationStateWaitPhoneNumber -> TelegramAuthorizationStage.PHONE
-                            is TdApi.AuthorizationStateWaitCode -> TelegramAuthorizationStage.CODE
-                            is TdApi.AuthorizationStateWaitPassword -> TelegramAuthorizationStage.PASSWORD
-                            is TdApi.AuthorizationStateClosed -> TelegramAuthorizationStage.CLOSED
-                            else -> TelegramAuthorizationStage.NEEDS_OTHER_METHOD
-                        }
+                        _stage.value = stageFor(update.authorizationState)
                     }
                 }
             }
+            // Reconcile the current state after subscribing, in case the
+            // initial authorization update arrived while the UI was attaching.
+            scope.launch {
+                runCatching { td.send(TdApi.GetAuthorizationState()) }
+                    .onSuccess { _stage.value = stageFor(it) }
+            }
         }
     }
+
+    private fun stageFor(state: TdApi.AuthorizationState): TelegramAuthorizationStage =
+        when (state) {
+            is TdApi.AuthorizationStateReady -> TelegramAuthorizationStage.READY
+            is TdApi.AuthorizationStateWaitPhoneNumber -> TelegramAuthorizationStage.PHONE
+            is TdApi.AuthorizationStateWaitEmailAddress -> TelegramAuthorizationStage.EMAIL
+            is TdApi.AuthorizationStateWaitEmailCode -> TelegramAuthorizationStage.EMAIL_CODE
+            is TdApi.AuthorizationStateWaitCode -> TelegramAuthorizationStage.CODE
+            is TdApi.AuthorizationStateWaitPassword -> TelegramAuthorizationStage.PASSWORD
+            is TdApi.AuthorizationStateClosed -> TelegramAuthorizationStage.CLOSED
+            is TdApi.AuthorizationStateWaitTdlibParameters ->
+                TelegramAuthorizationStage.INITIALIZING
+            else -> TelegramAuthorizationStage.NEEDS_OTHER_METHOD
+        }
 
     companion object {
         @Volatile private var current: TelegramGroupSession? = null
@@ -81,6 +94,25 @@ class TelegramGroupSession private constructor(private val context: Context) :
         require(_stage.value == TelegramAuthorizationStage.PHONE)
         require(number.matches(Regex("\\+[1-9][0-9]{6,14}"))) { "Informe o telefone com DDI." }
         session().send(TdApi.SetAuthenticationPhoneNumber(number, null))
+    }
+
+    suspend fun submitEmail(email: String) {
+        require(_stage.value == TelegramAuthorizationStage.EMAIL)
+        val trimmed = email.trim()
+        require(trimmed.length in 6..254 && trimmed.contains("@") && !trimmed.contains(" ")) {
+            "Informe um e-mail válido."
+        }
+        session().send(TdApi.SetAuthenticationEmailAddress(trimmed))
+    }
+
+    suspend fun submitEmailCode(code: String) {
+        require(_stage.value == TelegramAuthorizationStage.EMAIL_CODE)
+        require(code.length in 4..12 && code.all(Char::isDigit)) {
+            "Código de e-mail inválido."
+        }
+        session().send(
+            TdApi.CheckAuthenticationEmailCode(TdApi.EmailAddressAuthenticationCode(code))
+        )
     }
 
     suspend fun submitCode(code: String) {
