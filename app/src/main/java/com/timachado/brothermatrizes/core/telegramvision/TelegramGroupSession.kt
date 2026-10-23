@@ -207,7 +207,8 @@ class TelegramGroupSession private constructor(private val context: Context) :
                 messageId = message.id,
                 title = "",
                 publicPostUrl = directLink,
-                grayscale9x8 = gray
+                grayscale9x8 = gray,
+                localPreviewPath = filename
             )
         }
     }
