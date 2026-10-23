@@ -412,7 +412,7 @@ fun ProjectLibraryScreen(
             onClick = onSearchMatrices,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Buscar Matrizes no Telegram", color = FioGold)
+            Text("Buscar matriz pela imagem", color = FioGold)
         }
 
         Text(
