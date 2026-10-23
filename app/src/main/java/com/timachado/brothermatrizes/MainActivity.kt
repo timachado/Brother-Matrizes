@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
             }
 
         if (uri != null) {
-            if (sourceIntent.type?.startsWith("image/") == true) {
+            if (sourceIntent?.type?.startsWith("image/") == true) {
                 externalImageUri = uri
             } else {
                 externalOpenUri = uri
