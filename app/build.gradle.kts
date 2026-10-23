@@ -120,6 +120,9 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 
+    // Reconhecimento local de fotos: modelo embarcado, sem upload de imagem.
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
 
     // Archive readers only. RAR license restricts writing a compatible archiver.
