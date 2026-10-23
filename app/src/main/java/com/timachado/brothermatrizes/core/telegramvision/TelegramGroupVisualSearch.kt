@@ -27,6 +27,14 @@ data class TelegramPhotoCandidate(
     val localPreviewPath: String? = null
 )
 
+data class TelegramTextCandidate(
+    val chatId: Long,
+    val messageId: Long,
+    val publicPostUrl: String?,
+    /** Present only when the Telegram message actually contains a matching file. */
+    val matrixFileFormat: String? = null
+)
+
 data class TelegramPhotoHit(
     val chatId: Long,
     val messageId: Long,
@@ -34,7 +42,9 @@ data class TelegramPhotoHit(
     val publicPostUrl: String?,
     /** Similaridade heurística, não probabilidade de ser a mesma matriz. */
     val similarity: Float,
-    val localPreviewPath: String? = null
+    val localPreviewPath: String? = null,
+    val evidence: String = "IMAGE_SIMILARITY",
+    val matrixFileFormat: String? = null
 )
 
 /**
@@ -44,6 +54,11 @@ data class TelegramPhotoHit(
 interface TelegramGroupMediaSource {
     suspend fun authorizedGroups(): List<TelegramGroup>
     suspend fun recentPhotoThumbnails(groupId: Long, maxCount: Int): List<TelegramPhotoCandidate>
+
+    /** The app does not fetch chat history without a user-initiated scan. */
+    suspend fun searchMessagesByText(
+        groupId: Long, query: String, maxCount: Int
+    ): List<TelegramTextCandidate> = emptyList()
 }
 
 object EphemeralImageFingerprint {
@@ -91,14 +106,16 @@ class TelegramGroupVisualSearch(
     suspend fun search(
         userAcceptedThisScan: Boolean,
         selectedGroupIds: Set<Long>,
-        selectedPhotoGray9x8: IntArray
+        selectedPhotoGray9x8: IntArray,
+        textQueries: List<String> = emptyList()
     ): List<TelegramPhotoHit> {
         require(userAcceptedThisScan) { "Confirme a pesquisa nos grupos selecionados." }
         require(selectedGroupIds.isNotEmpty() && selectedGroupIds.size <= MAX_GROUPS) {
             "Selecione de 1 a $MAX_GROUPS grupos."
         }
-        require(EphemeralImageFingerprint.hasDetail(selectedPhotoGray9x8)) {
-            "A foto não possui detalhes suficientes para comparar com segurança."
+        require(EphemeralImageFingerprint.hasDetail(selectedPhotoGray9x8) ||
+            textQueries.isNotEmpty()) {
+            "A foto não possui detalhes ou texto suficientes para pesquisar."
         }
         val allowed = media.authorizedGroups()
             .filter { it.isMember && !it.isSecret }
@@ -106,13 +123,22 @@ class TelegramGroupVisualSearch(
         require(selectedGroupIds.all { it in allowed }) {
             "Um dos grupos não pertence à sessão Telegram autorizada."
         }
-        val wanted = EphemeralImageFingerprint.fromGray9x8(selectedPhotoGray9x8)
+        val enoughVisualDetail = EphemeralImageFingerprint.hasDetail(selectedPhotoGray9x8)
+        val wanted = if (enoughVisualDetail) {
+            EphemeralImageFingerprint.fromGray9x8(selectedPhotoGray9x8)
+        } else null
+        val safeQueries = textQueries
+            .filter { it.length in 4..48 && '\\n' !in it }
+            .distinct()
+            .take(4)
         val hits = ArrayList<TelegramPhotoHit>()
         for (groupId in selectedGroupIds) {
             coroutineContext.ensureActive()
             val title = allowed.getValue(groupId).title
-            val candidates = media.recentPhotoThumbnails(groupId, MAX_PHOTOS_PER_GROUP)
-                .take(MAX_PHOTOS_PER_GROUP)
+            val candidates = if (wanted != null) {
+                media.recentPhotoThumbnails(groupId, MAX_PHOTOS_PER_GROUP)
+                    .take(MAX_PHOTOS_PER_GROUP)
+            } else emptyList()
             for (candidate in candidates) {
                 coroutineContext.ensureActive()
                 if (candidate.chatId != groupId ||
@@ -132,6 +158,28 @@ class TelegramGroupVisualSearch(
                                 ?.takeIf { isSafeTelegramPostUrl(it) },
                             similarity = score,
                             localPreviewPath = candidate.localPreviewPath
+                        )
+                    )
+                }
+            }
+            // OCR is useful for words or codes on the selected design. It does
+            // not prove that a message contains the same image or exact matrix.
+            for (query in safeQueries) {
+                coroutineContext.ensureActive()
+                val related = media.searchMessagesByText(groupId, query, 12).take(12)
+                for (candidate in related) {
+                    coroutineContext.ensureActive()
+                    if (candidate.chatId != groupId || candidate.messageId <= 0) continue
+                    hits.add(
+                        TelegramPhotoHit(
+                            chatId = groupId,
+                            messageId = candidate.messageId,
+                            groupTitle = title,
+                            publicPostUrl = candidate.publicPostUrl
+                                ?.takeIf { isSafeTelegramPostUrl(it) },
+                            similarity = if (candidate.matrixFileFormat != null) 0.70f else 0.55f,
+                            evidence = "RELATED_TEXT",
+                            matrixFileFormat = candidate.matrixFileFormat
                         )
                     )
                 }
