@@ -23,7 +23,8 @@ class TelegramGroupVisualSearchTest {
     }
 
     @Test
-    fun onlyExplicitlySelectedMemberGroupCanBeScanned() = runBlocking {
+    fun onlyExplicitlySelectedMemberGroupCanBeScanned() {
+        runBlocking {
         val g1 = TelegramGroup(10, "Bordados", true)
         val g2 = TelegramGroup(20, "Outro grupo", true)
         val source = FakeSource(
@@ -42,28 +43,36 @@ class TelegramGroupVisualSearchTest {
         assertEquals(1, hits.size)
         assertEquals(10L, hits.first().chatId)
         assertEquals(1f, hits.first().similarity, 0.0001f)
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun noScanningWithoutConsent() = runBlocking {
+    fun noScanningWithoutConsent() {
+        runBlocking {
         val source = FakeSource(listOf(TelegramGroup(10, "A", true)), emptyMap())
         TelegramGroupVisualSearch(source).search(false, setOf(10), signature())
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun nonMemberGroupIsRejected() = runBlocking {
+    fun nonMemberGroupIsRejected() {
+        runBlocking {
         val source = FakeSource(listOf(TelegramGroup(10, "Privado", false)), emptyMap())
         TelegramGroupVisualSearch(source).search(true, setOf(10), signature())
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun secretChatIsRejected() = runBlocking {
+    fun secretChatIsRejected() {
+        runBlocking {
         val source = FakeSource(listOf(TelegramGroup(10, "Segredo", true, true)), emptyMap())
         TelegramGroupVisualSearch(source).search(true, setOf(10), signature())
+        }
     }
 
     @Test
-    fun lowSimilarityDoesNotInventMatches() = runBlocking {
+    fun lowSimilarityDoesNotInventMatches() {
+        runBlocking {
         val source = FakeSource(
             listOf(TelegramGroup(10, "Bordados", true)),
             mapOf(10L to listOf(
@@ -72,10 +81,12 @@ class TelegramGroupVisualSearchTest {
         )
         val hits = TelegramGroupVisualSearch(source).search(true, setOf(10), signature())
         assertTrue(hits.isEmpty())
+        }
     }
 
     @Test
-    fun unsafePermalinkIsNotPresented() = runBlocking {
+    fun unsafePermalinkIsNotPresented() {
+        runBlocking {
         val source = FakeSource(
             listOf(TelegramGroup(10, "Bordados", true)),
             mapOf(10L to listOf(TelegramPhotoCandidate(
@@ -84,13 +95,16 @@ class TelegramGroupVisualSearchTest {
         )
         assertEquals(null, TelegramGroupVisualSearch(source)
             .search(true, setOf(10), signature()).first().publicPostUrl)
+        }
     }
 
     @Test
-    fun blankPhotoIsRejected() = runBlocking {
+    fun blankPhotoIsRejected() {
+        runBlocking {
         val source = FakeSource(listOf(TelegramGroup(10, "A", true)), emptyMap())
         runCatching {
             TelegramGroupVisualSearch(source).search(true, setOf(10), IntArray(72) { 255 })
         }.onSuccess { throw AssertionError("Imagem sem detalhes não deve ser aceita") }
+        }
     }
 }
