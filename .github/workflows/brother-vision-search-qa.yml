@@ -41,13 +41,29 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Testes unitários, lint e compilação debug
-        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+      - name: Testes unitários, lint e APK visual instalável em paralelo
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherVisionQaParallel=true --stacktrace
 
-      - name: Guardar APK apenas para testes
+      - name: Verificar identidade, assinatura e integridade da QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > apk-badging.txt
+          grep -F "package: name='com.timachado.brothermatrizes.visionqa'" apk-badging.txt
+          grep -F "versionName='1.11.1-VISION-QA'" apk-badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > apk-signature.txt
+          sha256sum "$apk" > SHA256-vision-qa.txt
+
+      - name: Guardar APK independente para testes
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Vision-Search-DIAGNOSTIC-NOT-STABLE
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Brother-Vision-Search-INDEPENDENTE-QA
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            SHA256-vision-qa.txt
+            apk-badging.txt
+            apk-signature.txt
           if-no-files-found: error
