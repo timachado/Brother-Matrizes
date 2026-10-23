@@ -9,6 +9,10 @@ on:
       - ".github/workflows/brother-vision-search-qa.yml"
   workflow_dispatch:
 
+concurrency:
+  group: brother-vision-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
