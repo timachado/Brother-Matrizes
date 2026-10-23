@@ -28,13 +28,26 @@ android {
 
         // TDLib requires application-owned Telegram API credentials and a
         // separate Telegram sign-in; omitted in commercial builds until QA.
-        val telegramId = providers.gradleProperty("brotherTelegramApiId").orNull
-            ?.toIntOrNull()?.takeIf { it > 0 } ?: 0
-        val telegramHash = providers.gradleProperty("brotherTelegramApiHash")
+        // Credentials may only enter an isolated debug .groupqa build.
+        // The production package continues to ship with Telegram login disabled.
+        val suppliedTelegramId = providers.gradleProperty("brotherTelegramApiId")
             .orNull.orEmpty()
-        require(telegramHash.isEmpty() || telegramHash.matches(Regex("[0-9a-fA-F]{32}"))) {
-            "Invalid Telegram API hash configuration."
+        val suppliedTelegramHash = providers.gradleProperty("brotherTelegramApiHash")
+            .orNull.orEmpty()
+        val validTelegramPair = suppliedTelegramId.toIntOrNull()?.let { it > 0 } == true &&
+            suppliedTelegramHash.matches(Regex("[0-9a-fA-F]{32}"))
+        if (groupVisionQa && (suppliedTelegramId.isNotBlank() ||
+                suppliedTelegramHash.isNotBlank())) {
+            require(validTelegramPair) {
+                "Telegram QA requires a valid api_id and 32-hex api_hash pair."
+            }
         }
+        val telegramId = if (groupVisionQa && validTelegramPair) {
+            suppliedTelegramId.toInt()
+        } else 0
+        val telegramHash = if (groupVisionQa && validTelegramPair) {
+            suppliedTelegramHash
+        } else ""
         buildConfigField("int", "BROTHER_TELEGRAM_API_ID", telegramId.toString())
         buildConfigField("String", "BROTHER_TELEGRAM_API_HASH", "\"$telegramHash\"")
         buildConfigField("boolean", "BROTHER_GROUP_VISION_QA", "false")
