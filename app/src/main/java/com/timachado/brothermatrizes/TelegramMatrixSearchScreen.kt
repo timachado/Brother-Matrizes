@@ -49,6 +49,8 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 @Composable
 fun TelegramMatrixSearchScreen(
     projects: List<SavedProjectSummary>,
+    incomingImageUri: Uri? = null,
+    onIncomingImageConsumed: (Uri) -> Unit = {},
     onBack: () -> Unit,
     onImport: () -> Unit,
     onRequireGoogle: () -> Unit,
@@ -79,6 +81,11 @@ fun TelegramMatrixSearchScreen(
             "Telegram + matrizes salvas no Brother Matrizes",
             color = FioTextMuted,
             modifier = Modifier.padding(bottom = 12.dp)
+        )
+        BrotherVisionSearch(
+            incomingImageUri = incomingImageUri,
+            onIncomingImageConsumed = onIncomingImageConsumed,
+            onRecognizedTerms = { suggested -> query = suggested.take(100) }
         )
         OutlinedTextField(
             value = query,
