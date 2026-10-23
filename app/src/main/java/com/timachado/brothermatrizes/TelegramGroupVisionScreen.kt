@@ -54,6 +54,7 @@ import com.timachado.brothermatrizes.core.telegramvision.TelegramGroupSession
 import com.timachado.brothermatrizes.core.telegramvision.TelegramGroupVisualSearch
 import com.timachado.brothermatrizes.core.telegramvision.TelegramPhotoHit
 import com.timachado.brothermatrizes.core.telegramvision.SelectedTelegramImage
+import com.timachado.brothermatrizes.core.telegramvision.LocalVisionAnalyzer
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -93,6 +94,7 @@ fun TelegramGroupVisionScreen(
     var didSearch by remember { mutableStateOf(false) }
     var hits by remember { mutableStateOf<List<TelegramPhotoHit>>(emptyList()) }
     var scanned by remember { mutableStateOf(0) }
+    var ocrHintUsed by remember { mutableStateOf(false) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) photo = uri
@@ -164,10 +166,15 @@ fun TelegramGroupVisionScreen(
             val fingerprint = withContext(Dispatchers.IO) {
                 SelectedTelegramImage.grayscale9x8(context, selectedPhoto)
             } ?: throw IllegalArgumentException("Foto inválida. Tente outra imagem.")
+            val cues = withContext(Dispatchers.IO) {
+                LocalVisionAnalyzer.analyze(context, selectedPhoto)
+            }
+            ocrHintUsed = cues.ocrTerms.isNotEmpty()
             val results = withTimeout(120_000L) {
                 withContext(Dispatchers.IO) {
                     TelegramGroupVisualSearch(client).search(
-                        true, selectedGroupIds, fingerprint
+                        true, selectedGroupIds, fingerprint,
+                        textQueries = cues.searchTerms
                     )
                 }
             }
@@ -378,10 +385,11 @@ fun TelegramGroupVisionScreen(
                     }
                     if (searching) {
                         CircularProgressIndicator(color = FioGold)
-                        Text("Comparando fotos nos meus grupos…", color = FioText)
+                        Text("Lendo a imagem e procurando nos grupos…", color = FioText)
                     } else if (didSearch) {
                         Text(
-                            "${hits.size} possível(is) correspondência(s) em $scanned grupo(s).",
+                            "${hits.size} resultado(s) em $scanned grupo(s), entre imagens semelhantes " +
+                                "e publicações relacionadas. Nenhum resultado comprova sozinho a matriz exata.",
                             color = FioText
                         )
                     }
@@ -414,7 +422,13 @@ fun TelegramGroupVisionScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.groupTitle, color = FioText, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Semelhança aproximada: ${(hit.similarity * 100).toInt()}%",
+                                if (hit.evidence == "IMAGE_SIMILARITY") {
+                                    "Imagem semelhante: ${(hit.similarity * 100).toInt()}% (estimativa)"
+                                } else if (hit.matrixFileFormat != null) {
+                                    "Arquivo ${hit.matrixFileFormat} citado em mensagem relacionada — não verificado"
+                                } else {
+                                    "Publicação relacionada ao texto/assunto da foto — imagem não confirmada"
+                                },
                                 color = FioTextMuted, fontSize = 11.sp
                             )
                             hit.publicPostUrl?.let { url ->
@@ -441,9 +455,10 @@ fun TelegramGroupVisionScreen(
                 Text("Importar arquivo PES / DST / JEF")
             }
             Text(
-                "Comparação matemática de fotos, não Google Lens. " +
-                    "Pode não encontrar a matriz original. Nenhum resultado é inventado; " +
-                    "grupos protegidos ou sem acesso não são pesquisados.",
+                "OCR e pistas visuais automáticas analisam sua foto no celular; não exibimos " +
+                    "etiquetas para escolher. A comparação de fotos do Telegram usa dHash local. " +
+                    "Não há busca global Google Lens nem garantia de arquivo exato. " +
+                    "Só grupos autorizados são consultados.",
                 color = FioTextMuted, fontSize = 10.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
