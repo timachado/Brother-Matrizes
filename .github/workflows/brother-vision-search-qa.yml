@@ -37,13 +37,13 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Testes unitários, lint e APK QA paralelo
-        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherCheckoutQaParallel=true --stacktrace
+      - name: Testes unitários, lint e compilação debug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Guardar APK apenas para testes
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Vision-Search-QA-NOT-STABLE
+          name: Brother-Vision-Search-DIAGNOSTIC-NOT-STABLE
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
