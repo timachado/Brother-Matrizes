@@ -107,7 +107,7 @@ class TelegramGroupSession private constructor(private val context: Context) :
         val td = session()
         td.awaitReady()
         val chats = td.send(TdApi.GetChats(TdApi.ChatListMain(), 100))
-        return chats.chatIds.mapNotNull { id ->
+        return chats.chatIds.toList().mapNotNull { id ->
             val chat = runCatching { td.send(TdApi.GetChat(id)) }.getOrNull()
                 ?: return@mapNotNull null
             if (chat.hasProtectedContent) return@mapNotNull null
@@ -164,7 +164,7 @@ class TelegramGroupSession private constructor(private val context: Context) :
             val filename = fetched.local.path
             val gray = decodeGray9x8(filename) ?: return@mapNotNull null
             val directLink = runCatching {
-                td.send(TdApi.GetMessageLink(groupId, message.id, 0, false, false)).link
+                td.send(TdApi.GetMessageLink(groupId, message.id, 0, 0, "", false, false)).link
             }.getOrNull()
             TelegramPhotoCandidate(
                 chatId = groupId,
