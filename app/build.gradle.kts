@@ -154,6 +154,10 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 
+    // OCR e reconhecimento visual local para pesquisar automaticamente, sem mostrar etiquetas.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+
     // Native Telegram client for scoped, consented access to the user's groups.
     implementation("io.github.tdlib-android:core:0.1.1")
     implementation("io.github.tdlib-android:ktx:0.1.1")
