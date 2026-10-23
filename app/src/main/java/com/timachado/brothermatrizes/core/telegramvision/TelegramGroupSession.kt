@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
@@ -36,6 +37,8 @@ class TelegramGroupSession private constructor(private val context: Context) :
         client = if (BuildConfig.BROTHER_TELEGRAM_API_ID > 0 &&
             BuildConfig.BROTHER_TELEGRAM_API_HASH.matches(Regex("[0-9a-fA-F]{32}"))
         ) {
+            // Native library from the pinned verified TDLib Android dependency.
+            System.loadLibrary("tdjni")
             // No TDLib session is imported from the separate Telegram Android app.
             TdClient(
                 filesDir = File(context.filesDir, "telegram-vision-session").absolutePath,
