@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -170,9 +169,9 @@ fun BrotherVisionSearch(
 /** Decodifica apenas uma miniatura, evitando carregar fotos enormes na memória. */
 private fun readSmallBitmap(context: Context, uri: Uri): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use {
-        BitmapFactory.decodeStream(it, null, bounds)
-    } ?: error("Não foi possível abrir a foto.")
+    val input = context.contentResolver.openInputStream(uri)
+        ?: error("Não foi possível abrir a foto.")
+    input.use { BitmapFactory.decodeStream(it, null, bounds) }
     require(bounds.outWidth in 1..30000 && bounds.outHeight in 1..30000) {
         "Dimensões inválidas da imagem."
     }
