@@ -30,12 +30,6 @@ object VisualReferenceCatalog {
             .edit().remove(projectId).apply()
     }
 
-    fun list(context: Context, projects: List<SavedProjectSummary>): List<VisualReferenceHit> =
-        projects.mapNotNull { project ->
-            val fingerprint = read(context, project.id) ?: return@mapNotNull null
-            VisualReferenceHit(project, fingerprint.toFloat())
-        }
-
     fun registeredProjects(context: Context, projects: List<SavedProjectSummary>): List<SavedProjectSummary> =
         projects.filter { read(context, it.id) != null }
 
