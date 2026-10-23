@@ -132,11 +132,13 @@ class MainActivity : ComponentActivity() {
 
         // A verificação periódica continua após o aplicativo ser fechado.
         // Não usa FCM/Supabase nem consulta assinaturas comerciais.
-        runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        if (!BuildConfig.BROTHER_VISION_QA) {
+            runCatching { BrotherUpdateNotificationWorker.schedule(applicationContext) }
+        }
 
-        DebugTelemetry.setup(
-            applicationContext
-        )
+        if (!BuildConfig.BROTHER_VISION_QA) {
+            DebugTelemetry.setup(applicationContext)
+        }
 
         captureExternalOpenIntent(
             intent
@@ -185,12 +187,14 @@ class MainActivity : ComponentActivity() {
                 darkTheme = darkTheme
             ) {
                 BrotherVersionGate(resumeRequest = updateResumeRequest) {
-                BrotherFirebasePushOptIn()
-                BrotherUpdateReminder(
-                    endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
-                        "/wp-json/tim-brother-updates/v1/latest?channel=stable"
-                )
-                BrotherPostUpdateNews()
+                if (!BuildConfig.BROTHER_VISION_QA) {
+                    BrotherFirebasePushOptIn()
+                    BrotherUpdateReminder(
+                        endpoint = BuildConfig.WORDPRESS_URL.trimEnd('/') +
+                            "/wp-json/tim-brother-updates/v1/latest?channel=stable"
+                    )
+                    BrotherPostUpdateNews()
+                }
                 BrotherMatrizesApp(
                     openAccountRequest =
                         accountOpenRequest,
