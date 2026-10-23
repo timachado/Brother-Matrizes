@@ -1,0 +1,2 @@
+-r requirements-core.txt
+open_clip_torch==3.3.0
