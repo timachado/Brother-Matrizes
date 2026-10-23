@@ -1,0 +1,74 @@
+name: Brother Lens — testes de busca visual autorizada
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "vision-search-service/**"
+      - "app/**"
+      - ".github/workflows/brother-lens-qa.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: brother-lens-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: vision-search-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dependências leves de teste (modelo pesado é simulado)
+        run: pip install -r requirements-test.txt
+      - name: API de imagens autorizadas
+        run: pytest -q test_server.py
+
+  android-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Testes unitários, lint e APK QA isolado
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug -PbrotherLensQaParallel=true --stacktrace
+      - name: Verificar pacote independente e assinatura
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > lens-badging.txt
+          grep -F "package: name='com.timachado.brothermatrizes.lensqa'" lens-badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > lens-signature.txt
+          sha256sum "$apk" > lens-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Lens-AUTORIZADO-QA-NAO-COMERCIAL
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            lens-badging.txt
+            lens-signature.txt
+            lens-sha256.txt
+          if-no-files-found: error
