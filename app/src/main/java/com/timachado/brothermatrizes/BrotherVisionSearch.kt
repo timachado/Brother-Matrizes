@@ -7,6 +7,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,6 +66,7 @@ fun BrotherVisionSearch(
     var selectedImage by remember { mutableStateOf<Uri?>(null) }
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     var analyzing by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var feedback by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -83,6 +87,7 @@ fun BrotherVisionSearch(
         analyzing = true
         preview = null
         feedback = null
+        suggestions = emptyList()
         try {
             val bitmap = withContext(Dispatchers.IO) { readSmallBitmap(context, uri) }
             preview = bitmap.asImageBitmap()
@@ -102,12 +107,12 @@ fun BrotherVisionSearch(
                         }
                 }
                 val terms = ImageSearchTerms.fromLabels(labels)
+                suggestions = terms
                 if (terms.isEmpty()) {
                     feedback = "Não foi possível identificar palavras confiáveis. Digite o nome do desenho abaixo."
                 } else {
-                    onRecognizedTerms(terms.joinToString(" "))
-                    feedback = "Sugestões: " + terms.joinToString(", ") +
-                        ". Confira os termos antes de pesquisar no Telegram."
+                    onRecognizedTerms(terms.first())
+                    feedback = "Escolha outra sugestão ou edite o campo antes de pesquisar no Telegram."
                 }
             } finally {
                 detector.close()
@@ -155,6 +160,19 @@ fun BrotherVisionSearch(
                         strokeWidth = 2.dp
                     )
                     Text("Analisando imagem…", color = FioTextMuted)
+                }
+            }
+            if (suggestions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    suggestions.forEach { term ->
+                        AssistChip(
+                            onClick = { onRecognizedTerms(term) },
+                            label = { Text(term) }
+                        )
+                    }
                 }
             }
             feedback?.let { Text(it, color = FioGold, fontSize = 12.sp) }
