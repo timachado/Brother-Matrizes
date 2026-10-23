@@ -16,7 +16,7 @@ Fontes oficiais: https://core.telegram.org/api/terms ; https://telegram.org/tos/
 
 ## Implementado na branch (somente motor isolado)
 - `TelegramGroupVisualSearch` aceita uma fonte de mídia vinculada a sessão Telegram, grupos selecionados com confirmação explícita e foto de entrada; compara miniaturas em memória com dHash; não coleta grupos sem permissão.
-- Limites: no máximo 20 grupos escolhidos, 60 miniaturas recentes por grupo, 8 resultados e mínimo heurístico de similaridade 80%.
+- Limites: no máximo 10 grupos escolhidos, 25 miniaturas recentes por grupo, 8 resultados e mínimo heurístico de similaridade 80%.
 - Exige `isMember`, rejeita secret chats e retornos de outro grupo; valida permalinks públicos; aceita cancelamento de corrotina.
 - Testes JUnit cobrindo consentimento, privacidade, pertinência, não invenção de resultados e links.
 
