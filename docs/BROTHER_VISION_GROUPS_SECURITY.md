@@ -20,11 +20,20 @@ Fontes oficiais: https://core.telegram.org/api/terms ; https://telegram.org/tos/
 - Exige `isMember`, rejeita secret chats e retornos de outro grupo; valida permalinks públicos; aceita cancelamento de corrotina.
 - Testes JUnit cobrindo consentimento, privacidade, pertinência, não invenção de resultados e links.
 
-## NÃO implementado — bloqueio real de entrega
-- Ainda falta adicionar cliente Android TDLib com credenciais da aplicação Telegram da T.I. Machado e fluxo de autenticação do usuário dentro do próprio Android (telefone, código e eventual verificação em duas etapas).
-- Ainda falta adaptar mensagens TDLib (foto, documento com imagem, fonte) ao `TelegramGroupMediaSource`, observando downloads limitados, sem persistência de thumbnails e respeitando proteção de conteúdo.
-- Ainda falta a tela visual com seleção de grupos e consentimento, a progressão da busca e a navegação para o resultado.
-- Sem isso, **não existe APK funcional de busca nos grupos**. O motor isolado não deve ser apresentado como a funcionalidade pronta ou publicado comercialmente.
-- Não reutilizar backend do PR #197, que procura catálogo de terceiros e foi encerrado. Não reutilizar o PR #196 de etiquetas de imagem.
+## Integração Android acrescentada nesta etapa
+- Fonte TDLib Android (Maven Central, versões pinadas 0.1.1) com login Telegram **separado**: telefone, código, eventual senha de duas etapas. Sessão permanece no espaço privado do app, sem ser transmitida à T.I. Machado.
+- Lista dos grupos acessíveis na sessão, excluindo canais, chats secretos, grupos dos quais não é membro e mídias marcadas como protegidas.
+- Busca TDLib de mensagens com filtro de **fotografias**, limitada às miniaturas mais recentes e tamanho controlado, sem scraping de servidores, sem ML e sem indexação permanente. Documentos com imagem ainda não são examinados.
+- Tela Jetpack Compose com seleção de grupos, consentimento expresso por consulta e disparo automático após o usuário selecionar uma foto. Mostra apenas correspondências reais; links são obtidos da própria TDLib, nunca inventados. Importação PES/DST/JEF preservada.
+- A compilação de homologação usa package `com.timachado.brothermatrizes.groupqa` e desativa OTA e notificações comerciais.
 
-**Segurança de release:** manter versão comercial inalterada até TDLib/login/QA em aparelho e avaliação dos termos. Nunca pedir que o usuário desinstale a versão oficial. Nenhum token, número de telefone ou código Telegram deve ser enviado a WordPress, Supabase ou T.I. Machado.
+## Bloqueios antes de chamar este recurso de funcional
+- Não há `api_id` e `api_hash` da aplicação Telegram da T.I. Machado neste repositório. Devem ser registrados em https://my.telegram.org e fornecidos **via variáveis de compilação seguras**, não por mensagens nem incluídos no GitHub.
+- Nenhum login Telegram real, grupo, arquivo ou imagem privada foi usado nos testes. Autenticação adicional exigida pela plataforma (email, QR etc.) pode precisar de suporte.
+- O hash de 64 bits identifica **imagens iguais/semelhantes**, não desenhos diferentes do mesmo objeto ao nível do Google Lens. Não há garantia de encontrar matriz correspondente nem o respectivo arquivo PES/DST/JEF.
+- A API limita a amostra às fotos mais recentes: grupos com milhares de mensagens podem não conter a postagem procurada nessa janela.
+- É necessária a avaliação dos Termos de API do Telegram antes de lançar esse recurso como ferramenta comercial. O algoritmo é **determinístico, não IA/ML**, usa consulta local pontual e não deve ser convertido em crawler ou modelo de aprendizado sobre grupos.
+- Ainda são obrigatórios QA Android, testes com consentimento, cancelamento, limitações de dados e atualizações sobre assinatura comercial. **Não mesclar/publicar sem validação.**
+- Não reutilizar o PR #197 (catálogo externo) ou #196 (palavras-chave/local).
+
+**Segurança de release:** manter a versão comercial inalterada até testes em aparelho e avaliação dos termos. Nunca pedir que o usuário desinstale a versão oficial. Nenhum token, número de telefone ou código Telegram deve ser enviado a WordPress, Supabase ou T.I. Machado.
