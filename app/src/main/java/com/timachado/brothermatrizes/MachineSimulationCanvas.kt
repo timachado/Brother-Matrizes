@@ -304,6 +304,23 @@ private fun buildGhostStitchPaths(
     }
 }
 
+/**
+ * Personalizações mantêm as coordenadas originais do PES (frequentemente
+ * deslocadas do zero). No simulador, forçar o centro para (0,0) quando
+ * design.isModified=true jogava o nome para fora do bastidor.
+ */
+internal fun simulationCenterUnits(
+    design: EmbroideryDesign,
+    minimum: Int,
+    maximum: Int,
+    referenceTextMode: Boolean
+): Float =
+    if (referenceTextMode || design.editableName != null || !design.isModified) {
+        (minimum.toLong() + maximum.toLong()) / 2f
+    } else {
+        0f
+    }
+
 private data class SimulationTransform(
     val design: EmbroideryDesign,
     val canvasWidth: Float,
@@ -613,47 +630,13 @@ private data class SimulationTransform(
             ) /
             2f
 
-    private val centerXUnits =
-        if (
-            referenceTextMode
-        ) {
-            (
-                minXUnits +
-                    maxXUnits
-                ) /
-                2f
-        } else if (
-            design.isModified
-        ) {
-            0f
-        } else {
-            (
-                minXUnits +
-                    maxXUnits
-                ) /
-                2f
-        }
+    private val centerXUnits = simulationCenterUnits(
+        design, minXUnits, maxXUnits, referenceTextMode
+    )
 
-    private val centerYUnits =
-        if (
-            referenceTextMode
-        ) {
-            (
-                minYUnits +
-                    maxYUnits
-                ) /
-                2f
-        } else if (
-            design.isModified
-        ) {
-            0f
-        } else {
-            (
-                minYUnits +
-                    maxYUnits
-                ) /
-                2f
-        }
+    private val centerYUnits = simulationCenterUnits(
+        design, minYUnits, maxYUnits, referenceTextMode
+    )
 
     private val centerScreenX =
         canvasWidth /
