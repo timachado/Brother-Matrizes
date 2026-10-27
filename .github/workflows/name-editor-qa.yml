@@ -104,3 +104,69 @@ jobs:
             app/build/outputs/androidTest-results/connected/
           if-no-files-found: ignore
           retention-days: 14
+
+
+  build-qa-apk:
+    name: Gerar APK paralelo NOMES QA após testes Android
+    needs: android-emulator-name-editor
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Preparar SDK Android e pacote QA independente
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+          grep -Fq 'applicationIdSuffix = ".nameqa"' app/build.gradle.kts
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.nameqa" '
+            .client += [(.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.nameqa")' \
+            app/src/debug/google-services.json >/dev/null
+          # Alterar rótulo SOMENTE no workspace descartável de QA.
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes NOMES QA"/' app/src/debug/AndroidManifest.xml
+      - name: Compilar APK de teste sem chave comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk)"
+          [[ "$BADGING" == *"package: name='com.timachado.brothermatrizes.nameqa'"* ]]
+          [[ "$BADGING" == *"Brother Matrizes NOMES QA"* ]]
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose \
+            app/build/outputs/apk/debug/app-debug.apk > verify.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' verify.txt
+          mkdir -p qa-nomes
+          cp app/build/outputs/apk/debug/app-debug.apk qa-nomes/Brother-Matrizes-Nomes-QA-NAO-COMERCIAL.apk
+          sha256sum qa-nomes/*.apk > qa-nomes/SHA256.txt
+      - name: Guardar artefato privado de instalação paralela
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-NOMES-QA-APENAS-TESTE
+          path: qa-nomes/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Restrições da entrega
+        run: |
+          {
+            echo "## Brother Matrizes NOMES QA"
+            echo "- Pacote paralelo com assinatura DEBUG: com.timachado.brothermatrizes.nameqa."
+            echo "- Pode instalar ao lado da versão comercial; NÃO distribua a clientes."
+            echo "- A autenticação Google poderá necessitar de credenciais específicas do pacote QA."
+            echo "- PR draft: não autoriza exportação para máquina sem prova em retalho."
+            echo "- Sem publicação na Release, WordPress ou Play Store."
+          } >> "$GITHUB_STEP_SUMMARY"
