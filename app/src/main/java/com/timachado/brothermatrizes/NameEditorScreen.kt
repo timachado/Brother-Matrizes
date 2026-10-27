@@ -129,6 +129,27 @@ fun NameEditorScreen(
         draft = next
     }
 
+    // Geração completa e validação nunca ocorrem na thread de desenho/UI.
+    // LaunchedEffect cancela o job obsoleto quando texto/posição muda.
+    data class ComputedPreview(
+        val base: EmbroideryDesign,
+        val settings: NameDraft,
+        val result: Result<EmbroideryDesign>
+    )
+
+    var computed by remember(original) {
+        mutableStateOf<ComputedPreview?>(null)
+    }
+    var autoFitEnabled by remember(original) {
+        mutableStateOf(original.editableName == null)
+    }
+    var autoFitRequest by remember(original) { mutableIntStateOf(0) }
+    var fitting by remember(original) { mutableStateOf(false) }
+    var autoFitError by remember(original) { mutableStateOf<String?>(null) }
+    var dragging by remember(original) { mutableStateOf(false) }
+    var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
     val fontPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -177,27 +198,6 @@ fun NameEditorScreen(
             }
         }
     }
-
-    // Geração completa e validação nunca ocorrem na thread de desenho/UI.
-    // LaunchedEffect cancela o job obsoleto quando texto/posição muda.
-    data class ComputedPreview(
-        val base: EmbroideryDesign,
-        val settings: NameDraft,
-        val result: Result<EmbroideryDesign>
-    )
-
-    var computed by remember(original) {
-        mutableStateOf<ComputedPreview?>(null)
-    }
-    var autoFitEnabled by remember(original) {
-        mutableStateOf(original.editableName == null)
-    }
-    var autoFitRequest by remember(original) { mutableIntStateOf(0) }
-    var fitting by remember(original) { mutableStateOf(false) }
-    var autoFitError by remember(original) { mutableStateOf<String?>(null) }
-    var dragging by remember(original) { mutableStateOf(false) }
-    var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
-    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     fun optionsFor(value: NameDraft) = TextMatrixOptions(
         text = value.name,
