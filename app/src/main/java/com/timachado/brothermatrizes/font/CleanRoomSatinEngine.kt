@@ -1007,9 +1007,22 @@ internal object CleanRoomSatinEngine {
                     sew(r.a)
                     anchored = true
                 }
-                cover.forEach { rail ->
-                    sew(rail.a)
-                    sew(rail.b)
+                // A bordadeira deve alternar o sentido de cada barra
+                // Satin. Costurar sempre a -> b força uma DIAGONAL longa
+                // de b(n) para a(n+1) a cada coluna, criando justamente
+                // o emaranhado visível no nome "Maria" em fonte cursiva.
+                cover.forEachIndexed { index, rail ->
+                    val entry = if (index % 2 == 0) rail.a else rail.b
+                    val exit = if (index % 2 == 0) rail.b else rail.a
+                    val position = needle
+                    if (position == null || length(position, entry) > 8f) {
+                        // Nunca criar uma costura de ligação através de
+                        // vazados ou entre partes desconectadas.
+                        jump(entry)
+                    } else {
+                        sew(entry)
+                    }
+                    sew(exit)
                 }
             }
             // There are deliberately NO per-path tie-off round trips.
