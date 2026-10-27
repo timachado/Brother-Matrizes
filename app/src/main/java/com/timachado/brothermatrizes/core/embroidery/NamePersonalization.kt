@@ -31,6 +31,58 @@ object NamePersonalization {
         }
     }
 
+    /**
+     * Validação leve para busca automática.
+     *
+     * NÃO cria nova matriz, copia 12 mil pontos da moldura, calcula hash SHA,
+     * normaliza sequência completa ou gera nome de arquivo a cada candidato.
+     * Somente quando encontra espaço o autoajuste chama add() UMA vez.
+     */
+    internal fun canPlace(
+        original: EmbroideryDesign,
+        options: TextMatrixOptions,
+        centerXUnits: Int,
+        centerYUnits: Int,
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
+    ): Result<Unit> = runCatching {
+        val source = original.editableName?.original ?: original
+        val text = prepare(
+            options.copy(
+                rotationDegrees = 0f,
+                outputFormat = source.format.uppercase(),
+                hoopProfile = null,
+                enforceHoop = false
+            ),
+            importedGenerator
+        )
+        val positioned = MatrixEditor.apply(
+            text,
+            EditTransform(
+                centerAtOrigin = true,
+                offsetXUnits = centerXUnits,
+                offsetYUnits = centerYUnits,
+                rotationDegrees = options.rotationDegrees,
+                mirrorVertical = source.sourceYAxisDown
+            )
+        )
+        NamePlacementSafety.validate(source, positioned).getOrThrow()
+        val hoop = source.hoopProfile ?: options.hoopProfile
+        if (hoop != null) {
+            val widthUnits = maxOf(source.bounds.maxXUnits,
+                positioned.bounds.maxXUnits).toLong() -
+                minOf(source.bounds.minXUnits, positioned.bounds.minXUnits)
+            val heightUnits = maxOf(source.bounds.maxYUnits,
+                positioned.bounds.maxYUnits).toLong() -
+                minOf(source.bounds.minYUnits, positioned.bounds.minYUnits)
+            require(
+                (widthUnits <= (hoop.usableWidthMm * 10).toLong() &&
+                    heightUnits <= (hoop.usableHeightMm * 10).toLong()) ||
+                (widthUnits <= (hoop.usableHeightMm * 10).toLong() &&
+                    heightUnits <= (hoop.usableWidthMm * 10).toLong())
+            ) { "Nome ultrapassa o bastidor selecionado." }
+        }
+    }
+
     fun add(
         original: EmbroideryDesign,
         options: TextMatrixOptions,
