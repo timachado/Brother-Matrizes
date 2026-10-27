@@ -8,6 +8,20 @@ package com.timachado.brothermatrizes.core.embroidery
  * Não tenta adivinhar quais pontos de PES/DST pertencem a um nome preexistente.
  */
 object NamePersonalization {
+    // O desenho Satin depende de fonte/texto/tamanho, não da posição do dedo.
+    // Reutilizar as pontadas enquanto só X/Y muda reduz trabalho e alocações.
+    @Volatile private var prepared: Pair<TextMatrixOptions, EmbroideryDesign>? = null
+
+    private fun prepare(options: TextMatrixOptions): EmbroideryDesign {
+        prepared?.let { if (it.first == options) return it.second }
+        synchronized(this) {
+            prepared?.let { if (it.first == options) return it.second }
+            val newDesign = TextMatrixGenerator.generate(options).getOrThrow()
+            prepared = options to newDesign
+            return newDesign
+        }
+    }
+
     fun add(
         original: EmbroideryDesign,
         options: TextMatrixOptions,
@@ -28,13 +42,16 @@ object NamePersonalization {
             "A matriz possui um END intermediário; edição bloqueada para proteger o desenho."
         }
 
-        val generated = TextMatrixGenerator.generate(
+        val generated = prepare(
             options.copy(
+                // Rotation is applied AFTER generation, around the text center.
+                // Never rotate the source floral matrix.
+                rotationDegrees = 0f,
                 outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
             )
-        ).getOrThrow()
+        )
 
         val positioned = MatrixEditor.apply(
             generated,
@@ -42,6 +59,7 @@ object NamePersonalization {
                 centerAtOrigin = true,
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
+                rotationDegrees = options.rotationDegrees,
                 // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
                 mirrorVertical = source.sourceYAxisDown
             )
@@ -94,7 +112,8 @@ object NamePersonalization {
             slug, options.font.name.lowercase(java.util.Locale.ROOT),
             options.heightMm.toString(), options.spacingMm.toString(),
             options.satinDensityMm.toString(), options.color.toString(),
-            centerXUnits.toString(), centerYUnits.toString()
+            centerXUnits.toString(), centerYUnits.toString(),
+            options.rotationDegrees.toString()
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray(Charsets.UTF_8))
