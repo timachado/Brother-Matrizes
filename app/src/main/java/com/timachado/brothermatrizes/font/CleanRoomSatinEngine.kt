@@ -185,47 +185,87 @@ internal object CleanRoomSatinEngine {
     ): PlannedGlyph {
         require(densityMm in 0.3f..1.2f)
         val raster = rasterize(contours, densityMm)
-        val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
-        val paths = ArrayList<List<Rail>>()
-        var railsCount = 0
+        val colPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
+        // Vertical satin bars, not horizontal running stitches. Continuous
+        // columns progress in reading order from left to right.
+        // Keep the bars <= 6 mm; wider filled regions are split safely.
+        val maxBarUnits = 60f
+        val active = mutableListOf<MutableList<Rail>>()
+        val completed = mutableListOf<List<Rail>>()
+        data class Section(val top: Int, val bottom: Int)
+        var oldRanges = emptyList<Section>()
 
-        // Ordenar passadas primeiro por X, depois por Y conserva progressão
-        // geral da palavra sem cruzar áreas vazias com uma costura física.
-        data class RowRun(val x0: Int, val x1: Int, val y: Int)
-        val runs = ArrayList<RowRun>()
-        for (y in 1 until raster.height - 1 step rowPitch) {
-            var x = 1
-            while (x < raster.width - 1) {
-                if (!raster.inside(x, y)) { x++; continue }
-                val left = x
-                while (x < raster.width - 1 && raster.inside(x, y)) x++
-                val right = x - 1
-                if (right >= left) runs += RowRun(left, right, y)
-            }
+        fun endTracks() {
+            active.forEach { if (it.isNotEmpty()) completed += it.toList() }
+            active.clear()
+            oldRanges = emptyList()
         }
-
-        // A sequência de cada grupo nunca cruza o vão de uma letra para
-        // outra: a classe Stitcher posiciona a agulha com JUMP.
-        for (run in runs.sortedWith(compareBy<RowRun> { it.x0 / 8 }
-            .thenBy { it.y }.thenBy { it.x0 })) {
-            val rowY = raster.top + run.y * raster.step
-            val left = raster.left + (run.x0 - 0.35f) * raster.step
-            val right = raster.left + (run.x1 + 0.35f) * raster.step
-            val width = right - left
-            if (width < 0.55f) continue
-            val sections = max(1, ceil(width / 35f).toInt())
-            val rails = ArrayList<Rail>(sections)
-            for (section in 0 until sections) {
-                val x0 = left + width * section / sections
-                val x1 = left + width * (section + 1) / sections
-                rails += Rail(V(x0, rowY), V(x1, rowY))
+        for (x in 1 until raster.width - 1 step colPitch) {
+            val next = ArrayList<Section>()
+            var y = 1
+            while (y < raster.height - 1) {
+                if (!raster.inside(x, y)) { y++; continue }
+                val top = y
+                while (y < raster.height - 1 && raster.inside(x, y)) y++
+                val bottom = y - 1
+                if (bottom < top) continue
+                val pixelSpan = max(1, ceil((bottom - top + 1) *
+                    raster.step / maxBarUnits).toInt())
+                for (piece in 0 until pixelSpan) {
+                    val a = top + ((bottom - top + 1) * piece) / pixelSpan
+                    val b = top + ((bottom - top + 1) * (piece + 1)) /
+                        pixelSpan - 1
+                    if (a <= b) next += Section(a, b)
+                }
             }
-            // Uma passada = um caminho; não costurar pelo espaço negativo
-            // entre fileiras paralelas, contraformas e glifos.
-            paths += rails
-            railsCount += rails.size
+            // Spans in consecutive columns belong to one satin track only
+            // if their vertical intervals overlap. Otherwise the needle
+            // repositions with a JUMP, never stitches through empty lettering.
+            val matchedOld = HashSet<Int>()
+            val future = mutableListOf<MutableList<Rail>>()
+            next.forEach { section ->
+                val midY = (section.top + section.bottom) / 2f
+                val match = oldRanges.indices.asSequence()
+                    .filter { it !in matchedOld }
+                    .filter {
+                        oldRanges[it].top <= section.bottom &&
+                            oldRanges[it].bottom >= section.top
+                    }
+                    .minByOrNull {
+                        kotlin.math.abs((oldRanges[it].top +
+                            oldRanges[it].bottom) / 2f - midY)
+                    }
+                val track = if (match == null) {
+                    mutableListOf<Rail>()
+                } else {
+                    matchedOld += match
+                    active[match]
+                }
+                val atX = raster.left + x * raster.step
+                val yTop = raster.top + (section.top - 0.3f) * raster.step
+                val yBottom = raster.top + (section.bottom + 0.3f) * raster.step
+                if (yBottom - yTop >= 0.55f) {
+                    track += Rail(V(atX, yTop), V(atX, yBottom))
+                }
+                future += track
+            }
+            active.forEachIndexed { index, track ->
+                if (index !in matchedOld && track.isNotEmpty())
+                    completed += track.toList()
+            }
+            active.clear()
+            active.addAll(future)
+            oldRanges = next
         }
-        return PlannedGlyph(paths, railsCount, 0)
+        endTracks()
+        val filtered = completed.filter { it.isNotEmpty() }
+            .sortedWith(compareBy<List<Rail>> { it.first().middle.x }
+                .thenBy { it.first().middle.y })
+        return PlannedGlyph(
+            rails = filtered,
+            sampledEdges = filtered.sumOf { it.size },
+            duplicateRailsDiscarded = 0
+        )
     }
 
     internal fun planContours(
