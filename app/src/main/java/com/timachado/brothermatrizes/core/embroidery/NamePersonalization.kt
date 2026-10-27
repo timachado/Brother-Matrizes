@@ -40,7 +40,9 @@ object NamePersonalization {
             EditTransform(
                 centerAtOrigin = true,
                 offsetXUnits = centerXUnits,
-                offsetYUnits = centerYUnits
+                offsetYUnits = centerYUnits,
+                // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
+                mirrorVertical = original.sourceYAxisDown
             )
         )
 
@@ -83,7 +85,7 @@ object NamePersonalization {
             label = original.label,
             points = joined,
             sourceBytes = ByteArray(0),
-            guidePoints = emptyList(),
+            guidePoints = original.guidePoints,
             threadColors = palette,
             isModified = true,
             // A origem e orientação da matriz são preservadas, sem mover flores.
