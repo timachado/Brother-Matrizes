@@ -144,20 +144,9 @@ fun SimulatorScreen(
             carry = remainder
             if (count <= 0) continue
 
-            var target = index
-            var handled = 0
-            var hasStop = false
-            while (handled < count && target < points.size) {
-                val command = points[target].command
-                target++
-                handled++
-                if (command == StitchCommand.STOP) {
-                    hasStop = true
-                    break
-                }
-            }
-            index = target
-            if (hasStop) {
+            val advance = SimulationTiming.advancePlayback(points, index, count)
+            index = advance.nextIndex
+            if (advance.stopped) {
                 stoppedForStop = true
                 playing = false
                 break
