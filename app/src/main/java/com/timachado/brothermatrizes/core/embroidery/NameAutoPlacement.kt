@@ -2,12 +2,12 @@ package com.timachado.brothermatrizes.core.embroidery
 
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlin.math.roundToInt
+import kotlin.math.abs
 
 /**
- * Procura um encaixe usando pontadas reais, não uma caixa de texto fictícia.
- * Todos os candidatos passam pelos mesmos validadores do exportador.
- * Execução exclusiva no dispatcher Default; cancelável ao digitar outro nome.
+ * Busca o maior nome que cabe na área livre da matriz, usando o percurso
+ * REAL das pontadas. Não estica a fonte artificialmente e não desloca
+ * flores, folhas ou borboletas. A mesma validação protege o arquivo final.
  */
 object NameAutoPlacement {
     data class Fit(
@@ -16,6 +16,44 @@ object NameAutoPlacement {
         val centerYUnits: Int,
         val design: EmbroideryDesign
     )
+
+    private const val SEARCH_BUDGET_NANOS = 9_000_000_000L
+
+    // Priorizar a região central; procurar até 12 mm em cada direção.
+    // Amostragem finita e cancelável, sem trabalho pesado na thread da UI.
+    private val offsets: List<Pair<Int, Int>> = buildList {
+        add(0 to 0)
+        for (radius in listOf(30, 60, 90, 120)) {
+            add(0 to -radius)
+            add(0 to radius)
+            add(-radius to 0)
+            add(radius to 0)
+            if (radius <= 90) {
+                add(-radius to -radius)
+                add(radius to -radius)
+                add(-radius to radius)
+                add(radius to radius)
+            }
+        }
+    }
+
+    private fun orientations(
+        requested: TextMatrixOptions,
+        source: EmbroideryDesign
+    ): List<Float> {
+        // Nunca alterar uma rotação já escolhida manualmente.
+        if (abs(requested.rotationDegrees) > 0.01f) {
+            return listOf(requested.rotationDegrees)
+        }
+        val w = source.bounds.widthMm
+        val h = source.bounds.heightMm
+        return if (h > w * 1.2f) {
+            // Texto acompanha o eixo longo do bastidor vertical.
+            listOf(90f, -90f, 0f)
+        } else {
+            listOf(0f, 90f, -90f)
+        }
+    }
 
     suspend fun find(
         original: EmbroideryDesign,
@@ -26,75 +64,78 @@ object NameAutoPlacement {
             original.bounds.maxYUnits.toLong()).div(2).toInt(),
         importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
     ): Result<Fit> {
-        if (requested.text.isBlank()) return Result.failure(
-            IllegalArgumentException("Digite um nome para ajustar.")
-        )
-        // Primeiro testar o centro e o estilo solicitado. Mudar fonte é o
-        // último recurso, antes de retornar um erro de espaço insuficiente.
-        // Priorizar o centro e variações discretas. Uma varredura grande
-        // monopoliza a CPU em aparelhos modestos e em fontes ornamentadas.
-        val positions = listOf(
-            0 to 0, 0 to -40, 0 to 40, -40 to 0, 40 to 0
-        )
-        val maxHeight = minOf(17f, maxOf(8f,
-            minOf(original.bounds.widthMm, original.bounds.heightMm) / 7f))
-        // Testar no máximo 6 tamanhos por fonte, do desejado ao mínimo.
+        if (requested.text.isBlank()) {
+            return Result.failure(IllegalArgumentException("Digite um nome para ajustar."))
+        }
+
+        // A edição de um nome existente nunca pode incorporá-lo ao fundo.
+        val source = original.editableName?.original ?: original
+        val xCenter = if (source === original) centerXUnits else
+            (source.bounds.minXUnits.toLong() + source.bounds.maxXUnits.toLong())
+                .div(2).toInt()
+        val yCenter = if (source === original) centerYUnits else
+            (source.bounds.minYUnits.toLong() + source.bounds.maxYUnits.toLong())
+                .div(2).toInt()
+
+        // O limite do editor já é 30 mm; testar de maior para menor.
+        // Em cada altura, conservar a fonte escolhida (inclusive TTF/OTF),
+        // pesquisar o eixo e a posição ANTES de reduzir o tamanho.
         val heights = listOf(
-            maxHeight, maxHeight * 0.85f, maxHeight * 0.70f,
-            maxHeight * 0.55f, maxHeight * 0.40f, 4f
-        ).map { (it.coerceAtLeast(4f) * 2f).roundToInt() / 2f }
-            .distinct()
-        // Nunca substituir uma fonte importada por uma BM sem autorização.
-        val fonts = if (requested.importedFontId != null) listOf(requested.font)
-            else listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
+            30f, 28f, 26f, 24f, 22f, 20f, 18f, 16f,
+            14f, 12f, 10f, 8f, 6f, 4f
+        )
+        val rotations = orientations(requested, source)
+        val started = System.nanoTime()
         var lastError: Throwable? = null
-        val startedNanos = System.nanoTime()
-        val maxSearchNanos = 6_000_000_000L
         var timedOut = false
-        for (font in fonts) {
-            // A extração de contornos TTF/OTF pode ser cara. Testar todas as
-            // posições mantendo a mesma altura reaproveita o cache Satin.
-            // Se a fonte não couber, reduzir a altura; nunca trocá-la por BM.
-            for (height in heights) {
-                currentCoroutineContext().ensureActive()
+
+        for (height in heights) {
+            currentCoroutineContext().ensureActive()
+            for (angle in rotations) {
                 val options = requested.copy(
-                    font = font, heightMm = height, enforceHoop = true
+                    heightMm = height,
+                    rotationDegrees = angle,
+                    enforceHoop = true
                 )
-                for ((dx, dy) in positions) {
+                for ((dx, dy) in offsets) {
                     currentCoroutineContext().ensureActive()
-                    if (System.nanoTime() - startedNanos > maxSearchNanos) {
+                    if (System.nanoTime() - started > SEARCH_BUDGET_NANOS) {
                         timedOut = true
                         break
                     }
-                    val x = centerXUnits + dx
-                    val y = centerYUnits + dy
-                    // O caminho rápido NÃO duplica a matriz inteira, apenas
-                    // verifica bordas reais, margem Satin e bastidor.
-                    val check = NamePersonalization.canPlace(
-                        original, options, x, y, importedGenerator
+                    val x = xCenter + dx
+                    val y = yCenter + dy
+                    val safe = NamePersonalization.canPlace(
+                        source, options, x, y, importedGenerator
                     )
-                    if (check.isSuccess) {
-                        currentCoroutineContext().ensureActive()
-                        val final = NamePersonalization.add(
-                            original, options, x, y, importedGenerator
-                        )
-                        if (final.isSuccess) return Result.success(
-                            Fit(options, x, y, final.getOrThrow())
-                        )
-                        lastError = final.exceptionOrNull()
-                    } else {
-                        lastError = check.exceptionOrNull()
+                    if (safe.isFailure) {
+                        lastError = safe.exceptionOrNull()
+                        continue
                     }
+                    // A prévia só é aceita se a sequência completa, a margem
+                    // das folhas e a área segura do bastidor também passarem.
+                    val result = NamePersonalization.add(
+                        source, options, x, y, importedGenerator
+                    )
+                    if (result.isSuccess) {
+                        return Result.success(
+                            Fit(options, x, y, result.getOrThrow())
+                        )
+                    }
+                    lastError = result.exceptionOrNull()
                 }
                 if (timedOut) break
             }
             if (timedOut) break
         }
         return Result.failure(IllegalArgumentException(
-            if (timedOut) "Encaixe automático interrompido para manter o aplicativo responsivo. " +
-                "Tente ajustar a altura manualmente ou use uma fonte mais simples."
-            else "Não há espaço seguro para este nome nesta matriz. " +
-                "Experimente abreviar o nome ou escolher outra posição.",
+            if (timedOut) {
+                "Encaixe interrompido para preservar o desempenho do Android. " +
+                    "Reduza o nome ou ajuste a altura manualmente."
+            } else {
+                "Não foi encontrado espaço seguro para este nome sem cobrir " +
+                    "as folhas ou ultrapassar o bastidor. Tente um texto menor."
+            },
             lastError
         ))
     }
