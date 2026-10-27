@@ -47,8 +47,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.input.pointer.consume
-import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -603,7 +601,7 @@ fun NameEditorScreen(
                     .testTag("brother_name_drag_handle"),
                 contentAlignment = Alignment.Center
             ) {
-                if (previewBusy || dragging) {
+                if (preview == null) {
                     Text(
                         draft.name,
                         color = Color(draft.color or 0xFF000000.toInt()),
