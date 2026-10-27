@@ -7,6 +7,9 @@ import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MachineFinishingInfo
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
@@ -159,6 +162,37 @@ class ProjectCodecTest {
         assertTrue(
             restored.isModified
         )
+    }
+
+    @Test
+    fun editableNameSurvivesSavingReopeningAndReplacement() {
+        val frame = sample()
+        val maria = NamePersonalization.add(
+            frame,
+            TextMatrixOptions(
+                text = "Maria",
+                style = TextStitchStyle.SATIN,
+                heightMm = 10f
+            ),
+            0, 0
+        ).getOrThrow()
+        val reopened = ProjectCodec.decode(ProjectCodec.encode(maria))
+        assertEquals("Maria", reopened.editableName?.options?.text)
+        assertEquals(frame.points, reopened.editableName?.original?.points)
+        val sophia = NamePersonalization.add(
+            reopened,
+            TextMatrixOptions(
+                text = "Sophia",
+                style = TextStitchStyle.SATIN,
+                heightMm = 10f
+            ),
+            0, 0
+        ).getOrThrow()
+        assertEquals(frame.points.dropLast(1),
+            sophia.points.take(frame.points.size - 1))
+        assertEquals(1, sophia.points.count { it.command == StitchCommand.COLOR_CHANGE } -
+            frame.points.count { it.command == StitchCommand.COLOR_CHANGE })
+        assertEquals("Sophia", sophia.editableName?.options?.text)
     }
 
     @Test
