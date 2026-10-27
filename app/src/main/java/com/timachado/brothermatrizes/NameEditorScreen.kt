@@ -63,11 +63,18 @@ fun NameEditorScreen(
     onApply: (EmbroideryDesign) -> Unit
 ) {
     var draft by remember(original) {
+        val existing = original.editableName
         mutableStateOf(
             NameDraft(
-                x = (original.bounds.minXUnits.toLong() +
+                name = existing?.options?.text ?: "Maria",
+                font = existing?.options?.font ?: EmbroideryFontPreset.ELEGANT,
+                height = existing?.options?.heightMm ?: 12f,
+                spacing = existing?.options?.spacingMm ?: 1.2f,
+                density = existing?.options?.satinDensityMm ?: .45f,
+                color = existing?.options?.color ?: 0xB22222,
+                x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
-                y = (original.bounds.minYUnits.toLong() +
+                y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
                     original.bounds.maxYUnits.toLong()).div(2).toInt()
             )
         )
@@ -275,10 +282,10 @@ fun NameEditorScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 setDraft(draft.copy(
-                    x = (original.bounds.minXUnits.toLong() +
-                        original.bounds.maxXUnits.toLong()).div(2).toInt(),
-                    y = (original.bounds.minYUnits.toLong() +
-                        original.bounds.maxYUnits.toLong()).div(2).toInt()
+                    x = ((original.editableName?.original ?: original).bounds.minXUnits.toLong() +
+                        (original.editableName?.original ?: original).bounds.maxXUnits.toLong()).div(2).toInt(),
+                    y = ((original.editableName?.original ?: original).bounds.minYUnits.toLong() +
+                        (original.editableName?.original ?: original).bounds.maxYUnits.toLong()).div(2).toInt()
                 ))
             }) { Text("Centralizar nome") }
             OutlinedButton(onClick = { setDraft(draft.copy(x = draft.x - 10)) }) {
@@ -289,7 +296,7 @@ fun NameEditorScreen(
             }
         }
         Text(
-            "A troca do nome nesta tela recompõe a prévia desde a matriz original. " +
+            "A troca de nome recompõe a camada editável sem duplicar pontadas. " +
                 "Apagar automaticamente um nome de PES/DST importado requer seleção " +
                 "segura de bloco e não está habilitado nesta etapa.",
             color = FioTextMuted,
