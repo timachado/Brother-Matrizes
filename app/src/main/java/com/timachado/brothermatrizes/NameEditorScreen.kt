@@ -2,7 +2,8 @@ package com.timachado.brothermatrizes
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +44,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +72,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import kotlin.math.abs
+import kotlin.math.sin
+import kotlin.math.cos
 
 private data class NameDraft(
     val name: String = "Maria",
@@ -77,6 +85,8 @@ private data class NameDraft(
     val color: Int = 0xB22222,
     val rotation: Float = 0f,
     val importedFontId: String? = null,
+    val widthScale: Float = 1f,
+    val heightScale: Float = 1f,
     val x: Int,
     val y: Int
 )
@@ -108,6 +118,8 @@ fun NameEditorScreen(
                 color = existing?.options?.color ?: 0xB22222,
                 rotation = existing?.options?.rotationDegrees ?: 0f,
                 importedFontId = existing?.options?.importedFontId,
+                widthScale = existing?.options?.widthScale ?: 1f,
+                heightScale = existing?.options?.heightScale ?: 1f,
                 x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
                 y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
@@ -149,6 +161,8 @@ fun NameEditorScreen(
     var autoFitError by remember(original) { mutableStateOf<String?>(null) }
     var dragging by remember(original) { mutableStateOf(false) }
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
+    var gestureScaleX by remember(original) { mutableStateOf(1f) }
+    var gestureScaleY by remember(original) { mutableStateOf(1f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     val fontPicker = rememberLauncherForActivityResult(
@@ -208,6 +222,8 @@ fun NameEditorScreen(
         spacingMm = if (value.importedFontId != null) 0f else value.spacing,
         satinDensityMm = value.density,
         rotationDegrees = value.rotation,
+        widthScale = value.widthScale,
+        heightScale = value.heightScale,
         style = TextStitchStyle.SATIN,
         outputFormat = original.format,
         color = value.color,
@@ -275,6 +291,8 @@ fun NameEditorScreen(
                     val next = initial.copy(
                         font = found.options.font,
                         height = found.options.heightMm,
+                        widthScale = found.options.widthScale,
+                        heightScale = found.options.heightScale,
                         rotation = found.options.rotationDegrees,
                         x = found.centerXUnits,
                         y = found.centerYUnits
@@ -300,7 +318,7 @@ fun NameEditorScreen(
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
-    val previewBusy = currentPreview == null || fitting || dragging
+    val previewBusy = currentPreview == null || fitting
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
@@ -310,17 +328,27 @@ fun NameEditorScreen(
     ).unitsPerPixel
     val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
 
-    val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
-        if (moved != Offset.Zero) {
-            autoFitEnabled = false
-            val delta = NameEditorPlacement.dragUnits(
-                moved.x, moved.y, canvasScale, direction
-            )
-            setDraft(draft.copy(x = draft.x + delta.first,
-                y = draft.y + delta.second))
-        }
+    val commitGesture by rememberUpdatedState<(Offset, Float, Float) -> Unit> {
+            moved, onScreenX, onScreenY ->
+        autoFitEnabled = false
+        val delta = NameEditorPlacement.dragUnits(
+            moved.x, moved.y, canvasScale, direction
+        )
+        val radians = Math.toRadians(draft.rotation.toDouble())
+        val isSideways = abs(sin(radians)) > abs(cos(radians))
+        val localX = if (isSideways) onScreenY else onScreenX
+        val localY = if (isSideways) onScreenX else onScreenY
+        val next = draft.copy(
+            x = draft.x + delta.first,
+            y = draft.y + delta.second,
+            widthScale = (draft.widthScale * localX).coerceIn(.5f, 2.5f),
+            heightScale = (draft.heightScale * localY).coerceIn(.5f, 2.5f)
+        )
+        setDraft(next)
         dragging = false
         dragPx = Offset.Zero
+        gestureScaleX = 1f
+        gestureScaleY = 1f
     }
 
     fun rotate(deltaDegrees: Float) {
@@ -415,8 +443,8 @@ fun NameEditorScreen(
         }
 
         Text(
-            "Arraste o nome com um dedo. Use os botões para girar e " +
-                "mudar o tamanho, sem precisar fazer pinça.",
+            "Arraste com um dedo para mover. Use dois dedos para ampliar " +
+                "a largura e a altura independentemente.",
             color = FioTextMuted, fontSize = 12.sp
         )
 
@@ -477,21 +505,48 @@ fun NameEditorScreen(
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
                 .pointerInput(original, referenceHoop) {
-                        detectDragGestures(
-                            onDragStart = {
-                                dragging = true
-                                dragPx = Offset.Zero
-                            },
-                            onDragEnd = { commitDrag(dragPx) },
-                            onDragCancel = {
-                                dragging = false
-                                dragPx = Offset.Zero
+                    // Gestos combinados: um dedo move; dois dedos permitem
+                    // pinça horizontal e vertical sem recalcular Satin
+                    // durante o movimento.
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        var scaleX = 1f
+                        var scaleY = 1f
+                        var twoFingers = false
+                        dragging = true
+                        dragPx = Offset.Zero
+                        gestureScaleX = 1f
+                        gestureScaleY = 1f
+                        do {
+                            val event = awaitPointerEvent()
+                            val active = event.changes.filter { it.pressed }
+                            if (active.size >= 2) {
+                                twoFingers = true
+                                val first = active[0]
+                                val second = active[1]
+                                val oldDx = abs(first.previousPosition.x -
+                                    second.previousPosition.x)
+                                val oldDy = abs(first.previousPosition.y -
+                                    second.previousPosition.y)
+                                val dx = abs(first.position.x - second.position.x)
+                                val dy = abs(first.position.y - second.position.y)
+                                if (oldDx > 14f && dx > 14f) {
+                                    scaleX = (scaleX * dx / oldDx).coerceIn(.5f, 2.5f)
+                                }
+                                if (oldDy > 14f && dy > 14f) {
+                                    scaleY = (scaleY * dy / oldDy).coerceIn(.5f, 2.5f)
+                                }
+                                gestureScaleX = scaleX
+                                gestureScaleY = scaleY
+                            } else if (active.size == 1 && !twoFingers) {
+                                val change = active.first()
+                                dragPx += change.position - change.previousPosition
                             }
-                        ) { change, amount ->
-                            change.consume()
-                            dragPx += amount
-                        }
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        } while (event.changes.any { it.pressed })
+                        commitGesture(dragPx, scaleX, scaleY)
                     }
+                }
         ) {
             EmbroideryCanvas(
                 design = backgroundDesign,
@@ -503,10 +558,26 @@ fun NameEditorScreen(
             // Camada com os pontos Satin reais; o enquadramento da moldura
             // não muda entre repouso, arraste e atualização da prévia.
             if (!previewBusy && preview != null) {
+                val stitchedCenter = NameEditorPlacement.screenOffset(
+                    backgroundDesign, referenceHoop, draft.x, draft.y,
+                    canvasSize.width, canvasSize.height, paddingPx
+                )
                 NameEditorStitchLayer(
                     original = backgroundDesign,
                     result = preview,
-                    hoop = referenceHoop
+                    hoop = referenceHoop,
+                    modifier = Modifier.graphicsLayer {
+                        transformOrigin = TransformOrigin(
+                            (.5f + stitchedCenter.x /
+                                canvasSize.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                            (.5f + stitchedCenter.y /
+                                canvasSize.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                        )
+                        scaleX = gestureScaleX
+                        scaleY = gestureScaleY
+                        translationX = dragPx.x
+                        translationY = dragPx.y
+                    }
                 )
             }
 
@@ -545,7 +616,7 @@ fun NameEditorScreen(
             }
         }
 
-        Text("Toque na prévia e arraste para posicionar o nome.",
+        Text("Um dedo: mover • Dois dedos: expandir lateralmente e para cima.",
             color = FioTextMuted, fontSize = 11.sp)
 
         when {
@@ -665,6 +736,28 @@ fun NameEditorScreen(
                 setDraft(draft.copy(height = it), history = false)
             },
             valueRange = 4f..30f
+        )
+        Text("Largura: " + (draft.widthScale * 100).roundToInt() +
+            "%", color = FioText)
+        Slider(
+            value = draft.widthScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(widthScale = it), history = false)
+            },
+            valueRange = .5f..2.5f,
+            modifier = Modifier.testTag("brother_name_width_scale")
+        )
+        Text("Expansão vertical: " + (draft.heightScale * 100).roundToInt() +
+            "%", color = FioText)
+        Slider(
+            value = draft.heightScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(heightScale = it), history = false)
+            },
+            valueRange = .5f..2.5f,
+            modifier = Modifier.testTag("brother_name_height_scale")
         )
         Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
         Slider(
