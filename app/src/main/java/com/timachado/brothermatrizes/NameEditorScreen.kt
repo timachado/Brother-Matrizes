@@ -3,12 +3,6 @@ package com.timachado.brothermatrizes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateRotation
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -47,7 +42,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -123,8 +117,6 @@ fun NameEditorScreen(
     var undo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
-    var zoomMode by remember(original) { mutableStateOf(false) }
-    var transformNameMode by remember(original) { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
 
@@ -155,10 +147,6 @@ fun NameEditorScreen(
     var fitting by remember(original) { mutableStateOf(false) }
     var autoFitError by remember(original) { mutableStateOf<String?>(null) }
     var dragging by remember(original) { mutableStateOf(false) }
-    var transforming by remember(original) { mutableStateOf(false) }
-    var gesturePan by remember(original) { mutableStateOf(Offset.Zero) }
-    var gestureZoom by remember(original) { mutableStateOf(1f) }
-    var gestureRotation by remember(original) { mutableStateOf(0f) }
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -310,7 +298,7 @@ fun NameEditorScreen(
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
-    val previewBusy = currentPreview == null || fitting || dragging || transforming
+    val previewBusy = currentPreview == null || fitting || dragging
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val portraitHoop =
@@ -327,35 +315,29 @@ fun NameEditorScreen(
     ).coerceAtLeast(.01f)
     val direction = if (original.sourceYAxisDown) 1f else -1f
 
-    val commitTransform by rememberUpdatedState<() -> Unit> {
-        val moved = gesturePan
-        val resized = gestureZoom
-        val turned = gestureRotation
-        if (moved != Offset.Zero || resized != 1f || turned != 0f) {
-            autoFitEnabled = false
-            setDraft(draft.copy(
-                x = draft.x + (moved.x / canvasScale).roundToInt(),
-                y = draft.y + (moved.y / (canvasScale * direction)).roundToInt(),
-                height = (draft.height * resized).coerceIn(4f, 30f),
-                rotation = (draft.rotation + turned).coerceIn(-180f, 180f)
-            ))
-        }
-        transforming = false
-        gesturePan = Offset.Zero
-        gestureZoom = 1f
-        gestureRotation = 0f
-    }
-
     val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
         if (moved != Offset.Zero) {
             autoFitEnabled = false
-            setDraft(draft.copy(
-                x = draft.x + (moved.x / canvasScale).roundToInt(),
-                y = draft.y + (moved.y / (canvasScale * direction)).roundToInt()
-            ))
+            val delta = NameEditorPlacement.dragUnits(
+                moved.x, moved.y, canvasScale, direction
+            )
+            setDraft(draft.copy(x = draft.x + delta.first,
+                y = draft.y + delta.second))
         }
         dragging = false
         dragPx = Offset.Zero
+    }
+
+    fun rotate(deltaDegrees: Float) {
+        autoFitEnabled = false
+        setDraft(draft.copy(rotation =
+            (draft.rotation + deltaDegrees).coerceIn(-180f, 180f)))
+    }
+
+    fun resize(deltaMm: Float) {
+        autoFitEnabled = false
+        setDraft(draft.copy(height =
+            (draft.height + deltaMm).coerceIn(4f, 30f)))
     }
 
     if (selectingOldName) {
