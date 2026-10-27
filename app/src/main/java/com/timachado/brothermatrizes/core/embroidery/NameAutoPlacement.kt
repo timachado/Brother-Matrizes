@@ -50,13 +50,14 @@ object NameAutoPlacement {
         val fonts = listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
         var lastError: Throwable? = null
         for (font in fonts) {
-            for (height in heights) {
-                currentCoroutineContext().ensureActive()
-                val options = requested.copy(
-                    font = font, heightMm = height, enforceHoop = true
-                )
-                for ((dx, dy) in positions) {
+            // Primeiro todas as alturas no centro, antes de explorar bordas.
+            // Numa moldura floral isso elimina dezenas de validações inúteis.
+            for ((dx, dy) in positions) {
+                for (height in heights) {
                     currentCoroutineContext().ensureActive()
+                    val options = requested.copy(
+                        font = font, heightMm = height, enforceHoop = true
+                    )
                     val x = centerXUnits + dx
                     val y = centerYUnits + dy
                     val result = NamePersonalization.add(original, options, x, y)
