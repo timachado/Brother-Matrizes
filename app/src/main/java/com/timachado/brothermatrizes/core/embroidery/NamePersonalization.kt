@@ -14,22 +14,23 @@ object NamePersonalization {
         centerXUnits: Int,
         centerYUnits: Int
     ): Result<EmbroideryDesign> = runCatching {
-        require(original.points.any { it.command == StitchCommand.STITCH }) {
+        val source = original.editableName?.original ?: original
+        require(source.points.any { it.command == StitchCommand.STITCH }) {
             "A matriz original não contém bordado."
         }
-        require(original.format.uppercase() in listOf("PES", "DST", "JEF")) {
+        require(source.format.uppercase() in listOf("PES", "DST", "JEF")) {
             "Esta matriz não possui exportação compatível para nomes."
         }
-        require(original.points.lastOrNull()?.command == StitchCommand.END) {
+        require(source.points.lastOrNull()?.command == StitchCommand.END) {
             "A sequência original precisa terminar em END antes de receber nomes."
         }
-        require(original.points.dropLast(1).none { it.command == StitchCommand.END }) {
+        require(source.points.dropLast(1).none { it.command == StitchCommand.END }) {
             "A matriz possui um END intermediário; edição bloqueada para proteger o desenho."
         }
 
         val generated = TextMatrixGenerator.generate(
             options.copy(
-                outputFormat = original.format.uppercase(),
+                outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
             )
@@ -42,11 +43,11 @@ object NamePersonalization {
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
                 // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
-                mirrorVertical = original.sourceYAxisDown
+                mirrorVertical = source.sourceYAxisDown
             )
         )
 
-        val preserved = original.points.dropLast(1)
+        val preserved = source.points.dropLast(1)
         val finalOriginal = preserved.last()
         val nextColorIndex = (preserved.maxOfOrNull { it.colorIndex } ?: 0) + 1
         require(nextColorIndex < 256) {
@@ -72,24 +73,30 @@ object NamePersonalization {
             add(last.copy(command = StitchCommand.END))
         }
 
-        val palette = original.threadColors.toMutableList()
+        val palette = source.threadColors.toMutableList()
         while (palette.size <= nextColorIndex) {
-            palette.add(original.threadColors.lastOrNull() ?: 0xE6BE70)
+            palette.add(source.threadColors.lastOrNull() ?: 0xE6BE70)
         }
         palette[nextColorIndex] = options.color
 
-        val stem = original.fileName.substringBeforeLast('.').ifBlank { "matriz" }
-        val fileName = stem.take(48) + "-nome." + original.format.lowercase()
-        val provisional = original.copy(
+        val stem = source.fileName.substringBeforeLast('.').ifBlank { "matriz" }
+        val fileName = stem.take(48) + "-nome." + source.format.lowercase()
+        val provisional = source.copy(
             fileName = fileName,
-            label = original.label,
+            label = source.label,
             points = joined,
             sourceBytes = ByteArray(0),
-            guidePoints = original.guidePoints,
+            guidePoints = source.guidePoints,
             threadColors = palette,
             isModified = true,
             // A origem e orientação da matriz são preservadas, sem mover flores.
-            hoopProfile = original.hoopProfile ?: options.hoopProfile
+            hoopProfile = source.hoopProfile ?: options.hoopProfile,
+            editableName = NamePersonalizationLayer(
+                original = source,
+                options = options,
+                centerXUnits = centerXUnits,
+                centerYUnits = centerYUnits
+            )
         )
         val validated = EmbroideryIntegrity.normalize(provisional)
             .getOrThrow().design
