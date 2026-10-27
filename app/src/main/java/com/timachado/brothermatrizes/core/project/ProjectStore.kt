@@ -560,8 +560,9 @@ object ProjectCodec {
                 val rotation = if (version >= 5) input.readFloat() else 0f
                 val importedFontId = if (version >= 6) readNullableString(input) else null
                 require(importedFontId == null ||
-                    (importedFontId.length <= 160 && importedFontId.endsWith(".ttf", true) ||
-                        importedFontId.endsWith(".otf", true))) {
+                    (importedFontId.length <= 160 &&
+                        (importedFontId.endsWith(".ttf", true) ||
+                            importedFontId.endsWith(".otf", true)))) {
                     "Identificador de fonte importada inválido."
                 }
                 require(
