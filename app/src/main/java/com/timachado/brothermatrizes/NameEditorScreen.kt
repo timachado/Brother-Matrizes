@@ -195,6 +195,18 @@ fun NameEditorScreen(
             }
         }
 
+        if (baseDesign !== original) {
+            OutlinedButton(
+                onClick = {
+                    baseDesign = original
+                    zoomMode = false
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Desfazer seleção do nome antigo")
+            }
+        }
+
         Text(
             "Use Mover para arrastar o nome; use Zoom e pan para ampliar. A moldura original " +
                 "permanece intacta. O desenho abaixo contém pontadas reais.",
