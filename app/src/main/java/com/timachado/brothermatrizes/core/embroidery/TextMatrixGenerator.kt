@@ -112,7 +112,11 @@ data class TextMatrixOptions(
     val rotationDegrees: Float = 0f,
     // Identidade estável do TTF/OTF importado na Biblioteca de Fontes.
     // O motor nativo não deve substituir silenciosamente uma fonte externa.
-    val importedFontId: String? = null
+    val importedFontId: String? = null,
+    // Transformações geométricas somente da camada de nome. Não escalar
+    // a moldura nem substituir a fonte quando o usuário usa pinça.
+    val widthScale: Float = 1f,
+    val heightScale: Float = 1f
 )
 
 object TextMatrixGenerator {
