@@ -62,7 +62,10 @@ object NamePersonalization {
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
                 rotationDegrees = options.rotationDegrees,
-                mirrorVertical = source.sourceYAxisDown
+                // Geradores BM usam Y para cima; Skia TTF/OTF já emite
+                // coordenadas Y para baixo. Espelhar apenas se as
+                // convenções de origem forem DIFERENTES.
+                mirrorVertical = source.sourceYAxisDown != text.sourceYAxisDown
             )
         )
         NamePlacementSafety.validate(source, positioned).getOrThrow()
@@ -124,7 +127,10 @@ object NamePersonalization {
                 offsetYUnits = centerYUnits,
                 rotationDegrees = options.rotationDegrees,
                 // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
-                mirrorVertical = source.sourceYAxisDown
+                // Geradores BM usam Y para cima; Skia TTF/OTF já emite
+                // coordenadas Y para baixo. Espelhar apenas se as
+                // convenções de origem forem DIFERENTES.
+                mirrorVertical = source.sourceYAxisDown != text.sourceYAxisDown
             )
         )
 
