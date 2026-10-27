@@ -48,6 +48,14 @@ data class MachineFinishingInfo(
     val optimizeTravel: Boolean
 )
 
+/** Metadado temporário de edição; PES/DST não guarda texto editável. */
+data class NamePersonalizationLayer(
+    val original: EmbroideryDesign,
+    val options: TextMatrixOptions,
+    val centerXUnits: Int,
+    val centerYUnits: Int
+)
+
 data class EmbroideryDesign(
     val fileName: String,
     val format: String,
@@ -66,7 +74,8 @@ data class EmbroideryDesign(
     val hoopProfile: HoopProfile? = null,
     val fabricProfile: FabricProfile? = null,
     val machineFinishing:
-        MachineFinishingInfo? = null
+        MachineFinishingInfo? = null,
+    val editableName: NamePersonalizationLayer? = null
 ) {
     val colorCount: Int
         get() = maxOf(
