@@ -79,6 +79,51 @@ class SimulationTimingTest {
     }
 
     @Test
+    fun batchesAtHighSpeedButKeepsExactOneXRate() {
+        val oneX = SimulationTiming.commandsForFrame(
+            carryNanos = 0.0,
+            elapsedNanos = 80_000_000L,
+            speedMultiplier = 1f
+        )
+        assertEquals(1, oneX.first)
+
+        val fast = SimulationTiming.commandsForFrame(
+            carryNanos = 0.0,
+            elapsedNanos = 16_000_000L,
+            speedMultiplier = 32f
+        )
+        assertEquals(6, fast.first)
+        assertTrue(fast.second >= 0.0)
+        assertTrue(fast.second < SimulationTiming.eventIntervalNanos(32f))
+    }
+
+    @Test
+    fun accumulatesFractionalFramesWithoutSkippingAtNormalSpeed() {
+        var carry = 0.0
+        var commands = 0
+        repeat(5) {
+            val next = SimulationTiming.commandsForFrame(
+                carry, 16_000_000L, 1f
+            )
+            commands += next.first
+            carry = next.second
+        }
+        assertEquals(1, commands)
+        assertEquals(0.0, carry, 0.0001)
+    }
+
+    @Test
+    fun limitsCatchUpWorkToFortyEventsPerFrame() {
+        val jumped = SimulationTiming.commandsForFrame(
+            carryNanos = 300_000_000.0,
+            elapsedNanos = 100_000_000L,
+            speedMultiplier = 32f
+        )
+        assertEquals(40, jumped.first)
+        assertTrue(jumped.second > 0.0)
+    }
+
+    @Test
     fun invalidValuesReturnZeroTime() {
         assertEquals(
             0,
