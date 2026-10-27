@@ -1,5 +1,7 @@
 package com.timachado.brothermatrizes
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -42,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
@@ -51,11 +55,15 @@ import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
+import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
+import com.timachado.brothermatrizes.font.ImportedFontStore
+import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -67,6 +75,7 @@ private data class NameDraft(
     val density: Float = .45f,
     val color: Int = 0xB22222,
     val rotation: Float = 0f,
+    val importedFontId: String? = null,
     val x: Int,
     val y: Int
 )
@@ -78,6 +87,14 @@ fun NameEditorScreen(
     onBack: () -> Unit,
     onApply: (EmbroideryDesign) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var importedFonts by remember(context) {
+        mutableStateOf(ImportedFontStore.list(context))
+    }
+    var fontImportStatus by remember { mutableStateOf<String?>(null) }
+    var importingFont by remember { mutableStateOf(false) }
+
     var draft by remember(original) {
         val existing = original.editableName
         mutableStateOf(
@@ -89,6 +106,7 @@ fun NameEditorScreen(
                 density = existing?.options?.satinDensityMm ?: .45f,
                 color = existing?.options?.color ?: 0xB22222,
                 rotation = existing?.options?.rotationDegrees ?: 0f,
+                importedFontId = existing?.options?.importedFontId,
                 x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
                 y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
@@ -109,6 +127,55 @@ fun NameEditorScreen(
         if (history) undo = (undo + draft).takeLast(40)
         redo = emptyList()
         draft = next
+    }
+
+    val fontPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null && !importingFont) scope.launch {
+            importingFont = true
+            fontImportStatus = null
+            try {
+                val qaImport = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                    debugBuild = BuildConfig.DEBUG, applicationId = context.packageName
+                )
+                val key = if (qaImport) null else {
+                    val allowed = BrotherMatrizesAccountService.authorizeImport(
+                        context = context, isFont = true
+                    )
+                    if (allowed.isFailure) {
+                        fontImportStatus = allowed.exceptionOrNull()?.message ?:
+                            "Entre com Google para importar fontes."
+                        return@launch
+                    }
+                    allowed.getOrThrow()
+                }
+                val before = importedFonts.map { it.id }.toSet()
+                val imported = withContext(Dispatchers.IO) {
+                    ImportedFontStore.importFont(context, uri)
+                }
+                if (key != null) {
+                    BrotherMatrizesAccountService.finalizeImport(
+                        context = context, isFont = true, requestKey = key,
+                        success = imported.isSuccess &&
+                            imported.getOrNull()?.id !in before
+                    )
+                }
+                imported.fold(
+                    onSuccess = { font ->
+                        importedFonts = ImportedFontStore.list(context)
+                        autoFitEnabled = true
+                        setDraft(draft.copy(importedFontId = font.id))
+                        fontImportStatus = "Fonte ${font.displayName} selecionada."
+                    },
+                    onFailure = { error ->
+                        fontImportStatus = error.message ?: "Arquivo de fonte inválido."
+                    }
+                )
+            } finally {
+                importingFont = false
+            }
+        }
     }
 
     // Geração completa e validação nunca ocorrem na thread de desenho/UI.
@@ -135,6 +202,7 @@ fun NameEditorScreen(
     fun optionsFor(value: NameDraft) = TextMatrixOptions(
         text = value.name,
         font = value.font,
+        importedFontId = value.importedFontId,
         heightMm = value.height,
         spacingMm = value.spacing,
         satinDensityMm = value.density,
@@ -146,19 +214,35 @@ fun NameEditorScreen(
         enforceHoop = true
     )
 
-    LaunchedEffect(baseDesign, draft, referenceHoop) {
+    // A Biblioteca de Fontes já usa o motor nativo de contornos TTF/OTF.
+    // Aqui ele é reutilizado integralmente na composição com a matriz.
+    fun generateImported(options: TextMatrixOptions): Result<EmbroideryDesign> {
+        val id = options.importedFontId ?: return Result.failure(
+            IllegalArgumentException("Fonte importada não selecionada.")
+        )
+        val font = importedFonts.firstOrNull { it.id == id }
+            ?: return Result.failure(IllegalArgumentException(
+                "Fonte ausente. Reimporte o TTF/OTF na Biblioteca de Fontes."
+            ))
+        return ImportedFontMatrixGenerator.generateText(font, options.text, options)
+    }
+
+    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts) {
         delay(180L) // Gestos/teclado rápidos não geram centenas de matrizes.
         val target = draft
         val source = baseDesign
         val options = optionsFor(target)
         val validated = withContext(Dispatchers.Default) {
-            NamePersonalization.add(source, options, target.x, target.y)
+            NamePersonalization.add(
+                source, options, target.x, target.y,
+                importedGenerator = if (options.importedFontId != null) ::generateImported else null
+            )
         }
         computed = ComputedPreview(source, target, validated)
     }
 
-    LaunchedEffect(baseDesign, draft.name, draft.font, referenceHoop,
-        autoFitEnabled, autoFitRequest
+    LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
+        referenceHoop, importedFonts, autoFitEnabled, autoFitRequest
     ) {
         if (!autoFitEnabled || draft.name.isBlank()) {
             fitting = false
@@ -177,7 +261,9 @@ fun NameEditorScreen(
                     centerXUnits = (source.bounds.minXUnits.toLong() +
                         source.bounds.maxXUnits.toLong()).div(2).toInt(),
                     centerYUnits = (source.bounds.minYUnits.toLong() +
-                        source.bounds.maxYUnits.toLong()).div(2).toInt()
+                        source.bounds.maxYUnits.toLong()).div(2).toInt(),
+                    importedGenerator = if (initial.importedFontId != null)
+                        ::generateImported else null
                 )
             }
             fit.fold(
@@ -466,8 +552,15 @@ fun NameEditorScreen(
         )
 
         Box {
-            OutlinedButton(onClick = { fontsExpanded = true }) {
-                Text("Fonte: " + draft.font.displayName)
+            OutlinedButton(onClick = {
+                importedFonts = ImportedFontStore.list(context)
+                fontsExpanded = true
+            }, modifier = Modifier.fillMaxWidth().testTag("brother_name_font_selector")) {
+                val label = if (draft.importedFontId == null) draft.font.displayName
+                    else importedFonts.firstOrNull {
+                        it.id == draft.importedFontId
+                    }?.displayName ?: "Fonte importada ausente"
+                Text("Fonte: " + label)
             }
             DropdownMenu(
                 expanded = fontsExpanded,
@@ -475,15 +568,49 @@ fun NameEditorScreen(
             ) {
                 EmbroideryFontPreset.entries.forEach { font ->
                     DropdownMenuItem(
-                        text = { Text(font.displayName) },
+                        text = { Text("BM • " + font.displayName) },
                         onClick = {
                             fontsExpanded = false
                             autoFitEnabled = true
-                            setDraft(draft.copy(font = font))
+                            setDraft(draft.copy(font = font, importedFontId = null))
+                        }
+                    )
+                }
+                importedFonts.forEach { font ->
+                    DropdownMenuItem(
+                        text = { Text("TTF/OTF • " + font.displayName) },
+                        onClick = {
+                            fontsExpanded = false
+                            autoFitEnabled = true
+                            setDraft(draft.copy(importedFontId = font.id))
                         }
                     )
                 }
             }
+        }
+        OutlinedButton(
+            onClick = {
+                fontPicker.launch(arrayOf(
+                    "font/ttf", "font/otf",
+                    "application/x-font-ttf", "application/x-font-opentype",
+                    "application/octet-stream", "*/*"
+                ))
+            },
+            enabled = !importingFont,
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_font_import")
+        ) {
+            Text(if (importingFont) "Importando fonte…" else
+                "+ Importar TTF/OTF do celular (DaFont, NetFontes)")
+        }
+        if (fontImportStatus != null) {
+            Text(fontImportStatus.orEmpty(), color = FioTextMuted, fontSize = 12.sp)
+        }
+        if (draft.importedFontId != null &&
+            importedFonts.none { it.id == draft.importedFontId }
+        ) {
+            Text("A fonte deste projeto não está instalada neste aparelho. " +
+                "Reimporte o mesmo TTF/OTF para editar o nome.",
+                color = Color(0xFFFF9393), fontSize = 12.sp)
         }
 
         Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
