@@ -101,16 +101,31 @@ internal object CleanRoomSatinEngine {
         outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
-            val plan = planContours(
-                contours,
-                densityMm = options.satinDensityMm,
-                pullMm = options.satinPullCompensationMm
-            )
+            val plan = if (outlines.contextualShapingPreserved) {
+                // Em fontes manuscritas conectadas, afinar a palavra inteira
+                // destrói ramos nos cruzamentos. Preservar a SILHUETA real
+                // por carreiras curtas respeitando vazados, sem inventar
+                // diagonais Satin que deformam as letras.
+                planContextualFill(
+                    contours,
+                    densityMm = options.satinDensityMm
+                )
+            } else {
+                planContours(
+                    contours,
+                    densityMm = options.satinDensityMm,
+                    pullMm = options.satinPullCompensationMm
+                )
+            }
             require(plan.rails.isNotEmpty()) {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
             }
-            stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
+            stitcher.sewGlyph(
+                plan.rails,
+                if (outlines.contextualShapingPreserved) SatinUnderlayMode.NONE
+                else options.satinUnderlayMode
+            )
             sewnGlyphs++
         }
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
@@ -151,6 +166,66 @@ internal object CleanRoomSatinEngine {
             }
         }
         design
+    }
+
+    /**
+     * Preenchimento adaptativo de contornos para escrita cursiva complexa.
+     *
+     * A máscara é obtida dos MESMOS contornos vetoriais e usa a regra de
+     * winding: contraformas de 'a', 'e', 'o' e voltas permanecem vazadas.
+     * Traços são repartidos em passadas curtas <= 3,5 mm, sem alinhar
+     * seções transversais a um esqueleto ramificado em cruzamentos.
+     *
+     * Em vez de afirmar Satin perfeito para todo TTF, esta rota
+     * conservadora mantém a aparência e não costura através de vazados.
+     */
+    internal fun planContextualFill(
+        contours: List<List<V>>,
+        densityMm: Float
+    ): PlannedGlyph {
+        require(densityMm in 0.3f..1.2f)
+        val raster = rasterize(contours, densityMm)
+        val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
+        val paths = ArrayList<List<Rail>>()
+        var railsCount = 0
+
+        // Ordenar passadas primeiro por X, depois por Y conserva progressão
+        // geral da palavra sem cruzar áreas vazias com uma costura física.
+        data class RowRun(val x0: Int, val x1: Int, val y: Int)
+        val runs = ArrayList<RowRun>()
+        for (y in 1 until raster.height - 1 step rowPitch) {
+            var x = 1
+            while (x < raster.width - 1) {
+                if (!raster.inside(x, y)) { x++; continue }
+                val left = x
+                while (x < raster.width - 1 && raster.inside(x, y)) x++
+                val right = x - 1
+                if (right >= left) runs += RowRun(left, right, y)
+            }
+        }
+
+        // A sequência de cada grupo nunca cruza o vão de uma letra para
+        // outra: a classe Stitcher posiciona a agulha com JUMP.
+        for (run in runs.sortedWith(compareBy<RowRun> { it.x0 / 8 }
+            .thenBy { it.y }.thenBy { it.x0 })) {
+            val rowY = raster.top + run.y * raster.step
+            val left = raster.left + (run.x0 - 0.35f) * raster.step
+            val right = raster.left + (run.x1 + 0.35f) * raster.step
+            val width = right - left
+            if (width < 0.55f) continue
+            val sections = max(1, ceil(width / 35f).toInt())
+            val rails = ArrayList<Rail>(sections)
+            for (section in 0 until sections) {
+                val x0 = left + width * section / sections
+                val x1 = left + width * (section + 1) / sections
+                rails += Rail(V(x0, rowY), V(x1, rowY))
+            }
+            // Uma passada = um caminho; não costurar pelo espaço negativo
+            // entre fileiras paralelas, contraformas e glifos.
+            paths += rails
+            railsCount += rails.size
+        }
+        return PlannedGlyph(paths, railsCount, 0)
     }
 
     internal fun planContours(
