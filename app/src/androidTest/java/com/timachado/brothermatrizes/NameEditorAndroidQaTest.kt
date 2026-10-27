@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -84,6 +85,12 @@ class NameEditorAndroidQaTest {
             .performTextClearance()
         composeRule.onNodeWithTag("brother_name_input")
             .performTextInput("Sophia")
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            val nodes = composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNodes()
+            nodes.isNotEmpty() && nodes[0].config
+                .getOrNull(SemanticsProperties.Disabled) == null
+        }
         composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
             .performClick()
         composeRule.onNodeWithText("Simulação").assertExists()
@@ -138,6 +145,12 @@ class NameEditorAndroidQaTest {
                 onBack = {},
                 onApply = { applied = it }
             )
+        }
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            val nodes = composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNodes()
+            nodes.isNotEmpty() && nodes[0].config
+                .getOrNull(SemanticsProperties.Disabled) == null
         }
         composeRule.onNodeWithTag("brother_name_apply")
             .performScrollTo().performClick()
