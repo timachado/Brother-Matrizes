@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
@@ -57,6 +58,19 @@ fun MachineSimulationCanvas(
                 "nome-"
             )
 
+    // Caminho otimizado para matrizes comuns: manter desenhadas as pontadas
+    // já executadas sem percorrer do início em todos os frames.
+    // Casos especiais continuam usando o renderizador fiel legado.
+    val fastStitchRendering =
+        !referenceTextSimulation &&
+        !showConnections &&
+        displayMode != EmbroideryDisplayMode.POINTS &&
+        design.points.none { it.command == StitchCommand.SEQUIN }
+
+    // Capturado apenas pelo draw, não durante a construção do cache.
+    // Assim a troca de ponto não precisa reconstruir os caminhos.
+    val currentLimit = rememberUpdatedState(pointLimit)
+
     Box(
         modifier =
             modifier
@@ -98,6 +112,12 @@ fun MachineSimulationCanvas(
                             transform =
                                 cachedTransform
                         )
+
+                    val cachedStitchChunks = if (fastStitchRendering) {
+                        buildSimulationStitchChunks(design, cachedTransform)
+                    } else {
+                        emptyList()
+                    }
 
                     onDrawBehind {
                         drawFabricGrid(
@@ -161,6 +181,15 @@ fun MachineSimulationCanvas(
                                     )
                             )
                         }
+
+                        if (fastStitchRendering) {
+                            drawCachedCompletedStitches(
+                                design = design,
+                                chunks = cachedStitchChunks,
+                                pointLimit = currentLimit.value,
+                                displayMode = displayMode
+                            )
+                        }
                     }
                 }
         ) {
@@ -182,7 +211,9 @@ fun MachineSimulationCanvas(
                         1.dp.toPx()
                 )
 
-            if (
+            if (fastStitchRendering) {
+                // Já desenhado via drawWithCache; somente cursor abaixo.
+            } else if (
                 referenceTextSimulation
             ) {
                 drawReferenceCompletedStitches(
@@ -278,6 +309,129 @@ fun MachineSimulationCanvas(
                 }
             }
         }
+    }
+}
+
+/**
+ * Segmentos de pontos costurados, organizados por blocos de até 192 STITCH.
+ * Guardar o índice do comando permite desenhar a parte atual do bloco
+ * sem refazer o caminho completo da matriz em cada tick.
+ */
+private data class SimulationStitchSegment(
+    val commandIndex: Int,
+    val start: Offset,
+    val end: Offset
+)
+
+private data class SimulationStitchChunk(
+    val colorIndex: Int,
+    val endExclusive: Int,
+    val segments: List<SimulationStitchSegment>,
+    val fullPath: Path
+)
+
+private const val SIMULATION_CHUNK_STITCHES = 192
+
+private fun buildSimulationStitchChunks(
+    design: EmbroideryDesign,
+    transform: SimulationTransform
+): List<SimulationStitchChunk> {
+    val completed = ArrayList<SimulationStitchChunk>()
+    var previous: EmbroideryPoint? = null
+    var currentColor = -1
+    val buffer = ArrayList<SimulationStitchSegment>(SIMULATION_CHUNK_STITCHES)
+    var chunkPath = Path()
+
+    fun finish() {
+        if (buffer.isEmpty()) return
+        completed += SimulationStitchChunk(
+            colorIndex = currentColor,
+            endExclusive = buffer.last().commandIndex + 1,
+            segments = buffer.toList(),
+            fullPath = chunkPath
+        )
+        buffer.clear()
+        chunkPath = Path()
+    }
+
+    design.points.forEachIndexed { index, point ->
+        when (point.command) {
+            StitchCommand.END -> return completed.apply { finish() }
+            StitchCommand.STITCH -> {
+                val from = previous
+                if (from != null) {
+                    if (currentColor != point.colorIndex ||
+                        buffer.size >= SIMULATION_CHUNK_STITCHES
+                    ) {
+                        finish()
+                        currentColor = point.colorIndex
+                    }
+                    val a = transform.point(from)
+                    val b = transform.point(point)
+                    buffer += SimulationStitchSegment(index, a, b)
+                    chunkPath.moveTo(a.x, a.y)
+                    chunkPath.lineTo(b.x, b.y)
+                }
+                previous = point
+            }
+            else -> previous = point
+        }
+    }
+    finish()
+    return completed
+}
+
+/**
+ * Custo por avanço: desenhar somente os caminhos prontos e, no máximo,
+ * 192 segmentos do bloco parcialmente executado. Sem loop de 13 mil pontos
+ * nem 3 drawLine individuais por ponto em cada tick.
+ */
+private fun DrawScope.drawCachedCompletedStitches(
+    design: EmbroideryDesign,
+    chunks: List<SimulationStitchChunk>,
+    pointLimit: Int,
+    displayMode: EmbroideryDisplayMode
+) {
+    for (chunk in chunks) {
+        if (chunk.segments.first().commandIndex >= pointLimit) break
+        val path = if (chunk.endExclusive <= pointLimit) {
+            chunk.fullPath
+        } else {
+            Path().apply {
+                for (segment in chunk.segments) {
+                    if (segment.commandIndex >= pointLimit) break
+                    moveTo(segment.start.x, segment.start.y)
+                    lineTo(segment.end.x, segment.end.y)
+                }
+            }
+        }
+        val color = threadColor(design, chunk.colorIndex)
+        if (displayMode == EmbroideryDisplayMode.REALISTIC) {
+            // Sombra e brilho em caminhos agrupados: relevo visual com
+            // poucas chamadas ao canvas/GPU por bloco.
+            drawPath(
+                path = path,
+                color = Color(
+                    color.red * .38f, color.green * .38f,
+                    color.blue * .38f, .36f
+                ),
+                style = Stroke(width = 1.55.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+        drawPath(
+            path = path,
+            color = color.copy(alpha = .98f),
+            style = Stroke(width = if (displayMode == EmbroideryDisplayMode.REALISTIC)
+                1.05.dp.toPx() else 1.35.dp.toPx(), cap = StrokeCap.Round)
+        )
+        if (displayMode == EmbroideryDisplayMode.REALISTIC) {
+            drawPath(
+                path = path,
+                color = Color.White.copy(alpha = .12f),
+                style = Stroke(width = .22.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+        if (chunk.endExclusive > pointLimit) break
     }
 }
 
