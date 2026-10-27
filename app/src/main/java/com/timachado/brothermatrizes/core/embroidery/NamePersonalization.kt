@@ -47,6 +47,10 @@ object NamePersonalization {
             )
         )
 
+        // Bloqueio geométrico: nem o nome nem o percurso Satin podem
+        // tocar as flores, borboletas ou as linhas já existentes.
+        NamePlacementSafety.validate(source, positioned).getOrThrow()
+
         val preserved = source.points.dropLast(1)
         val finalOriginal = preserved.last()
         val nextColorIndex = (preserved.maxOfOrNull { it.colorIndex } ?: 0) + 1
