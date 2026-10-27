@@ -83,6 +83,8 @@ fun NameEditorScreen(
     var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
     var zoomMode by remember(original) { mutableStateOf(false) }
+    var selectingOldName by remember(original) { mutableStateOf(false) }
+    var baseDesign by remember(original) { mutableStateOf(original) }
 
     fun setDraft(next: NameDraft) {
         if (next == draft) return
@@ -91,9 +93,9 @@ fun NameEditorScreen(
         draft = next
     }
 
-    val result = remember(original, draft, referenceHoop) {
+    val result = remember(baseDesign, draft, referenceHoop) {
         NamePersonalization.add(
-            original = original,
+            original = baseDesign,
             options = TextMatrixOptions(
                 text = draft.name,
                 font = draft.font,
@@ -122,6 +124,24 @@ fun NameEditorScreen(
                 y = draft.y + dy.roundToInt()
             )
         )
+    }
+
+    if (selectingOldName) {
+        ImportedNameSelectionPanel(
+            original = original,
+            hoop = referenceHoop,
+            onCancel = { selectingOldName = false },
+            onConfirm = { selected ->
+                baseDesign = selected.originalWithoutBlock
+                setDraft(draft.copy(
+                    x = selected.centerXUnits,
+                    y = selected.centerYUnits
+                ))
+                selectingOldName = false
+                zoomMode = false
+            }
+        )
+        return
     }
 
     Column(
@@ -160,6 +180,19 @@ fun NameEditorScreen(
                 },
                 enabled = redo.isNotEmpty()
             ) { Text("Refazer") }
+        }
+
+        if (original.editableName == null &&
+            original.points.any { it.command ==
+                com.timachado.brothermatrizes.core.embroidery.StitchCommand.COLOR_CHANGE } &&
+            baseDesign === original
+        ) {
+            OutlinedButton(
+                onClick = { selectingOldName = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Substituir nome existente (selecionar bloco)")
+            }
         }
 
         Text(
@@ -202,7 +235,7 @@ fun NameEditorScreen(
                 })
         ) {
             EmbroideryCanvas(
-                design = preview ?: original,
+                design = preview ?: baseDesign,
                 hoop = referenceHoop,
                 interactive = zoomMode,
                 modifier = Modifier.fillMaxSize()
@@ -292,10 +325,10 @@ fun NameEditorScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 setDraft(draft.copy(
-                    x = ((original.editableName?.original ?: original).bounds.minXUnits.toLong() +
-                        (original.editableName?.original ?: original).bounds.maxXUnits.toLong()).div(2).toInt(),
-                    y = ((original.editableName?.original ?: original).bounds.minYUnits.toLong() +
-                        (original.editableName?.original ?: original).bounds.maxYUnits.toLong()).div(2).toInt()
+                    x = (baseDesign.bounds.minXUnits.toLong() +
+                        baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
+                    y = (baseDesign.bounds.minYUnits.toLong() +
+                        baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
                 ))
             }) { Text("Centralizar nome") }
             OutlinedButton(onClick = { setDraft(draft.copy(x = draft.x - 10)) }) {
