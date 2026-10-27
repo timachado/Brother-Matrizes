@@ -53,14 +53,16 @@ object NameAutoPlacement {
             else listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
         var lastError: Throwable? = null
         for (font in fonts) {
-            // Primeiro todas as alturas no centro, antes de explorar bordas.
-            // Numa moldura floral isso elimina dezenas de validações inúteis.
-            for ((dx, dy) in positions) {
-                for (height in heights) {
+            // A extração de contornos TTF/OTF pode ser cara. Testar todas as
+            // posições mantendo a mesma altura reaproveita o cache Satin.
+            // Se a fonte não couber, reduzir a altura; nunca trocá-la por BM.
+            for (height in heights) {
+                currentCoroutineContext().ensureActive()
+                val options = requested.copy(
+                    font = font, heightMm = height, enforceHoop = true
+                )
+                for ((dx, dy) in positions) {
                     currentCoroutineContext().ensureActive()
-                    val options = requested.copy(
-                        font = font, heightMm = height, enforceHoop = true
-                    )
                     val x = centerXUnits + dx
                     val y = centerYUnits + dy
                     val result = NamePersonalization.add(
