@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -352,8 +353,7 @@ fun NameEditorScreen(
                     y = selected.centerYUnits
                 ))
                 selectingOldName = false
-                zoomMode = false
-            }
+                            }
         )
         return
     }
@@ -413,8 +413,7 @@ fun NameEditorScreen(
             OutlinedButton(
                 onClick = {
                     baseDesign = original
-                    zoomMode = false
-                },
+                                    },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Desfazer seleção do nome antigo")
@@ -422,126 +421,137 @@ fun NameEditorScreen(
         }
 
         Text(
-            "Arraste para mover; em Girar/Redimensionar use dois dedos para pinçar e girar. " +
-                "O encaixe automático procura espaço livre sem alterar as flores.",
-            color = FioTextMuted,
-            fontSize = 12.sp
+            "Arraste o nome com um dedo. Use os botões para girar e " +
+                "mudar o tamanho, sem precisar fazer pinça.",
+            color = FioTextMuted, fontSize = 12.sp
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                zoomMode = false
-                transformNameMode = false
-            }) {
-                Text(if (!zoomMode && !transformNameMode) "✓ Mover nome" else "Mover nome")
-            }
-            OutlinedButton(onClick = {
-                zoomMode = true
-                transformNameMode = false
-            }) {
-                Text(if (zoomMode) "✓ Zoom e pan" else "Zoom e pan")
-            }
-        }
-        OutlinedButton(
-            onClick = {
-                transformNameMode = !transformNameMode
-                zoomMode = false
-            },
-            modifier = Modifier.fillMaxWidth().testTag("brother_name_gesture")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(if (transformNameMode) "✓ Girar, pinçar e mover o nome"
-                else "Girar / Redimensionar com dois dedos")
+            OutlinedButton(
+                onClick = { rotate(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotate(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resize(-1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
+            ) { Text("A− Menor") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(
+                        x = (baseDesign.bounds.minXUnits.toLong() +
+                            baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
+                        y = (baseDesign.bounds.minYUnits.toLong() +
+                            baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
+                    ))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_center")
+            ) { Text("Centralizar") }
+            OutlinedButton(
+                onClick = { resize(1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
+            ) { Text("A+ Maior") }
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(285.dp)
+                .height(300.dp)
                 .onSizeChanged { canvasSize = it }
-                .then(
-                    if (zoomMode) Modifier
-                    else if (transformNameMode) Modifier.pointerInput(
-                        original, referenceHoop, paddingPx
-                    ) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            transforming = true
-                            gesturePan = Offset.Zero
-                            gestureZoom = 1f
-                            gestureRotation = 0f
-                            do {
-                                val event = awaitPointerEvent()
-                                if (event.changes.any { it.pressed }) {
-                                    gesturePan += event.calculatePan()
-                                    gestureZoom *= event.calculateZoom()
-                                    gestureRotation += event.calculateRotation()
-                                    event.changes.forEach { it.consume() }
-                                }
-                            } while (event.changes.any { it.pressed })
-                            // Commit único por gesto; nada de dezenas de
-                            // extrações TTF/OTF durante a pinça ou rotação.
-                            commitTransform()
-                        }
-                    }
-                    else Modifier.pointerInput(original, referenceHoop, paddingPx) {
-                    detectDragGestures(
-                        onDragStart = {
-                            dragging = true
-                            dragPx = Offset.Zero
-                        },
-                        onDragEnd = { commitDrag(dragPx) },
-                        onDragCancel = {
-                            dragging = false
-                            dragPx = Offset.Zero
-                        }
-                    ) { change, amount ->
-                        change.consume()
-                        // Apenas um fantasma de texto é movido por frame.
-                        // O arquivo real é calculado UMA vez, ao soltar.
-                        dragPx += amount
-                    }
-                })
+                .testTag("brother_name_canvas")
         ) {
+            val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
+            val canvasDesign = if (previewBusy) backgroundDesign
+                else preview ?: backgroundDesign
             EmbroideryCanvas(
-                // Mantém a imagem original estável durante gestos, sem
-                // alternar entre 13k pontos em cada alteração.
-                design = if (dragging || transforming || previewBusy)
-                    baseDesign else preview ?: baseDesign,
+                design = canvasDesign,
                 hoop = referenceHoop,
-                interactive = zoomMode,
-                // SOLID agrupa milhares de STITCH em caminhos por cor.
-                // O editor é interativo; a simulação REALISTIC permanece
-                // disponível na tela própria depois de aplicar.
+                interactive = false,
                 displayMode = EmbroideryDisplayMode.SOLID,
                 modifier = Modifier.fillMaxSize()
             )
-            if (dragging || transforming || (transformNameMode && previewBusy)) {
-                val midX = (baseDesign.bounds.minXUnits.toLong() +
-                    baseDesign.bounds.maxXUnits.toLong()) / 2f
-                val midY = (baseDesign.bounds.minYUnits.toLong() +
-                    baseDesign.bounds.maxYUnits.toLong()) / 2f
+
+            // Alça alinhada com o mesmo centro, escala e orientação de
+            // EmbroideryCanvas. Somente o nome responde ao arraste.
+            val namePosition = NameEditorPlacement.screenOffset(
+                design = canvasDesign, hoop = referenceHoop,
+                xUnits = draft.x, yUnits = draft.y,
+                canvasWidth = canvasSize.width,
+                canvasHeight = canvasSize.height,
+                paddingPixels = paddingPx
+            )
+            val nameX = namePosition.x + dragPx.x
+            val nameY = namePosition.y + dragPx.y
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset {
+                        IntOffset(nameX.roundToInt(), nameY.roundToInt())
+                    }
+                    .defaultMinSize(minWidth = 112.dp, minHeight = 50.dp)
+                    .background(Color(0x22141F29))
+                    .testTag("brother_name_drag_handle")
+                    .pointerInput(original, referenceHoop) {
+                        detectDragGestures(
+                            onDragStart = {
+                                dragging = true
+                                dragPx = Offset.Zero
+                            },
+                            onDragEnd = { commitDrag(dragPx) },
+                            onDragCancel = {
+                                dragging = false
+                                dragPx = Offset.Zero
+                            }
+                        ) { change, amount ->
+                            change.consume()
+                            dragPx += amount
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (previewBusy || dragging) {
+                    Text(
+                        draft.name,
+                        color = Color(draft.color or 0xFF000000.toInt()),
+                        fontSize = (draft.height * 1.6f).coerceIn(12f, 42f).sp,
+                        modifier = Modifier.graphicsLayer {
+                            rotationZ = draft.rotation
+                        }
+                    )
+                }
                 Text(
-                    draft.name,
+                    "⠿",
                     color = FioGold,
-                    fontSize = (draft.height * gestureZoom * 1.6f)
-                        .coerceIn(12f, 42f).sp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .graphicsLayer {
-                            rotationZ = draft.rotation + gestureRotation
-                        }
-                        .offset {
-                            IntOffset(
-                                ((draft.x - midX) * canvasScale + dragPx.x + gesturePan.x).roundToInt(),
-                                ((draft.y - midY) * canvasScale * direction +
-                                    dragPx.y + gesturePan.y).roundToInt()
-                            )
-                        }
-                        .background(Color(0xE6121A27))
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .padding(end = 2.dp),
+                    fontSize = 21.sp
                 )
             }
         }
+
+        Text("⠿ Segure sobre o nome e arraste para posicioná-lo.",
+            color = FioTextMuted, fontSize = 11.sp)
 
         when {
             fitting -> Text(
@@ -683,20 +693,6 @@ fun NameEditorScreen(
             },
             valueRange = -180f..180f
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                autoFitEnabled = false
-                setDraft(draft.copy(rotation = (draft.rotation - 15f).coerceAtLeast(-180f)))
-            }) { Text("↶ 15°") }
-            OutlinedButton(onClick = {
-                autoFitEnabled = false
-                setDraft(draft.copy(rotation = 0f))
-            }) { Text("0°") }
-            OutlinedButton(onClick = {
-                autoFitEnabled = false
-                setDraft(draft.copy(rotation = (draft.rotation + 15f).coerceAtMost(180f)))
-            }) { Text("↷ 15°") }
-        }
 
         Text("Cor da linha", color = FioText)
         Row(
@@ -716,22 +712,6 @@ fun NameEditorScreen(
                 }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                setDraft(draft.copy(
-                    x = (baseDesign.bounds.minXUnits.toLong() +
-                        baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
-                    y = (baseDesign.bounds.minYUnits.toLong() +
-                        baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
-                ))
-            }) { Text("Centralizar nome") }
-            OutlinedButton(onClick = { setDraft(draft.copy(x = draft.x - 10)) }) {
-                Text("←")
-            }
-            OutlinedButton(onClick = { setDraft(draft.copy(x = draft.x + 10)) }) {
-                Text("→")
-            }
-        }
         Text(
             "Nomes salvos em Minhas Matrizes permanecem editáveis. " +
                 "Após exportar e reabrir PES/DST, a troca de nome existente exige " +
