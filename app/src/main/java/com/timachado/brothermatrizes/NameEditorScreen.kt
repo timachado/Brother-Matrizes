@@ -275,6 +275,7 @@ fun NameEditorScreen(
                     val next = initial.copy(
                         font = found.options.font,
                         height = found.options.heightMm,
+                        rotation = found.options.rotationDegrees,
                         x = found.centerXUnits,
                         y = found.centerYUnits
                     )
