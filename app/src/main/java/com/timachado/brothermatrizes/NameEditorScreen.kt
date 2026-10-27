@@ -205,7 +205,7 @@ fun NameEditorScreen(
         font = value.font,
         importedFontId = value.importedFontId,
         heightMm = value.height,
-        spacingMm = value.spacing,
+        spacingMm = if (value.importedFontId != null) 0f else value.spacing,
         satinDensityMm = value.density,
         rotationDegrees = value.rotation,
         style = TextStitchStyle.SATIN,
@@ -473,6 +473,24 @@ fun NameEditorScreen(
                 .height(300.dp)
                 .onSizeChanged { canvasSize = it }
                 .testTag("brother_name_canvas")
+                // Gesto em toda a prévia: o nome continua arrastável sem
+                // exibir a antiga alça escura sobre flores e borboletas.
+                .pointerInput(original, referenceHoop) {
+                        detectDragGestures(
+                            onDragStart = {
+                                dragging = true
+                                dragPx = Offset.Zero
+                            },
+                            onDragEnd = { commitDrag(dragPx) },
+                            onDragCancel = {
+                                dragging = false
+                                dragPx = Offset.Zero
+                            }
+                        ) { change, amount ->
+                            change.consume()
+                            dragPx += amount
+                        }
+                    }
         ) {
             EmbroideryCanvas(
                 design = backgroundDesign,
@@ -508,26 +526,9 @@ fun NameEditorScreen(
                     .offset {
                         IntOffset(nameX.roundToInt(), nameY.roundToInt())
                     }
-                    // Alvo invisível de toque com dimensões acessíveis;
-                    // nunca cobrir a tipografia e flores com um retângulo cinza.
+                    // Alvo acessível sem o antigo marcador escuro.
                     .defaultMinSize(minWidth = 112.dp, minHeight = 50.dp)
-                    .testTag("brother_name_drag_handle")
-                    .pointerInput(original, referenceHoop) {
-                        detectDragGestures(
-                            onDragStart = {
-                                dragging = true
-                                dragPx = Offset.Zero
-                            },
-                            onDragEnd = { commitDrag(dragPx) },
-                            onDragCancel = {
-                                dragging = false
-                                dragPx = Offset.Zero
-                            }
-                        ) { change, amount ->
-                            change.consume()
-                            dragPx += amount
-                        }
-                    },
+                    .testTag("brother_name_drag_handle"),
                 contentAlignment = Alignment.Center
             ) {
                 if (previewBusy || dragging) {
@@ -540,18 +541,10 @@ fun NameEditorScreen(
                         }
                     )
                 }
-                Text(
-                    "⠿",
-                    color = FioGold,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                        .background(Color(0xD8131923))
-                        .padding(horizontal = 5.dp, vertical = 3.dp),
-                    fontSize = 21.sp
-                )
             }
         }
 
-        Text("⠿ Segure sobre o nome e arraste para posicioná-lo.",
+        Text("Toque na prévia e arraste para posicionar o nome.",
             color = FioTextMuted, fontSize = 11.sp)
 
         when {
