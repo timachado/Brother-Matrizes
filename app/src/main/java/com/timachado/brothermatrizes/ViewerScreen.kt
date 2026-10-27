@@ -53,6 +53,7 @@ fun ViewerScreen(
     onOpen: () -> Unit,
     onSimulate: () -> Unit,
     onEdit: () -> Unit,
+    onEditName: () -> Unit,
     onConvert: () -> Unit,
     onTransfer: () -> Unit,
     onSaveProject: () -> Unit,
@@ -463,6 +464,15 @@ fun ViewerScreen(
                         8.dp
                     )
                 )
+
+                OutlinedButton(
+                    onClick = onEditName,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("✎ Adicionar / Editar Nome")
+                }
+
+                Spacer(Modifier.height(8.dp))
 
                 Row(
                     horizontalArrangement =
