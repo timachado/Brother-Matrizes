@@ -86,9 +86,8 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_input")
             .performTextInput("Sophia")
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onNodeWithTag("brother_name_apply")
-                .fetchSemanticsNode().config
-                .getOrNull(SemanticsProperties.Disabled) == null
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
             .performClick()
@@ -146,9 +145,8 @@ class NameEditorAndroidQaTest {
             )
         }
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            composeRule.onNodeWithTag("brother_name_apply")
-                .fetchSemanticsNode().config
-                .getOrNull(SemanticsProperties.Disabled) == null
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
             .performScrollTo().performClick()
