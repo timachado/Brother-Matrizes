@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,7 +47,6 @@ import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
-import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
@@ -126,59 +126,44 @@ fun SimulatorScreen(
         mutableStateOf(false)
     }
 
-    LaunchedEffect(
-        playing,
-        speed,
-        design.fileName
-    ) {
-        while (
-            playing &&
-            index <
-                points.size
-        ) {
-            val command =
-                points[index]
-                    .command
+    LaunchedEffect(playing, speed, design.fileName) {
+        if (!playing) return@LaunchedEffect
 
-            delay(
-                SimulationTiming
-                    .eventDelayMs(
-                        command,
-                        speed
-                    )
+        // Relógio monotônico de tela, em lote de até 40 comandos.
+        // O cursor avança uma vez por quadro; STOP nunca é ultrapassado.
+        var lastFrame = withFrameNanos { it }
+        var carry = 0.0
+        while (playing && index < points.size) {
+            val now = withFrameNanos { it }
+            val (count, remainder) = SimulationTiming.commandsForFrame(
+                carryNanos = carry,
+                elapsedNanos = now - lastFrame,
+                speedMultiplier = speed
             )
+            lastFrame = now
+            carry = remainder
+            if (count <= 0) continue
 
-            index =
-                (
-                    index +
-                        1
-                    ).coerceAtMost(
-                        points.size
-                    )
-
-            if (
-                command ==
-                    StitchCommand.STOP
-            ) {
-                /*
-                 * A referência pausa apenas em STOP.
-                 * COLOR_CHANGE troca o fio e continua a simulação.
-                 */
-                stoppedForStop =
-                    true
-                playing =
-                    false
+            var target = index
+            var handled = 0
+            var hasStop = false
+            while (handled < count && target < points.size) {
+                val command = points[target].command
+                target++
+                handled++
+                if (command == StitchCommand.STOP) {
+                    hasStop = true
+                    break
+                }
+            }
+            index = target
+            if (hasStop) {
+                stoppedForStop = true
+                playing = false
                 break
             }
         }
-
-        if (
-            index >=
-                points.size
-        ) {
-            playing =
-                false
-        }
+        if (index >= points.size) playing = false
     }
 
     val completedStitches =
@@ -312,11 +297,7 @@ fun SimulatorScreen(
                         4.dp
                     )
             ) {
-                listOf(
-                    1f,
-                    2f,
-                    4f
-                ).forEach {
+                listOf(1f, 2f, 4f, 8f, 16f, 32f).forEach {
                         option ->
                     SpeedChip(
                         speed =
@@ -765,7 +746,7 @@ private fun SpeedChip(
             modifier =
                 Modifier.padding(
                     horizontal =
-                        10.dp,
+                        5.dp,
                     vertical =
                         7.dp
                 ),
