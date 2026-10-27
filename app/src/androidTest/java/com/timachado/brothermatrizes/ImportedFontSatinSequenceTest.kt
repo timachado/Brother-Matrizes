@@ -72,9 +72,11 @@ class ImportedFontSatinSequenceTest {
 
     @Test
     fun contextualColumnFillCreatesSatinBarsAcrossGlyphWidth() {
-        val v = com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V
         val rectangle = listOf(
-            v(0f, 0f), v(70f, 0f), v(70f, 40f), v(0f, 40f)
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(0f, 0f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(70f, 0f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(70f, 40f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(0f, 40f)
         )
         val plan = com.timachado.brothermatrizes.font.CleanRoomSatinEngine
             .planContextualFill(listOf(rectangle), densityMm = 0.5f)
