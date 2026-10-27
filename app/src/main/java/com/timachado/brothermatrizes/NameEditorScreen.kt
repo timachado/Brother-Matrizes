@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -274,7 +275,7 @@ fun NameEditorScreen(
             onValueChange = { setDraft(draft.copy(name = it.take(24))) },
             label = { Text("Nome para bordar") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
         )
 
         Box {
@@ -351,16 +352,16 @@ fun NameEditorScreen(
             }
         }
         Text(
-            "A troca de nome recompõe a camada editável sem duplicar pontadas nesta sessão. " +
-                "Depois de exportar e reabrir PES/DST, a camada volta a ser somente pontadas. Apagar um nome de PES/DST importado requer seleção " +
-                "segura de bloco e não está habilitado nesta etapa.",
+            "Nomes salvos em Minhas Matrizes permanecem editáveis. " +
+                "Após exportar e reabrir PES/DST, a troca de nome existente exige " +
+                "seleção manual de um bloco de cor isolado; regiões ambíguas são bloqueadas.",
             color = FioTextMuted,
             fontSize = 11.sp
         )
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_apply")
         ) {
             Text("Aplicar nome e abrir matriz personalizada")
         }
