@@ -527,6 +527,10 @@ fun NameEditorScreen(
                     baseDesign else preview ?: baseDesign,
                 hoop = referenceHoop,
                 interactive = zoomMode,
+                // SOLID agrupa milhares de STITCH em caminhos por cor.
+                // O editor é interativo; a simulação REALISTIC permanece
+                // disponível na tela própria depois de aplicar.
+                displayMode = EmbroideryDisplayMode.SOLID,
                 modifier = Modifier.fillMaxSize()
             )
             if (dragging || transforming || (transformNameMode && previewBusy)) {
