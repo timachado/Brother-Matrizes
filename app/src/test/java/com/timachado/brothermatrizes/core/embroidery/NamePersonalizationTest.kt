@@ -63,8 +63,23 @@ class NamePersonalizationTest {
         val sophia = NamePersonalization.add(original, TextMatrixOptions("Sophia"), 0, 0).getOrThrow()
         assertEquals(1, maria.points.count { it.command == StitchCommand.COLOR_CHANGE })
         assertEquals(1, sophia.points.count { it.command == StitchCommand.COLOR_CHANGE })
-        assertEquals(original.points.size, original.points.size)
+        assertEquals(original.points, floralFrame().points)
         assertFalse(sophia.points === maria.points)
+    }
+
+    @Test fun reopeningEditableNameReplacesMariaWithSophiaWithoutDuplicatingStitches() {
+        val frame = floralFrame()
+        val maria = NamePersonalization.add(
+            frame, TextMatrixOptions("Maria", style = TextStitchStyle.SATIN), 5, 0
+        ).getOrThrow()
+        val sophia = NamePersonalization.add(
+            maria, TextMatrixOptions("Sophia", style = TextStitchStyle.SATIN), 5, 0
+        ).getOrThrow()
+        assertEquals(frame.points.dropLast(1), sophia.points.take(frame.points.size - 1))
+        assertEquals(1, sophia.points.count { it.command == StitchCommand.COLOR_CHANGE })
+        assertEquals(frame.points, sophia.editableName?.original?.points)
+        assertEquals("Sophia", sophia.editableName?.options?.text)
+        assertTrue(sophia.points.any { it.command == StitchCommand.STITCH })
     }
 
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
@@ -72,7 +87,7 @@ class NamePersonalizationTest {
         val corrupt = original.copy(points = original.points.dropLast(1) +
             EmbroideryPoint(0, 0, StitchCommand.STITCH, 0))
         assertTrue(NamePersonalization.add(corrupt, TextMatrixOptions("Maria"), 0, 0).isFailure)
-        assertEquals(original.points.last(), original.points.last())
+        assertEquals(StitchCommand.END, original.points.last().command)
     }
 
     @Test fun exportPesDstAndReopenWhenSupported() {
