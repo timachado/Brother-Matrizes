@@ -22,12 +22,21 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
@@ -37,12 +46,16 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 private data class NameDraft(
@@ -52,6 +65,7 @@ private data class NameDraft(
     val spacing: Float = 1.2f,
     val density: Float = .45f,
     val color: Int = 0xB22222,
+    val rotation: Float = 0f,
     val x: Int,
     val y: Int
 )
@@ -73,6 +87,7 @@ fun NameEditorScreen(
                 spacing = existing?.options?.spacingMm ?: 1.2f,
                 density = existing?.options?.satinDensityMm ?: .45f,
                 color = existing?.options?.color ?: 0xB22222,
+                rotation = existing?.options?.rotationDegrees ?: 0f,
                 x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
                 y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
@@ -87,44 +102,138 @@ fun NameEditorScreen(
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
 
-    fun setDraft(next: NameDraft) {
+    fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
-        undo = (undo + draft).takeLast(40)
+        if (history) undo = (undo + draft).takeLast(40)
         redo = emptyList()
         draft = next
     }
 
-    val result = remember(baseDesign, draft, referenceHoop) {
-        NamePersonalization.add(
-            original = baseDesign,
-            options = TextMatrixOptions(
-                text = draft.name,
-                font = draft.font,
-                heightMm = draft.height,
-                spacingMm = draft.spacing,
-                satinDensityMm = draft.density,
-                style = TextStitchStyle.SATIN,
-                outputFormat = original.format,
-                color = draft.color,
-                hoopProfile = referenceHoop,
-                enforceHoop = true
-            ),
-            centerXUnits = draft.x,
-            centerYUnits = draft.y
-        )
-    }
-    val preview = result.getOrNull()
+    // Geração completa e validação nunca ocorrem na thread de desenho/UI.
+    // LaunchedEffect cancela o job obsoleto quando texto/posição muda.
+    data class ComputedPreview(
+        val base: EmbroideryDesign,
+        val settings: NameDraft,
+        val result: Result<EmbroideryDesign>
+    )
 
-    // O gesto é aplicado em unidades de matriz (0,1 mm), não em pixels
-    // gravados no arquivo. A escala usa o mesmo bastidor do Canvas nativo.
-    val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
-    val move by rememberUpdatedState<(Float, Float) -> Unit> { dx, dy ->
-        setDraft(
-            draft.copy(
-                x = draft.x + dx.roundToInt(),
-                y = draft.y + dy.roundToInt()
+    var computed by remember(original) {
+        mutableStateOf<ComputedPreview?>(null)
+    }
+    var autoFitEnabled by remember(original) {
+        mutableStateOf(original.editableName == null)
+    }
+    var autoFitRequest by remember(original) { mutableIntStateOf(0) }
+    var fitting by remember(original) { mutableStateOf(false) }
+    var autoFitError by remember(original) { mutableStateOf<String?>(null) }
+    var dragging by remember(original) { mutableStateOf(false) }
+    var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
+    fun optionsFor(value: NameDraft) = TextMatrixOptions(
+        text = value.name,
+        font = value.font,
+        heightMm = value.height,
+        spacingMm = value.spacing,
+        satinDensityMm = value.density,
+        rotationDegrees = value.rotation,
+        style = TextStitchStyle.SATIN,
+        outputFormat = original.format,
+        color = value.color,
+        hoopProfile = referenceHoop,
+        enforceHoop = true
+    )
+
+    LaunchedEffect(baseDesign, draft, referenceHoop) {
+        delay(180L) // Gestos/teclado rápidos não geram centenas de matrizes.
+        val target = draft
+        val source = baseDesign
+        val options = optionsFor(target)
+        val validated = withContext(Dispatchers.Default) {
+            NamePersonalization.add(source, options, target.x, target.y)
+        }
+        computed = ComputedPreview(source, target, validated)
+    }
+
+    LaunchedEffect(baseDesign, draft.name, draft.font, referenceHoop,
+        autoFitEnabled, autoFitRequest
+    ) {
+        if (!autoFitEnabled || draft.name.isBlank()) {
+            fitting = false
+            return@LaunchedEffect
+        }
+        delay(350L)
+        fitting = true
+        autoFitError = null
+        try {
+            val initial = draft
+            val source = baseDesign
+            val fit = withContext(Dispatchers.Default) {
+                NameAutoPlacement.find(
+                    original = source,
+                    requested = optionsFor(initial),
+                    centerXUnits = (source.bounds.minXUnits.toLong() +
+                        source.bounds.maxXUnits.toLong()).div(2).toInt(),
+                    centerYUnits = (source.bounds.minYUnits.toLong() +
+                        source.bounds.maxYUnits.toLong()).div(2).toInt()
+                )
+            }
+            fit.fold(
+                onSuccess = { found ->
+                    val next = initial.copy(
+                        font = found.options.font,
+                        height = found.options.heightMm,
+                        x = found.centerXUnits,
+                        y = found.centerYUnits
+                    )
+                    // Marcar automaticidade resolvida para evitar pesquisa
+                    // infinita quando o mecanismo troca fonte por Compacta.
+                    autoFitEnabled = false
+                    setDraft(next, history = false)
+                    computed = ComputedPreview(source, next, Result.success(found.design))
+                },
+                onFailure = { error ->
+                    autoFitError = error.message
+                    autoFitEnabled = false
+                }
             )
-        )
+        } finally {
+            fitting = false
+        }
+    }
+
+    val currentPreview = computed?.takeIf {
+        it.base === baseDesign && it.settings == draft
+    }
+    val preview = currentPreview?.result?.getOrNull()
+    val currentError = currentPreview?.result?.exceptionOrNull()?.message
+    val previewBusy = currentPreview == null || fitting || dragging
+
+    val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
+    val portraitHoop =
+        (original.bounds.widthMm > original.bounds.heightMm) !=
+            (referenceHoop.widthMm > referenceHoop.heightMm) &&
+            referenceHoop.widthMm != referenceHoop.heightMm
+    val frameWidthUnits = (if (portraitHoop) referenceHoop.heightMm
+        else referenceHoop.widthMm) * 10f
+    val frameHeightUnits = (if (portraitHoop) referenceHoop.widthMm
+        else referenceHoop.heightMm) * 10f
+    val canvasScale = minOf(
+        (canvasSize.width - 2f * paddingPx) / frameWidthUnits,
+        (canvasSize.height - 2f * paddingPx) / frameHeightUnits
+    ).coerceAtLeast(.01f)
+    val direction = if (original.sourceYAxisDown) 1f else -1f
+
+    val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
+        if (moved != Offset.Zero) {
+            autoFitEnabled = false
+            setDraft(draft.copy(
+                x = draft.x + (moved.x / canvasScale).roundToInt(),
+                y = draft.y + (moved.y / (canvasScale * direction)).roundToInt()
+            ))
+        }
+        dragging = false
+        dragPx = Offset.Zero
     }
 
     if (selectingOldName) {
@@ -228,51 +337,94 @@ fun NameEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(285.dp)
-                .then(if (zoomMode) Modifier else Modifier.pointerInput(original, referenceHoop, paddingPx) {
-                    detectDragGestures { change, amount ->
+                .onSizeChanged { canvasSize = it }
+                .then(if (zoomMode) Modifier else Modifier.pointerInput(
+                    original, referenceHoop, paddingPx
+                ) {
+                    detectDragGestures(
+                        onDragStart = {
+                            dragging = true
+                            dragPx = Offset.Zero
+                        },
+                        onDragEnd = { commitDrag(dragPx) },
+                        onDragCancel = {
+                            dragging = false
+                            dragPx = Offset.Zero
+                        }
+                    ) { change, amount ->
                         change.consume()
-                        val width = referenceHoop.widthMm * 10f
-                        val height = referenceHoop.heightMm * 10f
-                        val rotated = (original.bounds.widthMm > original.bounds.heightMm) !=
-                            (referenceHoop.widthMm > referenceHoop.heightMm) &&
-                            referenceHoop.widthMm != referenceHoop.heightMm
-                        val frameWidth = if (rotated) height else width
-                        val frameHeight = if (rotated) width else height
-                        val scale = minOf(
-                            ((size.width - 2f * paddingPx) / frameWidth),
-                            ((size.height - 2f * paddingPx) / frameHeight)
-                        ).coerceAtLeast(.01f)
-                        val direction = if (original.sourceYAxisDown) 1f else -1f
-                        move(amount.x / scale, amount.y / (scale * direction))
+                        // Apenas um fantasma de texto é movido por frame.
+                        // O arquivo real é calculado UMA vez, ao soltar.
+                        dragPx += amount
                     }
                 })
         ) {
             EmbroideryCanvas(
-                design = preview ?: baseDesign,
+                design = if (dragging || previewBusy) baseDesign else preview ?: baseDesign,
                 hoop = referenceHoop,
                 interactive = zoomMode,
                 modifier = Modifier.fillMaxSize()
             )
+            if (dragging) {
+                val midX = (baseDesign.bounds.minXUnits.toLong() +
+                    baseDesign.bounds.maxXUnits.toLong()) / 2f
+                val midY = (baseDesign.bounds.minYUnits.toLong() +
+                    baseDesign.bounds.maxYUnits.toLong()) / 2f
+                Text(
+                    draft.name,
+                    color = FioGold,
+                    fontSize = 22.sp,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset {
+                            IntOffset(
+                                ((draft.x - midX) * canvasScale + dragPx.x).roundToInt(),
+                                ((draft.y - midY) * canvasScale * direction +
+                                    dragPx.y).roundToInt()
+                            )
+                        }
+                        .background(Color(0xE6121A27))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
+            }
         }
 
-        if (preview == null) {
-            Text(
-                result.exceptionOrNull()?.message ?: "Prévia indisponível.",
-                color = Color(0xFFFF9393),
-                fontSize = 12.sp
+        when {
+            fitting -> Text(
+                "Encaixando nome automaticamente na área livre…",
+                color = FioTextMuted, fontSize = 12.sp
             )
-        } else {
-            Text(
+            previewBusy -> Text(
+                "Atualizando prévia de pontadas sem travar a tela…",
+                color = FioTextMuted, fontSize = 12.sp
+            )
+            preview == null -> Text(
+                currentError ?: autoFitError ?: "Prévia indisponível.",
+                color = Color(0xFFFF9393), fontSize = 12.sp
+            )
+            else -> Text(
                 "Prévia válida: ${preview.stitchCount} pontos • " +
                     "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
-                color = FioTextMuted,
-                fontSize = 12.sp
+                color = FioTextMuted, fontSize = 12.sp
             )
+        }
+
+        OutlinedButton(
+            onClick = {
+                autoFitRequest++
+                autoFitEnabled = true
+            },
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_auto_fit")
+        ) {
+            Text("✧ Ajustar automaticamente à matriz")
         }
 
         OutlinedTextField(
             value = draft.name,
-            onValueChange = { setDraft(draft.copy(name = it.take(24))) },
+            onValueChange = {
+                autoFitEnabled = true
+                setDraft(draft.copy(name = it.take(24)))
+            },
             label = { Text("Nome para bordar") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
@@ -291,6 +443,7 @@ fun NameEditorScreen(
                         text = { Text(font.displayName) },
                         onClick = {
                             fontsExpanded = false
+                            autoFitEnabled = true
                             setDraft(draft.copy(font = font))
                         }
                     )
@@ -301,21 +454,54 @@ fun NameEditorScreen(
         Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
         Slider(
             value = draft.height,
-            onValueChange = { setDraft(draft.copy(height = it)) },
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(height = it), history = false)
+            },
             valueRange = 4f..30f
         )
         Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
         Slider(
             value = draft.spacing,
-            onValueChange = { setDraft(draft.copy(spacing = it)) },
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(spacing = it), history = false)
+            },
             valueRange = 0f..5f
         )
         Text("Densidade Satin: " + "%.2f".format(draft.density) + " mm", color = FioText)
         Slider(
             value = draft.density,
-            onValueChange = { setDraft(draft.copy(density = it)) },
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(density = it), history = false)
+            },
             valueRange = .3f..1.0f
         )
+
+        Text("Rotação do nome: ${draft.rotation.roundToInt()}°", color = FioText)
+        Slider(
+            value = draft.rotation,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(rotation = (it / 5f).roundToInt() * 5f), history = false)
+            },
+            valueRange = -180f..180f
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                autoFitEnabled = false
+                setDraft(draft.copy(rotation = (draft.rotation - 15f).coerceAtLeast(-180f)))
+            }) { Text("↶ 15°") }
+            OutlinedButton(onClick = {
+                autoFitEnabled = false
+                setDraft(draft.copy(rotation = 0f))
+            }) { Text("0°") }
+            OutlinedButton(onClick = {
+                autoFitEnabled = false
+                setDraft(draft.copy(rotation = (draft.rotation + 15f).coerceAtMost(180f)))
+            }) { Text("↷ 15°") }
+        }
 
         Text("Cor da linha", color = FioText)
         Row(
@@ -360,7 +546,7 @@ fun NameEditorScreen(
         )
         Button(
             onClick = { preview?.let(onApply) },
-            enabled = preview != null,
+            enabled = preview != null && !previewBusy,
             modifier = Modifier.fillMaxWidth().testTag("brother_name_apply")
         ) {
             Text("Aplicar nome e abrir matriz personalizada")
