@@ -86,6 +86,39 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun enlargedCursiveGlyphReplansSatinAtOriginalDensity() {
+        // Regressão: expandir 2x o nome NÃO deve expandir 2x a distância
+        // entre as colunas Satin. Primeiro dimensionamos o contorno TTF.
+        fun point(x: Float, y: Float) = AndroidSkiaOutlineExtractor.Point(x, y)
+        val glyph = listOf(listOf(listOf(
+            point(0f, 0f), point(24f, 0f),
+            point(24f, 90f), point(0f, 90f)
+        )))
+        val enlarged = CleanRoomSatinEngine.scaleGlyphContours(
+            glyph, widthScale = 2f, heightScale = 1.5f
+        )
+        assertEquals(48f, enlarged[0][0][1].x, .01f)
+        assertEquals(135f, enlarged[0][0][2].y, .01f)
+
+        fun plan(g: List<List<List<AndroidSkiaOutlineExtractor.Point>>>) =
+            CleanRoomSatinEngine.planContextualFill(
+                g[0].map { ring -> ring.map {
+                    CleanRoomSatinEngine.V(it.x, it.y)
+                } }, densityMm = .45f
+            )
+        val standard = plan(glyph).rails.flatten()
+        val expanded = plan(enlarged).rails.flatten()
+        assertTrue("O bordado deve ter mais carreiras após expansão.",
+            expanded.size > standard.size * 1.65f)
+        val columns = expanded.map { it.middle.x }.distinct().sorted()
+        assertTrue("A largura foi preservada.", columns.last() > 38f)
+        assertTrue("Nenhuma falha grande entre as carreiras Satin.",
+            columns.zipWithNext().all { (a, b) -> b - a <= 8f })
+        assertTrue("Comprimento de ponto deve respeitar limite físico.",
+            expanded.all { kotlin.math.abs(it.a.y - it.b.y) <= 60.5f })
+    }
+
+    @Test
     fun contextualCursiveFillMaintainsWordFootprintWithoutOverlappingRows() {
         val contours = listOf(
             rectangle(0f, 0f, 24f, 85f),
