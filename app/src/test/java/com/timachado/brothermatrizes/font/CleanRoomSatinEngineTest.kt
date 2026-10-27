@@ -18,6 +18,74 @@ class CleanRoomSatinEngineTest {
     )
 
     @Test
+    fun satinRailsMustAlternateDirectionInsteadOfSewingLongDiagonals() {
+        // Regressão do defeito: duas colunas verticais consecutivas
+        // têm 5 mm de altura e 0,4 mm de avanço horizontal.
+        // A transição costurada tem de seguir a borda (4 unidades),
+        // NÃO atravessar diagonalmente toda a letra (50 unidades).
+        val rails = (0..5).map { n ->
+            val x = n * 4f
+            CleanRoomSatinEngine.Rail(
+                CleanRoomSatinEngine.V(x, 0f),
+                CleanRoomSatinEngine.V(x, 50f)
+            )
+        }
+        val plan = CleanRoomSatinEngine.PlannedGlyph(
+            rails = listOf(rails), sampledEdges = rails.size,
+            duplicateRailsDiscarded = 0
+        )
+        val result = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        val diagonals = result.zipWithNext().filter { (a, b) ->
+            b.command == StitchCommand.STITCH &&
+                kotlin.math.abs(a.xUnits - b.xUnits) >= 3 &&
+                kotlin.math.abs(a.yUnits - b.yUnits) >= 15
+        }
+        assertTrue(
+            "A fonte cursiva não pode ficar emaranhada com diagonais entre barras Satin.",
+            diagonals.isEmpty()
+        )
+        assertTrue(result.count { it.command == StitchCommand.STITCH } >= 11)
+        val direction = result.windowed(2).mapNotNull { pair ->
+            val a = pair[0]
+            val b = pair[1]
+            if (b.command == StitchCommand.STITCH &&
+                a.xUnits == b.xUnits &&
+                kotlin.math.abs(a.yUnits - b.yUnits) >= 40
+            ) (b.yUnits - a.yUnits).coerceIn(-1, 1) else null
+        }
+        assertTrue("Passadas Satin devem alternar subida e descida.",
+            direction.size >= 6 && direction.zipWithNext().all { (a,b) -> a != b })
+    }
+
+    @Test
+    fun disconnectedSatinBarsMustJumpRatherThanDrawLinkingThread() {
+        val isolated = listOf(
+            CleanRoomSatinEngine.Rail(
+                CleanRoomSatinEngine.V(0f, 0f),
+                CleanRoomSatinEngine.V(0f, 36f)
+            ),
+            CleanRoomSatinEngine.Rail(
+                CleanRoomSatinEngine.V(40f, 0f),
+                CleanRoomSatinEngine.V(40f, 36f)
+            )
+        )
+        val stitched = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+            CleanRoomSatinEngine.PlannedGlyph(
+                rails = listOf(isolated), sampledEdges = 2,
+                duplicateRailsDiscarded = 0
+            )
+        )
+        assertTrue("Separação grande deve usar JUMP.",
+            stitched.any { it.command == StitchCommand.JUMP && it.xUnits == 40 })
+        val bridges = stitched.zipWithNext().filter { (a, b) ->
+            b.command == StitchCommand.STITCH &&
+                kotlin.math.abs(a.xUnits - b.xUnits) >= 30
+        }
+        assertTrue("Nunca costurar ligação entre partes isoladas da letra.",
+            bridges.isEmpty())
+    }
+
+    @Test
     fun contextualCursiveFillMaintainsWordFootprintWithoutOverlappingRows() {
         val contours = listOf(
             rectangle(0f, 0f, 24f, 85f),
