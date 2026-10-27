@@ -94,6 +94,57 @@ class NamePersonalizationTest {
         assertTrue(sophia.fileName.contains("sophia"))
     }
 
+    /**
+     * Regressão com as DIMENSÕES medidas do arquivo MOLDURA FLORES
+     * BORBOLETAS 13X18.pes (105,4 x 157,6 mm).
+     * A geometria do teste é sintética: não armazenamos o arquivo privado
+     * do usuário no repositório público.
+     */
+    @Test fun portraitMoldura13x18AcceptsRotatedBrotherHoop() {
+        val framePoints = listOf(
+            EmbroideryPoint(-820, -691, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-820, 885, StitchCommand.STITCH, 0),
+            EmbroideryPoint(234, 885, StitchCommand.STITCH, 0),
+            EmbroideryPoint(234, -691, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-820, -691, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-820, -691, StitchCommand.END, 0)
+        )
+        val frame = EmbroideryIntegrity.normalize(
+            floralFrame().copy(
+                fileName = "moldura-borboletas-13x18.pes",
+                points = framePoints,
+                hoopProfile = HoopProfile.H130X180,
+                sourceYAxisDown = true
+            )
+        ).getOrThrow().design
+
+        assertEquals(105.4f, frame.bounds.widthMm, 0.01f)
+        assertEquals(157.6f, frame.bounds.heightMm, 0.01f)
+        assertFalse(HoopValidator.validate(frame, HoopProfile.H130X180).fits)
+
+        val edited = NamePersonalization.add(
+            frame,
+            TextMatrixOptions(
+                text = "Maria", heightMm = 10f,
+                style = TextStitchStyle.SATIN,
+                outputFormat = "PES"
+            ),
+            centerXUnits = -293,
+            centerYUnits = 97
+        ).getOrThrow()
+        assertEquals(frame.points.dropLast(1), edited.points.take(frame.points.size - 1))
+        assertEquals(HoopProfile.H130X180, edited.hoopProfile)
+        assertEquals(1, edited.points.count { it.command == StitchCommand.END })
+        assertTrue(edited.bounds.widthMm <= HoopProfile.H130X180.usableHeightMm)
+        assertTrue(edited.bounds.heightMm <= HoopProfile.H130X180.usableWidthMm)
+
+        val outside = NamePersonalization.add(
+            frame, TextMatrixOptions("Maria", heightMm = 10f),
+            centerXUnits = 3000, centerYUnits = 97
+        )
+        assertTrue(outside.isFailure)
+    }
+
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
         val original = floralFrame()
         val corrupt = original.copy(points = original.points.dropLast(1) +
