@@ -124,7 +124,8 @@ internal object CleanRoomSatinEngine {
             stitcher.sewGlyph(
                 plan.rails,
                 if (outlines.contextualShapingPreserved) SatinUnderlayMode.NONE
-                else options.satinUnderlayMode
+                else options.satinUnderlayMode,
+                forceJumpBetweenPaths = outlines.contextualShapingPreserved
             )
             sewnGlyphs++
         }
@@ -970,7 +971,11 @@ internal object CleanRoomSatinEngine {
                     StitchCommand.STITCH)
             }
         }
-        fun sewGlyph(paths: List<List<Rail>>, underlay: SatinUnderlayMode) {
+        fun sewGlyph(
+            paths: List<List<Rail>>,
+            underlay: SatinUnderlayMode,
+            forceJumpBetweenPaths: Boolean = false
+        ) {
             var anchored = false
             paths.forEach { rows ->
                 if (rows.isEmpty()) return@forEach
@@ -988,8 +993,11 @@ internal object CleanRoomSatinEngine {
                 val cover = if (doUnderlay) rows.asReversed() else rows
                 val entry = cover.first().a
                 val lastPos = needle
-                if (lastPos == null || length(lastPos, entry) > 4f) jump(entry)
-                else sew(entry)
+                // Caminhos distintos de fonte cursiva não devem criar
+                // costura de ligação nem quando as bordas quase se tocam.
+                if (forceJumpBetweenPaths || lastPos == null ||
+                    length(lastPos, entry) > 4f
+                ) jump(entry) else sew(entry)
                 if (!anchored) {
                     // One short tie-in for this glyph, not every medial branch.
                     val r = cover.first()
