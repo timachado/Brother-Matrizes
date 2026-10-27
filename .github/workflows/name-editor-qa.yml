@@ -53,3 +53,54 @@ jobs:
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
           echo "QA: arquivo de build presente; sem publicação e sem assinatura oficial."
+
+
+  android-emulator-name-editor:
+    name: Testar editor e simulador no emulador Android 35
+    needs: android-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Instalar Android 36 e emulador
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Permitir aceleração KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android 35 - Maria/Sophia, simulação, exportação e seleção segura
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: >
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.NameEditorAndroidQaTest
+      - name: Guardar relatório de testes Android
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: name-editor-android35-test-results
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 14
