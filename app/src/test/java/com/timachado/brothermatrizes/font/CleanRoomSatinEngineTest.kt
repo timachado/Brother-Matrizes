@@ -18,6 +18,50 @@ class CleanRoomSatinEngineTest {
     )
 
     @Test
+    fun contextualCursiveFillMaintainsWordFootprintWithoutOverlappingRows() {
+        val contours = listOf(
+            rectangle(0f, 0f, 24f, 85f),
+            rectangle(34f, 0f, 24f, 85f),
+            rectangle(68f, 0f, 24f, 85f)
+        )
+        val fill = CleanRoomSatinEngine.planContextualFill(
+            contours, densityMm = 0.4f
+        )
+        val all = fill.rails.flatten()
+        assertTrue("Três letras devem manter seus contornos.",
+            all.any { it.middle.x < 25f } &&
+                all.any { it.middle.x in 35f..60f } &&
+                all.any { it.middle.x > 68f })
+        assertTrue("Uma faixa de letra não deve gerar Satin exagerado.",
+            all.all { it.a.x <= it.b.x &&
+                it.b.x - it.a.x <= 35.1f })
+        val stitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(fill)
+        assertTrue(stitches.count { it.command == StitchCommand.STITCH } > 20)
+        assertTrue("Nenhuma passagem costurada entre letras distintas.",
+            stitches.count { it.command == StitchCommand.JUMP } > 2)
+    }
+
+    @Test
+    fun contextualCursiveFillDoesNotStitchThroughLetterCounter() {
+        val outer = rectangle(0f, 0f, 100f, 100f)
+        val hole = rectangle(30f, 30f, 40f, 40f).reversed()
+        val fill = CleanRoomSatinEngine.planContextualFill(
+            listOf(outer, hole), densityMm = 0.4f
+        )
+        val aroundHole = fill.rails.flatten().filter {
+            it.middle.y in 38f..62f
+        }
+        assertTrue("Faixas ao lado esquerdo do vazado.", aroundHole.any {
+            it.b.x < 38f
+        })
+        assertTrue("Faixas ao lado direito do vazado.", aroundHole.any {
+            it.a.x > 62f
+        })
+        assertTrue("O contraformato interno deve permanecer vazio.",
+            aroundHole.none { it.a.x < 35f && it.b.x > 65f })
+    }
+
+    @Test
     fun firstLegOfMUsesOneTransverseSatinCoverageWithoutReturningToSameRail() {
         val plan = CleanRoomSatinEngine.planContours(
             listOf(rectangle(0f, 0f, 24f, 132f)), densityMm = 0.4f
