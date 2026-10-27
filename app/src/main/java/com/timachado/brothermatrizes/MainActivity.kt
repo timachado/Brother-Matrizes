@@ -343,6 +343,11 @@ private sealed interface Screen {
         val design: EmbroideryDesign
     ) : Screen
 
+    data class NameEditor(
+        val design: EmbroideryDesign,
+        val referenceHoop: HoopProfile = recommendedHoopFor(design)
+    ) : Screen
+
     data class Editor(
         val design: EmbroideryDesign,
         val displayMode:
@@ -751,6 +756,12 @@ private fun BrotherMatrizesApp(
                 is Screen.Converter ->
                     Screen.Viewer(
                         current.design
+                    )
+
+                is Screen.NameEditor ->
+                    Screen.Viewer(
+                        design = current.design,
+                        referenceHoop = current.referenceHoop
                     )
 
                 is Screen.Editor ->
@@ -2375,6 +2386,12 @@ private fun BrotherMatrizesApp(
                                             current.showConnections
                                     )
                         },
+                        onEditName = {
+                            screen = Screen.NameEditor(
+                                design = current.design,
+                                referenceHoop = current.referenceHoop
+                            )
+                        },
                         onConvert = {
                             screen =
                                 Screen
@@ -2451,6 +2468,21 @@ private fun BrotherMatrizesApp(
                                         .design,
                                 targetFormat =
                                     format
+                            )
+                        }
+                    )
+                }
+
+                is Screen.NameEditor -> {
+                    NameEditorScreen(
+                        original = current.design,
+                        referenceHoop = current.referenceHoop,
+                        onBack = { goBack() },
+                        onApply = { personalized ->
+                            activateDesign(personalized)
+                            screen = Screen.Viewer(
+                                design = personalized,
+                                referenceHoop = current.referenceHoop
                             )
                         }
                     )
