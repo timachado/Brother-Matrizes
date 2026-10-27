@@ -52,6 +52,26 @@ object SimulationTiming {
         return count to (total - count * tick)
     }
 
+    data class PlaybackAdvance(val nextIndex: Int, val stopped: Boolean)
+
+    /** Paradas reais da matriz jamais são atravessadas pelo avanço em lote. */
+    fun advancePlayback(
+        points: List<EmbroideryPoint>,
+        fromIndex: Int,
+        commandBudget: Int
+    ): PlaybackAdvance {
+        var index = fromIndex.coerceIn(0, points.size)
+        val end = (index.toLong() + commandBudget.coerceAtLeast(0))
+            .coerceAtMost(points.size.toLong()).toInt()
+        while (index < end) {
+            val command = points[index++].command
+            if (command == StitchCommand.STOP) {
+                return PlaybackAdvance(index, true)
+            }
+        }
+        return PlaybackAdvance(index, false)
+    }
+
     fun eventDelayMs(
         command: StitchCommand,
         speedMultiplier: Float
