@@ -13,6 +13,8 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.geometry.Offset
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.timachado.brothermatrizes.core.embroidery.*
 import com.timachado.brothermatrizes.core.project.ProjectCodec
@@ -160,6 +162,44 @@ class NameEditorAndroidQaTest {
             assertTrue((edited.editableName?.centerXUnits ?: 0) > 0)
             assertEquals(source.points.dropLast(1),
                 edited.points.take(source.points.size - 1))
+        }
+    }
+
+    @Test
+    fun twoFingerPinchResizesRealNameOnBothAxesAndKeepsFrame() {
+        val source = frame()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_canvas")
+            .performTouchInput {
+                pinch(
+                    start0 = center + Offset(-20f, -20f),
+                    end0 = center + Offset(-32f, -30f),
+                    start1 = center + Offset(20f, 20f),
+                    end1 = center + Offset(32f, 30f),
+                    durationMillis = 480
+                )
+            }
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val saved = requireNotNull(applied)
+            val options = requireNotNull(saved.editableName).options
+            assertTrue("Largura não expandiu", options.widthScale > 1.05f)
+            assertTrue("Altura não expandiu", options.heightScale > 1.05f)
+            assertEquals(source.points.dropLast(1),
+                saved.points.take(source.points.size - 1))
         }
     }
 
