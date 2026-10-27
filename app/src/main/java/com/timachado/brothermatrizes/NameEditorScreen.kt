@@ -568,7 +568,7 @@ fun NameEditorScreen(
                 color = Color(0xFFFF9393), fontSize = 12.sp
             )
             else -> Text(
-                "Prévia válida: ${preview.stitchCount} pontos • " +
+                "Pontadas calculadas: ${preview.stitchCount} pontos • " +
                     "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
                 color = FioTextMuted, fontSize = 12.sp
             )
