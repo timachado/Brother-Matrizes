@@ -41,13 +41,13 @@ internal object NamePlacementSafety {
             cached?.let { if (it.design === background) return it }
             val segments = sewnSegments(background.points)
             val cells = HashMap<Long, MutableList<Int>>()
-            // Máxima margem suportada pela API (100 unidades). Assim o cache
-            // atende a qualquer validação de 0 a 10 mm.
+            // Indexar só os segmentos originais; expandir apenas a busca,
+            // poupando memória em matrizes com dezenas de milhares de pontos.
             segments.forEachIndexed { index, segment ->
-                val left = Math.floorDiv(segment.minX - 100, CELL_UNITS)
-                val right = Math.floorDiv(segment.maxX + 100, CELL_UNITS)
-                val top = Math.floorDiv(segment.minY - 100, CELL_UNITS)
-                val bottom = Math.floorDiv(segment.maxY + 100, CELL_UNITS)
+                val left = Math.floorDiv(segment.minX, CELL_UNITS)
+                val right = Math.floorDiv(segment.maxX, CELL_UNITS)
+                val top = Math.floorDiv(segment.minY, CELL_UNITS)
+                val bottom = Math.floorDiv(segment.maxY, CELL_UNITS)
                 require(right.toLong() - left < 1024L &&
                     bottom.toLong() - top < 1024L) {
                     "Segmento muito longo para validação."
@@ -75,10 +75,10 @@ internal object NamePlacementSafety {
         }
         val clearanceSquared = clearanceUnits.toDouble() * clearanceUnits
         for (seg in typed) {
-            val left = Math.floorDiv(seg.minX, CELL_UNITS)
-            val right = Math.floorDiv(seg.maxX, CELL_UNITS)
-            val top = Math.floorDiv(seg.minY, CELL_UNITS)
-            val bottom = Math.floorDiv(seg.maxY, CELL_UNITS)
+            val left = Math.floorDiv(seg.minX - clearanceUnits, CELL_UNITS)
+            val right = Math.floorDiv(seg.maxX + clearanceUnits, CELL_UNITS)
+            val top = Math.floorDiv(seg.minY - clearanceUnits, CELL_UNITS)
+            val bottom = Math.floorDiv(seg.maxY + clearanceUnits, CELL_UNITS)
             require(right.toLong() - left.toLong() < 1024L &&
                 bottom.toLong() - top.toLong() < 1024L) {
                 "Nome possui um traçado muito longo para validação automática."
