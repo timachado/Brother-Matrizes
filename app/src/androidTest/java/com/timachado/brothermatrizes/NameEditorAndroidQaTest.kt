@@ -181,9 +181,9 @@ class NameEditorAndroidQaTest {
             .performTouchInput {
                 pinch(
                     start0 = center + Offset(-20f, -20f),
-                    end0 = center + Offset(-32f, -30f),
+                    end0 = center + Offset(-23f, -23f),
                     start1 = center + Offset(20f, 20f),
-                    end1 = center + Offset(32f, 30f),
+                    end1 = center + Offset(23f, 23f),
                     durationMillis = 480
                 )
             }
