@@ -188,4 +188,28 @@ class NamePersonalizationTest {
             assertTrue((reopened as EmbroideryLoadResult.Success).design.stitchCount > original.stitchCount)
         }
     }
+
+    @Test fun quickGeometryCheckAgreesWithFullCompositionAndRejectsBorder() {
+        val frame = floralFrame()
+        val options = TextMatrixOptions(
+            text = "Maria", heightMm = 10f,
+            rotationDegrees = 15f,
+            style = TextStitchStyle.SATIN
+        )
+        assertTrue(NamePersonalization.checkPlacement(frame, options, 0, 0).isSuccess)
+        assertTrue(NamePersonalization.add(frame, options, 0, 0).isSuccess)
+
+        // Tentar bordar sobre o limite físico da moldura deve ser bloqueado
+        // antes de alocar/copiar/normalizar a matriz inteira.
+        assertTrue(NamePersonalization.checkPlacement(frame, options, 380, 0).isFailure)
+        assertTrue(NamePersonalization.add(frame, options, 380, 0).isFailure)
+        assertEquals(frame.points, floralFrame().points)
+    }
+
+    @Test fun quickGeometryCheckDoesNotReplaceFinalHoopValidation() {
+        val frame = floralFrame()
+        val options = TextMatrixOptions(text = "Sophia", heightMm = 10f)
+        assertTrue(NamePersonalization.checkPlacement(frame, options, 5000, 0).isFailure)
+        assertTrue(NamePersonalization.add(frame, options, 5000, 0).isFailure)
+    }
 }
