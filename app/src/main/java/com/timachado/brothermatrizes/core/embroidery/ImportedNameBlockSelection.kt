@@ -62,9 +62,21 @@ object ImportedNameBlockSelection {
             "Seleção segura indisponível: o nome precisa estar no último bloco separado por cor."
         }
         val retained = design.points.subList(0, split)
+        // TRIM imediatamente antes da troca de cor pertence à transição
+        // removida; não é uma pontada da moldura.
+        val stablePrefix = if (retained.last().command == StitchCommand.TRIM) {
+            retained.dropLast(1)
+        } else {
+            retained.toList()
+        }
         val selected = design.points.subList(split + 1, terminalIndex)
-        require(retained.any { it.command == StitchCommand.STITCH }) {
+        require(stablePrefix.any { it.command == StitchCommand.STITCH }) {
             "A matriz não possui bordado anterior para preservar."
+        }
+        require(selected.none {
+            it.command == StitchCommand.STOP || it.command == StitchCommand.SEQUIN
+        }) {
+            "O último bloco tem paradas ou comandos especiais: seleção não homologada."
         }
         val stitched = selected.filter { it.command == StitchCommand.STITCH }
         require(stitched.isNotEmpty()) {
@@ -85,7 +97,7 @@ object ImportedNameBlockSelection {
         // Detecta inclusive uma linha ornamental que atravesse o retângulo
         // com as duas extremidades fora dele.
         var previous: EmbroideryPoint? = null
-        retained.forEach { point ->
+        stablePrefix.forEach { point ->
             if (point.command == StitchCommand.STITCH && previous != null) {
                 require(!segmentIntersectsRect(previous!!, point, area)) {
                     "Outros elementos cruzam esta área. Remoção bloqueada para proteger flores e bordas."
@@ -94,9 +106,9 @@ object ImportedNameBlockSelection {
             previous = point
         }
 
-        val previousPoint = retained.last()
-        val cleanedPoints = retained.toList() + previousPoint.copy(command = StitchCommand.END)
-        val highestColor = retained.maxOf { it.colorIndex }
+        val previousPoint = stablePrefix.last()
+        val cleanedPoints = stablePrefix + previousPoint.copy(command = StitchCommand.END)
+        val highestColor = stablePrefix.maxOf { it.colorIndex }
         val remainingColors = design.threadColors.take(highestColor + 1)
         val cleaned = EmbroideryIntegrity.normalize(
             design.copy(
@@ -107,7 +119,7 @@ object ImportedNameBlockSelection {
                 editableName = null
             )
         ).getOrThrow().design
-        require(cleaned.points.dropLast(1) == retained) {
+        require(cleaned.points.dropLast(1) == stablePrefix) {
             "A sequência da moldura não pôde ser preservada."
         }
         val hoop = cleaned.hoopProfile
