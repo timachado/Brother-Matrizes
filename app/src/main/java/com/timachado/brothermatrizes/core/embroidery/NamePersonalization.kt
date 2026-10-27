@@ -46,9 +46,14 @@ object NamePersonalization {
         importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
     ): Result<Unit> = runCatching {
         val source = original.editableName?.original ?: original
+        require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
+            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f
+        ) { "Ajuste horizontal ou vertical fora dos limites seguros." }
         val text = prepare(
             options.copy(
                 rotationDegrees = 0f,
+                widthScale = 1f,
+                heightScale = 1f,
                 outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
@@ -62,6 +67,8 @@ object NamePersonalization {
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
                 rotationDegrees = options.rotationDegrees,
+                scaleX = options.widthScale,
+                scaleY = options.heightScale,
                 // Geradores BM usam Y para cima; Skia TTF/OTF já emite
                 // coordenadas Y para baixo. Espelhar apenas se as
                 // convenções de origem forem DIFERENTES.
@@ -94,6 +101,9 @@ object NamePersonalization {
         importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
     ): Result<EmbroideryDesign> = runCatching {
         val source = original.editableName?.original ?: original
+        require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
+            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f
+        ) { "Ajuste horizontal ou vertical fora dos limites seguros." }
         require(source.points.any { it.command == StitchCommand.STITCH }) {
             "A matriz original não contém bordado."
         }
@@ -112,6 +122,8 @@ object NamePersonalization {
                 // Rotation is applied AFTER generation, around the text center.
                 // Never rotate the source floral matrix.
                 rotationDegrees = 0f,
+                widthScale = 1f,
+                heightScale = 1f,
                 outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
@@ -126,6 +138,8 @@ object NamePersonalization {
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
                 rotationDegrees = options.rotationDegrees,
+                scaleX = options.widthScale,
+                scaleY = options.heightScale,
                 // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
                 // Geradores BM usam Y para cima; Skia TTF/OTF já emite
                 // coordenadas Y para baixo. Espelhar apenas se as
@@ -182,7 +196,8 @@ object NamePersonalization {
             options.heightMm.toString(), options.spacingMm.toString(),
             options.satinDensityMm.toString(), options.color.toString(),
             centerXUnits.toString(), centerYUnits.toString(),
-            options.rotationDegrees.toString(), options.importedFontId.orEmpty()
+            options.rotationDegrees.toString(), options.importedFontId.orEmpty(),
+            options.widthScale.toString(), options.heightScale.toString()
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray(Charsets.UTF_8))
