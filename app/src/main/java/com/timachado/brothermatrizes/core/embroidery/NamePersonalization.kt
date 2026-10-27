@@ -122,8 +122,15 @@ object NamePersonalization {
         }
         val hoop = validated.hoopProfile
         if (hoop != null) {
-            require(HoopValidator.validate(validated, hoop).fits) {
-                "O nome ultrapassa a área segura do bastidor. Reduza ou mova o texto."
+            // Bastidores retangulares Brother podem ser montados em retrato.
+            // H130X180, por exemplo, é armazenado como 180x130 no perfil,
+            // enquanto a matriz de borboletas mede ~105,4x157,6 mm.
+            val directFit = HoopValidator.validate(validated, hoop).fits
+            val rotatedFit =
+                validated.bounds.widthMm <= hoop.usableHeightMm &&
+                validated.bounds.heightMm <= hoop.usableWidthMm
+            require(directFit || rotatedFit) {
+                "O nome ultrapassa a área segura do bastidor nas duas orientações. Reduza ou mova o texto."
             }
         }
         validated
