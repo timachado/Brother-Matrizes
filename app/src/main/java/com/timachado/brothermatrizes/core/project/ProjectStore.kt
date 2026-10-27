@@ -42,7 +42,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        4
+        5
 
     private const val MAX_POINTS =
         2_000_000
@@ -299,6 +299,8 @@ object ProjectCodec {
             output.writeInt(fontOptions.color)
             output.writeInt(layer.centerXUnits)
             output.writeInt(layer.centerYUnits)
+            // v5: rotação da camada de texto, sem alterar a matriz-base.
+            output.writeFloat(fontOptions.rotationDegrees)
         }
         output.flush()
     }
@@ -553,10 +555,12 @@ object ProjectCodec {
                 val nameColor = input.readInt()
                 val posX = input.readInt()
                 val posY = input.readInt()
+                val rotation = if (version >= 5) input.readFloat() else 0f
                 require(
                     height.isFinite() && height in 4f..60f &&
                         spacing.isFinite() && spacing in 0f..8f &&
-                        density.isFinite() && density in .3f..1.2f
+                        density.isFinite() && density in .3f..1.2f &&
+                        rotation.isFinite() && rotation in -180f..180f
                 ) { "Parâmetros de nome corrompidos." }
                 val originalDesign = EmbroideryIntegrity.normalize(
                     EmbroideryDesign(
@@ -586,6 +590,7 @@ object ProjectCodec {
                         heightMm = height,
                         spacingMm = spacing,
                         satinDensityMm = density,
+                        rotationDegrees = rotation,
                         color = nameColor,
                         font = font,
                         style = TextStitchStyle.SATIN,
