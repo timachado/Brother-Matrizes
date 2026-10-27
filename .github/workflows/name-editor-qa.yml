@@ -14,6 +14,12 @@ on:
 permissions:
   contents: read
 
+# Um build da versão mais recente substitui execuções antigas do mesmo PR.
+# Evita desperdiçar recursos de emulador em APKs já superados.
+concurrency:
+  group: name-editor-qa-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   android-test:
     name: Compilar e testar editor sem publicação
