@@ -819,8 +819,10 @@ private fun BrotherMatrizesApp(
                 // da autenticação Google do pacote comercial nem debita cotas.
                 // A exceção exige simultaneamente build DEBUG e applicationId
                 // exclusivo; NUNCA se aplica ao aplicativo de produção.
-                val localNameQaImport = BuildConfig.DEBUG &&
-                    context.packageName == "com.timachado.brothermatrizes.nameqa"
+                val localNameQaImport = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                    debugBuild = BuildConfig.DEBUG,
+                    applicationId = context.packageName
+                )
                 val quotaKey = if (localNameQaImport) {
                     null
                 } else {
@@ -899,8 +901,10 @@ private fun BrotherMatrizesApp(
 
     fun launchMatrixPicker(fromTelegram: Boolean = false) {
         scope.launch {
-            val localNameQaImport = BuildConfig.DEBUG &&
-                context.packageName == "com.timachado.brothermatrizes.nameqa"
+            val localNameQaImport = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                debugBuild = BuildConfig.DEBUG,
+                applicationId = context.packageName
+            )
             if (!localNameQaImport) {
                 val google = BrotherMatrizesAccountService.ensureGoogleSession()
                 if (google.isFailure) {
