@@ -116,17 +116,20 @@ class CleanRoomSatinEngineTest {
         val fill = CleanRoomSatinEngine.planContextualFill(
             listOf(outer, hole), densityMm = 0.4f
         )
+        // Faixas Satin VERTICAIS: considerar interseção com o intervalo
+        // do furo em Y, e não o ponto médio de cada barra.
         val aroundHole = fill.rails.flatten().filter {
-            it.middle.y in 38f..62f
+            minOf(it.a.y, it.b.y) <= 62f &&
+                maxOf(it.a.y, it.b.y) >= 38f
         }
         assertTrue("Faixas ao lado esquerdo do vazado.", aroundHole.any {
-            it.b.x < 38f
+            it.middle.x < 30f
         })
         assertTrue("Faixas ao lado direito do vazado.", aroundHole.any {
-            it.a.x > 62f
+            it.middle.x > 70f
         })
         assertTrue("O contraformato interno deve permanecer vazio.",
-            aroundHole.none { it.a.x < 35f && it.b.x > 65f })
+            aroundHole.none { it.middle.x in 35f..65f })
     }
 
     @Test
