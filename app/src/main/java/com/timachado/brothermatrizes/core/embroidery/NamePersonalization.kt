@@ -12,11 +12,20 @@ object NamePersonalization {
     // Reutilizar as pontadas enquanto só X/Y muda reduz trabalho e alocações.
     @Volatile private var prepared: Pair<TextMatrixOptions, EmbroideryDesign>? = null
 
-    private fun prepare(options: TextMatrixOptions): EmbroideryDesign {
+    private fun prepare(
+        options: TextMatrixOptions,
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)?
+    ): EmbroideryDesign {
         prepared?.let { if (it.first == options) return it.second }
         synchronized(this) {
             prepared?.let { if (it.first == options) return it.second }
-            val newDesign = TextMatrixGenerator.generate(options).getOrThrow()
+            val newDesign = if (options.importedFontId != null) {
+                requireNotNull(importedGenerator) {
+                    "Fonte importada indisponível. Selecione ou reimporte o arquivo TTF/OTF."
+                }(options).getOrThrow()
+            } else {
+                TextMatrixGenerator.generate(options).getOrThrow()
+            }
             prepared = options to newDesign
             return newDesign
         }
@@ -26,7 +35,8 @@ object NamePersonalization {
         original: EmbroideryDesign,
         options: TextMatrixOptions,
         centerXUnits: Int,
-        centerYUnits: Int
+        centerYUnits: Int,
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
     ): Result<EmbroideryDesign> = runCatching {
         val source = original.editableName?.original ?: original
         require(source.points.any { it.command == StitchCommand.STITCH }) {
@@ -50,7 +60,8 @@ object NamePersonalization {
                 outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
-            )
+            ),
+            importedGenerator = importedGenerator
         )
 
         val positioned = MatrixEditor.apply(
@@ -113,7 +124,7 @@ object NamePersonalization {
             options.heightMm.toString(), options.spacingMm.toString(),
             options.satinDensityMm.toString(), options.color.toString(),
             centerXUnits.toString(), centerYUnits.toString(),
-            options.rotationDegrees.toString()
+            options.rotationDegrees.toString(), options.importedFontId.orEmpty()
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray(Charsets.UTF_8))
