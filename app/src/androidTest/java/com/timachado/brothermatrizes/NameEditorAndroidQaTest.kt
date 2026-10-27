@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.timachado.brothermatrizes.core.embroidery.*
 import com.timachado.brothermatrizes.core.project.ProjectCodec
@@ -119,6 +120,45 @@ class NameEditorAndroidQaTest {
                     opened is EmbroideryLoadResult.Success
                 )
             }
+        }
+    }
+
+    @Test
+    fun directTouchHandleMovesNameAndSimpleRotationIsSaved() {
+        val source = frame()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
+        composeRule.onNodeWithTag("brother_name_rotate_right")
+            .assertExists().performClick()
+        composeRule.onNodeWithTag("brother_name_drag_handle")
+            .assertExists()
+            .performTouchInput {
+                swipe(
+                    start = center,
+                    end = center + androidx.compose.ui.geometry.Offset(25f, 0f),
+                    durationMillis = 330
+                )
+            }
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val edited = requireNotNull(applied)
+            assertEquals(15f, edited.editableName?.options?.rotationDegrees ?: -1f)
+            assertTrue((edited.editableName?.centerXUnits ?: 0) > 0)
+            assertEquals(source.points.dropLast(1),
+                edited.points.take(source.points.size - 1))
         }
     }
 
