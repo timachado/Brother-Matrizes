@@ -270,4 +270,29 @@ class NamePersonalizationTest {
             assertTrue((reopened as EmbroideryLoadResult.Success).design.stitchCount > original.stitchCount)
         }
     }
+
+    @Test fun independentPinchScalesStitchesNotOnlyVisualPreview() {
+        val base = floralFrame()
+        val before = base.points.toList()
+        val normal = NamePersonalization.add(
+            base, TextMatrixOptions("Maria", heightMm = 8f), 0, 0
+        ).getOrThrow()
+        val options = TextMatrixOptions(
+            text = "Maria", heightMm = 8f,
+            widthScale = 1.25f, heightScale = 1.1f
+        )
+        val stretched = NamePersonalization.add(base, options, 0, 0)
+            .getOrThrow()
+        assertTrue(stretched.points != normal.points)
+        assertTrue(stretched.fileName != normal.fileName)
+        assertEquals(1.25f, stretched.editableName!!.options.widthScale, .001f)
+        assertEquals(1.1f, stretched.editableName!!.options.heightScale, .001f)
+        assertEquals(before, base.points)
+        assertEquals(before.dropLast(1),
+            stretched.points.take(before.size - 1))
+        assertTrue(NamePersonalization.canPlace(base, options, 0, 0).isSuccess)
+        assertTrue(NamePersonalization.canPlace(
+            base, options.copy(widthScale = 2.6f), 0, 0
+        ).isFailure)
+    }
 }
