@@ -80,7 +80,24 @@ object NamePersonalization {
         palette[nextColorIndex] = options.color
 
         val stem = source.fileName.substringBeforeLast('.').ifBlank { "matriz" }
-        val fileName = stem.take(48) + "-nome." + source.format.lowercase()
+        val slug = java.text.Normalizer.normalize(
+            options.text.trim(), java.text.Normalizer.Form.NFD
+        ).replace(Regex("\\p{M}+"), "")
+            .lowercase(java.util.Locale.ROOT)
+            .replace(Regex("[^a-z0-9_-]+"), "-")
+            .trim('-').take(18).ifBlank { "nome" }
+        val identity = listOf(
+            slug, options.font.name.lowercase(java.util.Locale.ROOT),
+            options.heightMm.toString(), options.spacingMm.toString(),
+            options.satinDensityMm.toString(), options.color.toString(),
+            centerXUnits.toString(), centerYUnits.toString()
+        ).joinToString("|")
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray(Charsets.UTF_8))
+            .take(4)
+            .joinToString("") { "%02x".format(it) }
+        val fileName = stem.take(35) + "-nome-" + slug + "-" + digest +
+            "." + source.format.lowercase(java.util.Locale.ROOT)
         val provisional = source.copy(
             fileName = fileName,
             label = source.label,
