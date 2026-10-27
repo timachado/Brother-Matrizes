@@ -14,6 +14,10 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.timachado.brothermatrizes.core.embroidery.*
 import com.timachado.brothermatrizes.core.project.ProjectCodec
+import com.timachado.brothermatrizes.font.ImportedFont
+import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
+import java.io.File
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -158,6 +162,54 @@ class NameEditorAndroidQaTest {
             assertEquals(portrait.points.dropLast(1),
                 result.points.take(portrait.points.size - 1))
         }
+    }
+
+    @Test
+    fun realTtfFontCreatesEditableStitchesAndAutoFitsWithoutFallback() {
+        // Usa um TTF real presente no emulador, sem baixar nem armazenar
+        // material de terceiros no repositório público.
+        val fontFile = listOf(
+            File("/system/fonts/Roboto-Regular.ttf"),
+            File("/system/fonts/NotoSans-Regular.ttf")
+        ).firstOrNull { it.isFile }
+            ?: error("Fonte TTF de sistema ausente no emulador.")
+        val font = ImportedFont(
+            id = fontFile.name, displayName = "QA TTF",
+            fileName = fontFile.name, extension = "ttf",
+            absolutePath = fontFile.absolutePath
+        )
+        val source = frame()
+        val options = TextMatrixOptions(
+            text = "Ana", importedFontId = font.id,
+            heightMm = 8f, spacingMm = 0f,
+            style = TextStitchStyle.SATIN,
+            outputFormat = "PES",
+            hoopProfile = HoopProfile.H100X100
+        )
+        val importer: (TextMatrixOptions) -> Result<EmbroideryDesign> = {
+            ImportedFontMatrixGenerator.generateText(font, it.text, it)
+        }
+        val personal = NamePersonalization.add(
+            source, options, 0, 0, importer
+        ).getOrThrow()
+        assertEquals(font.id, personal.editableName?.options?.importedFontId)
+        assertEquals(source.points.dropLast(1),
+            personal.points.take(source.points.size - 1))
+        assertTrue(personal.stitchCount > source.stitchCount)
+        val stored = ProjectCodec.decode(ProjectCodec.encode(personal))
+        assertEquals(font.id, stored.editableName?.options?.importedFontId)
+        assertEquals(source.points, stored.editableName?.original?.points)
+        // Encaixe deve manter exatamente a família importada.
+        val fit = runBlocking {
+            NameAutoPlacement.find(
+                original = source,
+                requested = options,
+                importedGenerator = importer
+            )
+        }.getOrThrow()
+        assertEquals(font.id, fit.options.importedFontId)
+        assertEquals(source.points.dropLast(1),
+            fit.design.points.take(source.points.size - 1))
     }
 
     @Test
