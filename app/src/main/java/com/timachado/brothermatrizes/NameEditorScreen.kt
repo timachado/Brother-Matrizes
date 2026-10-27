@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -149,6 +150,8 @@ fun NameEditorScreen(
     var dragging by remember(original) { mutableStateOf(false) }
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    // Frações de 0,1 mm preservadas durante pan/zoom/rotação.
+    val gestureRemainder = remember(original) { FloatArray(2) }
 
     val fontPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -227,8 +230,13 @@ fun NameEditorScreen(
         return ImportedFontMatrixGenerator.generateText(font, options.text, options)
     }
 
-    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts) {
-        delay(180L) // Gestos/teclado rápidos não geram centenas de matrizes.
+    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts, autoFitEnabled) {
+        // Evitar duas sínteses de pontos simultâneas (autoencaixe e prévia).
+        if (autoFitEnabled) return@LaunchedEffect
+        delay(180L)
+        if (computed?.base === baseDesign && computed?.settings == draft) {
+            return@LaunchedEffect
+        } // Gestos/teclado rápidos não geram centenas de matrizes.
         val target = draft
         val source = baseDesign
         val options = optionsFor(target)
@@ -295,7 +303,7 @@ fun NameEditorScreen(
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
-    val previewBusy = currentPreview == null || fitting || dragging
+    val previewBusy = currentPreview == null || fitting || dragging || autoFitEnabled
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val portraitHoop =
@@ -314,9 +322,15 @@ fun NameEditorScreen(
 
     val transformName by rememberUpdatedState<(Offset, Float, Float) -> Unit> { pan, zoom, rotation ->
         autoFitEnabled = false
+        val xUnits = pan.x / canvasScale + gestureRemainder[0]
+        val yUnits = pan.y / (canvasScale * direction) + gestureRemainder[1]
+        val dx = xUnits.roundToInt()
+        val dy = yUnits.roundToInt()
+        gestureRemainder[0] = xUnits - dx
+        gestureRemainder[1] = yUnits - dy
         setDraft(draft.copy(
-            x = draft.x + (pan.x / canvasScale).roundToInt(),
-            y = draft.y + (pan.y / (canvasScale * direction)).roundToInt(),
+            x = draft.x + dx,
+            y = draft.y + dy,
             height = (draft.height * zoom).coerceIn(4f, 30f),
             rotation = (draft.rotation + rotation).coerceIn(-180f, 180f)
         ), history = false)
@@ -504,6 +518,7 @@ fun NameEditorScreen(
                                     dragPx.y).roundToInt()
                             )
                         }
+                        .graphicsLayer(rotationZ = draft.rotation)
                         .background(Color(0xE6121A27))
                         .padding(horizontal = 6.dp, vertical = 3.dp)
                 )
