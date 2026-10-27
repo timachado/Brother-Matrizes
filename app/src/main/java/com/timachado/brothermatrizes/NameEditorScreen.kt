@@ -620,7 +620,13 @@ fun NameEditorScreen(
                 }
                 importedFonts.forEach { font ->
                     DropdownMenuItem(
-                        text = { Text("TTF/OTF • " + font.displayName) },
+                        text = {
+                            val duplicateName = importedFonts.count {
+                                it.displayName.equals(font.displayName, ignoreCase = true)
+                            } > 1
+                            Text("TTF/OTF • " + font.displayName +
+                                if (duplicateName) " (" + font.fileName + ")" else "")
+                        },
                         onClick = {
                             fontsExpanded = false
                             autoFitEnabled = true
