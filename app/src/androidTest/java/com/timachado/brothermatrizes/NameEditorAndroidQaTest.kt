@@ -86,9 +86,8 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_input")
             .performTextInput("Sophia")
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            val nodes = composeRule.onNodeWithTag("brother_name_apply")
-                .fetchSemanticsNodes()
-            nodes.isNotEmpty() && nodes[0].config
+            composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config
                 .getOrNull(SemanticsProperties.Disabled) == null
         }
         composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
@@ -147,9 +146,8 @@ class NameEditorAndroidQaTest {
             )
         }
         composeRule.waitUntil(timeoutMillis = 30_000) {
-            val nodes = composeRule.onNodeWithTag("brother_name_apply")
-                .fetchSemanticsNodes()
-            nodes.isNotEmpty() && nodes[0].config
+            composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config
                 .getOrNull(SemanticsProperties.Disabled) == null
         }
         composeRule.onNodeWithTag("brother_name_apply")
