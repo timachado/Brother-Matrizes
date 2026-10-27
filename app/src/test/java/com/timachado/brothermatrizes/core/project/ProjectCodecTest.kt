@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.core.project
 
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryIntegrity
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
@@ -166,7 +167,22 @@ class ProjectCodecTest {
 
     @Test
     fun editableNameSurvivesSavingReopeningAndReplacement() {
-        val frame = sample()
+        // A versão anterior do teste tentava bordar Maria sobre um desenho
+        // minúsculo de 3x5 mm. A proteção geométrica corretamente bloqueia.
+        val frame = EmbroideryIntegrity.normalize(
+            sample().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, -380, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(-380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.END, 0)
+                ),
+                threadColors = listOf(0xE6BE70),
+                hoopProfile = HoopProfile.H100X100
+            )
+        ).getOrThrow().design
         val maria = NamePersonalization.add(
             frame,
             TextMatrixOptions(
