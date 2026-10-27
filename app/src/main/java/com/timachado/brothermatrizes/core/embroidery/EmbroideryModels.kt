@@ -92,15 +92,15 @@ data class ConvertedMatrix(
 
 data class EditTransform(
     val scale: Float = 1f,
-    val scaleX: Float = 1f,
-    val scaleY: Float = 1f,
     val rotationDegrees: Float = 0f,
     val offsetXUnits: Int = 0,
     val offsetYUnits: Int = 0,
     val mirrorHorizontal: Boolean = false,
     val mirrorVertical: Boolean = false,
     val centerAtOrigin: Boolean = false,
-    val threadColors: List<Int>? = null
+    val threadColors: List<Int>? = null,
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f
 )
 
 sealed interface EmbroideryLoadResult {
