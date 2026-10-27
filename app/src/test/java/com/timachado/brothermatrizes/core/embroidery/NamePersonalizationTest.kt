@@ -191,6 +191,47 @@ class NamePersonalizationTest {
             withSource.points.take(original.points.size - 1))
     }
 
+    @Test fun skiaFontUsesOriginalYDirectionInPortraitPes() {
+        // Contorno assimétrico: parte superior em -40 e base em +10.
+        // Se ocorrer espelhamento vertical indevido, os pontos trocam
+        // de sinal e a caligrafia cursiva aparece invertida.
+        val base = floralFrame().copy(sourceYAxisDown = true)
+        val glyphPoints = listOf(
+            EmbroideryPoint(-20, -40, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-10, -25, StitchCommand.STITCH, 0),
+            EmbroideryPoint(20, 10, StitchCommand.STITCH, 0),
+            EmbroideryPoint(20, 10, StitchCommand.END, 0)
+        )
+        val skiaGlyph = base.copy(
+            fileName = "fonte-teste.pes", label = "Maria",
+            points = glyphPoints, sourceYAxisDown = true,
+            bounds = EmbroideryBounds(-20, 20, -40, 10),
+            stitchCount = 2, jumpCount = 1,
+            hoopProfile = null, editableName = null
+        )
+        val options = TextMatrixOptions(
+            text = "Maria", importedFontId = "bertilda.ttf",
+            heightMm = 15f, style = TextStitchStyle.SATIN
+        )
+        val expected = MatrixEditor.apply(
+            skiaGlyph,
+            EditTransform(centerAtOrigin = true, offsetXUnits = 0,
+                offsetYUnits = 0, mirrorVertical = false)
+        )
+        val actual = NamePersonalization.add(
+            base, options, 0, 0, importedGenerator = { Result.success(skiaGlyph) }
+        ).getOrThrow()
+        val appendix = actual.points.drop(base.points.size - 1)
+            .filter { it.command == StitchCommand.STITCH }
+        val expectedStitches = expected.points.filter {
+            it.command == StitchCommand.STITCH
+        }
+        assertEquals(expectedStitches.map { it.yUnits },
+            appendix.take(expectedStitches.size).map { it.yUnits })
+        assertEquals(base.points.dropLast(1),
+            actual.points.take(base.points.size - 1))
+    }
+
     @Test fun lightweightPreflightMatchesFullCompositionAndDoesNotChangeSource() {
         val source = floralFrame()
         val before = source.points.toList()
