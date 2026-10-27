@@ -112,14 +112,49 @@ object NameAutoPlacement {
                         lastError = safe.exceptionOrNull()
                         continue
                     }
+                    // O primeiro encaixe não é o tamanho final: crescer
+                    // o nome ao longo da palavra (eixo local X) e depois
+                    // expandir moderadamente a altura do traço (eixo Y).
+                    // Cada avanço valida as pontadas reais e o bastidor.
+                    var expanded = options
+                    for (step in 1..18) {
+                        currentCoroutineContext().ensureActive()
+                        if (System.nanoTime() - started > SEARCH_BUDGET_NANOS) break
+                        val candidate = expanded.copy(
+                            widthScale = (options.widthScale + step * 0.08f)
+                                .coerceAtMost(2.5f)
+                        )
+                        if (candidate.widthScale <= expanded.widthScale) break
+                        if (NamePersonalization.canPlace(
+                                source, candidate, x, y, importedGenerator
+                            ).isSuccess
+                        ) {
+                            expanded = candidate
+                        } else break
+                    }
+                    for (step in 1..8) {
+                        currentCoroutineContext().ensureActive()
+                        if (System.nanoTime() - started > SEARCH_BUDGET_NANOS) break
+                        val candidate = expanded.copy(
+                            heightScale = (options.heightScale + step * 0.07f)
+                                .coerceAtMost(1.65f)
+                        )
+                        if (candidate.heightScale <= expanded.heightScale) break
+                        if (NamePersonalization.canPlace(
+                                source, candidate, x, y, importedGenerator
+                            ).isSuccess
+                        ) {
+                            expanded = candidate
+                        } else break
+                    }
                     // A prévia só é aceita se a sequência completa, a margem
                     // das folhas e a área segura do bastidor também passarem.
                     val result = NamePersonalization.add(
-                        source, options, x, y, importedGenerator
+                        source, expanded, x, y, importedGenerator
                     )
                     if (result.isSuccess) {
                         return Result.success(
-                            Fit(options, x, y, result.getOrThrow())
+                            Fit(expanded, x, y, result.getOrThrow())
                         )
                     }
                     lastError = result.exceptionOrNull()
