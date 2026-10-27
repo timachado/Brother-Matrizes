@@ -48,7 +48,7 @@ jobs:
       - name: Compilar, testar Maria/Sophia e verificar APK de QA
         shell: bash
         run: |
-          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug --stacktrace
+          gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug --stacktrace
       - name: APK gerado apenas no runner (não distribuído)
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
