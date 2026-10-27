@@ -348,4 +348,34 @@ class ProjectCodecTest {
         )
     }
 
+
+    @Test
+    fun widthAndHeightPinchSurviveV7SaveAndReopen() {
+        val sample = sample()
+        val base = EmbroideryIntegrity.normalize(sample.copy(
+            fileName = "quadro-nome.pes",
+            points = listOf(
+                EmbroideryPoint(-400, -400, StitchCommand.JUMP, 0),
+                EmbroideryPoint(-400, 400, StitchCommand.STITCH, 0),
+                EmbroideryPoint(400, 400, StitchCommand.STITCH, 0),
+                EmbroideryPoint(400, -400, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-400, -400, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-400, -400, StitchCommand.END, 0)
+            ),
+            bounds = EmbroideryBounds(0, 0, 0, 0),
+            hoopProfile = HoopProfile.H100X100,
+            threadColors = listOf(0x123456)
+        )).getOrThrow().design
+        val options = TextMatrixOptions(
+            text = "Maria", heightMm = 8f,
+            widthScale = 1.3f, heightScale = 1.15f,
+            style = TextStitchStyle.SATIN
+        )
+        val named = NamePersonalization.add(base, options, 0, 0).getOrThrow()
+        val restored = ProjectCodec.decode(ProjectCodec.encode(named))
+        assertEquals(1.3f, restored.editableName!!.options.widthScale, 0.001f)
+        assertEquals(1.15f, restored.editableName!!.options.heightScale, 0.001f)
+        assertEquals(base.points, restored.editableName!!.original.points)
+        assertEquals(named.points, restored.points)
+    }
 }
