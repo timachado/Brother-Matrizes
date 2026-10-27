@@ -82,6 +82,7 @@ fun NameEditorScreen(
     var undo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
+    var zoomMode by remember(original) { mutableStateOf(false) }
 
     fun setDraft(next: NameDraft) {
         if (next == draft) return
@@ -162,17 +163,26 @@ fun NameEditorScreen(
         }
 
         Text(
-            "Arraste sobre o bastidor para posicionar o nome. A moldura original " +
+            "Use Mover para arrastar o nome; use Zoom e pan para ampliar. A moldura original " +
                 "permanece intacta. O desenho abaixo contém pontadas reais.",
             color = FioTextMuted,
             fontSize = 12.sp
         )
 
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { zoomMode = false }) {
+                Text(if (!zoomMode) "✓ Mover nome" else "Mover nome")
+            }
+            OutlinedButton(onClick = { zoomMode = true }) {
+                Text(if (zoomMode) "✓ Zoom e pan" else "Zoom e pan")
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(285.dp)
-                .pointerInput(original, referenceHoop, paddingPx) {
+                .then(if (zoomMode) Modifier else Modifier.pointerInput(original, referenceHoop, paddingPx) {
                     detectDragGestures { change, amount ->
                         change.consume()
                         val width = referenceHoop.widthMm * 10f
@@ -189,12 +199,12 @@ fun NameEditorScreen(
                         val direction = if (original.sourceYAxisDown) 1f else -1f
                         move(amount.x / scale, amount.y / (scale * direction))
                     }
-                }
+                })
         ) {
             EmbroideryCanvas(
                 design = preview ?: original,
                 hoop = referenceHoop,
-                interactive = false,
+                interactive = zoomMode,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -296,8 +306,8 @@ fun NameEditorScreen(
             }
         }
         Text(
-            "A troca de nome recompõe a camada editável sem duplicar pontadas. " +
-                "Apagar automaticamente um nome de PES/DST importado requer seleção " +
+            "A troca de nome recompõe a camada editável sem duplicar pontadas nesta sessão. " +
+                "Depois de exportar e reabrir PES/DST, a camada volta a ser somente pontadas. Apagar um nome de PES/DST importado requer seleção " +
                 "segura de bloco e não está habilitado nesta etapa.",
             color = FioTextMuted,
             fontSize = 11.sp
