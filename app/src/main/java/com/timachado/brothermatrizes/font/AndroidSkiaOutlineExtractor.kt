@@ -230,9 +230,19 @@ internal object AndroidSkiaOutlineExtractor {
 
         val completeTextPath = Path()
         paint.getTextPath(text, 0, text.length, 0f, 0f, completeTextPath)
+        val meaningfulOverlap = if (rawGlyphs.size < 2) false else {
+            // Algumas cursivas são conectadas por sobreposição de
+            // contornos, mesmo sem substituições OpenType. Costurar cada
+            // glifo isoladamente pode duplicar a junção e empelotar.
+            val overlaps = rawGlyphs.zipWithNext().count { (a, b) ->
+                (a.right - b.left) >= targetCapHeightUnits * 0.03f
+            }
+            overlaps >= max(1, (rawGlyphs.size - 1) / 3)
+        }
         val contextualShaping = codePoints.size > 1 &&
             !completeTextPath.isEmpty &&
-            glyphShapeDiffers(completeTextPath, independentlyShaped)
+            (glyphShapeDiffers(completeTextPath, independentlyShaped) ||
+                meaningfulOverlap)
 
         // Fontes manuscritas (ex.: Bertilda) mudam o glifo conforme o
         // contexto. Dividir a palavra em caracteres isolados gera
