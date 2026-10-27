@@ -117,13 +117,18 @@ object NamePersonalization {
             "A matriz possui um END intermediário; edição bloqueada para proteger o desenho."
         }
 
+        // Import TTF/OTF: plan satin from the FINAL vector dimensions
+        // rather than stretching an already sparse stitch sequence.
+        // The preflight above still uses the inexpensive cached geometry.
+        val planAtFinalSize = options.importedFontId != null &&
+            (options.widthScale != 1f || options.heightScale != 1f)
         val generated = prepare(
             options.copy(
-                // Rotation is applied AFTER generation, around the text center.
-                // Never rotate the source floral matrix.
+                // Rotation is applied AFTER generation, around text center.
+                // Never rotate the original floral matrix.
                 rotationDegrees = 0f,
-                widthScale = 1f,
-                heightScale = 1f,
+                widthScale = if (planAtFinalSize) options.widthScale else 1f,
+                heightScale = if (planAtFinalSize) options.heightScale else 1f,
                 outputFormat = source.format.uppercase(),
                 hoopProfile = null,
                 enforceHoop = false
@@ -138,8 +143,8 @@ object NamePersonalization {
                 offsetXUnits = centerXUnits,
                 offsetYUnits = centerYUnits,
                 rotationDegrees = options.rotationDegrees,
-                scaleX = options.widthScale,
-                scaleY = options.heightScale,
+                scaleX = if (planAtFinalSize) 1f else options.widthScale,
+                scaleY = if (planAtFinalSize) 1f else options.heightScale,
                 // Arquivos PES/JEF usam eixo Y de tela, oposto às letras nativas.
                 // Geradores BM usam Y para cima; Skia TTF/OTF já emite
                 // coordenadas Y para baixo. Espelhar apenas se as
