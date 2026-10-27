@@ -29,12 +29,12 @@ class NameEditorAndroidQaTest {
 
     private fun frame(): EmbroideryDesign {
         val points = listOf(
-            EmbroideryPoint(-300, -250, StitchCommand.JUMP, 0),
-            EmbroideryPoint(-300, 250, StitchCommand.STITCH, 0),
-            EmbroideryPoint(300, 250, StitchCommand.STITCH, 0),
-            EmbroideryPoint(300, -250, StitchCommand.STITCH, 0),
-            EmbroideryPoint(-300, -250, StitchCommand.STITCH, 0),
-            EmbroideryPoint(-300, -250, StitchCommand.END, 0)
+            EmbroideryPoint(-380, -380, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-380, 380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(380, 380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(380, -380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-380, -380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-380, -380, StitchCommand.END, 0)
         )
         return EmbroideryIntegrity.normalize(
             EmbroideryDesign(
@@ -42,7 +42,7 @@ class NameEditorAndroidQaTest {
                 format = "PES",
                 label = "QA - MOLDURA SINTÉTICA",
                 points = points,
-                bounds = EmbroideryBounds(-300, 300, -250, 250),
+                bounds = EmbroideryBounds(-380, 380, -380, 380),
                 stitchCount = 4,
                 jumpCount = 1,
                 colorChanges = 0,
@@ -108,6 +108,46 @@ class NameEditorAndroidQaTest {
                     opened is EmbroideryLoadResult.Success
                 )
             }
+        }
+    }
+
+    @Test
+    fun portrait13x18AllowsAddingNameWithCorrectHoopOrientation() {
+        val sample = frame()
+        val points = listOf(
+            EmbroideryPoint(-820, -691, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-820, 885, StitchCommand.STITCH, 0),
+            EmbroideryPoint(234, 885, StitchCommand.STITCH, 0),
+            EmbroideryPoint(234, -691, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-820, -691, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-820, -691, StitchCommand.END, 0)
+        )
+        val portrait = EmbroideryIntegrity.normalize(
+            sample.copy(
+                fileName = "qa-moldura-13x18-retrato.pes",
+                points = points,
+                hoopProfile = HoopProfile.H130X180,
+                sourceYAxisDown = true
+            )
+        ).getOrThrow().design
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = portrait,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            assertEquals(HoopProfile.H130X180, result.hoopProfile)
+            assertTrue(result.bounds.widthMm <= 120f)
+            assertTrue(result.bounds.heightMm <= 170f)
+            assertEquals(portrait.points.dropLast(1),
+                result.points.take(portrait.points.size - 1))
         }
     }
 
