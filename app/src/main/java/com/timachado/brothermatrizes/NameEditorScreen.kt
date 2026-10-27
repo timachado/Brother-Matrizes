@@ -4,6 +4,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateRotation
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +47,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -141,12 +147,18 @@ fun NameEditorScreen(
         mutableStateOf<ComputedPreview?>(null)
     }
     var autoFitEnabled by remember(original) {
-        mutableStateOf(original.editableName == null)
+        // Não iniciar uma busca exaustiva ao abrir cada matriz. O botão
+        // Ajustar automaticamente ou uma nova digitação inicia a busca.
+        mutableStateOf(false)
     }
     var autoFitRequest by remember(original) { mutableIntStateOf(0) }
     var fitting by remember(original) { mutableStateOf(false) }
     var autoFitError by remember(original) { mutableStateOf<String?>(null) }
     var dragging by remember(original) { mutableStateOf(false) }
+    var transforming by remember(original) { mutableStateOf(false) }
+    var gesturePan by remember(original) { mutableStateOf(Offset.Zero) }
+    var gestureZoom by remember(original) { mutableStateOf(1f) }
+    var gestureRotation by remember(original) { mutableStateOf(0f) }
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -231,7 +243,7 @@ fun NameEditorScreen(
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
         if (autoFitEnabled) return@LaunchedEffect
-        delay(180L) // Gestos/teclado rápidos não geram centenas de matrizes.
+        delay(560L) // aguardar pausa real entre gestos e edições de controles
         val target = draft
         val source = baseDesign
         val options = optionsFor(target)
@@ -251,7 +263,7 @@ fun NameEditorScreen(
             fitting = false
             return@LaunchedEffect
         }
-        delay(350L)
+        delay(750L)
         fitting = true
         autoFitError = null
         try {
@@ -298,7 +310,7 @@ fun NameEditorScreen(
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
-    val previewBusy = currentPreview == null || fitting || dragging
+    val previewBusy = currentPreview == null || fitting || dragging || transforming
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val portraitHoop =
@@ -315,14 +327,23 @@ fun NameEditorScreen(
     ).coerceAtLeast(.01f)
     val direction = if (original.sourceYAxisDown) 1f else -1f
 
-    val transformName by rememberUpdatedState<(Offset, Float, Float) -> Unit> { pan, zoom, rotation ->
-        autoFitEnabled = false
-        setDraft(draft.copy(
-            x = draft.x + (pan.x / canvasScale).roundToInt(),
-            y = draft.y + (pan.y / (canvasScale * direction)).roundToInt(),
-            height = (draft.height * zoom).coerceIn(4f, 30f),
-            rotation = (draft.rotation + rotation).coerceIn(-180f, 180f)
-        ), history = false)
+    val commitTransform by rememberUpdatedState<() -> Unit> {
+        val moved = gesturePan
+        val resized = gestureZoom
+        val turned = gestureRotation
+        if (moved != Offset.Zero || resized != 1f || turned != 0f) {
+            autoFitEnabled = false
+            setDraft(draft.copy(
+                x = draft.x + (moved.x / canvasScale).roundToInt(),
+                y = draft.y + (moved.y / (canvasScale * direction)).roundToInt(),
+                height = (draft.height * resized).coerceIn(4f, 30f),
+                rotation = (draft.rotation + turned).coerceIn(-180f, 180f)
+            ))
+        }
+        transforming = false
+        gesturePan = Offset.Zero
+        gestureZoom = 1f
+        gestureRotation = 0f
     }
 
     val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
@@ -460,8 +481,24 @@ fun NameEditorScreen(
                     else if (transformNameMode) Modifier.pointerInput(
                         original, referenceHoop, paddingPx
                     ) {
-                        detectTransformGestures { _, pan, zoom, rotation ->
-                            transformName(pan, zoom, rotation)
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            transforming = true
+                            gesturePan = Offset.Zero
+                            gestureZoom = 1f
+                            gestureRotation = 0f
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.any { it.pressed }) {
+                                    gesturePan += event.calculatePan()
+                                    gestureZoom *= event.calculateZoom()
+                                    gestureRotation += event.calculateRotation()
+                                    event.changes.forEach { it.consume() }
+                                }
+                            } while (event.changes.any { it.pressed })
+                            // Commit único por gesto; nada de dezenas de
+                            // extrações TTF/OTF durante a pinça ou rotação.
+                            commitTransform()
                         }
                     }
                     else Modifier.pointerInput(original, referenceHoop, paddingPx) {
@@ -484,12 +521,15 @@ fun NameEditorScreen(
                 })
         ) {
             EmbroideryCanvas(
-                design = if (dragging || previewBusy) baseDesign else preview ?: baseDesign,
+                // Mantém a imagem original estável durante gestos, sem
+                // alternar entre 13k pontos em cada alteração.
+                design = if (dragging || transforming || previewBusy)
+                    baseDesign else preview ?: baseDesign,
                 hoop = referenceHoop,
                 interactive = zoomMode,
                 modifier = Modifier.fillMaxSize()
             )
-            if (dragging || (transformNameMode && previewBusy)) {
+            if (dragging || transforming || (transformNameMode && previewBusy)) {
                 val midX = (baseDesign.bounds.minXUnits.toLong() +
                     baseDesign.bounds.maxXUnits.toLong()) / 2f
                 val midY = (baseDesign.bounds.minYUnits.toLong() +
@@ -497,14 +537,18 @@ fun NameEditorScreen(
                 Text(
                     draft.name,
                     color = FioGold,
-                    fontSize = (draft.height * 1.6f).coerceIn(12f, 42f).sp,
+                    fontSize = (draft.height * gestureZoom * 1.6f)
+                        .coerceIn(12f, 42f).sp,
                     modifier = Modifier
                         .align(Alignment.Center)
+                        .graphicsLayer {
+                            rotationZ = draft.rotation + gestureRotation
+                        }
                         .offset {
                             IntOffset(
-                                ((draft.x - midX) * canvasScale + dragPx.x).roundToInt(),
+                                ((draft.x - midX) * canvasScale + dragPx.x + gesturePan.x).roundToInt(),
                                 ((draft.y - midY) * canvasScale * direction +
-                                    dragPx.y).roundToInt()
+                                    dragPx.y + gesturePan.y).roundToInt()
                             )
                         }
                         .background(Color(0xE6121A27))
