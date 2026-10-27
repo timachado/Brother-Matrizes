@@ -508,8 +508,9 @@ fun NameEditorScreen(
                     .offset {
                         IntOffset(nameX.roundToInt(), nameY.roundToInt())
                     }
+                    // Alvo invisível de toque com dimensões acessíveis;
+                    // nunca cobrir a tipografia e flores com um retângulo cinza.
                     .defaultMinSize(minWidth = 112.dp, minHeight = 50.dp)
-                    .background(Color(0x22141F29))
                     .testTag("brother_name_drag_handle")
                     .pointerInput(original, referenceHoop) {
                         detectDragGestures(
@@ -543,7 +544,8 @@ fun NameEditorScreen(
                     "⠿",
                     color = FioGold,
                     modifier = Modifier.align(Alignment.CenterEnd)
-                        .padding(end = 2.dp),
+                        .background(Color(0xD8131923))
+                        .padding(horizontal = 5.dp, vertical = 3.dp),
                     fontSize = 21.sp
                 )
             }
