@@ -124,6 +124,25 @@ class SimulationTimingTest {
     }
 
     @Test
+    fun batchPlaybackMustStopAtNeedleStopCommand() {
+        val points = listOf(
+            EmbroideryPoint(0, 0, StitchCommand.JUMP, 0),
+            EmbroideryPoint(10, 0, StitchCommand.STITCH, 0),
+            EmbroideryPoint(10, 0, StitchCommand.STOP, 0),
+            EmbroideryPoint(20, 0, StitchCommand.STITCH, 1),
+            EmbroideryPoint(20, 0, StitchCommand.END, 1)
+        )
+        val first = SimulationTiming.advancePlayback(points, 0, 40)
+        assertEquals(3, first.nextIndex)
+        assertTrue(first.stopped)
+        val resumed = SimulationTiming.advancePlayback(
+            points, first.nextIndex, 40
+        )
+        assertEquals(5, resumed.nextIndex)
+        assertTrue(!resumed.stopped)
+    }
+
+    @Test
     fun invalidValuesReturnZeroTime() {
         assertEquals(
             0,
