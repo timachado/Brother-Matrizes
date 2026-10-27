@@ -25,6 +25,33 @@ object SimulationTiming {
         ).toInt()
     }
 
+    /**
+     * Intervalo teórico por comando para simulação em lote, sem truncamento
+     * mínimo de 8 ms. Até 32× o motor agrupa vários comandos por frame,
+     * preservando o STOP e o tempo virtual total.
+     */
+    fun eventIntervalNanos(speedMultiplier: Float): Double =
+        80_000_000.0 / speedMultiplier.coerceIn(0.25f, 32f)
+
+    /**
+     * Calcula quantos comandos podem ser aplicados após o tempo decorrido
+     * no relógio monotônico. Limita avanços por frame para evitar saltos
+     * enormes depois de pausar o aplicativo ou perder quadros.
+     */
+    fun commandsForFrame(
+        carryNanos: Double,
+        elapsedNanos: Long,
+        speedMultiplier: Float,
+        maxCommands: Int = 40
+    ): Pair<Int, Double> {
+        val delta = elapsedNanos.coerceIn(0L, 100_000_000L).toDouble()
+        val tick = eventIntervalNanos(speedMultiplier)
+        val total = (carryNanos + delta).coerceAtLeast(0.0)
+        val count = kotlin.math.floor(total / tick).toInt()
+            .coerceIn(0, maxCommands)
+        return count to (total - count * tick)
+    }
+
     fun eventDelayMs(
         command: StitchCommand,
         speedMultiplier: Float
