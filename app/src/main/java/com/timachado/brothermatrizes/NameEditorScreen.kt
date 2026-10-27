@@ -302,19 +302,12 @@ fun NameEditorScreen(
     val previewBusy = currentPreview == null || fitting || dragging
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
-    val portraitHoop =
-        (original.bounds.widthMm > original.bounds.heightMm) !=
-            (referenceHoop.widthMm > referenceHoop.heightMm) &&
-            referenceHoop.widthMm != referenceHoop.heightMm
-    val frameWidthUnits = (if (portraitHoop) referenceHoop.heightMm
-        else referenceHoop.widthMm) * 10f
-    val frameHeightUnits = (if (portraitHoop) referenceHoop.widthMm
-        else referenceHoop.heightMm) * 10f
-    val canvasScale = minOf(
-        (canvasSize.width - 2f * paddingPx) / frameWidthUnits,
-        (canvasSize.height - 2f * paddingPx) / frameHeightUnits
-    ).coerceAtLeast(.01f)
-    val direction = if (original.sourceYAxisDown) 1f else -1f
+    val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
+    val canvasScale = NameEditorPlacement.screenOffset(
+        backgroundDesign, referenceHoop, 0, 0,
+        canvasSize.width, canvasSize.height, paddingPx
+    ).unitsPerPixel
+    val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
 
     val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
         if (moved != Offset.Zero) {
@@ -353,7 +346,7 @@ fun NameEditorScreen(
                     y = selected.centerYUnits
                 ))
                 selectingOldName = false
-                            }
+            }
         )
         return
     }
@@ -413,7 +406,7 @@ fun NameEditorScreen(
             OutlinedButton(
                 onClick = {
                     baseDesign = original
-                                    },
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Desfazer seleção do nome antigo")
@@ -481,21 +474,27 @@ fun NameEditorScreen(
                 .onSizeChanged { canvasSize = it }
                 .testTag("brother_name_canvas")
         ) {
-            val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
-            val canvasDesign = if (previewBusy) backgroundDesign
-                else preview ?: backgroundDesign
             EmbroideryCanvas(
-                design = canvasDesign,
+                design = backgroundDesign,
                 hoop = referenceHoop,
                 interactive = false,
                 displayMode = EmbroideryDisplayMode.SOLID,
                 modifier = Modifier.fillMaxSize()
             )
+            // Camada com os pontos Satin reais; o enquadramento da moldura
+            // não muda entre repouso, arraste e atualização da prévia.
+            if (!previewBusy && preview != null) {
+                NameEditorStitchLayer(
+                    original = backgroundDesign,
+                    result = preview,
+                    hoop = referenceHoop
+                )
+            }
 
             // Alça alinhada com o mesmo centro, escala e orientação de
             // EmbroideryCanvas. Somente o nome responde ao arraste.
             val namePosition = NameEditorPlacement.screenOffset(
-                design = canvasDesign, hoop = referenceHoop,
+                design = backgroundDesign, hoop = referenceHoop,
                 xUnits = draft.x, yUnits = draft.y,
                 canvasWidth = canvasSize.width,
                 canvasHeight = canvasSize.height,
