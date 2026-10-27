@@ -8,12 +8,12 @@ import org.junit.Test
 class NamePersonalizationTest {
     private fun floralFrame(): EmbroideryDesign {
         val original = listOf(
-            EmbroideryPoint(-250, -200, StitchCommand.JUMP, 0),
-            EmbroideryPoint(-250, 200, StitchCommand.STITCH, 0),
-            EmbroideryPoint(250, 200, StitchCommand.STITCH, 0),
-            EmbroideryPoint(250, -200, StitchCommand.STITCH, 0),
-            EmbroideryPoint(-250, -200, StitchCommand.STITCH, 0),
-            EmbroideryPoint(-250, -200, StitchCommand.END, 0)
+            EmbroideryPoint(-380, -380, StitchCommand.JUMP, 0),
+            EmbroideryPoint(-380, 380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(380, 380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(380, -380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-380, -380, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-380, -380, StitchCommand.END, 0)
         )
         return EmbroideryIntegrity.normalize(
             EmbroideryDesign(
@@ -21,7 +21,7 @@ class NamePersonalizationTest {
                 format = "PES",
                 label = "MOLDURA FLORES",
                 points = original,
-                bounds = EmbroideryBounds(-250, 250, -200, 200),
+                bounds = EmbroideryBounds(-380, 380, -380, 380),
                 stitchCount = 4,
                 jumpCount = 1,
                 colorChanges = 0,
