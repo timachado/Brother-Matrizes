@@ -227,7 +227,10 @@ fun NameEditorScreen(
         return ImportedFontMatrixGenerator.generateText(font, options.text, options)
     }
 
-    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts) {
+    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts, autoFitEnabled) {
+        // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
+        // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
+        if (autoFitEnabled) return@LaunchedEffect
         delay(180L) // Gestos/teclado rápidos não geram centenas de matrizes.
         val target = draft
         val source = baseDesign
