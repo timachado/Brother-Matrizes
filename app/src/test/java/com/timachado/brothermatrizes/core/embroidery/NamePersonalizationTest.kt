@@ -191,6 +191,19 @@ class NamePersonalizationTest {
             withSource.points.take(original.points.size - 1))
     }
 
+    @Test fun lightweightPreflightMatchesFullCompositionAndDoesNotChangeSource() {
+        val source = floralFrame()
+        val before = source.points.toList()
+        val options = TextMatrixOptions("Maria", heightMm = 10f)
+        assertTrue(NamePersonalization.canPlace(source, options, 0, 0).isSuccess)
+        val result = NamePersonalization.add(source, options, 0, 0).getOrThrow()
+        assertEquals(before, source.points)
+        assertEquals(before.dropLast(1),
+            result.points.take(before.size - 1))
+        assertTrue(NamePersonalization.canPlace(source, options, 3000, 0).isFailure)
+        assertTrue(NamePersonalization.add(source, options, 3000, 0).isFailure)
+    }
+
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
         val original = floralFrame()
         val corrupt = original.copy(points = original.points.dropLast(1) +
