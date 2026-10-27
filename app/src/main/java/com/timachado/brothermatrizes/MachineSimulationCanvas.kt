@@ -486,78 +486,48 @@ private data class SimulationTransform(
     val uiScale: Float =
         1f
 ) {
-    private val referencePoints =
-        (
-            if (
-                referenceTextMode
-            ) {
-                /*
-                 * O simulador do MãoDesign enquadra o bloco de pontos gerado.
-                 * guidePoints é apenas geometria auxiliar e não participa do
-                 * bounds visual da simulação.
-                 */
-                /*
-                 * Centralização visual usa somente a geometria realmente
-                 * costurada. JUMP/TRIM invisíveis não podem deslocar o nome
-                 * dentro do bastidor.
-                 */
-                design.points
-                    .filter {
-                        it.command ==
-                            StitchCommand.STITCH ||
-                        it.command ==
-                            StitchCommand.STOP ||
-                        it.command ==
-                            StitchCommand.SEQUIN
-                    }
-                    .ifEmpty {
-                        design.points
-                            .filter {
-                                it.command !=
-                                    StitchCommand.END
-                            }
-                    }
-            } else {
-                design.points +
-                    design.guidePoints
-            }
-            )
-            .filter {
-                it.command !=
-                    StitchCommand.END
-            }
+    // Matriz normal: bounds já contém os limites calculados na importação.
+    // Não percorrer 13 mil pontos nem criar listas em cada quadro.
+    // Pontos auxiliares continuam participando do enquadramento.
+    private val referencePoints = if (referenceTextMode) {
+        design.points.filter {
+            it.command == StitchCommand.STITCH ||
+                it.command == StitchCommand.STOP ||
+                it.command == StitchCommand.SEQUIN
+        }.ifEmpty {
+            design.points.filter { it.command != StitchCommand.END }
+        }
+    } else {
+        emptyList()
+    }
 
-    private val minXUnits =
-        referencePoints
-            .minOfOrNull {
-                it.xUnits
-            }
-            ?: design.bounds
-                .minXUnits
+    private val minXUnits = if (referenceTextMode) {
+        referencePoints.minOfOrNull { it.xUnits } ?: design.bounds.minXUnits
+    } else {
+        minOf(design.bounds.minXUnits,
+            design.guidePoints.minOfOrNull { it.xUnits } ?: Int.MAX_VALUE)
+    }
 
-    private val maxXUnits =
-        referencePoints
-            .maxOfOrNull {
-                it.xUnits
-            }
-            ?: design.bounds
-                .maxXUnits
+    private val maxXUnits = if (referenceTextMode) {
+        referencePoints.maxOfOrNull { it.xUnits } ?: design.bounds.maxXUnits
+    } else {
+        maxOf(design.bounds.maxXUnits,
+            design.guidePoints.maxOfOrNull { it.xUnits } ?: Int.MIN_VALUE)
+    }
 
-    private val minYUnits =
-        referencePoints
-            .minOfOrNull {
-                it.yUnits
-            }
-            ?: design.bounds
-                .minYUnits
+    private val minYUnits = if (referenceTextMode) {
+        referencePoints.minOfOrNull { it.yUnits } ?: design.bounds.minYUnits
+    } else {
+        minOf(design.bounds.minYUnits,
+            design.guidePoints.minOfOrNull { it.yUnits } ?: Int.MAX_VALUE)
+    }
 
-    private val maxYUnits =
-        referencePoints
-            .maxOfOrNull {
-                it.yUnits
-            }
-            ?: design.bounds
-                .maxYUnits
+    private val maxYUnits = if (referenceTextMode) {
+        referencePoints.maxOfOrNull { it.yUnits } ?: design.bounds.maxYUnits
+    } else {
+        maxOf(design.bounds.maxYUnits,
+            design.guidePoints.maxOfOrNull { it.yUnits } ?: Int.MIN_VALUE)
+    }
 
     private val widthUnits =
         (
