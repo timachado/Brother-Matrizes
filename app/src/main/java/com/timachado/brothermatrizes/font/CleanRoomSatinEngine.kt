@@ -131,6 +131,9 @@ internal object CleanRoomSatinEngine {
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
             "Não foram geradas pontadas válidas."
         }
+        // A presença de pontos não é suficiente para liberar uma fonte:
+        // a sequência precisa reproduzir pelo menos a silhueta do glifo.
+        ImportedFontCoverageGuard.check(outlines.glyphPolygons, points)
         val last = points.last()
         points.add(last.copy(command = StitchCommand.END))
         val coords = points.filter { it.command != StitchCommand.END }
