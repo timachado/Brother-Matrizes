@@ -163,6 +163,34 @@ class NamePersonalizationTest {
         assertTrue(rotated.points != default.points)
     }
 
+    @Test fun importedFontNeverFallsBackToBrotherGlyphs() {
+        val original = floralFrame()
+        val options = TextMatrixOptions(
+            text = "Maria", importedFontId = "fonte-ba9de2fa01.ttf",
+            heightMm = 10f, style = TextStitchStyle.SATIN
+        )
+        val withoutSource = NamePersonalization.add(original, options, 0, 0)
+        assertTrue(withoutSource.isFailure)
+        assertTrue(withoutSource.exceptionOrNull()?.message
+            ?.contains("Fonte importada") == true)
+
+        var observed: TextMatrixOptions? = null
+        val withSource = NamePersonalization.add(
+            original, options, 0, 0,
+            importedGenerator = { current ->
+                observed = current
+                TextMatrixGenerator.generate(
+                    current.copy(importedFontId = null)
+                )
+            }
+        ).getOrThrow()
+        assertEquals(options.importedFontId, observed?.importedFontId)
+        assertEquals(options.importedFontId,
+            withSource.editableName?.options?.importedFontId)
+        assertEquals(original.points.dropLast(1),
+            withSource.points.take(original.points.size - 1))
+    }
+
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
         val original = floralFrame()
         val corrupt = original.copy(points = original.points.dropLast(1) +
