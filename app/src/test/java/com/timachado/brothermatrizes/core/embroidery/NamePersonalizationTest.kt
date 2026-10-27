@@ -145,6 +145,24 @@ class NamePersonalizationTest {
         assertTrue(outside.isFailure)
     }
 
+    @Test fun rotatedNamePreservesBaseAndSavedRotation() {
+        val original = floralFrame()
+        val options = TextMatrixOptions(
+            text = "Maria", heightMm = 10f,
+            style = TextStitchStyle.SATIN,
+            rotationDegrees = 30f
+        )
+        val rotated = NamePersonalization.add(original, options, 0, 0)
+            .getOrThrow()
+        val default = NamePersonalization.add(
+            original, options.copy(rotationDegrees = 0f), 0, 0
+        ).getOrThrow()
+        assertEquals(original.points.dropLast(1),
+            rotated.points.take(original.points.size - 1))
+        assertEquals(30f, rotated.editableName?.options?.rotationDegrees ?: -1f)
+        assertTrue(rotated.points != default.points)
+    }
+
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
         val original = floralFrame()
         val corrupt = original.copy(points = original.points.dropLast(1) +
