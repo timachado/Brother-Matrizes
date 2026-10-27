@@ -44,6 +44,52 @@ class ImportedFontSatinSequenceTest {
     }
 
     @Test
+    fun fontQualityGateRejectsScribbleOutsideOriginalLetter() {
+        val box = listOf(
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 100f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 100f)
+        )
+        val scribble = listOf(
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                -50, -40, StitchCommand.JUMP, 0
+            ),
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                50, -30, StitchCommand.STITCH, 0
+            ),
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                160, 150, StitchCommand.STITCH, 0
+            )
+        )
+        val failure = runCatching {
+            com.timachado.brothermatrizes.font.ImportedFontCoverageGuard
+                .check(listOf(listOf(box)), scribble)
+        }
+        assertTrue("Não liberar uma palavra cuja rota saia da letra.",
+            failure.isFailure)
+    }
+
+    @Test
+    fun contextualColumnFillCreatesSatinBarsAcrossGlyphWidth() {
+        val v = com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V
+        val rectangle = listOf(
+            v(0f, 0f), v(70f, 0f), v(70f, 40f), v(0f, 40f)
+        )
+        val plan = com.timachado.brothermatrizes.font.CleanRoomSatinEngine
+            .planContextualFill(listOf(rectangle), densityMm = 0.5f)
+        assertTrue(plan.rails.isNotEmpty())
+        val bars = plan.rails.flatten()
+        assertTrue(bars.size >= 5)
+        assertTrue(
+            "Preenchimento cursivo deve usar barras Satin verticais, não " +
+                "linhas corridas horizontais.",
+            bars.count { kotlin.math.abs(it.a.y - it.b.y) >
+                kotlin.math.abs(it.a.x - it.b.x) * 3f } >= bars.size * 3 / 4
+        )
+    }
+
+    @Test
     fun contextualFontComparisonDetectsDifferentLetterShapes() {
         val whole = android.graphics.Path().apply {
             addRect(0f, 0f, 100f, 70f, android.graphics.Path.Direction.CW)
