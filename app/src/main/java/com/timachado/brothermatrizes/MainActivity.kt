@@ -815,19 +815,29 @@ private fun BrotherMatrizesApp(
             }
 
             scope.launch {
-                val permit = BrotherMatrizesAccountService.authorizeImport(
-                    context, isFont = false
-                )
-                if (permit.isFailure) {
-                    telegramImportPending = false
-                    snackbar.showSnackbar(permit.exceptionOrNull()?.message
-                        ?: "Login Google ou cota de matrizes indisponível.")
-                    if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
-                        screen = Screen.Account
+                // QA de homologação isolada: testar um PES local não depende
+                // da autenticação Google do pacote comercial nem debita cotas.
+                // A exceção exige simultaneamente build DEBUG e applicationId
+                // exclusivo; NUNCA se aplica ao aplicativo de produção.
+                val localNameQaImport = BuildConfig.DEBUG &&
+                    context.packageName == "com.timachado.brothermatrizes.nameqa"
+                val quotaKey = if (localNameQaImport) {
+                    null
+                } else {
+                    val permit = BrotherMatrizesAccountService.authorizeImport(
+                        context, isFont = false
+                    )
+                    if (permit.isFailure) {
+                        telegramImportPending = false
+                        snackbar.showSnackbar(permit.exceptionOrNull()?.message
+                            ?: "Login Google ou cota de matrizes indisponível.")
+                        if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
+                            screen = Screen.Account
+                        }
+                        return@launch
                     }
-                    return@launch
+                    permit.getOrThrow()
                 }
-                val quotaKey = permit.getOrThrow()
                 loading = true
 
                 val result =
@@ -840,12 +850,15 @@ private fun BrotherMatrizesApp(
                         )
                     }
 
-                val registered = BrotherMatrizesAccountService.finalizeImport(
-                    context, isFont = false, requestKey = quotaKey,
-                    success = result is EmbroideryLoadResult.Success
-                )
-                if (registered.isFailure) {
-                    snackbar.showSnackbar("Não foi possível confirmar a cota da importação.")
+                // A confirmação de consumo só existe na importação comercial.
+                if (quotaKey != null) {
+                    val registered = BrotherMatrizesAccountService.finalizeImport(
+                        context, isFont = false, requestKey = quotaKey,
+                        success = result is EmbroideryLoadResult.Success
+                    )
+                    if (registered.isFailure) {
+                        snackbar.showSnackbar("Não foi possível confirmar a cota da importação.")
+                    }
                 }
 
                 loading = false
@@ -886,11 +899,15 @@ private fun BrotherMatrizesApp(
 
     fun launchMatrixPicker(fromTelegram: Boolean = false) {
         scope.launch {
-            val google = BrotherMatrizesAccountService.ensureGoogleSession()
-            if (google.isFailure) {
-                screen = Screen.Account
-                snackbar.showSnackbar("Entre com Google antes de abrir ou importar matrizes.")
-                return@launch
+            val localNameQaImport = BuildConfig.DEBUG &&
+                context.packageName == "com.timachado.brothermatrizes.nameqa"
+            if (!localNameQaImport) {
+                val google = BrotherMatrizesAccountService.ensureGoogleSession()
+                if (google.isFailure) {
+                    screen = Screen.Account
+                    snackbar.showSnackbar("Entre com Google antes de abrir ou importar matrizes.")
+                    return@launch
+                }
             }
             telegramImportPending = fromTelegram
             picker.launch(arrayOf("*/*"))
