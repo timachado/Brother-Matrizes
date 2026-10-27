@@ -240,6 +240,38 @@ class ProjectCodecTest {
     }
 
     @Test
+    fun importedFontIdSurvivesProjectV6Roundtrip() {
+        val frame = EmbroideryIntegrity.normalize(
+            sample().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, -380, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(-380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.END, 0)
+                ),
+                hoopProfile = HoopProfile.H100X100
+            )
+        ).getOrThrow().design
+        val id = "great-vibes-f96de8fe10.ttf"
+        val matrix = NamePersonalization.add(
+            frame,
+            TextMatrixOptions(
+                text = "Maria", heightMm = 10f,
+                importedFontId = id, style = TextStitchStyle.SATIN
+            ), 0, 0,
+            importedGenerator = { options ->
+                com.timachado.brothermatrizes.core.embroidery.TextMatrixGenerator
+                    .generate(options.copy(importedFontId = null))
+            }
+        ).getOrThrow()
+        val saved = ProjectCodec.decode(ProjectCodec.encode(matrix))
+        assertEquals(id, saved.editableName?.options?.importedFontId)
+        assertEquals(frame.points, saved.editableName?.original?.points)
+    }
+
+    @Test
     fun decodedProjectUsesIndependentByteArray() {
         val original =
             sample()
