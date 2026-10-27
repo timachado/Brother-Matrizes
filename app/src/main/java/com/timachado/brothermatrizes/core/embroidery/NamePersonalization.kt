@@ -31,6 +31,58 @@ object NamePersonalization {
         }
     }
 
+    /**
+     * Triagem geométrica sem reconstruir e normalizar a matriz inteira.
+     * Usada APENAS para procurar posições: add() continua sendo o validador
+     * definitivo para exportação, comandos, cores e integridade.
+     */
+    internal fun checkPlacement(
+        original: EmbroideryDesign,
+        options: TextMatrixOptions,
+        centerXUnits: Int,
+        centerYUnits: Int,
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
+    ): Result<Unit> = runCatching {
+        val source = original.editableName?.original ?: original
+        val generated = prepare(
+            options.copy(
+                rotationDegrees = 0f,
+                outputFormat = source.format.uppercase(),
+                hoopProfile = null,
+                enforceHoop = false
+            ), importedGenerator
+        )
+        val positioned = MatrixEditor.apply(
+            generated,
+            EditTransform(
+                centerAtOrigin = true,
+                offsetXUnits = centerXUnits,
+                offsetYUnits = centerYUnits,
+                rotationDegrees = options.rotationDegrees,
+                mirrorVertical = source.sourceYAxisDown
+            )
+        )
+        NamePlacementSafety.validate(source, positioned).getOrThrow()
+
+        val hoop = source.hoopProfile ?: options.hoopProfile
+        if (hoop != null) {
+            val combinedWidth = (
+                maxOf(source.bounds.maxXUnits, positioned.bounds.maxXUnits).toLong() -
+                    minOf(source.bounds.minXUnits, positioned.bounds.minXUnits)
+                ) / 10f
+            val combinedHeight = (
+                maxOf(source.bounds.maxYUnits, positioned.bounds.maxYUnits).toLong() -
+                    minOf(source.bounds.minYUnits, positioned.bounds.minYUnits)
+                ) / 10f
+            require(
+                (combinedWidth <= hoop.usableWidthMm &&
+                    combinedHeight <= hoop.usableHeightMm) ||
+                    (combinedWidth <= hoop.usableHeightMm &&
+                        combinedHeight <= hoop.usableWidthMm)
+            ) { "Nome fora da área útil do bastidor." }
+        }
+    }
+
     fun add(
         original: EmbroideryDesign,
         options: TextMatrixOptions,

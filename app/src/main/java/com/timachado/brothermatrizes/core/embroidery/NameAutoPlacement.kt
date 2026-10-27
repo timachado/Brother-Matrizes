@@ -31,13 +31,23 @@ object NameAutoPlacement {
         )
         // Primeiro testar o centro e o estilo solicitado. Mudar fonte é o
         // último recurso, antes de retornar um erro de espaço insuficiente.
-        val positions = listOf(
-            0 to 0,
-            0 to -30, 0 to 30,
-            -30 to 0, 30 to 0,
-            0 to -65, 0 to 65,
-            -65 to 0, 65 to 0
-        )
+        // Deslocamentos proporcionais à matriz, priorizando o centro.
+        // A malha cobre eixos e diagonais; a validação usa pontadas reais.
+        val minSideUnits = minOf(
+            original.bounds.maxXUnits.toLong() - original.bounds.minXUnits,
+            original.bounds.maxYUnits.toLong() - original.bounds.minYUnits
+        ).coerceAtLeast(0L)
+        val shortStep = (minSideUnits / 30L).coerceIn(15L, 45L).toInt()
+        val longStep = (shortStep * 2).coerceAtMost(90)
+        val positions = buildList {
+            add(0 to 0)
+            for (step in listOf(shortStep, longStep)) {
+                add(0 to -step); add(0 to step)
+                add(-step to 0); add(step to 0)
+                add(-step to -step); add(step to -step)
+                add(-step to step); add(step to step)
+            }
+        }.distinct()
         val maxHeight = minOf(17f, maxOf(8f,
             minOf(original.bounds.widthMm, original.bounds.heightMm) / 7f))
         val heights = buildList {
@@ -53,23 +63,36 @@ object NameAutoPlacement {
             else listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
         var lastError: Throwable? = null
         for (font in fonts) {
-            // Primeiro todas as alturas no centro, antes de explorar bordas.
-            // Numa moldura floral isso elimina dezenas de validações inúteis.
-            for ((dx, dy) in positions) {
+            // Priorizar centro: primeiro todas as alturas nele. Se necessário,
+            // explorar a malha com altura no laço externo para gerar a fonte
+            // UMA vez por altura, e não uma vez por posição.
+            for (group in listOf(positions.take(1), positions.drop(1))) {
                 for (height in heights) {
                     currentCoroutineContext().ensureActive()
                     val options = requested.copy(
                         font = font, heightMm = height, enforceHoop = true
                     )
-                    val x = centerXUnits + dx
-                    val y = centerYUnits + dy
-                    val result = NamePersonalization.add(
-                        original, options, x, y, importedGenerator
-                    )
-                    if (result.isSuccess) return Result.success(
-                        Fit(options, x, y, result.getOrThrow())
-                    )
-                    lastError = result.exceptionOrNull()
+                    for ((dx, dy) in group) {
+                        currentCoroutineContext().ensureActive()
+                        val x = centerXUnits + dx
+                        val y = centerYUnits + dy
+                        val check = NamePersonalization.checkPlacement(
+                            original, options, x, y, importedGenerator
+                        )
+                        if (check.isFailure) {
+                            lastError = check.exceptionOrNull()
+                            continue
+                        }
+                        // Só montar, normalizar e gerar os comandos finais
+                        // depois que geometria e bastidor tiverem passado.
+                        val result = NamePersonalization.add(
+                            original, options, x, y, importedGenerator
+                        )
+                        if (result.isSuccess) return Result.success(
+                            Fit(options, x, y, result.getOrThrow())
+                        )
+                        lastError = result.exceptionOrNull()
+                    }
                 }
             }
         }
