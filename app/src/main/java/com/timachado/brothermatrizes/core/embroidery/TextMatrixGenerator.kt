@@ -109,7 +109,10 @@ data class TextMatrixOptions(
     val hoopProfile: HoopProfile? = null,
     val fabricProfile: FabricProfile? = null,
     val enforceHoop: Boolean = false,
-    val rotationDegrees: Float = 0f
+    val rotationDegrees: Float = 0f,
+    // Identidade estável do TTF/OTF importado na Biblioteca de Fontes.
+    // O motor nativo não deve substituir silenciosamente uma fonte externa.
+    val importedFontId: String? = null
 )
 
 object TextMatrixGenerator {
