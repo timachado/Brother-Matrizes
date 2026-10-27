@@ -25,32 +25,53 @@ internal object NamePlacementSafety {
         val maxY = max(ay, by)
     }
 
+    // Somente a última moldura. Compara IDENTIDADE de objeto, evitando
+    // hashCode/equals de listas com milhares de pontadas a cada gesto.
+    private data class Indexed(
+        val design: EmbroideryDesign,
+        val segments: List<Segment>,
+        val cells: Map<Long, List<Int>>
+    )
+
+    @Volatile private var cached: Indexed? = null
+
+    private fun indexed(background: EmbroideryDesign): Indexed {
+        cached?.let { if (it.design === background) return it }
+        synchronized(this) {
+            cached?.let { if (it.design === background) return it }
+            val segments = sewnSegments(background.points)
+            val cells = HashMap<Long, MutableList<Int>>()
+            // Máxima margem suportada pela API (100 unidades). Assim o cache
+            // atende a qualquer validação de 0 a 10 mm.
+            segments.forEachIndexed { index, segment ->
+                val left = Math.floorDiv(segment.minX - 100, CELL_UNITS)
+                val right = Math.floorDiv(segment.maxX + 100, CELL_UNITS)
+                val top = Math.floorDiv(segment.minY - 100, CELL_UNITS)
+                val bottom = Math.floorDiv(segment.maxY + 100, CELL_UNITS)
+                require(right.toLong() - left < 1024L &&
+                    bottom.toLong() - top < 1024L) {
+                    "Segmento muito longo para validação."
+                }
+                for (gx in left..right) for (gy in top..bottom) {
+                    cells.getOrPut(cellKey(gx, gy)) { ArrayList() }.add(index)
+                }
+            }
+            return Indexed(background, segments, cells).also { cached = it }
+        }
+    }
+
     fun validate(
         background: EmbroideryDesign,
         name: EmbroideryDesign,
         clearanceUnits: Int = 15
     ): Result<Unit> = runCatching {
         require(clearanceUnits in 0..100) { "Margem inválida." }
-        val original = sewnSegments(background.points)
+        val index = indexed(background)
+        val original = index.segments
+        val grid = index.cells
         val typed = sewnSegments(name.points)
         require(original.isNotEmpty() && typed.isNotEmpty()) {
             "Não foi possível verificar o traçado físico do nome e da moldura."
-        }
-        val grid = HashMap<Long, MutableList<Int>>()
-        original.forEachIndexed { index, seg ->
-            val left = Math.floorDiv(seg.minX - clearanceUnits, CELL_UNITS)
-            val right = Math.floorDiv(seg.maxX + clearanceUnits, CELL_UNITS)
-            val top = Math.floorDiv(seg.minY - clearanceUnits, CELL_UNITS)
-            val bottom = Math.floorDiv(seg.maxY + clearanceUnits, CELL_UNITS)
-            require(right.toLong() - left.toLong() < 1024L &&
-                bottom.toLong() - top.toLong() < 1024L) {
-                "Matriz contém um traçado muito longo para validação automática."
-            }
-            for (gx in left..right) {
-                for (gy in top..bottom) {
-                    grid.getOrPut(cellKey(gx, gy)) { ArrayList() }.add(index)
-                }
-            }
         }
         val clearanceSquared = clearanceUnits.toDouble() * clearanceUnits
         for (seg in typed) {
