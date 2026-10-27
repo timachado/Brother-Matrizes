@@ -25,6 +25,14 @@ class NameEditorPlacementTest {
         sourceYAxisDown = sourceYAxisDown
     )
 
+    @Test fun fontPreviewStrokeUsesThreadScaleNotThickUiLine() {
+        // 13x18 cm em tela pequena: cada linha deve ter espessura
+        // aproximada da linha de bordado, não 1,35dp ampliados.
+        assertEquals(.65f, nameStitchPreviewWidthPx(.25f), .0001f)
+        assertEquals(1.2f, nameStitchPreviewWidthPx(.5f), .0001f)
+        assertEquals(1.3f, nameStitchPreviewWidthPx(2f), .0001f)
+    }
+
     @Test fun chipAtTrueCenterOfVertical13By18Matrix() {
         val position = NameEditorPlacement.screenOffset(
             portrait(true), HoopProfile.H130X180,
