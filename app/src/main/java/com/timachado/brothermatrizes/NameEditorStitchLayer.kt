@@ -20,6 +20,15 @@ import com.timachado.brothermatrizes.core.embroidery.HoopProfile
  * Ambos usam o mesmo centro, direção e escala: a moldura jamais salta
  * quando o nome é movido e a renderização final não duplica o desenho.
  */
+/**
+ * Largura visual aproximada da linha bordada (~0,24 mm).
+ * No enquadramento de 13x18 cm, 1,35 dp fixos tornam cada pontada
+ * várias vezes mais grossa do que a linha real, empelotando "Maria".
+ * A linha fica antialiasada mas não artificialmente grossa.
+ */
+internal fun nameStitchPreviewWidthPx(scale: Float): Float =
+    (2.4f * scale.coerceAtLeast(.001f)).coerceIn(.65f, 1.3f)
+
 @Composable
 internal fun NameEditorStitchLayer(
     original: EmbroideryDesign,
@@ -65,8 +74,10 @@ internal fun NameEditorStitchLayer(
                 drawPath(
                     path = path,
                     color = Color(0xFF000000 or thread.toLong()),
-                    style = Stroke(width = 1.35.dp.toPx() / scale,
-                        cap = StrokeCap.Round)
+                    style = Stroke(
+                        width = nameStitchPreviewWidthPx(scale) / scale,
+                        cap = StrokeCap.Round
+                    )
                 )
             }
         }
