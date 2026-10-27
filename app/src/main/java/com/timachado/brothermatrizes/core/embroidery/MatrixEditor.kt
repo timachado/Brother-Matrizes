@@ -145,6 +145,8 @@ object MatrixEditor {
             threadColors =
                 transform.threadColors
                     ?: design.threadColors,
+            // Edição global de coordenadas invalida a âncora do texto.
+            editableName = null,
             isModified = true
         )
     }
