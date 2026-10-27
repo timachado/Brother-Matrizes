@@ -65,6 +65,32 @@ internal object CleanRoomSatinEngine {
         }
     }
 
+    /**
+     * Apply non-uniform resizing to the VECTOR contours, before any satin
+     * rasterization or stitch planning. Scaling finished stitches makes the
+     * satin pitch grow with the font and produces broken-looking cursive
+     * outlines, especially after 2x expansion on portrait frames.
+     */
+    internal fun scaleGlyphContours(
+        glyphs: List<List<List<AndroidSkiaOutlineExtractor.Point>>>,
+        widthScale: Float,
+        heightScale: Float
+    ): List<List<List<AndroidSkiaOutlineExtractor.Point>>> {
+        require(widthScale.isFinite() && heightScale.isFinite() &&
+            widthScale in 0.5f..2.5f && heightScale in 0.5f..2.5f)
+        if (widthScale == 1f && heightScale == 1f) return glyphs
+        return glyphs.map { glyph ->
+            glyph.map { contour ->
+                contour.map { point ->
+                    AndroidSkiaOutlineExtractor.Point(
+                        x = point.x * widthScale,
+                        y = point.y * heightScale
+                    )
+                }
+            }
+        }
+    }
+
     fun generate(
         font: ImportedFont,
         sourceText: String,
@@ -95,10 +121,18 @@ internal object CleanRoomSatinEngine {
             spacingUnits = spacing,
             rotationDegrees = options.rotationDegrees
         )
+        // The final matrix shape is fixed BEFORE sampling its satin rails.
+        // Pitch and maximum satin bar length therefore remain physical
+        // values in millimetres instead of being stretched with the text.
+        val scaledGlyphs = scaleGlyphContours(
+            outlines.glyphPolygons,
+            options.widthScale,
+            options.heightScale
+        )
         val points = mutableListOf<EmbroideryPoint>()
         val stitcher = Stitcher(points)
         var sewnGlyphs = 0
-        outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
+        scaledGlyphs.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
             val plan = if (outlines.contextualShapingPreserved) {
@@ -134,7 +168,7 @@ internal object CleanRoomSatinEngine {
         }
         // A presença de pontos não é suficiente para liberar uma fonte:
         // a sequência precisa reproduzir pelo menos a silhueta do glifo.
-        ImportedFontCoverageGuard.check(outlines.glyphPolygons, points)
+        ImportedFontCoverageGuard.check(scaledGlyphs, points)
         val last = points.last()
         points.add(last.copy(command = StitchCommand.END))
         val coords = points.filter { it.command != StitchCommand.END }
