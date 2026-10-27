@@ -30,9 +30,9 @@ internal object ImportedFontCoverageGuard {
         glyphs.forEach { glyph ->
             glyph.forEach { ring ->
                 if (ring.size >= 3) {
-                    moveTo(ring.first().x, ring.first().y)
-                    ring.drop(1).forEach { lineTo(it.x, it.y) }
-                    close()
+                    contour.moveTo(ring.first().x, ring.first().y)
+                    ring.drop(1).forEach { contour.lineTo(it.x, it.y) }
+                    contour.close()
                 }
             }
         }
