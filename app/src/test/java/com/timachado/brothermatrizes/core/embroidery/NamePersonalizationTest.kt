@@ -82,6 +82,18 @@ class NamePersonalizationTest {
         assertTrue(sophia.points.any { it.command == StitchCommand.STITCH })
     }
 
+    @Test fun namingCreatesIndependentFilesForMariaAndSophia() {
+        val base = floralFrame()
+        val maria = NamePersonalization.add(base, TextMatrixOptions("Maria"), 0, 0).getOrThrow()
+        val sophia = NamePersonalization.add(base, TextMatrixOptions("Sophia"), 0, 0).getOrThrow()
+        val mariaAlternate = NamePersonalization.add(base, TextMatrixOptions("Maria"), 15, 0).getOrThrow()
+        assertTrue(maria.fileName != base.fileName)
+        assertTrue(maria.fileName != sophia.fileName)
+        assertTrue(maria.fileName != mariaAlternate.fileName)
+        assertTrue(maria.fileName.contains("maria"))
+        assertTrue(sophia.fileName.contains("sophia"))
+    }
+
     @Test fun rejectsInvalidSequenceWithoutModifyingOriginal() {
         val original = floralFrame()
         val corrupt = original.copy(points = original.points.dropLast(1) +
