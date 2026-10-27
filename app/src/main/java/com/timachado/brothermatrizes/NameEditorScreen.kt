@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes
 
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,6 +100,7 @@ fun NameEditorScreen(
     var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
     var zoomMode by remember(original) { mutableStateOf(false) }
+    var transformNameMode by remember(original) { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
 
@@ -224,6 +226,16 @@ fun NameEditorScreen(
     ).coerceAtLeast(.01f)
     val direction = if (original.sourceYAxisDown) 1f else -1f
 
+    val transformName by rememberUpdatedState<(Offset, Float, Float) -> Unit> { pan, zoom, rotation ->
+        autoFitEnabled = false
+        setDraft(draft.copy(
+            x = draft.x + (pan.x / canvasScale).roundToInt(),
+            y = draft.y + (pan.y / (canvasScale * direction)).roundToInt(),
+            height = (draft.height * zoom).coerceIn(4f, 30f),
+            rotation = (draft.rotation + rotation).coerceIn(-180f, 180f)
+        ), history = false)
+    }
+
     val commitDrag by rememberUpdatedState<(Offset) -> Unit> { moved ->
         if (moved != Offset.Zero) {
             autoFitEnabled = false
@@ -318,19 +330,35 @@ fun NameEditorScreen(
         }
 
         Text(
-            "Use Mover para arrastar o nome; use Zoom e pan para ampliar. A moldura original " +
-                "permanece intacta. O desenho abaixo contém pontadas reais.",
+            "Arraste para mover; em Girar/Redimensionar use dois dedos para pinçar e girar. " +
+                "O encaixe automático procura espaço livre sem alterar as flores.",
             color = FioTextMuted,
             fontSize = 12.sp
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { zoomMode = false }) {
-                Text(if (!zoomMode) "✓ Mover nome" else "Mover nome")
+            OutlinedButton(onClick = {
+                zoomMode = false
+                transformNameMode = false
+            }) {
+                Text(if (!zoomMode && !transformNameMode) "✓ Mover nome" else "Mover nome")
             }
-            OutlinedButton(onClick = { zoomMode = true }) {
+            OutlinedButton(onClick = {
+                zoomMode = true
+                transformNameMode = false
+            }) {
                 Text(if (zoomMode) "✓ Zoom e pan" else "Zoom e pan")
             }
+        }
+        OutlinedButton(
+            onClick = {
+                transformNameMode = !transformNameMode
+                zoomMode = false
+            },
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_gesture")
+        ) {
+            Text(if (transformNameMode) "✓ Girar, pinçar e mover o nome"
+                else "Girar / Redimensionar com dois dedos")
         }
 
         Box(
@@ -338,9 +366,16 @@ fun NameEditorScreen(
                 .fillMaxWidth()
                 .height(285.dp)
                 .onSizeChanged { canvasSize = it }
-                .then(if (zoomMode) Modifier else Modifier.pointerInput(
-                    original, referenceHoop, paddingPx
-                ) {
+                .then(
+                    if (zoomMode) Modifier
+                    else if (transformNameMode) Modifier.pointerInput(
+                        original, referenceHoop, paddingPx
+                    ) {
+                        detectTransformGestures { _, pan, zoom, rotation ->
+                            transformName(pan, zoom, rotation)
+                        }
+                    }
+                    else Modifier.pointerInput(original, referenceHoop, paddingPx) {
                     detectDragGestures(
                         onDragStart = {
                             dragging = true
@@ -365,7 +400,7 @@ fun NameEditorScreen(
                 interactive = zoomMode,
                 modifier = Modifier.fillMaxSize()
             )
-            if (dragging) {
+            if (dragging || (transformNameMode && previewBusy)) {
                 val midX = (baseDesign.bounds.minXUnits.toLong() +
                     baseDesign.bounds.maxXUnits.toLong()) / 2f
                 val midY = (baseDesign.bounds.minYUnits.toLong() +
@@ -373,7 +408,7 @@ fun NameEditorScreen(
                 Text(
                     draft.name,
                     color = FioGold,
-                    fontSize = 22.sp,
+                    fontSize = (draft.height * 1.6f).coerceIn(12f, 42f).sp,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .offset {
