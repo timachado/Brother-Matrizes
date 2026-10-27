@@ -23,7 +23,8 @@ object NameAutoPlacement {
         centerXUnits: Int = (original.bounds.minXUnits.toLong() +
             original.bounds.maxXUnits.toLong()).div(2).toInt(),
         centerYUnits: Int = (original.bounds.minYUnits.toLong() +
-            original.bounds.maxYUnits.toLong()).div(2).toInt()
+            original.bounds.maxYUnits.toLong()).div(2).toInt(),
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
     ): Result<Fit> {
         if (requested.text.isBlank()) return Result.failure(
             IllegalArgumentException("Digite um nome para ajustar.")
@@ -47,7 +48,9 @@ object NameAutoPlacement {
             }
             if (lastOrNull() != 4f) add(4f)
         }.distinct()
-        val fonts = listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
+        // Nunca substituir uma fonte importada por uma BM sem autorização.
+        val fonts = if (requested.importedFontId != null) listOf(requested.font)
+            else listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
         var lastError: Throwable? = null
         for (font in fonts) {
             // Primeiro todas as alturas no centro, antes de explorar bordas.
@@ -60,7 +63,9 @@ object NameAutoPlacement {
                     )
                     val x = centerXUnits + dx
                     val y = centerYUnits + dy
-                    val result = NamePersonalization.add(original, options, x, y)
+                    val result = NamePersonalization.add(
+                        original, options, x, y, importedGenerator
+                    )
                     if (result.isSuccess) return Result.success(
                         Fit(options, x, y, result.getOrThrow())
                     )
