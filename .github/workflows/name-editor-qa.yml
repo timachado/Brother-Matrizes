@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - feature/editor-nomes-molduras-20261026
+      - fix/editor-nomes-responsividade-autoencaixe-20261027
   pull_request:
     branches:
       - main
+      - feature/editor-nomes-molduras-20261026
     paths:
       - 'app/**'
       - '.github/workflows/name-editor-qa.yml'
