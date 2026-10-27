@@ -212,6 +212,34 @@ class ProjectCodecTest {
     }
 
     @Test
+    fun rotatedNameSurvivesProjectV5Roundtrip() {
+        val frame = EmbroideryIntegrity.normalize(
+            sample().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, -380, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(-380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-380, -380, StitchCommand.END, 0)
+                ),
+                hoopProfile = HoopProfile.H100X100
+            )
+        ).getOrThrow().design
+        val name = NamePersonalization.add(
+            frame,
+            TextMatrixOptions(
+                text = "Sophia", heightMm = 8f,
+                rotationDegrees = 25f, style = TextStitchStyle.SATIN
+            ),
+            0, 0
+        ).getOrThrow()
+        val restored = ProjectCodec.decode(ProjectCodec.encode(name))
+        assertEquals(25f, restored.editableName!!.options.rotationDegrees)
+        assertEquals(frame.points, restored.editableName!!.original.points)
+    }
+
+    @Test
     fun decodedProjectUsesIndependentByteArray() {
         val original =
             sample()
