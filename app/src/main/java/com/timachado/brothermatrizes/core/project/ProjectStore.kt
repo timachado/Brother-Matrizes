@@ -42,7 +42,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        5
+        6
 
     private const val MAX_POINTS =
         2_000_000
@@ -301,6 +301,8 @@ object ProjectCodec {
             output.writeInt(layer.centerYUnits)
             // v5: rotação da camada de texto, sem alterar a matriz-base.
             output.writeFloat(fontOptions.rotationDegrees)
+            // v6: preservar fonte da Biblioteca de Fontes por ID.
+            writeNullableString(output, fontOptions.importedFontId)
         }
         output.flush()
     }
@@ -556,6 +558,12 @@ object ProjectCodec {
                 val posX = input.readInt()
                 val posY = input.readInt()
                 val rotation = if (version >= 5) input.readFloat() else 0f
+                val importedFontId = if (version >= 6) readNullableString(input) else null
+                require(importedFontId == null ||
+                    (importedFontId.length <= 160 && importedFontId.endsWith(".ttf", true) ||
+                        importedFontId.endsWith(".otf", true))) {
+                    "Identificador de fonte importada inválido."
+                }
                 require(
                     height.isFinite() && height in 4f..60f &&
                         spacing.isFinite() && spacing in 0f..8f &&
@@ -591,6 +599,7 @@ object ProjectCodec {
                         spacingMm = spacing,
                         satinDensityMm = density,
                         rotationDegrees = rotation,
+                        importedFontId = importedFontId,
                         color = nameColor,
                         font = font,
                         style = TextStitchStyle.SATIN,
