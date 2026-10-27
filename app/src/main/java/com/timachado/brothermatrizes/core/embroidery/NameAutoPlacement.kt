@@ -31,27 +31,26 @@ object NameAutoPlacement {
         )
         // Primeiro testar o centro e o estilo solicitado. Mudar fonte é o
         // último recurso, antes de retornar um erro de espaço insuficiente.
+        // Priorizar o centro e variações discretas. Uma varredura grande
+        // monopoliza a CPU em aparelhos modestos e em fontes ornamentadas.
         val positions = listOf(
-            0 to 0,
-            0 to -30, 0 to 30,
-            -30 to 0, 30 to 0,
-            0 to -65, 0 to 65,
-            -65 to 0, 65 to 0
+            0 to 0, 0 to -40, 0 to 40, -40 to 0, 40 to 0
         )
         val maxHeight = minOf(17f, maxOf(8f,
             minOf(original.bounds.widthMm, original.bounds.heightMm) / 7f))
-        val heights = buildList {
-            var h = maxHeight
-            while (h >= 4f) {
-                add((h * 2f).roundToInt() / 2f)
-                h -= 1f
-            }
-            if (lastOrNull() != 4f) add(4f)
-        }.distinct()
+        // Testar no máximo 6 tamanhos por fonte, do desejado ao mínimo.
+        val heights = listOf(
+            maxHeight, maxHeight * 0.85f, maxHeight * 0.70f,
+            maxHeight * 0.55f, maxHeight * 0.40f, 4f
+        ).map { (it.coerceAtLeast(4f) * 2f).roundToInt() / 2f }
+            .distinct()
         // Nunca substituir uma fonte importada por uma BM sem autorização.
         val fonts = if (requested.importedFontId != null) listOf(requested.font)
             else listOf(requested.font, EmbroideryFontPreset.COMPACT).distinct()
         var lastError: Throwable? = null
+        val startedNanos = System.nanoTime()
+        val maxSearchNanos = 6_000_000_000L
+        var timedOut = false
         for (font in fonts) {
             // A extração de contornos TTF/OTF pode ser cara. Testar todas as
             // posições mantendo a mesma altura reaproveita o cache Satin.
@@ -63,6 +62,10 @@ object NameAutoPlacement {
                 )
                 for ((dx, dy) in positions) {
                     currentCoroutineContext().ensureActive()
+                    if (System.nanoTime() - startedNanos > maxSearchNanos) {
+                        timedOut = true
+                        break
+                    }
                     val x = centerXUnits + dx
                     val y = centerYUnits + dy
                     // O caminho rápido NÃO duplica a matriz inteira, apenas
@@ -83,10 +86,14 @@ object NameAutoPlacement {
                         lastError = check.exceptionOrNull()
                     }
                 }
+                if (timedOut) break
             }
+            if (timedOut) break
         }
         return Result.failure(IllegalArgumentException(
-            "Não há espaço seguro para este nome nesta matriz. " +
+            if (timedOut) "Encaixe automático interrompido para manter o aplicativo responsivo. " +
+                "Tente ajustar a altura manualmente ou use uma fonte mais simples."
+            else "Não há espaço seguro para este nome nesta matriz. " +
                 "Experimente abreviar o nome ou escolher outra posição.",
             lastError
         ))
