@@ -65,13 +65,23 @@ object NameAutoPlacement {
                     currentCoroutineContext().ensureActive()
                     val x = centerXUnits + dx
                     val y = centerYUnits + dy
-                    val result = NamePersonalization.add(
+                    // O caminho rápido NÃO duplica a matriz inteira, apenas
+                    // verifica bordas reais, margem Satin e bastidor.
+                    val check = NamePersonalization.canPlace(
                         original, options, x, y, importedGenerator
                     )
-                    if (result.isSuccess) return Result.success(
-                        Fit(options, x, y, result.getOrThrow())
-                    )
-                    lastError = result.exceptionOrNull()
+                    if (check.isSuccess) {
+                        currentCoroutineContext().ensureActive()
+                        val final = NamePersonalization.add(
+                            original, options, x, y, importedGenerator
+                        )
+                        if (final.isSuccess) return Result.success(
+                            Fit(options, x, y, final.getOrThrow())
+                        )
+                        lastError = final.exceptionOrNull()
+                    } else {
+                        lastError = check.exceptionOrNull()
+                    }
                 }
             }
         }
