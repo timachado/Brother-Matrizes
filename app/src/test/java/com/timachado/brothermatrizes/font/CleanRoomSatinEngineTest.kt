@@ -684,6 +684,27 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun subpixelImportedFontCentreSnapsOnlyToItsActualVectorStroke() {
+        val slender = listOf(rectangle(3.15f, 0f, .85f, 82f))
+        val snapped = CleanRoomSatinEngine.snapRasterCenterToVector(
+            slender, CleanRoomSatinEngine.V(4.19f, 25f),
+            CleanRoomSatinEngine.V(1f, 0f), rasterStep = 1.04f
+        )
+        assertNotNull("Recuperar uma haste TTF estreita, sem inventar glifos.", snapped)
+        assertTrue(CleanRoomSatinEngine.insideOriginalVector(slender, snapped!!))
+
+        val separated = listOf(
+            rectangle(0f, 0f, 10f, 50f),
+            rectangle(13f, 0f, 10f, 50f)
+        )
+        val forbidden = CleanRoomSatinEngine.snapRasterCenterToVector(
+            separated, CleanRoomSatinEngine.V(11.5f, 25f),
+            CleanRoomSatinEngine.V(1f, 0f), rasterStep = 1f
+        )
+        assertNull("Uma lacuna real entre letras nunca pode virar haste.", forbidden)
+    }
+
+    @Test
     fun subpixelThinStemPreservesSatinCoverageAtSmallHoopSize() {
         // A letra cursiva reduzida pode ter regiões abaixo de 0,2 mm.
         // O contorno é real, mas não intercepta todos os centros do raster.
