@@ -92,9 +92,15 @@ jobs:
           "$sdk/apksigner" verify --print-certs baseline/Brother-Matrizes-1.11.1-OFICIAL-COMERCIAL-ASSINADO.apk > /tmp/baseline-cert.txt
           grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/baseline-cert.txt
 
+      - name: Habilitar KVM quando disponivel no runner
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
       - name: Testar upgrade 1.11.1 para 1.11.2 em emulador Android 35
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          emulator-boot-timeout: 1800
           api-level: 35
           target: google_apis
           arch: x86_64
