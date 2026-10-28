@@ -2460,7 +2460,17 @@ private fun BrotherMatrizesApp(
                             current.showConnections,
                         onBack = {
                             goBack()
-                        }
+                        },
+                        onEditName = if (
+                            current.design.editableName?.options?.importedFontId != null
+                        ) {
+                            {
+                                screen = Screen.NameEditor(
+                                    design = current.design,
+                                    referenceHoop = current.referenceHoop
+                                )
+                            }
+                        } else null
                     )
                 }
 
