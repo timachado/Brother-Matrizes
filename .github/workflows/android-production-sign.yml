@@ -12,6 +12,8 @@ permissions:
 jobs:
   signed-production:
     runs-on: ubuntu-latest
+    # Reutiliza os segredos de produção no ambiente protegido, sem expô-los no repositório.
+    environment: brother-release-signing
     timeout-minutes: 40
 
     steps:
