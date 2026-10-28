@@ -419,6 +419,20 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun rasterFallbackDoesNotBridgeHairlineSizedGapBetweenSamplePositions() {
+        // The five fractional samples all land in filled areas; only exact
+        // outline intersections detect this 0.05 mm break between strokes.
+        val left = rectangle(0f, 0f, 28f, 20f)
+        val right = rectangle(28.5f, 0f, 31.5f, 20f)
+        assertFalse("Um espaço vetorial estreito não pode virar ponto Satin.",
+            CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                listOf(left, right),
+                CleanRoomSatinEngine.V(0.5f, 10f),
+                CleanRoomSatinEngine.V(59.5f, 10f)
+            ))
+    }
+
+    @Test
     fun rasterFallbackNeverProducesSatinLongerThanSixMillimeters() {
         assertFalse(CleanRoomSatinEngine.rasterRailStaysInsideOutline(
             listOf(rectangle(0f, 0f, 100f, 100f)),
