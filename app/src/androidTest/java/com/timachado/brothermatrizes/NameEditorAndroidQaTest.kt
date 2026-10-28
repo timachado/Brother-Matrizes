@@ -64,6 +64,38 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun simulatorOffersDirectRegenerationForEditableImportedFont() {
+        val original = frame()
+        val saved = NamePersonalization.add(
+            original,
+            TextMatrixOptions(text = "Maria", heightMm = 9f),
+            0, 0
+        ).getOrThrow()
+        // The font ID is deliberately synthetic: this test checks that
+        // the reprocessing action is exposed, not font import permissions.
+        val withImportedFont = saved.copy(
+            editableName = requireNotNull(saved.editableName).copy(
+                options = requireNotNull(saved.editableName).options.copy(
+                    importedFontId = "test-bertilda-id"
+                )
+            )
+        )
+        var rebuilt = false
+        composeRule.setContent {
+            SimulatorScreen(
+                design = withImportedFont,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onRebuildName = { rebuilt = true }
+            )
+        }
+        composeRule.onNodeWithText("Gerar novas pontadas e simular")
+            .performScrollTo()
+            .performClick()
+        composeRule.runOnIdle { assertTrue(rebuilt) }
+    }
+
+    @Test
     fun mariaCanChangeToSophiaAndOpenNativeSimulator() {
         val original = frame()
         var submitted: EmbroideryDesign? = null
