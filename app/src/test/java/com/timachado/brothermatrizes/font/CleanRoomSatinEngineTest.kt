@@ -3,6 +3,8 @@ package com.timachado.brothermatrizes.font
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.roundToInt
@@ -258,7 +260,7 @@ class CleanRoomSatinEngineTest {
     @Test
     fun bertildaVectorRailDoesNotFillCounterOrDetachedSpace() {
         val outer = rectangle(0f, 0f, 100f, 100f)
-        val inner = rectangle(25f, 25f, 75f, 75f).reversed()
+        val inner = rectangle(25f, 25f, 50f, 50f).reversed()
         val centreInHole = CleanRoomSatinEngine.exactVectorRail(
             listOf(outer, inner),
             CleanRoomSatinEngine.V(50f, 50f),
