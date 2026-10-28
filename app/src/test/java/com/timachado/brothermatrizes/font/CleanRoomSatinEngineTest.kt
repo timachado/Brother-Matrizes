@@ -86,6 +86,62 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun tallScriptStemGetsTransverseRailsInsteadOfVerticalStitchBands() {
+        // Regressão da fonte Bertilda: as hastes longas do M são verticais,
+        // logo as barras Satin precisam atravessá-las horizontalmente.
+        val stem = rectangle(0f, 0f, 16f, 140f)
+        val rails = CleanRoomSatinEngine.planContours(
+            listOf(stem), densityMm = .45f, pullMm = .12f
+        ).rails.flatten()
+        assertTrue("Haste vertical precisa de várias carreiras.", rails.size >= 20)
+        val transverse = rails.count { rail ->
+            kotlin.math.abs(rail.a.x - rail.b.x) >
+                2f * kotlin.math.abs(rail.a.y - rail.b.y)
+        }
+        assertTrue("Satin deve atravessar a haste e não percorrê-la no sentido longo.",
+            transverse >= rails.size * 0.7f)
+        assertTrue("Nenhuma barra pode exceder 6 mm.",
+            rails.all { kotlin.math.hypot(
+                it.a.x - it.b.x, it.a.y - it.b.y
+            ) <= 60.5f })
+    }
+
+    @Test
+    fun curvedScriptStrokeMustRotateSatinRailsWithLocalDirection() {
+        // Arco manuscrito como os de M/a/r: o eixo do traço gira,
+        // portanto uma sequência de barras Satin exclusivamente verticais
+        // deixa as partes íngremes com preenchimento deformado.
+        val outer = (0..60).map { i ->
+            val t = Math.PI * i / 60.0
+            CleanRoomSatinEngine.V(
+                (75 + 55 * kotlin.math.cos(t)).toFloat(),
+                (55 + 55 * kotlin.math.sin(t)).toFloat()
+            )
+        }
+        val inner = (60 downTo 0).map { i ->
+            val t = Math.PI * i / 60.0
+            CleanRoomSatinEngine.V(
+                (75 + 39 * kotlin.math.cos(t)).toFloat(),
+                (55 + 39 * kotlin.math.sin(t)).toFloat()
+            )
+        }
+        val rails = CleanRoomSatinEngine.planContours(
+            listOf(outer + inner), densityMm = .45f, pullMm = .10f
+        ).rails.flatten()
+        assertTrue("O arco precisa de carreiras contínuas.", rails.size > 15)
+        val horizontal = rails.count {
+            kotlin.math.abs(it.a.x - it.b.x) >
+                1.5f * kotlin.math.abs(it.a.y - it.b.y)
+        }
+        val vertical = rails.count {
+            kotlin.math.abs(it.a.y - it.b.y) >
+                1.5f * kotlin.math.abs(it.a.x - it.b.x)
+        }
+        assertTrue("Curva exige barras com orientações distintas.",
+            horizontal >= 4 && vertical >= 4)
+    }
+
+    @Test
     fun enlargedCursiveGlyphReplansSatinAtOriginalDensity() {
         // Regressão: expandir 2x o nome NÃO deve expandir 2x a distância
         // entre as colunas Satin. Primeiro dimensionamos o contorno TTF.
