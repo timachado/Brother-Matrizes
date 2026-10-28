@@ -1292,9 +1292,15 @@ internal object CleanRoomSatinEngine {
         normal: V,
         rasterStep: Float
     ): V? {
-        if (insideOriginalVector(contours, center)) return center
         require(rasterStep > 0f && rasterStep.isFinite())
         val norm = normalized(normal) ?: return null
+        // A point exactly ON the outline can satisfy winding but have no
+        // transverse intersection on one side. Require a real vector bar
+        // before accepting the raster sample as a valid Satin centre.
+        fun usable(v: V) =
+            insideOriginalVector(contours, v) &&
+                exactVectorRail(contours, v, norm, 0f) != null
+        if (usable(center)) return center
         val quantum = rasterStep * 0.16f
         for (n in 1..5) {
             for (sign in listOf(-1f, 1f)) {
@@ -1302,7 +1308,7 @@ internal object CleanRoomSatinEngine {
                     center.x + norm.x * quantum * n * sign,
                     center.y + norm.y * quantum * n * sign
                 )
-                if (insideOriginalVector(contours, candidate)) return candidate
+                if (usable(candidate)) return candidate
             }
         }
         return null
