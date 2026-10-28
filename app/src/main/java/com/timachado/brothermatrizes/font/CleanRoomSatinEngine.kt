@@ -495,7 +495,7 @@ internal object CleanRoomSatinEngine {
                 val next = interpolated[(i + 1).coerceAtMost(interpolated.lastIndex)]
                 val tangent = normalized(V(next.x - prev.x, next.y - prev.y))
                 tangent?.let {
-                    crossSection(raster, c, V(-it.y, it.x), pullMm * 10f)
+                    crossSection(raster, c, V(-it.y, it.x), pullMm * 10f, contours)
                 }?.takeIf { length(it.a, it.b) >= 1.5f }
             }
             // Missing one or two columns in an otherwise continuous glyph
@@ -1032,8 +1032,61 @@ internal object CleanRoomSatinEngine {
         return samples
     }
 
+    /**
+     * Refine transverse Satin endpoints against the exact TTF/OTF contours.
+     * The skeleton still defines stitch ORDER, but the bitmap cannot decide
+     * needle endpoints: its stair-step boundaries are visible as jagged glyphs.
+     *
+     * Intersect each half-ray with the first outline boundary. This preserves
+     * counters (a/o), disconnected ornaments, and narrow joins. A ray cannot
+     * continue beyond the nearest contour or a 3.5 mm half-width limit.
+     */
+    internal fun exactVectorRail(
+        contours: List<List<V>>, center: V, normal: V, pullUnits: Float
+    ): Rail? {
+        var winding = 0
+        val origin = center
+        var left = Float.POSITIVE_INFINITY
+        var right = Float.POSITIVE_INFINITY
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                val ex = b.x - a.x
+                val ey = b.y - a.y
+                // Non-zero winding: reject centres inside a genuine letter
+                // counter, even when a raster sampling pixel is occupied.
+                val side = ex * (origin.y - a.y) - ey * (origin.x - a.x)
+                if (a.y <= origin.y && b.y > origin.y && side > 0f) winding++
+                if (a.y > origin.y && b.y <= origin.y && side < 0f) winding--
+                val det = normal.x * ey - normal.y * ex
+                if (kotlin.math.abs(det) < 1e-5f) continue
+                val px = a.x - origin.x
+                val py = a.y - origin.y
+                val t = (px * ey - py * ex) / det
+                val u = (px * normal.y - py * normal.x) / det
+                if (u < 0f || u >= 1f) continue
+                if (t > 0.01f && t < right) right = t
+                if (t < -0.01f && -t < left) left = -t
+            }
+        }
+        if (winding == 0 || !left.isFinite() || !right.isFinite() ||
+            left > 35f || right > 35f) return null
+        val width = left + right
+        if (width < 1.5f) return null
+        val safePull = minOf(pullUnits, max(0.4f, width * 0.5f))
+        return Rail(
+            V(origin.x - normal.x * (left + safePull),
+                origin.y - normal.y * (left + safePull)),
+            V(origin.x + normal.x * (right + safePull),
+                origin.y + normal.y * (right + safePull))
+        )
+    }
+
     private fun crossSection(
-        mask: Raster, center: V, normal: V, pullUnits: Float
+        mask: Raster, center: V, normal: V, pullUnits: Float,
+        contours: List<List<V>>
     ): Rail? {
         val sampling = minOf(0.85f, mask.step / 2f)
         fun insideAt(x: Float, y: Float): Boolean {
@@ -1058,6 +1111,11 @@ internal object CleanRoomSatinEngine {
                 } ?: return null
             V(mask.left + nearest.first * mask.step,
                 mask.top + nearest.second * mask.step)
+        }
+        // The skeleton's raster position is allowed to move by at most
+        // one pixel. Prefer precise vector intersections whenever possible.
+        exactVectorRail(contours, effectiveCenter, normal, pullUnits)?.let {
+            return it
         }
         val maxExtent = 35f // 7 mm full satin width limit
         fun edge(sign: Float): Float {
