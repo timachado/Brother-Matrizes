@@ -135,22 +135,19 @@ internal object CleanRoomSatinEngine {
         scaledGlyphs.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
-            val plan = if (outlines.contextualShapingPreserved) {
-                // Em fontes manuscritas conectadas, afinar a palavra inteira
-                // destrói ramos nos cruzamentos. Preservar a SILHUETA real
-                // por carreiras curtas respeitando vazados, sem inventar
-                // diagonais Satin que deformam as letras.
-                planContextualFill(
-                    contours,
-                    densityMm = options.satinDensityMm
-                )
-            } else {
-                planContours(
-                    contours,
-                    densityMm = options.satinDensityMm,
-                    pullMm = options.satinPullCompensationMm
-                )
-            }
+            // Use a stroke-following centreline for contextual scripts.
+            // Vertical scanlines make a tall M stem sew ALONG its outline
+            // instead of crossing the stroke, yielding square bands and
+            // partially broken loops in Bertilda. The skeleton planner
+            // follows each local tangent and places satin rails normal to
+            // it; detached dots and very thin strokes have dedicated
+            // reconstruction in planContours. No silent fallback to the
+            // defective vertical-only path for a connected script.
+            val plan = planContours(
+                contours,
+                densityMm = options.satinDensityMm,
+                pullMm = options.satinPullCompensationMm
+            )
             require(plan.rails.isNotEmpty()) {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
@@ -168,7 +165,16 @@ internal object CleanRoomSatinEngine {
         }
         // A presença de pontos não é suficiente para liberar uma fonte:
         // a sequência precisa reproduzir pelo menos a silhueta do glifo.
-        ImportedFontCoverageGuard.check(scaledGlyphs, points)
+        val silhouette = ImportedFontCoverageGuard.check(scaledGlyphs, points)
+        // A script must cover more than one fifth of its vector area.
+        // If thinning destroys a connection, reject the output instead
+        // of presenting broken glyphs as safe embroidery.
+        if (outlines.contextualShapingPreserved) {
+            require(silhouette.coverage >= .36f && silhouette.precision >= .66f) {
+                "Os traços da fonte importada não foram reconstruídos com " +
+                    "cobertura suficiente. Matriz não liberada para bordado."
+            }
+        }
         val last = points.last()
         points.add(last.copy(command = StitchCommand.END))
         val coords = points.filter { it.command != StitchCommand.END }
