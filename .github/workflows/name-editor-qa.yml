@@ -90,7 +90,9 @@ jobs:
             sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Android 35 - Maria/Sophia, simulação, exportação e seleção segura
+      # Release gate: UI smoke tests alone do not validate imported-font Satin.
+      # Execute both Android QA and stitch-sequence regression tests on API 35.
+      - name: Android 35 - editor, simulação e regressões Satin de fontes importadas
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -99,7 +101,7 @@ jobs:
           disable-animations: true
           script: >
             gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
-            -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.NameEditorAndroidQaTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.NameEditorAndroidQaTest,com.timachado.brothermatrizes.ImportedFontSatinSequenceTest
       - name: Guardar relatório de testes Android
         if: always()
         uses: actions/upload-artifact@v4
