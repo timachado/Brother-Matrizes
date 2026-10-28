@@ -48,6 +48,7 @@ import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
+import java.util.zip.CRC32
 
 @Composable
 fun SimulatorScreen(
@@ -62,8 +63,27 @@ fun SimulatorScreen(
     showConnections:
         Boolean =
         false,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEditName: (() -> Unit)? = null
 ) {
+    val fingerprint = remember(design) {
+        // Exact deterministic fingerprint of the coordinates currently
+        // replayed. Changes whenever a saved glyph is truly reprocessed.
+        // CRC32 is an identification checksum, not a security signature.
+        val crc = CRC32()
+        fun recordInt(number: Int) {
+            for (shift in 0..3) crc.update((number ushr (shift * 8)) and 0xff)
+        }
+        design.points.forEach { point ->
+            recordInt(point.xUnits)
+            recordInt(point.yUnits)
+            recordInt(point.command.ordinal)
+            recordInt(point.colorIndex)
+        }
+        java.lang.Long.toHexString(crc.value).padStart(8, '0').uppercase(Locale.ROOT)
+    }
+    val hasEditableImportedName = design.editableName?.options?.importedFontId != null
+
     val points =
         remember(design) {
             design.points
@@ -459,6 +479,22 @@ fun SimulatorScreen(
                     )
                 }
 
+                // The preview never recalculates a PES; it plays the
+                // commands in this exact sequence. Display an unambiguous
+                // fingerprint so a reused saved file cannot be mistaken
+                // for a fresh Bertilda conversion.
+                Text(
+                    text = "Sequência: $fingerprint • " +
+                        if (hasEditableImportedName) "nome editável" else "pontadas armazenadas",
+                    color = FioTextMuted,
+                    fontSize = 9.sp
+                )
+                if (hasEditableImportedName && onEditName != null) {
+                    TextButton(
+                        onClick = onEditName,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Atualizar pontadas da fonte no editor", fontSize = 10.sp) }
+                }
                 Spacer(
                     Modifier.height(
                         4.dp
