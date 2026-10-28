@@ -10,7 +10,10 @@ object MatrixEditor {
         design: EmbroideryDesign,
         transform: EditTransform
     ): EmbroideryDesign {
-        require(transform.scale in 0.1f..5f) {
+        require(transform.scale in 0.1f..5f &&
+            transform.scaleX.isFinite() && transform.scaleY.isFinite() &&
+            transform.scaleX in 0.5f..2.5f &&
+            transform.scaleY in 0.5f..2.5f) {
             "Escala fora do intervalo permitido."
         }
 
@@ -81,8 +84,8 @@ object MatrixEditor {
                     y = -y
                 }
 
-                x *= transform.scale
-                y *= transform.scale
+                x *= transform.scale * transform.scaleX
+                y *= transform.scale * transform.scaleY
 
                 val rotatedX =
                     x * cosine -
@@ -145,6 +148,8 @@ object MatrixEditor {
             threadColors =
                 transform.threadColors
                     ?: design.threadColors,
+            // Edição global de coordenadas invalida a âncora do texto.
+            editableName = null,
             isModified = true
         )
     }

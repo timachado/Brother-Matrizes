@@ -1,5 +1,9 @@
 package com.timachado.brothermatrizes.font
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
@@ -33,7 +37,8 @@ internal object AndroidSkiaOutlineExtractor {
     data class Result(
         val glyphPolygons: List<List<List<Point>>>,
         val sourceWidth: Float,
-        val sourceHeight: Float
+        val sourceHeight: Float,
+        val contextualShapingPreserved: Boolean = false
     )
 
     private data class RawGlyph(
@@ -108,6 +113,7 @@ internal object AndroidSkiaOutlineExtractor {
 
         val rawGlyphs =
             mutableListOf<RawGlyph>()
+        val independentlyShaped = Path()
 
         // O deslocamento deve considerar kerning e shaping do texto completo,
         // em vez de somar larguras isoladas (que separa fontes cursivas).
@@ -155,6 +161,16 @@ internal object AndroidSkiaOutlineExtractor {
                     textOffset
                 )
                 val glyphX = shapedX + index * spacingUnits
+
+                // Uso apenas para comparação: o texto unido aplica formas
+                // iniciais/mediais/finais e ligaduras que não existem se
+                // chamarmos getTextPath para cada letra isoladamente.
+                val isolated = Path()
+                paint.getTextPath(
+                    glyphText, 0, glyphText.length,
+                    shapedX, 0f, isolated
+                )
+                independentlyShaped.addPath(isolated)
 
                 val path =
                     Path()
@@ -212,23 +228,67 @@ internal object AndroidSkiaOutlineExtractor {
             "A fonte não gerou glifos vetoriais bordáveis."
         }
 
+        val completeTextPath = Path()
+        paint.getTextPath(text, 0, text.length, 0f, 0f, completeTextPath)
+        val meaningfulOverlap = if (rawGlyphs.size < 2) false else {
+            // Algumas cursivas são conectadas por sobreposição de
+            // contornos, mesmo sem substituições OpenType. Costurar cada
+            // glifo isoladamente pode duplicar a junção e empelotar.
+            val overlaps = rawGlyphs.zipWithNext().count { (a, b) ->
+                (a.right - b.left) >= targetCapHeightUnits * 0.03f
+            }
+            overlaps >= max(1, (rawGlyphs.size - 1) / 3)
+        }
+        val contextualShaping = codePoints.size > 1 &&
+            !completeTextPath.isEmpty &&
+            (glyphShapeDiffers(completeTextPath, independentlyShaped) ||
+                meaningfulOverlap)
+
+        // Fontes manuscritas (ex.: Bertilda) mudam o glifo conforme o
+        // contexto. Dividir a palavra em caracteres isolados gera
+        // curvas equivocadas, letras coladas e Satin ilegível.
+        // Em modo contextual, o espaço é distribuído por escala leve
+        // de tracking, SEM separar fisicamente as ligações cursivas.
+        val glyphsForStitch = if (contextualShaping) {
+            val wholeBounds = RectF()
+            completeTextPath.computeBounds(wholeBounds, true)
+            val originalWidth = wholeBounds.width().coerceAtLeast(1f)
+            val extraWidth = spacingUnits * (codePoints.size - 1)
+            val scaleX = ((originalWidth + extraWidth) / originalWidth)
+                .coerceIn(0.7f, 2.0f)
+            val transform = Matrix().apply {
+                postScale(scaleX, 1f, wholeBounds.left, wholeBounds.centerY())
+            }
+            val shaped = Path().also { completeTextPath.transform(transform, it) }
+            val bounds = RectF().also { shaped.computeBounds(it, true) }
+            listOf(
+                RawGlyph(
+                    contours = sampleContours(shaped),
+                    left = bounds.left, right = bounds.right,
+                    top = bounds.top, bottom = bounds.bottom
+                )
+            )
+        } else {
+            rawGlyphs
+        }
+
         val minX =
-            rawGlyphs.minOf {
+            glyphsForStitch.minOf {
                 it.left
             }
 
         val maxX =
-            rawGlyphs.maxOf {
+            glyphsForStitch.maxOf {
                 it.right
             }
 
         val minY =
-            rawGlyphs.minOf {
+            glyphsForStitch.minOf {
                 it.top
             }
 
         val maxY =
-            rawGlyphs.maxOf {
+            glyphsForStitch.maxOf {
                 it.bottom
             }
 
@@ -265,7 +325,7 @@ internal object AndroidSkiaOutlineExtractor {
                 .toFloat()
 
         val transformed =
-            rawGlyphs.map {
+            glyphsForStitch.map {
                     glyph ->
                 glyph.contours.map {
                     contour ->
@@ -303,8 +363,60 @@ internal object AndroidSkiaOutlineExtractor {
                     minX,
             sourceHeight =
                 maxY -
-                    minY
+                    minY,
+            contextualShapingPreserved = contextualShaping
         )
+    }
+
+    /**
+     * Compara a SILHUETA do texto formado como palavra com a soma das
+     * letras isoladas. Pequenas diferenças por hinting não importam; uma
+     * diferença de >=4% da área indica shaping contextual/ligadura.
+     * Amostragem limitada a 240×96 pixels; fonte nunca é serializada.
+     */
+    internal fun glyphShapeDiffers(whole: Path, isolated: Path): Boolean {
+        val wb = RectF().also { whole.computeBounds(it, true) }
+        val ib = RectF().also { isolated.computeBounds(it, true) }
+        val bounds = RectF(wb).also { it.union(ib) }
+        if (bounds.width() <= .01f || bounds.height() <= .01f) return false
+        val width = 240
+        val height = 96
+        val matrix = Matrix().apply {
+            postTranslate(-bounds.left, -bounds.top)
+            postScale(
+                (width - 4f) / bounds.width(),
+                (height - 4f) / bounds.height()
+            )
+            postTranslate(2f, 2f)
+        }
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8)
+        try {
+            fun pixels(path: Path): ByteArray {
+                bitmap.eraseColor(Color.TRANSPARENT)
+                val shaped = Path().also { path.transform(matrix, it) }
+                Canvas(bitmap).drawPath(shaped, Paint().apply {
+                    color = Color.WHITE
+                    style = Paint.Style.FILL
+                    isAntiAlias = false
+                })
+                val buffer = java.nio.ByteBuffer.allocate(width * height)
+                bitmap.copyPixelsToBuffer(buffer)
+                return buffer.array()
+            }
+            val full = pixels(whole)
+            val parts = pixels(isolated)
+            var different = 0
+            var covered = 0
+            for (i in full.indices) {
+                val f = full[i].toInt() and 0xff
+                val p = parts[i].toInt() and 0xff
+                if (f != 0 || p != 0) covered++
+                if ((f != 0) != (p != 0)) different++
+            }
+            return covered > 0 && different.toFloat() / covered >= .04f
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     private fun measuredCapHeight(

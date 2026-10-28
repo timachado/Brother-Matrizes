@@ -44,6 +44,105 @@ class ImportedFontSatinSequenceTest {
     }
 
     @Test
+    fun fontQualityGateRejectsScribbleOutsideOriginalLetter() {
+        val box = listOf(
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 100f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 100f)
+        )
+        val scribble = listOf(
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                -50, -40, StitchCommand.JUMP, 0
+            ),
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                50, -30, StitchCommand.STITCH, 0
+            ),
+            com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint(
+                160, 150, StitchCommand.STITCH, 0
+            )
+        )
+        val failure = runCatching {
+            com.timachado.brothermatrizes.font.ImportedFontCoverageGuard
+                .check(listOf(listOf(box)), scribble)
+        }
+        assertTrue("Não liberar uma palavra cuja rota saia da letra.",
+            failure.isFailure)
+    }
+
+    @Test
+    fun contextualColumnFillCreatesSatinBarsAcrossGlyphWidth() {
+        val rectangle = listOf(
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(0f, 0f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(70f, 0f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(70f, 40f),
+            com.timachado.brothermatrizes.font.CleanRoomSatinEngine.V(0f, 40f)
+        )
+        val plan = com.timachado.brothermatrizes.font.CleanRoomSatinEngine
+            .planContextualFill(listOf(rectangle), densityMm = 0.5f)
+        assertTrue(plan.rails.isNotEmpty())
+        val bars = plan.rails.flatten()
+        assertTrue(bars.size >= 5)
+        assertTrue(
+            "Preenchimento cursivo deve usar barras Satin verticais, não " +
+                "linhas corridas horizontais.",
+            bars.count { kotlin.math.abs(it.a.y - it.b.y) >
+                kotlin.math.abs(it.a.x - it.b.x) * 3f } >= bars.size * 3 / 4
+        )
+    }
+
+    @Test
+    fun contextualFontComparisonDetectsDifferentLetterShapes() {
+        val whole = android.graphics.Path().apply {
+            addRect(0f, 0f, 100f, 70f, android.graphics.Path.Direction.CW)
+        }
+        val isolated = android.graphics.Path().apply {
+            addRect(0f, 0f, 45f, 70f, android.graphics.Path.Direction.CW)
+            addRect(55f, 0f, 100f, 70f, android.graphics.Path.Direction.CW)
+        }
+        assertTrue(
+            "Mudanças contextuais/ligaduras não podem ser tratadas como letras isoladas.",
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor
+                .glyphShapeDiffers(whole, isolated)
+        )
+        assertFalse(
+            "Mesmos contornos não justificam rota contextual diferente.",
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor
+                .glyphShapeDiffers(whole, whole)
+        )
+    }
+
+    @Test
+    fun cursiveWordKeepsFullShapingWhenFontIsPresentOnAndroid() {
+        val fontFile = listOf(
+            File("/system/fonts/DancingScript-Regular.ttf"),
+            File("/system/fonts/DancingScript-Bold.ttf")
+        ).firstOrNull { it.isFile } ?: return
+        val font = ImportedFont(
+            id = fontFile.name, displayName = "Cursiva Android",
+            fileName = fontFile.name, extension = "ttf",
+            absolutePath = fontFile.absolutePath
+        )
+        val geometry = com.timachado.brothermatrizes.font
+            .AndroidSkiaOutlineExtractor.extract(
+                font = font, text = "Maria",
+                targetCapHeightUnits = 150f,
+                spacingUnits = 12f,
+                rotationDegrees = 0f
+            )
+        assertTrue(geometry.glyphPolygons.isNotEmpty())
+        assertTrue(geometry.sourceWidth > 40f)
+        val design = ImportedFontMatrixGenerator.generateText(
+            font, "Maria",
+            TextMatrixOptions(text = "Maria", heightMm = 15f,
+                spacingMm = 1.2f, style = TextStitchStyle.SATIN,
+                enforceHoop = false)
+        ).getOrThrow()
+        assertTrue(design.stitchCount > 10)
+        assertTrue(design.bounds.widthMm > 5f)
+    }
+
+    @Test
     fun importedSatinNeverReturnsToPreviousGlyphAfterAdvancing() {
         val design =
             ImportedFontMatrixGenerator

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
@@ -57,6 +58,19 @@ fun MachineSimulationCanvas(
                 "nome-"
             )
 
+    // Caminho otimizado para matrizes comuns: manter desenhadas as pontadas
+    // já executadas sem percorrer do início em todos os frames.
+    // Casos especiais continuam usando o renderizador fiel legado.
+    val fastStitchRendering =
+        !referenceTextSimulation &&
+        !showConnections &&
+        displayMode != EmbroideryDisplayMode.POINTS &&
+        design.points.none { it.command == StitchCommand.SEQUIN }
+
+    // Capturado apenas pelo draw, não durante a construção do cache.
+    // Assim a troca de ponto não precisa reconstruir os caminhos.
+    val currentLimit = rememberUpdatedState(pointLimit)
+
     Box(
         modifier =
             modifier
@@ -98,6 +112,12 @@ fun MachineSimulationCanvas(
                             transform =
                                 cachedTransform
                         )
+
+                    val cachedStitchChunks = if (fastStitchRendering) {
+                        buildSimulationStitchChunks(design, cachedTransform)
+                    } else {
+                        emptyList()
+                    }
 
                     onDrawBehind {
                         drawFabricGrid(
@@ -161,6 +181,15 @@ fun MachineSimulationCanvas(
                                     )
                             )
                         }
+
+                        if (fastStitchRendering) {
+                            drawCachedCompletedStitches(
+                                design = design,
+                                chunks = cachedStitchChunks,
+                                pointLimit = currentLimit.value,
+                                displayMode = displayMode
+                            )
+                        }
                     }
                 }
         ) {
@@ -182,7 +211,9 @@ fun MachineSimulationCanvas(
                         1.dp.toPx()
                 )
 
-            if (
+            if (fastStitchRendering) {
+                // Já desenhado via drawWithCache; somente cursor abaixo.
+            } else if (
                 referenceTextSimulation
             ) {
                 drawReferenceCompletedStitches(
@@ -281,6 +312,129 @@ fun MachineSimulationCanvas(
     }
 }
 
+/**
+ * Segmentos de pontos costurados, organizados por blocos de até 192 STITCH.
+ * Guardar o índice do comando permite desenhar a parte atual do bloco
+ * sem refazer o caminho completo da matriz em cada tick.
+ */
+private data class SimulationStitchSegment(
+    val commandIndex: Int,
+    val start: Offset,
+    val end: Offset
+)
+
+private data class SimulationStitchChunk(
+    val colorIndex: Int,
+    val endExclusive: Int,
+    val segments: List<SimulationStitchSegment>,
+    val fullPath: Path
+)
+
+private const val SIMULATION_CHUNK_STITCHES = 192
+
+private fun buildSimulationStitchChunks(
+    design: EmbroideryDesign,
+    transform: SimulationTransform
+): List<SimulationStitchChunk> {
+    val completed = ArrayList<SimulationStitchChunk>()
+    var previous: EmbroideryPoint? = null
+    var currentColor = -1
+    val buffer = ArrayList<SimulationStitchSegment>(SIMULATION_CHUNK_STITCHES)
+    var chunkPath = Path()
+
+    fun finish() {
+        if (buffer.isEmpty()) return
+        completed += SimulationStitchChunk(
+            colorIndex = currentColor,
+            endExclusive = buffer.last().commandIndex + 1,
+            segments = buffer.toList(),
+            fullPath = chunkPath
+        )
+        buffer.clear()
+        chunkPath = Path()
+    }
+
+    design.points.forEachIndexed { index, point ->
+        when (point.command) {
+            StitchCommand.END -> return completed.apply { finish() }
+            StitchCommand.STITCH -> {
+                val from = previous
+                if (from != null) {
+                    if (currentColor != point.colorIndex ||
+                        buffer.size >= SIMULATION_CHUNK_STITCHES
+                    ) {
+                        finish()
+                        currentColor = point.colorIndex
+                    }
+                    val a = transform.point(from)
+                    val b = transform.point(point)
+                    buffer += SimulationStitchSegment(index, a, b)
+                    chunkPath.moveTo(a.x, a.y)
+                    chunkPath.lineTo(b.x, b.y)
+                }
+                previous = point
+            }
+            else -> previous = point
+        }
+    }
+    finish()
+    return completed
+}
+
+/**
+ * Custo por avanço: desenhar somente os caminhos prontos e, no máximo,
+ * 192 segmentos do bloco parcialmente executado. Sem loop de 13 mil pontos
+ * nem 3 drawLine individuais por ponto em cada tick.
+ */
+private fun DrawScope.drawCachedCompletedStitches(
+    design: EmbroideryDesign,
+    chunks: List<SimulationStitchChunk>,
+    pointLimit: Int,
+    displayMode: EmbroideryDisplayMode
+) {
+    for (chunk in chunks) {
+        if (chunk.segments.first().commandIndex >= pointLimit) break
+        val path = if (chunk.endExclusive <= pointLimit) {
+            chunk.fullPath
+        } else {
+            Path().apply {
+                for (segment in chunk.segments) {
+                    if (segment.commandIndex >= pointLimit) break
+                    moveTo(segment.start.x, segment.start.y)
+                    lineTo(segment.end.x, segment.end.y)
+                }
+            }
+        }
+        val color = threadColor(design, chunk.colorIndex)
+        if (displayMode == EmbroideryDisplayMode.REALISTIC) {
+            // Sombra e brilho em caminhos agrupados: relevo visual com
+            // poucas chamadas ao canvas/GPU por bloco.
+            drawPath(
+                path = path,
+                color = Color(
+                    color.red * .38f, color.green * .38f,
+                    color.blue * .38f, .36f
+                ),
+                style = Stroke(width = 1.55.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+        drawPath(
+            path = path,
+            color = color.copy(alpha = .98f),
+            style = Stroke(width = if (displayMode == EmbroideryDisplayMode.REALISTIC)
+                1.05.dp.toPx() else 1.35.dp.toPx(), cap = StrokeCap.Round)
+        )
+        if (displayMode == EmbroideryDisplayMode.REALISTIC) {
+            drawPath(
+                path = path,
+                color = Color.White.copy(alpha = .12f),
+                style = Stroke(width = .22.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+        if (chunk.endExclusive > pointLimit) break
+    }
+}
+
 private data class GhostStitchPath(
     val colorIndex: Int,
     val path: Path
@@ -304,6 +458,23 @@ private fun buildGhostStitchPaths(
     }
 }
 
+/**
+ * Personalizações mantêm as coordenadas originais do PES (frequentemente
+ * deslocadas do zero). No simulador, forçar o centro para (0,0) quando
+ * design.isModified=true jogava o nome para fora do bastidor.
+ */
+internal fun simulationCenterUnits(
+    design: EmbroideryDesign,
+    minimum: Int,
+    maximum: Int,
+    referenceTextMode: Boolean
+): Float =
+    if (referenceTextMode || design.editableName != null || !design.isModified) {
+        (minimum.toLong() + maximum.toLong()) / 2f
+    } else {
+        0f
+    }
+
 private data class SimulationTransform(
     val design: EmbroideryDesign,
     val canvasWidth: Float,
@@ -315,78 +486,48 @@ private data class SimulationTransform(
     val uiScale: Float =
         1f
 ) {
-    private val referencePoints =
-        (
-            if (
-                referenceTextMode
-            ) {
-                /*
-                 * O simulador do MãoDesign enquadra o bloco de pontos gerado.
-                 * guidePoints é apenas geometria auxiliar e não participa do
-                 * bounds visual da simulação.
-                 */
-                /*
-                 * Centralização visual usa somente a geometria realmente
-                 * costurada. JUMP/TRIM invisíveis não podem deslocar o nome
-                 * dentro do bastidor.
-                 */
-                design.points
-                    .filter {
-                        it.command ==
-                            StitchCommand.STITCH ||
-                        it.command ==
-                            StitchCommand.STOP ||
-                        it.command ==
-                            StitchCommand.SEQUIN
-                    }
-                    .ifEmpty {
-                        design.points
-                            .filter {
-                                it.command !=
-                                    StitchCommand.END
-                            }
-                    }
-            } else {
-                design.points +
-                    design.guidePoints
-            }
-            )
-            .filter {
-                it.command !=
-                    StitchCommand.END
-            }
+    // Matriz normal: bounds já contém os limites calculados na importação.
+    // Não percorrer 13 mil pontos nem criar listas em cada quadro.
+    // Pontos auxiliares continuam participando do enquadramento.
+    private val referencePoints = if (referenceTextMode) {
+        design.points.filter {
+            it.command == StitchCommand.STITCH ||
+                it.command == StitchCommand.STOP ||
+                it.command == StitchCommand.SEQUIN
+        }.ifEmpty {
+            design.points.filter { it.command != StitchCommand.END }
+        }
+    } else {
+        emptyList()
+    }
 
-    private val minXUnits =
-        referencePoints
-            .minOfOrNull {
-                it.xUnits
-            }
-            ?: design.bounds
-                .minXUnits
+    private val minXUnits = if (referenceTextMode) {
+        referencePoints.minOfOrNull { it.xUnits } ?: design.bounds.minXUnits
+    } else {
+        minOf(design.bounds.minXUnits,
+            design.guidePoints.minOfOrNull { it.xUnits } ?: Int.MAX_VALUE)
+    }
 
-    private val maxXUnits =
-        referencePoints
-            .maxOfOrNull {
-                it.xUnits
-            }
-            ?: design.bounds
-                .maxXUnits
+    private val maxXUnits = if (referenceTextMode) {
+        referencePoints.maxOfOrNull { it.xUnits } ?: design.bounds.maxXUnits
+    } else {
+        maxOf(design.bounds.maxXUnits,
+            design.guidePoints.maxOfOrNull { it.xUnits } ?: Int.MIN_VALUE)
+    }
 
-    private val minYUnits =
-        referencePoints
-            .minOfOrNull {
-                it.yUnits
-            }
-            ?: design.bounds
-                .minYUnits
+    private val minYUnits = if (referenceTextMode) {
+        referencePoints.minOfOrNull { it.yUnits } ?: design.bounds.minYUnits
+    } else {
+        minOf(design.bounds.minYUnits,
+            design.guidePoints.minOfOrNull { it.yUnits } ?: Int.MAX_VALUE)
+    }
 
-    private val maxYUnits =
-        referencePoints
-            .maxOfOrNull {
-                it.yUnits
-            }
-            ?: design.bounds
-                .maxYUnits
+    private val maxYUnits = if (referenceTextMode) {
+        referencePoints.maxOfOrNull { it.yUnits } ?: design.bounds.maxYUnits
+    } else {
+        maxOf(design.bounds.maxYUnits,
+            design.guidePoints.maxOfOrNull { it.yUnits } ?: Int.MIN_VALUE)
+    }
 
     private val widthUnits =
         (
@@ -613,47 +754,13 @@ private data class SimulationTransform(
             ) /
             2f
 
-    private val centerXUnits =
-        if (
-            referenceTextMode
-        ) {
-            (
-                minXUnits +
-                    maxXUnits
-                ) /
-                2f
-        } else if (
-            design.isModified
-        ) {
-            0f
-        } else {
-            (
-                minXUnits +
-                    maxXUnits
-                ) /
-                2f
-        }
+    private val centerXUnits = simulationCenterUnits(
+        design, minXUnits, maxXUnits, referenceTextMode
+    )
 
-    private val centerYUnits =
-        if (
-            referenceTextMode
-        ) {
-            (
-                minYUnits +
-                    maxYUnits
-                ) /
-                2f
-        } else if (
-            design.isModified
-        ) {
-            0f
-        } else {
-            (
-                minYUnits +
-                    maxYUnits
-                ) /
-                2f
-        }
+    private val centerYUnits = simulationCenterUnits(
+        design, minYUnits, maxYUnits, referenceTextMode
+    )
 
     private val centerScreenX =
         canvasWidth /

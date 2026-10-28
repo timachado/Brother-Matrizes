@@ -20,8 +20,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 188
-        versionName = "1.11.1"
+        versionCode = 189
+        versionName = "1.11.2"
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
@@ -58,7 +58,12 @@ android {
         debug {
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (providers.gradleProperty("brotherNameEditorQa").orNull == "true") {
+                // Homologação do editor de nomes, instalada paralelamente.
+                // Este sufixo NUNCA é aplicado em release comercial.
+                applicationIdSuffix = ".nameqa"
+                versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"

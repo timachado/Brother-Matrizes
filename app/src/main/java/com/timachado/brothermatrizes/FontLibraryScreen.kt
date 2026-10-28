@@ -80,6 +80,12 @@ fun FontLibraryScreen(
 
     fun guardedPicker(action: () -> Unit) {
         scope.launch {
+            if (NameQaImportPolicy.allowLocalImportWithoutAccount(
+                BuildConfig.DEBUG, context.packageName
+            )) {
+                action()
+                return@launch
+            }
             val permitted = com.timachado.brothermatrizes.core.account
                 .BrotherMatrizesAccountService.ensureGoogleSession()
             if (permitted.isFailure) {
@@ -103,36 +109,44 @@ fun FontLibraryScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) scope.launch {
-            val permit = com.timachado.brothermatrizes.core.account
-                .BrotherMatrizesAccountService.authorizeImport(context = context, isFont = true)
-            if (permit.isFailure) {
-                statusMessage = permit.exceptionOrNull()?.message
-                    ?: "Não foi possível confirmar sua cota de fontes."
-            } else {
-                val requestKey = permit.getOrThrow()
-                val before = ImportedFontStore.list(context).map { it.id }.toSet()
-                val result = withContext(Dispatchers.IO) {
-                    ImportedFontStore.importFont(context, uri)
+            val qa = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                BuildConfig.DEBUG, context.packageName
+            )
+            val key = if (qa) null else {
+                val permit = com.timachado.brothermatrizes.core.account
+                    .BrotherMatrizesAccountService.authorizeImport(
+                        context = context, isFont = true
+                    )
+                if (permit.isFailure) {
+                    statusMessage = permit.exceptionOrNull()?.message
+                        ?: "Não foi possível confirmar sua cota de fontes."
+                    return@launch
                 }
-                var added = false
-                result.fold(onSuccess = { font ->
-                    added = font.id !in before
-                    importedFonts = ImportedFontStore.list(context)
-                    statusMessage = if (added) {
-                        "${font.displayName} importada e salva neste aparelho."
-                    } else {
-                        "${font.displayName} já estava salva neste aparelho."
-                    }
-                }, onFailure = { problem ->
-                    statusMessage = problem.message ?: "Não foi possível importar esta fonte."
-                })
+                permit.getOrThrow()
+            }
+            val before = ImportedFontStore.list(context).map { it.id }.toSet()
+            val result = withContext(Dispatchers.IO) {
+                ImportedFontStore.importFont(context, uri)
+            }
+            val added = result.getOrNull()?.id !in before && result.isSuccess
+            result.fold(onSuccess = { font ->
+                importedFonts = ImportedFontStore.list(context)
+                statusMessage = if (added) {
+                    "${font.displayName} importada e salva neste aparelho."
+                } else {
+                    "${font.displayName} já estava salva neste aparelho."
+                }
+            }, onFailure = { problem ->
+                statusMessage = problem.message ?: "Não foi possível importar esta fonte."
+            })
+            if (key != null) {
                 val finalized = com.timachado.brothermatrizes.core.account
                     .BrotherMatrizesAccountService.finalizeImport(
-                        context = context, isFont = true, requestKey = requestKey, success = added
+                        context = context, isFont = true, requestKey = key,
+                        success = added
                     )
                 if (finalized.isFailure) {
-                    statusMessage = "Importação concluída, mas houve uma falha ao registrar a cota. " +
-                        "Verifique o armazenamento ou a conexão."
+                    statusMessage = "Importação concluída, mas houve falha ao registrar a cota."
                 }
             }
         }

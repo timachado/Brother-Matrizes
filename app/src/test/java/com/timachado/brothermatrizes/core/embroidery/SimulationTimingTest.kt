@@ -79,6 +79,70 @@ class SimulationTimingTest {
     }
 
     @Test
+    fun batchesAtHighSpeedButKeepsExactOneXRate() {
+        val oneX = SimulationTiming.commandsForFrame(
+            carryNanos = 0.0,
+            elapsedNanos = 80_000_000L,
+            speedMultiplier = 1f
+        )
+        assertEquals(1, oneX.first)
+
+        val fast = SimulationTiming.commandsForFrame(
+            carryNanos = 0.0,
+            elapsedNanos = 16_000_000L,
+            speedMultiplier = 32f
+        )
+        assertEquals(6, fast.first)
+        assertTrue(fast.second >= 0.0)
+        assertTrue(fast.second < SimulationTiming.eventIntervalNanos(32f))
+    }
+
+    @Test
+    fun accumulatesFractionalFramesWithoutSkippingAtNormalSpeed() {
+        var carry = 0.0
+        var commands = 0
+        repeat(5) {
+            val next = SimulationTiming.commandsForFrame(
+                carry, 16_000_000L, 1f
+            )
+            commands += next.first
+            carry = next.second
+        }
+        assertEquals(1, commands)
+        assertEquals(0.0, carry, 0.0001)
+    }
+
+    @Test
+    fun limitsCatchUpWorkToFortyEventsPerFrame() {
+        val jumped = SimulationTiming.commandsForFrame(
+            carryNanos = 300_000_000.0,
+            elapsedNanos = 100_000_000L,
+            speedMultiplier = 32f
+        )
+        assertEquals(40, jumped.first)
+        assertTrue(jumped.second > 0.0)
+    }
+
+    @Test
+    fun batchPlaybackMustStopAtNeedleStopCommand() {
+        val points = listOf(
+            EmbroideryPoint(0, 0, StitchCommand.JUMP, 0),
+            EmbroideryPoint(10, 0, StitchCommand.STITCH, 0),
+            EmbroideryPoint(10, 0, StitchCommand.STOP, 0),
+            EmbroideryPoint(20, 0, StitchCommand.STITCH, 1),
+            EmbroideryPoint(20, 0, StitchCommand.END, 1)
+        )
+        val first = SimulationTiming.advancePlayback(points, 0, 40)
+        assertEquals(3, first.nextIndex)
+        assertTrue(first.stopped)
+        val resumed = SimulationTiming.advancePlayback(
+            points, first.nextIndex, 40
+        )
+        assertEquals(5, resumed.nextIndex)
+        assertTrue(!resumed.stopped)
+    }
+
+    @Test
     fun invalidValuesReturnZeroTime() {
         assertEquals(
             0,
