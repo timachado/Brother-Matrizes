@@ -584,7 +584,12 @@ internal object CleanRoomSatinEngine {
             val rawRails = interpolated.mapIndexed { i, c ->
                 satinNormalAlongRoute(interpolated, i)?.let { normal ->
                     crossSection(raster, c, normal, pullMm * 10f, contours)
-                }?.takeIf { length(it.a, it.b) >= 1.5f }
+                }?.takeIf { rail ->
+                    // Keep genuine subpixel TTF/OTF stems. The previous 1.5-unit
+                    // cutoff removed narrow cursive strokes at small hoop sizes.
+                    // crossSection already checks the original vector outline.
+                    length(rail.a, rail.b) >= 0.35f
+                }
             }
             // Missing one or two columns in an otherwise continuous glyph
             // must not turn the font into a dashed line. Interpolation is
