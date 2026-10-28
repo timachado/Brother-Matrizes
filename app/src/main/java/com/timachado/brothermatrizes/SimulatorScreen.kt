@@ -50,6 +50,25 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.util.Locale
 import java.util.zip.CRC32
 
+/**
+ * Deterministic checksum of the exact commands shown in the simulator.
+ * Useful to distinguish regenerated names from unchanged saved matrices.
+ */
+internal fun stitchSequenceFingerprint(design: EmbroideryDesign): String {
+    val crc = CRC32()
+    fun recordInt(number: Int) {
+        for (shift in 0..3) crc.update((number ushr (shift * 8)) and 0xff)
+    }
+    design.points.forEach { point ->
+        recordInt(point.xUnits)
+        recordInt(point.yUnits)
+        recordInt(point.command.ordinal)
+        recordInt(point.colorIndex)
+    }
+    return java.lang.Long.toHexString(crc.value)
+        .padStart(8, '0').uppercase(Locale.ROOT)
+}
+
 @Composable
 fun SimulatorScreen(
     design: EmbroideryDesign,
@@ -65,24 +84,11 @@ fun SimulatorScreen(
         false,
     onBack: () -> Unit,
     onEditName: (() -> Unit)? = null,
-    onRebuildName: (() -> Unit)? = null
+    onRebuildName: (() -> Unit)? = null,
+    rebuildStatus: String? = null,
+    rebuildInProgress: Boolean = false
 ) {
-    val fingerprint = remember(design) {
-        // Exact deterministic fingerprint of the coordinates currently
-        // replayed. Changes whenever a saved glyph is truly reprocessed.
-        // CRC32 is an identification checksum, not a security signature.
-        val crc = CRC32()
-        fun recordInt(number: Int) {
-            for (shift in 0..3) crc.update((number ushr (shift * 8)) and 0xff)
-        }
-        design.points.forEach { point ->
-            recordInt(point.xUnits)
-            recordInt(point.yUnits)
-            recordInt(point.command.ordinal)
-            recordInt(point.colorIndex)
-        }
-        java.lang.Long.toHexString(crc.value).padStart(8, '0').uppercase(Locale.ROOT)
-    }
+    val fingerprint = remember(design) { stitchSequenceFingerprint(design) }
     val hasEditableImportedName = design.editableName?.options?.importedFontId != null
 
     val points =
@@ -490,8 +496,23 @@ fun SimulatorScreen(
                     color = FioTextMuted,
                     fontSize = 9.sp
                 )
+                if (rebuildInProgress) {
+                    Text(
+                        text = "Recalculando a fonte importada e validando as pontadas…",
+                        color = FioGold,
+                        fontSize = 11.sp
+                    )
+                }
+                rebuildStatus?.let { status ->
+                    Text(
+                        text = status,
+                        color = FioGold,
+                        fontSize = 11.sp
+                    )
+                }
                 if (hasEditableImportedName && onRebuildName != null) {
                     TextButton(
+                        enabled = !rebuildInProgress,
                         onClick = onRebuildName,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Gerar novas pontadas e simular", fontSize = 10.sp) }
