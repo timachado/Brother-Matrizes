@@ -33,6 +33,52 @@ class NamePersonalizationTest {
         ).getOrThrow().design
     }
 
+    @Test fun savedImportedRunningFontUpgradesToSatinWithoutMovingName() {
+        // Legacy editable projects may retain RUNNING, the generic default.
+        // Merely rebuilding with those options bypasses the Satin generator.
+        val legacy = TextMatrixOptions(
+            text = "Maria",
+            heightMm = 15.4f,
+            spacingMm = 0f,
+            style = TextStitchStyle.RUNNING,
+            importedFontId = "legacy-bertilda",
+            widthScale = 1.9f,
+            heightScale = 1.2f,
+            rotationDegrees = 90f,
+            color = 0xB22222
+        )
+        val refreshed = NamePersonalization.optionsForSatinRegeneration(legacy)
+        assertEquals(TextStitchStyle.SATIN, refreshed.style)
+        assertEquals(null, refreshed.specialStitchMode)
+        assertEquals(legacy.text, refreshed.text)
+        assertEquals(legacy.heightMm, refreshed.heightMm)
+        assertEquals(legacy.widthScale, refreshed.widthScale)
+        assertEquals(legacy.heightScale, refreshed.heightScale)
+        assertEquals(legacy.rotationDegrees, refreshed.rotationDegrees)
+        assertEquals(legacy.importedFontId, refreshed.importedFontId)
+        assertEquals(legacy.color, refreshed.color)
+        assertEquals(legacy.spacingMm, refreshed.spacingMm)
+    }
+
+    @Test fun alreadySatinImportedFontRetainsItsApprovedGeometry() {
+        val source = TextMatrixOptions(
+            text = "Maria", importedFontId = "bertilda",
+            style = TextStitchStyle.SATIN, widthScale = 2f,
+            heightScale = 1.5f, heightMm = 12f
+        )
+        assertEquals(source,
+            NamePersonalization.optionsForSatinRegeneration(source))
+    }
+
+    @Test fun nativeFontCannotAccidentallyEnterImportedSatinReprocessing() {
+        val failure = runCatching {
+            NamePersonalization.optionsForSatinRegeneration(
+                TextMatrixOptions("Maria")
+            )
+        }
+        assertTrue(failure.isFailure)
+    }
+
     @Test fun mariaAndSophiaAreRealStitchesWithoutChangingFrame() {
         val frame = floralFrame()
         for (name in listOf("Maria", "Sophia")) {
