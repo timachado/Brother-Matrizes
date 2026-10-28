@@ -88,6 +88,51 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun jitteredVerticalScriptCenterlineKeepsHorizontalRails() {
+        // A raster skeleton alternates by one pixel while walking a long
+        // vertical M stem. Neighbouring Satin bars must not flip 90 degrees.
+        val route = (0..50).map { i ->
+            CleanRoomSatinEngine.V(
+                if (i % 2 == 0) 10f else 11.7f,
+                i * 2.6f
+            )
+        }
+        val normals = route.indices.mapNotNull {
+            CleanRoomSatinEngine.satinNormalAlongRoute(route, it)
+        }
+        assertEquals(route.size, normals.size)
+        assertTrue("Satin deve permanecer transversal à haste, sem girar no ruído.",
+            normals.all { kotlin.math.abs(it.x) >= 0.92f })
+        assertTrue("Normal calculada precisa ser unitária.",
+            normals.all {
+                kotlin.math.abs(
+                    kotlin.math.hypot(it.x, it.y) - 1f
+                ) < 0.001f
+            })
+    }
+
+    @Test
+    fun curvedScriptCenterlineRotatesRailsWithoutAbruptFlips() {
+        val route = (0..60).map { i ->
+            val radians = Math.PI * i / 120.0
+            CleanRoomSatinEngine.V(
+                (100 * kotlin.math.cos(radians)).toFloat(),
+                (100 * kotlin.math.sin(radians)).toFloat()
+            )
+        }
+        val normals = route.indices.map {
+            requireNotNull(CleanRoomSatinEngine.satinNormalAlongRoute(route, it))
+        }
+        assertTrue("Arco precisa girar orientação das carreiras.",
+            kotlin.math.abs(normals.first().x - normals.last().x) > .55f)
+        val smallestAlignment = normals.zipWithNext().minOf { (a,b) ->
+            a.x * b.x + a.y * b.y
+        }
+        assertTrue("Curva não pode criar giros bruscos entre barras consecutivas.",
+            smallestAlignment > .90f)
+    }
+
+    @Test
     fun tallScriptStemGetsTransverseRailsInsteadOfVerticalStitchBands() {
         // Regressão da fonte Bertilda: as hastes longas do M são verticais,
         // logo as barras Satin precisam atravessá-las horizontalmente.
