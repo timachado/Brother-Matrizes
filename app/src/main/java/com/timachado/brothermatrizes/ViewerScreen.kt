@@ -447,6 +447,26 @@ fun ViewerScreen(
                     )
                 )
 
+                // Files saved by the previous glyph engine contain the
+                // original stitch sequence. Updating the APK never changes
+                // these coordinates automatically.
+                if (design.editableName?.options?.importedFontId != null) {
+                    Text(
+                        "Esta matriz contém pontadas de nome já salvas. " +
+                            "Para aplicar correções da fonte, reprocessar o nome.",
+                        color = FioTextMuted,
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = onEditName,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("↻ Atualizar glifos do nome salvo")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 OutlinedButton(
                     onClick =
                         onSimulate,
