@@ -133,6 +133,35 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun cursiveJunctionLimitsLongCrossBranchSatinSpikes() {
+        val extents = CleanRoomSatinEngine.constrainCrossStrokeExtents(
+            negativeExtent = 3f,
+            positiveExtent = 28f
+        )
+        assertEquals(3f, extents.first, .001f)
+        assertEquals(7.5f, extents.second, .001f)
+        // Normal strokes keep their exact TTF/OTF rail geometry.
+        val normal = CleanRoomSatinEngine.constrainCrossStrokeExtents(9f, 12f)
+        assertEquals(9f, normal.first, .001f)
+        assertEquals(12f, normal.second, .001f)
+    }
+
+    @Test
+    fun exactVectorSatinAtWideJunctionNeverExceedsSixMillimeters() {
+        val largeFilledRectangle = rectangle(0f, 0f, 100f, 100f)
+        val rail = requireNotNull(CleanRoomSatinEngine.exactVectorRail(
+            listOf(largeFilledRectangle),
+            center = CleanRoomSatinEngine.V(50f, 50f),
+            normal = CleanRoomSatinEngine.V(1f, 0f),
+            pullUnits = 2f
+        ))
+        val width = kotlin.math.hypot(
+            rail.a.x - rail.b.x, rail.a.y - rail.b.y
+        )
+        assertTrue("A barra Satin excedeu o limite físico de 6mm.", width <= 60.01f)
+    }
+
+    @Test
     fun tallScriptStemGetsTransverseRailsInsteadOfVerticalStitchBands() {
         // Regressão da fonte Bertilda: as hastes longas do M são verticais,
         // logo as barras Satin precisam atravessá-las horizontalmente.
