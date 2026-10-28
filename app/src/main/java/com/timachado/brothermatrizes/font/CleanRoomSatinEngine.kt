@@ -1208,6 +1208,45 @@ internal object CleanRoomSatinEngine {
         )
     }
 
+    /**
+     * A raster mask is only an approximation of the original TTF shape.
+     * Any emergency raster Satin rail must remain entirely inside the
+     * original non-zero-winding vector fill. In particular, it must not
+     * bridge the counter in an 'a' or a disconnected cursive flourish.
+     */
+    internal fun insideOriginalVector(
+        contours: List<List<V>>,
+        point: V
+    ): Boolean {
+        var winding = 0
+        for (ring in contours) {
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                val side = (b.x - a.x) * (point.y - a.y) -
+                    (b.y - a.y) * (point.x - a.x)
+                if (a.y <= point.y && b.y > point.y && side > 0f) winding++
+                if (a.y > point.y && b.y <= point.y && side < 0f) winding--
+            }
+        }
+        return winding != 0
+    }
+
+    internal fun rasterRailStaysInsideOutline(
+        contours: List<List<V>>, a: V, b: V
+    ): Boolean {
+        val length = length(a, b)
+        if (length < 0.45f || length > 60f ||
+            !length.isFinite()) return false
+        // Check the raw (pre-pull) coverage, since legitimate Satin pull
+        // compensation deliberately extends slightly outside the outline.
+        return listOf(.1f, .25f, .5f, .75f, .9f).all { t ->
+            insideOriginalVector(contours,
+                V(a.x + (b.x - a.x) * t,
+                    a.y + (b.y - a.y) * t))
+        }
+    }
+
     private fun crossSection(
         mask: Raster, center: V, normal: V, pullUnits: Float,
         contours: List<List<V>>
@@ -1258,15 +1297,23 @@ internal object CleanRoomSatinEngine {
         val b = edge(1f)
         val originalWidth = a + b
         if (originalWidth < mask.step * 0.45f) return null
-        // Avoid inflating 0.1 mm hairlines by a full pull-compensation
-        // amount on each side. Preserve the user's configured value for
-        // normal-width Satin strokes.
-        val safePull = minOf(pullUnits, max(0.4f, originalWidth * 0.5f))
+        // Never trust a connected raster band until it is proved to be
+        // connected in the original vector shape too.
+        val rawA = V(effectiveCenter.x - normal.x * a,
+            effectiveCenter.y - normal.y * a)
+        val rawB = V(effectiveCenter.x + normal.x * b,
+            effectiveCenter.y + normal.y * b)
+        if (!rasterRailStaysInsideOutline(contours, rawA, rawB)) return null
+        // Preserve thin *real* strokes, but never generate overlong bars
+        // from a quantized mask when the exact TTF rail was rejected.
+        val safePull = minOf(pullUnits, max(0.4f, originalWidth * 0.5f),
+            max(0f, (60f - originalWidth) * 0.5f))
+        val scale = minOf(1f, 60f / (originalWidth + 2f * safePull))
         return Rail(
-            V(effectiveCenter.x - normal.x * (a + safePull),
-                effectiveCenter.y - normal.y * (a + safePull)),
-            V(effectiveCenter.x + normal.x * (b + safePull),
-                effectiveCenter.y + normal.y * (b + safePull))
+            V(effectiveCenter.x - normal.x * (a + safePull) * scale,
+                effectiveCenter.y - normal.y * (a + safePull) * scale),
+            V(effectiveCenter.x + normal.x * (b + safePull) * scale,
+                effectiveCenter.y + normal.y * (b + safePull) * scale)
         )
     }
 
