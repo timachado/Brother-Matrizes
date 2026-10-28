@@ -797,6 +797,51 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun missingCursiveRailMustNotFillCounterEvenWhenCentrelineIsInsideLetter() {
+        // An inner counter above the medial route: centreline-only tests
+        // would reconstruct a large Satin bar across the real font hole.
+        val outer = rectangle(0f, 0f, 80f, 60f)
+        val hollow = listOf(outer, rectangle(28f, 25f, 24f, 10f).asReversed())
+        val solid = listOf(outer)
+        fun rail(x: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, 0f),
+            CleanRoomSatinEngine.V(x, 40f)
+        )
+        val rows = listOf(rail(16f), rail(28f), null, rail(52f), rail(64f))
+        val route = listOf(16f, 28f, 40f, 52f, 64f)
+            .map { CleanRoomSatinEngine.V(it, 20f) }
+        assertTrue(CleanRoomSatinEngine.insideOriginalVector(
+            hollow, CleanRoomSatinEngine.V(40f, 20f)))
+        assertFalse(CleanRoomSatinEngine.insideOriginalVector(
+            hollow, CleanRoomSatinEngine.V(40f, 30f)))
+        fun repair(outline: List<List<CleanRoomSatinEngine.V>>) =
+            CleanRoomSatinEngine.repairShortRailGaps(
+                rows, route, gridStep = 2f,
+                uninterruptedVector = { from, to ->
+                    CleanRoomSatinEngine.rasterRailStaysInsideOutline(outline, from, to)
+                },
+                reconstructedRailSafe = { bar ->
+                    fun inset(t: Float) = CleanRoomSatinEngine.V(
+                        bar.a.x + (bar.b.x - bar.a.x) * t,
+                        bar.a.y + (bar.b.y - bar.a.y) * t
+                    )
+                    CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                        outline, inset(.30f), inset(.70f))
+                }
+            ) { point ->
+                CleanRoomSatinEngine.insideOriginalVector(outline, point)
+            }
+        val rejected = repair(hollow)
+        assertNull("Não tapar vazado de letras cursivas.", rejected[2])
+        assertEquals(rows[1], rejected[1])
+        assertEquals(rows[3], rejected[3])
+        val preserved = repair(solid)
+        assertNotNull("A mesma faixa válida deve continuar sendo reparada.",
+            preserved[2])
+        assertEquals(40f, preserved[2]!!.middle.x, 0.01f)
+    }
+
+    @Test
     fun legitimateShortGapInsideOneContinuousVectorStrokeIsRestored() {
         val geometry = listOf(rectangle(0f, 0f, 40f, 30f))
         fun rail(x: Float) = CleanRoomSatinEngine.Rail(
