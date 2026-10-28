@@ -1195,8 +1195,9 @@ internal object CleanRoomSatinEngine {
                 if (t < -0.01f && -t < left) left = -t
             }
         }
-        if (winding == 0 || !left.isFinite() || !right.isFinite() ||
-            left > 35f || right > 35f) return null
+        if (winding == 0 || !left.isFinite() || !right.isFinite()) return null
+        // Wide genuine outlines need a bounded Satin bar, not a missing bar.
+        // Endpoints are still clamped to the 6 mm machine safety envelope.
         // A large left/right mismatch at a cursive junction is evidence
         // the ray has crossed into another branch of the font outline.
         val (limitedLeft, limitedRight) = constrainCrossStrokeExtents(left, right)
@@ -1204,7 +1205,9 @@ internal object CleanRoomSatinEngine {
         val safeLeft = limitedLeft * lengthScale
         val safeRight = limitedRight * lengthScale
         val width = safeLeft + safeRight
-        if (width < 1.5f) return null
+        // Real 0.05–0.15 mm hairlines of imported cursive fonts must survive.
+        // Pull compensation remains proportional to the actual vector width.
+        if (width < 0.4f) return null
         // 6mm maximum bar length including compensation: the physical
         // embroidery machine must never sew the full 7mm search radius.
         val safePull = minOf(
@@ -1278,6 +1281,33 @@ internal object CleanRoomSatinEngine {
         }
     }
 
+    /**
+     * Sub-pixel centering strictly ACROSS the local stroke. Rasterization
+     * rounds a narrow hairline to a grid cell that can lie just outside the
+     * source outline. No search along the glyph or into another rail.
+     */
+    internal fun snapRasterCenterToVector(
+        contours: List<List<V>>,
+        center: V,
+        normal: V,
+        rasterStep: Float
+    ): V? {
+        if (insideOriginalVector(contours, center)) return center
+        require(rasterStep > 0f && rasterStep.isFinite())
+        val norm = normalized(normal) ?: return null
+        val quantum = rasterStep * 0.16f
+        for (n in 1..5) {
+            for (sign in listOf(-1f, 1f)) {
+                val candidate = V(
+                    center.x + norm.x * quantum * n * sign,
+                    center.y + norm.y * quantum * n * sign
+                )
+                if (insideOriginalVector(contours, candidate)) return candidate
+            }
+        }
+        return null
+    }
+
     private fun crossSection(
         mask: Raster, center: V, normal: V, pullUnits: Float,
         contours: List<List<V>>
@@ -1306,10 +1336,17 @@ internal object CleanRoomSatinEngine {
             V(mask.left + nearest.first * mask.step,
                 mask.top + nearest.second * mask.step)
         }
-        // The skeleton's raster position is allowed to move by at most
-        // one pixel. Prefer precise vector intersections whenever possible.
-        exactVectorRail(contours, effectiveCenter, normal, pullUnits)?.let {
-            return it
+        // A legitimately thin TTF stroke may occupy a raster cell whose
+        // centre falls just OUTSIDE its sub-pixel vector boundary. Resolve
+        // the centre against the real vector before intersecting endpoints;
+        // never accept a disconnected raster-only rail.
+        val vectorCenter = snapRasterCenterToVector(
+            contours, effectiveCenter, normal, mask.step
+        )
+        if (vectorCenter != null) {
+            exactVectorRail(contours, vectorCenter, normal, pullUnits)?.let {
+                return it
+            }
         }
         val maxExtent = 35f // 7 mm full satin width limit
         fun edge(sign: Float): Float {
