@@ -155,6 +155,8 @@ fun NameEditorScreen(
         mutableStateOf(false)
     }
     var autoFitRequest by remember(original) { mutableIntStateOf(0) }
+    var reprocessRequest by remember(original) { mutableIntStateOf(0) }
+    var reprocessResult by remember(original) { mutableStateOf<String?>(null) }
     var fitting by remember(original) { mutableStateOf(false) }
     var autoFitError by remember(original) { mutableStateOf<String?>(null) }
     var dragging by remember(original) { mutableStateOf(false) }
@@ -242,7 +244,8 @@ fun NameEditorScreen(
         return ImportedFontMatrixGenerator.generateText(font, options.text, options)
     }
 
-    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts, autoFitEnabled) {
+    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts,
+        autoFitEnabled, reprocessRequest) {
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
         if (autoFitEnabled) return@LaunchedEffect
@@ -257,6 +260,22 @@ fun NameEditorScreen(
             )
         }
         computed = ComputedPreview(source, target, validated)
+        if (reprocessRequest > 0) {
+            reprocessResult = validated.fold(
+                onSuccess = { newMatrix ->
+                    if (original.editableName != null && original.points == newMatrix.points) {
+                        "Reprocessamento concluído, mas a sequência de pontadas permaneceu igual. " +
+                            "É necessário analisar o arquivo original da fonte para identificar a falha."
+                    } else {
+                        "Novas pontadas geradas. Para atualizar a simulação, " +
+                            "toque em Aplicar nome e abra a matriz personalizada."
+                    }
+                },
+                onFailure = { error ->
+                    "Não foi possível reprocessar: " + (error.message ?: "erro desconhecido")
+                }
+            )
+        }
     }
 
     LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
@@ -635,6 +654,25 @@ fun NameEditorScreen(
                     "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
                 color = FioTextMuted, fontSize = 12.sp
             )
+        }
+
+        if (original.editableName != null) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    NamePersonalization.invalidatePreparedPreview()
+                    computed = null
+                    reprocessResult = "Recalculando pontadas com o motor de fontes atualizado…"
+                    reprocessRequest++
+                },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_name_reprocess_glyphs")
+            ) {
+                Text("↻ Reprocessar pontadas da fonte sem mudar o encaixe")
+            }
+            reprocessResult?.let { message ->
+                Text(message, color = FioTextMuted, fontSize = 12.sp)
+            }
         }
 
         OutlinedButton(
