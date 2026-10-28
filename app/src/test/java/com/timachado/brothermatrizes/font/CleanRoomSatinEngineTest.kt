@@ -379,6 +379,55 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun rasterFallbackCannotBridgeInnerCounterOfLetterA() {
+        val outer = rectangle(0f, 0f, 100f, 100f)
+        val counter = rectangle(30f, 30f, 40f, 40f).reversed()
+        val geometry = listOf(outer, counter)
+        val a = CleanRoomSatinEngine.V(15f, 50f)
+        val b = CleanRoomSatinEngine.V(85f, 50f)
+        assertFalse("O raster não pode fechar o vazado do 'a'.",
+            CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                geometry, a, b
+            ))
+        assertFalse("Ponto dentro do vazado não faz parte da fonte.",
+            CleanRoomSatinEngine.insideOriginalVector(
+                geometry, CleanRoomSatinEngine.V(50f, 50f)
+            ))
+        assertTrue("A parte esquerda deve continuar bordável.",
+            CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                geometry, CleanRoomSatinEngine.V(8f, 50f),
+                CleanRoomSatinEngine.V(24f, 50f)
+            ))
+    }
+
+    @Test
+    fun rasterFallbackNeverJoinsDetachedStrokeFragments() {
+        val left = rectangle(0f, 0f, 10f, 55f)
+        val right = rectangle(18f, 0f, 10f, 55f)
+        assertFalse("Não bordar através de um espaço vazio.",
+            CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                listOf(left, right),
+                CleanRoomSatinEngine.V(3f, 28f),
+                CleanRoomSatinEngine.V(25f, 28f)
+            ))
+        assertTrue("Uma haste estreita válida deve permanecer.",
+            CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                listOf(left, right),
+                CleanRoomSatinEngine.V(2f, 28f),
+                CleanRoomSatinEngine.V(8f, 28f)
+            ))
+    }
+
+    @Test
+    fun rasterFallbackNeverProducesSatinLongerThanSixMillimeters() {
+        assertFalse(CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+            listOf(rectangle(0f, 0f, 100f, 100f)),
+            CleanRoomSatinEngine.V(10f, 40f),
+            CleanRoomSatinEngine.V(80f, 40f)
+        ))
+    }
+
+    @Test
     fun bertildaVectorRailDoesNotFillCounterOrDetachedSpace() {
         val outer = rectangle(0f, 0f, 100f, 100f)
         val inner = rectangle(25f, 25f, 50f, 50f).reversed()
