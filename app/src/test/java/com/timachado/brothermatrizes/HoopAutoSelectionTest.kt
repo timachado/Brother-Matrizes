@@ -9,9 +9,10 @@ import org.junit.Test
 class HoopAutoSelectionTest {
 
     @Test
-    fun portrait178mmUses130x180InsteadOf100x100() {
+    fun portrait178mmNeedsHoopWithSafe180mmLength() {
+        // A borda de 5 mm em cada lado deixa somente 170 mm úteis no H130X180.
         assertEquals(
-            HoopProfile.H130X180,
+            HoopProfile.H140X200,
             recommendedHoopFor(
                 design(
                     widthUnits = 692,
@@ -48,9 +49,10 @@ class HoopAutoSelectionTest {
     }
 
     @Test
-    fun smallMatrixStillUses100x100() {
+    fun smallMatrix95mmNeedsMoreThan100x100WithSafetyMargin() {
+        // 100×100 mm tem área útil 90×90 mm; 95 mm não cabe com segurança.
         assertEquals(
-            HoopProfile.H100X100,
+            HoopProfile.H130X180,
             recommendedHoopFor(
                 design(
                     widthUnits = 950,
