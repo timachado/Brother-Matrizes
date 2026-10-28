@@ -56,6 +56,13 @@ jobs:
         shell: bash
         run: |
           gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:assembleDebug --stacktrace
+      - name: Exibir falhas de testes com detalhes
+        if: failure()
+        shell: bash
+        run: |
+          echo 'Relatório JUnit:'
+          find app/build/test-results/testDebugUnitTest -type f -name 'TEST-*.xml' -print0 |
+            xargs -0 -r grep -n -A 30 '<failure' | head -n 160 || true
       - name: APK gerado apenas no runner (não distribuído)
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
