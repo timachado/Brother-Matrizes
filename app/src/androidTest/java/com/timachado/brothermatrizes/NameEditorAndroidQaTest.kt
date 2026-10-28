@@ -166,6 +166,45 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun oldSavedNameCanRegenerateWithoutDuplicatingOrMovingOriginalArt() {
+        val source = frame()
+        val saved = NamePersonalization.add(
+            source, TextMatrixOptions(
+                text = "Maria", heightMm = 9f,
+                style = TextStitchStyle.SATIN
+            ), 10, 15
+        ).getOrThrow()
+        var reprocessed: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = saved,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { reprocessed = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_reprocess_glyphs")
+            .performScrollTo().assertExists().performClick()
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val updated = requireNotNull(reprocessed)
+            assertEquals(saved.editableName?.options, updated.editableName?.options)
+            assertEquals(saved.editableName?.centerXUnits,
+                updated.editableName?.centerXUnits)
+            assertEquals(saved.editableName?.centerYUnits,
+                updated.editableName?.centerYUnits)
+            assertEquals(source.points.dropLast(1),
+                updated.points.take(source.points.size - 1))
+            assertEquals(1, updated.points.count { it.command == StitchCommand.END })
+        }
+    }
+
+    @Test
     fun twoFingerPinchResizesRealNameOnBothAxesAndKeepsFrame() {
         val source = frame()
         var applied: EmbroideryDesign? = null
