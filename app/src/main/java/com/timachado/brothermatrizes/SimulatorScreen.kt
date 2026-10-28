@@ -64,7 +64,8 @@ fun SimulatorScreen(
         Boolean =
         false,
     onBack: () -> Unit,
-    onEditName: (() -> Unit)? = null
+    onEditName: (() -> Unit)? = null,
+    onRebuildName: (() -> Unit)? = null
 ) {
     val fingerprint = remember(design) {
         // Exact deterministic fingerprint of the coordinates currently
@@ -489,11 +490,17 @@ fun SimulatorScreen(
                     color = FioTextMuted,
                     fontSize = 9.sp
                 )
+                if (hasEditableImportedName && onRebuildName != null) {
+                    TextButton(
+                        onClick = onRebuildName,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Gerar novas pontadas e simular", fontSize = 10.sp) }
+                }
                 if (hasEditableImportedName && onEditName != null) {
                     TextButton(
                         onClick = onEditName,
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Atualizar pontadas da fonte no editor", fontSize = 10.sp) }
+                    ) { Text("Ajustar nome no editor", fontSize = 10.sp) }
                 }
                 Spacer(
                     Modifier.height(
