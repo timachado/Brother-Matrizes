@@ -596,6 +596,19 @@ internal object CleanRoomSatinEngine {
                 rawRails, interpolated, raster.step,
                 uninterruptedVector = { from, to ->
                     rasterRailStaysInsideOutline(contours, from, to)
+                },
+                reconstructedRailSafe = { rail ->
+                    // A medial route can be filled while the transverse bar
+                    // crosses an actual counter in the vector font.
+                    // The original rail is 50% or more of the compensated
+                    // width. Verify the central 40% (safe inside that range).
+                    fun inset(t: Float) = V(
+                        rail.a.x + (rail.b.x - rail.a.x) * t,
+                        rail.a.y + (rail.b.y - rail.a.y) * t
+                    )
+                    rasterRailStaysInsideOutline(
+                        contours, inset(.30f), inset(.70f)
+                    )
                 }
             ) { v ->
                 insideOriginalVector(contours, v)
@@ -646,6 +659,8 @@ internal object CleanRoomSatinEngine {
         // Exact vector segment verification, not a few raster sample points.
         // Default preserves the simple geometry-only unit-test contract.
         uninterruptedVector: (V, V) -> Boolean = { _, _ -> true },
+        // The transverse reconstructed bar must not cross a vector hole.
+        reconstructedRailSafe: (Rail) -> Boolean = { true },
         insideOriginalOutline: (V) -> Boolean
     ): List<Rail?> {
         if (rows.size != route.size || rows.size < 3) return rows
@@ -680,14 +695,17 @@ internal object CleanRoomSatinEngine {
                 }
             }
             if (!covered) continue
-            for (j in 0 until gapLength) {
+            val candidates = (0 until gapLength).map { j ->
                 val factor = (j + 1f) / (gapLength + 1f)
                 fun mix(a: V, b: V) = V(
                     a.x + (b.x - a.x) * factor,
                     a.y + (b.y - a.y) * factor
                 )
-                repaired[start + j] = Rail(mix(before.a, after.a), mix(before.b, after.b))
+                Rail(mix(before.a, after.a), mix(before.b, after.b))
             }
+            // Validate the entire gap before filling any missing rail.
+            if (candidates.any { !reconstructedRailSafe(it) }) continue
+            candidates.forEachIndexed { j, rail -> repaired[start + j] = rail }
         }
         return repaired
     }
