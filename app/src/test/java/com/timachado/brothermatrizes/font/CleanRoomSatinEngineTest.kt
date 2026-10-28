@@ -133,6 +133,53 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun bertildaMIsolatedOverwideSatinBarIsReducedWithoutMovingItsCentre() {
+        fun rail(x: Float, width: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, -width * .5f),
+            CleanRoomSatinEngine.V(x, width * .5f)
+        )
+        val original = (0..14).map { i ->
+            rail(i * 4f, if (i == 7) 59f else 13f)
+        }
+        val refined = CleanRoomSatinEngine.smoothIsolatedSatinWidthSpikes(original)
+            .filterNotNull()
+        assertEquals(original.size, refined.size)
+        assertEquals(original[7].middle, refined[7].middle)
+        val wide = kotlin.math.abs(refined[7].a.y - refined[7].b.y)
+        assertTrue("Não deixar bloco Satin isolado de 5,9 mm.", wide <= 25f)
+        assertTrue("Demais pontos precisam ficar intactos.",
+            original.indices.filter { it != 7 }.all { i -> original[i] == refined[i] })
+    }
+
+    @Test
+    fun realLongThickCalligraphicDownstrokeKeepsOriginalWidth() {
+        fun rail(x: Float, width: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, 0f),
+            CleanRoomSatinEngine.V(x, width)
+        )
+        val original = (0..17).map { rail(it * 4f, 35f) }
+        assertEquals(
+            original,
+            CleanRoomSatinEngine.smoothIsolatedSatinWidthSpikes(original)
+        )
+    }
+
+    @Test
+    fun gapAndCounterNeverFilledBySatinSpikeRepair() {
+        fun rail(x: Float, width: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, 0f),
+            CleanRoomSatinEngine.V(x, width)
+        )
+        val rows: List<CleanRoomSatinEngine.Rail?> =
+            List(8) { rail(it * 4f, 13f) } +
+                listOf(null) +
+                List(8) { rail((it + 9) * 4f, 13f) }
+        val result = CleanRoomSatinEngine.smoothIsolatedSatinWidthSpikes(rows)
+        assertNull(result[8])
+        assertEquals(rows, result)
+    }
+
+    @Test
     fun cursiveJunctionLimitsLongCrossBranchSatinSpikes() {
         val extents = CleanRoomSatinEngine.constrainCrossStrokeExtents(
             negativeExtent = 3f,
