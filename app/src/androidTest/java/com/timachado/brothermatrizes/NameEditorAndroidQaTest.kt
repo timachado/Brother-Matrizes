@@ -90,7 +90,7 @@ class NameEditorAndroidQaTest {
             )
         }
         composeRule.onNodeWithText("Gerar novas pontadas e simular")
-            .performScrollTo()
+            .assertExists()
             .performClick()
         composeRule.runOnIdle { assertTrue(rebuilt) }
     }
