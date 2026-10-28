@@ -278,15 +278,15 @@ internal fun recommendedHoopFor(
                 hoop ->
             (
                 designWidth <=
-                    hoop.widthMm &&
+                    hoop.usableWidthMm &&
                 designHeight <=
-                    hoop.heightMm
+                    hoop.usableHeightMm
                 ) ||
                 (
                     designWidth <=
-                        hoop.heightMm &&
+                        hoop.usableHeightMm &&
                     designHeight <=
-                        hoop.widthMm
+                        hoop.usableWidthMm
                     )
         }
         ?: HoopProfile.entries
