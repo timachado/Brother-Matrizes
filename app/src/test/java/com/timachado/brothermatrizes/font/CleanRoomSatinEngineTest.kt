@@ -174,6 +174,48 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun vectorOutlineKeepsCurvedEdgesInsteadOfPixelStaircase() {
+        // Slanted stem: its upper border has continuously varying Y.
+        // Nearest-neighbour raster coordinates used to make stair steps.
+        val trapezoid = listOf(
+            CleanRoomSatinEngine.V(0f, 0f),
+            CleanRoomSatinEngine.V(100f, 40f),
+            CleanRoomSatinEngine.V(100f, 100f),
+            CleanRoomSatinEngine.V(0f, 100f)
+        )
+        val result = CleanRoomSatinEngine.planContextualFill(
+            listOf(trapezoid), densityMm = .4f
+        )
+        val rails = result.rails.flatten()
+        assertTrue("Precisamos de várias colunas para testar curva.",
+            rails.size >= 15)
+        val byX = rails.groupBy { it.middle.x }
+        val upperEdges = byX.mapNotNull { (x, fragments) ->
+            if (x <= 10f || x >= 90f) null
+            else x to fragments.minOf { minOf(it.a.y, it.b.y) }
+        }
+        assertTrue(upperEdges.size >= 12)
+        assertTrue("Limites Satin precisam seguir o vetor sem degraus de 1 pixel.",
+            upperEdges.all { (x, y) -> kotlin.math.abs(y - .4f * x) <= .22f })
+        assertTrue("As faixas Satin devem ter no máximo 6 mm.",
+            rails.all { kotlin.math.abs(it.a.y - it.b.y) <= 60.1f })
+    }
+
+    @Test
+    fun vectorScanlinePreservesCounterInLetter() {
+        val outer = rectangle(0f, 0f, 100f, 100f)
+        val inner = rectangle(20f, 20f, 60f, 60f).reversed()
+        val bands = CleanRoomSatinEngine.vectorSpansAtX(
+            listOf(outer, inner), 50f
+        )
+        assertEquals(2, bands.size)
+        assertEquals(0f, bands[0].first, .001f)
+        assertEquals(20f, bands[0].second, .001f)
+        assertEquals(80f, bands[1].first, .001f)
+        assertEquals(100f, bands[1].second, .001f)
+    }
+
+    @Test
     fun contextualCursiveFillMaintainsWordFootprintWithoutOverlappingRows() {
         val contours = listOf(
             rectangle(0f, 0f, 24f, 85f),
