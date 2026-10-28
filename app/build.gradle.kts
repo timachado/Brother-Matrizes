@@ -58,7 +58,12 @@ android {
         debug {
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
+            if (providers.gradleProperty("brotherNameEditorQa").orNull == "true") {
+                // Homologação do editor de nomes, instalada paralelamente.
+                // Este sufixo NUNCA é aplicado em release comercial.
+                applicationIdSuffix = ".nameqa"
+                versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
                 applicationIdSuffix = ".qa2"

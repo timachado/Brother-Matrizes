@@ -173,6 +173,23 @@ fun DaFontBrowserScreen(
         if (searching) return
         searching = true
         try {
+            // Somente o build de homologação utiliza a navegação local
+            // sem a conta comercial. Versões oficiais preservam cotas.
+            if (NameQaImportPolicy.allowLocalImportWithoutAccount(
+                BuildConfig.DEBUG, context.packageName
+            )) {
+                keyboard?.hide()
+                focusManager.clearFocus()
+                val web = browser ?: error("O catálogo ainda está carregando.")
+                meteredSearchUrl = destination
+                meteredAt = android.os.SystemClock.elapsedRealtime()
+                web.loadUrl(destination)
+                pageLoading = true
+                failedPage = false
+                displayedPage = destination
+                message = "Catálogo aberto no modo de homologação."
+                return
+            }
             val google = BrotherMatrizesAccountService.ensureGoogleSession()
             if (google.isFailure) {
                 message = "Entre com Google em Minha Conta para pesquisar no DaFont."

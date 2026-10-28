@@ -149,14 +149,19 @@ fun FontZipImportScreen(
                             val entry = fonts.firstOrNull { it.index == index } ?: continue
                             // Authorization is per font, before extraction; commit after
                             // successful new import. Never use the matrix operation.
-                            val permit = BrotherMatrizesAccountService
-                                .authorizeImport(context = context, isFont = true)
-                            if (permit.isFailure) {
-                                status = permit.exceptionOrNull()?.message
-                                    ?: "Não foi possível validar a cota de fontes."
-                                break
+                            val qa = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                                BuildConfig.DEBUG, context.packageName
+                            )
+                            val key = if (qa) null else {
+                                val permit = BrotherMatrizesAccountService
+                                    .authorizeImport(context = context, isFont = true)
+                                if (permit.isFailure) {
+                                    status = permit.exceptionOrNull()?.message
+                                        ?: "Não foi possível validar a cota de fontes."
+                                    break
+                                }
+                                permit.getOrThrow()
                             }
-                            val key = permit.getOrThrow()
                             var created = false
                             try {
                                 val result = withContext(Dispatchers.IO) {
@@ -181,13 +186,16 @@ fun FontZipImportScreen(
                                 failures++
                                 status = "${entry.name}: ${e.message ?: "fonte inválida"}"
                             } finally {
-                                val sync = BrotherMatrizesAccountService.finalizeImport(
-                                    context = context, isFont = true, requestKey = key, success = created
-                                )
-                                if (sync.isFailure) {
-                                    status = "Fonte processada, mas a cota não foi sincronizada. " +
-                                        "Verifique a conexão antes de tentar novamente."
-                                    break
+                                if (key != null) {
+                                    val sync = BrotherMatrizesAccountService.finalizeImport(
+                                        context = context, isFont = true,
+                                        requestKey = key, success = created
+                                    )
+                                    if (sync.isFailure) {
+                                        status = "Fonte processada, mas a cota não foi sincronizada. " +
+                                            "Verifique a conexão antes de tentar novamente."
+                                        break
+                                    }
                                 }
                             }
                         }

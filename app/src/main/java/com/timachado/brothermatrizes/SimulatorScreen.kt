@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,8 +47,27 @@ import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
-import kotlinx.coroutines.delay
 import java.util.Locale
+import java.util.zip.CRC32
+
+/**
+ * Deterministic checksum of the exact commands shown in the simulator.
+ * Useful to distinguish regenerated names from unchanged saved matrices.
+ */
+internal fun stitchSequenceFingerprint(design: EmbroideryDesign): String {
+    val crc = CRC32()
+    fun recordInt(number: Int) {
+        for (shift in 0..3) crc.update((number ushr (shift * 8)) and 0xff)
+    }
+    design.points.forEach { point ->
+        recordInt(point.xUnits)
+        recordInt(point.yUnits)
+        recordInt(point.command.ordinal)
+        recordInt(point.colorIndex)
+    }
+    return java.lang.Long.toHexString(crc.value)
+        .padStart(8, '0').uppercase(Locale.ROOT)
+}
 
 @Composable
 fun SimulatorScreen(
@@ -62,8 +82,15 @@ fun SimulatorScreen(
     showConnections:
         Boolean =
         false,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEditName: (() -> Unit)? = null,
+    onRebuildName: (() -> Unit)? = null,
+    rebuildStatus: String? = null,
+    rebuildInProgress: Boolean = false
 ) {
+    val fingerprint = remember(design) { stitchSequenceFingerprint(design) }
+    val hasEditableImportedName = design.editableName?.options?.importedFontId != null
+
     val points =
         remember(design) {
             design.points
@@ -126,59 +153,33 @@ fun SimulatorScreen(
         mutableStateOf(false)
     }
 
-    LaunchedEffect(
-        playing,
-        speed,
-        design.fileName
-    ) {
-        while (
-            playing &&
-            index <
-                points.size
-        ) {
-            val command =
-                points[index]
-                    .command
+    LaunchedEffect(playing, speed, design.fileName) {
+        if (!playing) return@LaunchedEffect
 
-            delay(
-                SimulationTiming
-                    .eventDelayMs(
-                        command,
-                        speed
-                    )
+        // Relógio monotônico de tela, em lote de até 40 comandos.
+        // O cursor avança uma vez por quadro; STOP nunca é ultrapassado.
+        var lastFrame = withFrameNanos { it }
+        var carry = 0.0
+        while (playing && index < points.size) {
+            val now = withFrameNanos { it }
+            val (count, remainder) = SimulationTiming.commandsForFrame(
+                carryNanos = carry,
+                elapsedNanos = now - lastFrame,
+                speedMultiplier = speed
             )
+            lastFrame = now
+            carry = remainder
+            if (count <= 0) continue
 
-            index =
-                (
-                    index +
-                        1
-                    ).coerceAtMost(
-                        points.size
-                    )
-
-            if (
-                command ==
-                    StitchCommand.STOP
-            ) {
-                /*
-                 * A referência pausa apenas em STOP.
-                 * COLOR_CHANGE troca o fio e continua a simulação.
-                 */
-                stoppedForStop =
-                    true
-                playing =
-                    false
+            val advance = SimulationTiming.advancePlayback(points, index, count)
+            index = advance.nextIndex
+            if (advance.stopped) {
+                stoppedForStop = true
+                playing = false
                 break
             }
         }
-
-        if (
-            index >=
-                points.size
-        ) {
-            playing =
-                false
-        }
+        if (index >= points.size) playing = false
     }
 
     val completedStitches =
@@ -312,11 +313,7 @@ fun SimulatorScreen(
                         4.dp
                     )
             ) {
-                listOf(
-                    1f,
-                    2f,
-                    4f
-                ).forEach {
+                listOf(1f, 2f, 4f, 8f, 16f, 32f).forEach {
                         option ->
                     SpeedChip(
                         speed =
@@ -489,6 +486,43 @@ fun SimulatorScreen(
                     )
                 }
 
+                // The preview never recalculates a PES; it plays the
+                // commands in this exact sequence. Display an unambiguous
+                // fingerprint so a reused saved file cannot be mistaken
+                // for a fresh Bertilda conversion.
+                Text(
+                    text = "Sequência: $fingerprint • " +
+                        if (hasEditableImportedName) "nome editável" else "pontadas armazenadas",
+                    color = FioTextMuted,
+                    fontSize = 9.sp
+                )
+                if (rebuildInProgress) {
+                    Text(
+                        text = "Recalculando a fonte importada e validando as pontadas…",
+                        color = FioGold,
+                        fontSize = 11.sp
+                    )
+                }
+                rebuildStatus?.let { status ->
+                    Text(
+                        text = status,
+                        color = FioGold,
+                        fontSize = 11.sp
+                    )
+                }
+                if (hasEditableImportedName && onRebuildName != null) {
+                    TextButton(
+                        enabled = !rebuildInProgress,
+                        onClick = onRebuildName,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Gerar novas pontadas e simular", fontSize = 10.sp) }
+                }
+                if (hasEditableImportedName && onEditName != null) {
+                    TextButton(
+                        onClick = onEditName,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Ajustar nome no editor", fontSize = 10.sp) }
+                }
                 Spacer(
                     Modifier.height(
                         4.dp
@@ -765,7 +799,7 @@ private fun SpeedChip(
             modifier =
                 Modifier.padding(
                     horizontal =
-                        10.dp,
+                        5.dp,
                     vertical =
                         7.dp
                 ),

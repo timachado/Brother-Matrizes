@@ -65,6 +65,32 @@ internal object CleanRoomSatinEngine {
         }
     }
 
+    /**
+     * Apply non-uniform resizing to the VECTOR contours, before any satin
+     * rasterization or stitch planning. Scaling finished stitches makes the
+     * satin pitch grow with the font and produces broken-looking cursive
+     * outlines, especially after 2x expansion on portrait frames.
+     */
+    internal fun scaleGlyphContours(
+        glyphs: List<List<List<AndroidSkiaOutlineExtractor.Point>>>,
+        widthScale: Float,
+        heightScale: Float
+    ): List<List<List<AndroidSkiaOutlineExtractor.Point>>> {
+        require(widthScale.isFinite() && heightScale.isFinite() &&
+            widthScale in 0.5f..2.5f && heightScale in 0.5f..2.5f)
+        if (widthScale == 1f && heightScale == 1f) return glyphs
+        return glyphs.map { glyph ->
+            glyph.map { contour ->
+                contour.map { point ->
+                    AndroidSkiaOutlineExtractor.Point(
+                        x = point.x * widthScale,
+                        y = point.y * heightScale
+                    )
+                }
+            }
+        }
+    }
+
     fun generate(
         font: ImportedFont,
         sourceText: String,
@@ -95,12 +121,28 @@ internal object CleanRoomSatinEngine {
             spacingUnits = spacing,
             rotationDegrees = options.rotationDegrees
         )
+        // The final matrix shape is fixed BEFORE sampling its satin rails.
+        // Pitch and maximum satin bar length therefore remain physical
+        // values in millimetres instead of being stretched with the text.
+        val scaledGlyphs = scaleGlyphContours(
+            outlines.glyphPolygons,
+            options.widthScale,
+            options.heightScale
+        )
         val points = mutableListOf<EmbroideryPoint>()
         val stitcher = Stitcher(points)
         var sewnGlyphs = 0
-        outlines.glyphPolygons.forEachIndexed { glyphIndex, glyph ->
+        scaledGlyphs.forEachIndexed { glyphIndex, glyph ->
             val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
             if (contours.isEmpty()) return@forEachIndexed
+            // Use a stroke-following centreline for contextual scripts.
+            // Vertical scanlines make a tall M stem sew ALONG its outline
+            // instead of crossing the stroke, yielding square bands and
+            // partially broken loops in Bertilda. The skeleton planner
+            // follows each local tangent and places satin rails normal to
+            // it; detached dots and very thin strokes have dedicated
+            // reconstruction in planContours. No silent fallback to the
+            // defective vertical-only path for a connected script.
             val plan = planContours(
                 contours,
                 densityMm = options.satinDensityMm,
@@ -110,11 +152,28 @@ internal object CleanRoomSatinEngine {
                 "A fonte não produziu uma faixa Satin segura na letra " +
                     (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
             }
-            stitcher.sewGlyph(plan.rails, options.satinUnderlayMode)
+            stitcher.sewGlyph(
+                plan.rails,
+                if (outlines.contextualShapingPreserved) SatinUnderlayMode.NONE
+                else options.satinUnderlayMode,
+                forceJumpBetweenPaths = outlines.contextualShapingPreserved
+            )
             sewnGlyphs++
         }
         require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
             "Não foram geradas pontadas válidas."
+        }
+        // A presença de pontos não é suficiente para liberar uma fonte:
+        // a sequência precisa reproduzir pelo menos a silhueta do glifo.
+        val silhouette = ImportedFontCoverageGuard.check(scaledGlyphs, points)
+        // A script must cover more than one fifth of its vector area.
+        // If thinning destroys a connection, reject the output instead
+        // of presenting broken glyphs as safe embroidery.
+        if (outlines.contextualShapingPreserved) {
+            require(silhouette.coverage >= .36f && silhouette.precision >= .66f) {
+                "Os traços da fonte importada não foram reconstruídos com " +
+                    "cobertura suficiente. Matriz não liberada para bordado."
+            }
         }
         val last = points.last()
         points.add(last.copy(command = StitchCommand.END))
@@ -151,6 +210,315 @@ internal object CleanRoomSatinEngine {
             }
         }
         design
+    }
+
+    /**
+     * Preenchimento adaptativo de contornos para escrita cursiva complexa.
+     *
+     * A máscara é obtida dos MESMOS contornos vetoriais e usa a regra de
+     * winding: contraformas de 'a', 'e', 'o' e voltas permanecem vazadas.
+     * Traços são repartidos em passadas curtas <= 3,5 mm, sem alinhar
+     * seções transversais a um esqueleto ramificado em cruzamentos.
+     *
+     * Em vez de afirmar Satin perfeito para todo TTF, esta rota
+     * conservadora mantém a aparência e não costura através de vazados.
+     */
+    /**
+     * Stable left-to-right route for connected cursive lettering.
+     *
+     * A whole connected word can contain two long, overlapping satin bands.
+     * Finishing one band from x=0 to x=600 and subsequently starting another
+     * at x=0 sends the needle backwards across half of the name.
+     *
+     * Reorder only when there is a large reversal. Divide the existing satin
+     * rails into short X windows; keep their exact geometry, direction, and
+     * coverage. Distinct fragments still use explicit JUMP commands, so a
+     * return never stitches through the hollow portions of a letter.
+     */
+    internal fun orderContextualTracks(
+        tracks: List<List<Rail>>,
+        maxBacktrackUnits: Float = 80f
+    ): List<List<Rail>> {
+        require(maxBacktrackUnits.isFinite() && maxBacktrackUnits >= 20f)
+        val original = tracks.filter { it.isNotEmpty() }.sortedWith(
+            compareBy<List<Rail>> { it.first().middle.x }
+                .thenBy { it.first().middle.y }
+        )
+        if (original.size < 2) return original
+        // Preserve existing stitch-out exactly when no significant reversal
+        // can happen: avoids extra jumps in simple single-stroke glyphs.
+        val largeReversal = original.zipWithNext().any { (before, after) ->
+            before.last().middle.x - after.first().middle.x > maxBacktrackUnits
+        }
+        if (!largeReversal) return original
+
+        val minX = original.minOf { path -> path.first().middle.x }
+        data class Fragment(val window: Int, val rails: List<Rail>)
+        val fragments = mutableListOf<Fragment>()
+        original.forEach { route ->
+            var window = Int.MIN_VALUE
+            var rows = mutableListOf<Rail>()
+            fun flush() {
+                if (rows.isNotEmpty()) {
+                    fragments += Fragment(window, rows.toList())
+                    rows = mutableListOf()
+                }
+            }
+            route.forEach { rail ->
+                val nextWindow = kotlin.math.floor(
+                    ((rail.middle.x - minX) / maxBacktrackUnits).toDouble()
+                ).toInt()
+                if (nextWindow != window) {
+                    flush()
+                    window = nextWindow
+                }
+                rows += rail
+            }
+            flush()
+        }
+        return fragments.sortedWith(
+            compareBy<Fragment> { it.window }
+                .thenBy { it.rails.first().middle.x }
+                .thenBy { it.rails.first().middle.y }
+        ).map { it.rails }
+    }
+
+    /**
+     * Exact intersections with the vector outline at a vertical satin rail.
+     * A bitmap cell only establishes connectivity; the needle must land on
+     * the TrueType/OTF outline, not on the rounded edge of that bitmap cell.
+     * Non-zero winding retains a/o/e counters and intentional spaces.
+     */
+    internal fun vectorSpansAtX(contours: List<List<V>>, x: Float): List<Pair<Float, Float>> {
+        val crossings = ArrayList<Pair<Float, Int>>()
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) {
+                    val y = a.y + (x - a.x) * (b.y - a.y) / (b.x - a.x)
+                    if (y.isFinite()) crossings += y to if (b.x > a.x) 1 else -1
+                }
+            }
+        }
+        crossings.sortBy { it.first }
+        var winding = 0
+        val spans = ArrayList<Pair<Float, Float>>()
+        for (i in 0 until crossings.lastIndex) {
+            winding += crossings[i].second
+            if (winding != 0 && crossings[i + 1].first > crossings[i].first + 0.01f) {
+                val low = crossings[i].first
+                val high = crossings[i + 1].first
+                val previous = spans.lastOrNull()
+                if (previous != null && low <= previous.second + 0.02f) {
+                    spans[spans.lastIndex] = previous.first to high
+                } else {
+                    spans += low to high
+                }
+            }
+        }
+        return spans
+    }
+
+    internal fun planContextualFill(
+        contours: List<List<V>>,
+        densityMm: Float
+    ): PlannedGlyph {
+        require(densityMm in 0.3f..1.2f)
+        val raster = rasterize(contours, densityMm)
+        val colPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
+        // Vertical satin bars, not horizontal running stitches. Continuous
+        // columns progress in reading order from left to right.
+        // Keep the bars <= 6 mm; wider filled regions are split safely.
+        val maxBarUnits = 60f
+        val active = mutableListOf<MutableList<Rail>>()
+        val completed = mutableListOf<List<Rail>>()
+        data class Section(
+            val top: Int, val bottom: Int, val railTop: Float, val railBottom: Float
+        )
+        var oldRanges = emptyList<Section>()
+
+        fun endTracks() {
+            active.forEach { if (it.isNotEmpty()) completed += it.toList() }
+            active.clear()
+            oldRanges = emptyList()
+        }
+        for (x in 1 until raster.width - 1 step colPitch) {
+            val atX = raster.left + x * raster.step
+            val vectorSpans = vectorSpansAtX(contours, atX)
+            val next = ArrayList<Section>()
+            var y = 1
+            while (y < raster.height - 1) {
+                if (!raster.inside(x, y)) { y++; continue }
+                val top = y
+                while (y < raster.height - 1 && raster.inside(x, y)) y++
+                val bottom = y - 1
+                if (bottom < top) continue
+                val maskTop = raster.top + (top - 0.3f) * raster.step
+                val maskBottom = raster.top + (bottom + 0.3f) * raster.step
+                // Multiple outline spans in the same raster band indicate
+                // a real narrow counter. Never close it with one long rail.
+                val touching = vectorSpans.filter { (low, high) ->
+                    high >= maskTop - raster.step &&
+                        low <= maskBottom + raster.step
+                }
+                val exact = touching.singleOrNull()
+                val railTop = exact?.first ?: maskTop
+                val railBottom = exact?.second ?: maskBottom
+                val sectionLength = (railBottom - railTop).coerceAtLeast(0f)
+                val pieces = max(1, ceil(sectionLength / maxBarUnits).toInt())
+                for (piece in 0 until pieces) {
+                    val a = top + ((bottom - top + 1) * piece) / pieces
+                    val b = top + ((bottom - top + 1) * (piece + 1)) /
+                        pieces - 1
+                    if (a <= b) {
+                        next += Section(
+                            a, b,
+                            railTop + sectionLength * piece / pieces,
+                            railTop + sectionLength * (piece + 1) / pieces
+                        )
+                    }
+                }
+            }
+            // Spans in consecutive columns belong to one satin track only
+            // if their vertical intervals overlap. Otherwise the needle
+            // repositions with a JUMP, never stitches through empty lettering.
+            val matchedOld = HashSet<Int>()
+            val future = mutableListOf<MutableList<Rail>>()
+            next.forEach { section ->
+                val midY = (section.top + section.bottom) / 2f
+                val match = oldRanges.indices.asSequence()
+                    .filter { it !in matchedOld }
+                    .filter {
+                        oldRanges[it].top <= section.bottom &&
+                            oldRanges[it].bottom >= section.top
+                    }
+                    .minByOrNull {
+                        kotlin.math.abs((oldRanges[it].top +
+                            oldRanges[it].bottom) / 2f - midY)
+                    }
+                val track = if (match == null) {
+                    mutableListOf<Rail>()
+                } else {
+                    matchedOld += match
+                    active[match]
+                }
+                val yTop = section.railTop
+                val yBottom = section.railBottom
+                if (yBottom - yTop >= 0.55f) {
+                    track += Rail(V(atX, yTop), V(atX, yBottom))
+                }
+                future += track
+            }
+            active.forEachIndexed { index, track ->
+                if (index !in matchedOld && track.isNotEmpty())
+                    completed += track.toList()
+            }
+            active.clear()
+            active.addAll(future)
+            oldRanges = next
+        }
+        endTracks()
+        // Short, bounded returns between overlapping satin bands instead of
+        // a long rewind to the beginning of an unfinished cursive word.
+        val filtered = orderContextualTracks(completed)
+        return PlannedGlyph(
+            rails = filtered,
+            sampledEdges = filtered.sumOf { it.size },
+            duplicateRailsDiscarded = 0
+        )
+    }
+
+    /**
+     * Smooth the LOCAL route tangent before laying each perpendicular satin bar.
+     *
+     * Skeleton pixels move between diagonal and orthogonal steps at sharp
+     * cursive joins. The old 1-sample chord rotated adjacent bars by 45-90
+     * degrees, leaving triangular holes visible in Bertilda's M/a/r.
+     *
+     * A bounded arc-length window reduces raster stair-step noise without
+     * averaging across a whole letter or losing narrow curves. Only centreline
+     * direction changes: actual needle endpoints are still snapped to the
+     * original vector outline by exactVectorRail().
+     */
+    internal fun satinNormalAlongRoute(route: List<V>, index: Int): V? {
+        if (route.size < 2 || index !in route.indices) return null
+        val radius = 3
+        val first = (index - radius).coerceAtLeast(0)
+        val last = (index + radius).coerceAtMost(route.lastIndex)
+        // Weighted local least-squares direction. The signed weights keep
+        // the normal stable in the presence of 1-pixel skeleton jitter.
+        val origin = route[index]
+        var dx = 0f
+        var dy = 0f
+        var totalWeight = 0f
+        for (j in first..last) {
+            if (j == index) continue
+            val delta = (j - index).toFloat()
+            val weight = 1f / (1f + kotlin.math.abs(delta) * 0.55f)
+            dx += (route[j].x - origin.x) * delta * weight
+            dy += (route[j].y - origin.y) * delta * weight
+            totalWeight += delta * delta * weight
+        }
+        val tangent = if (totalWeight > 0f) normalized(V(dx, dy)) else null
+        if (tangent != null) return V(-tangent.y, tangent.x)
+        val previous = route[(index - 1).coerceAtLeast(0)]
+        val next = route[(index + 1).coerceAtMost(route.lastIndex)]
+        return normalized(V(next.x - previous.x, next.y - previous.y))
+            ?.let { V(-it.y, it.x) }
+    }
+
+    /**
+     * Cap isolated, geometrically implausible Satin width spikes at cursive
+     * intersections. At a medial-axis junction, a transverse ray can touch a
+     * neighbouring stroke and create a wide rectangular slab (seen in the
+     * Bertilda M). Real thick strokes cover several consecutive rails and
+     * retain their natural width because the local median is also wide.
+     *
+     * This never adds rails, crosses gaps, changes their centres or direction,
+     * and does not join paths. Original letter coverage is validated after
+     * generation by ImportedFontCoverageGuard.
+     */
+    internal fun smoothIsolatedSatinWidthSpikes(
+        rows: List<Rail?>,
+        windowRadius: Int = 4
+    ): List<Rail?> {
+        require(windowRadius in 2..8)
+        if (rows.size < windowRadius * 2 + 1) return rows
+        fun span(rail: Rail) = length(rail.a, rail.b)
+        return rows.mapIndexed { index, rail ->
+            if (rail == null) return@mapIndexed null
+            // Do not look across missing sections: they represent actual
+            // counters or disconnects in the original font.
+            val contiguous = mutableListOf<Float>()
+            var start = index
+            while (start > 0 && index - start < windowRadius && rows[start - 1] != null) {
+                start--
+            }
+            var end = index
+            while (end < rows.lastIndex && end - index < windowRadius && rows[end + 1] != null) {
+                end++
+            }
+            for (j in start..end) {
+                rows[j]?.let { contiguous += span(it) }
+            }
+            if (contiguous.size < 5) return@mapIndexed rail
+            contiguous.sort()
+            val median = contiguous[contiguous.size / 2]
+            val current = span(rail)
+            // 8 units = 0.8 mm: smaller changes should remain untouched.
+            val cap = max(14f, median * 1.85f)
+            if (current <= cap + 8f) return@mapIndexed rail
+            val centre = rail.middle
+            val fraction = cap / current
+            Rail(
+                V(centre.x + (rail.a.x - centre.x) * fraction,
+                    centre.y + (rail.a.y - centre.y) * fraction),
+                V(centre.x + (rail.b.x - centre.x) * fraction,
+                    centre.y + (rail.b.y - centre.y) * fraction)
+            )
+        }
     }
 
     internal fun planContours(
@@ -214,23 +582,45 @@ internal object CleanRoomSatinEngine {
                 batch = mutableListOf()
             }
             val rawRails = interpolated.mapIndexed { i, c ->
-                val prev = interpolated[(i - 1).coerceAtLeast(0)]
-                val next = interpolated[(i + 1).coerceAtMost(interpolated.lastIndex)]
-                val tangent = normalized(V(next.x - prev.x, next.y - prev.y))
-                tangent?.let {
-                    crossSection(raster, c, V(-it.y, it.x), pullMm * 10f)
-                }?.takeIf { length(it.a, it.b) >= 1.5f }
+                satinNormalAlongRoute(interpolated, i)?.let { normal ->
+                    crossSection(raster, c, normal, pullMm * 10f, contours)
+                }?.takeIf { rail ->
+                    // Keep genuine subpixel TTF/OTF stems. The previous 1.5-unit
+                    // cutoff removed narrow cursive strokes at small hoop sizes.
+                    // crossSection already checks the original vector outline.
+                    length(rail.a, rail.b) >= 0.35f
+                }
             }
             // Missing one or two columns in an otherwise continuous glyph
             // must not turn the font into a dashed line. Interpolation is
             // allowed ONLY where the original filled font mask remains solid.
-            val filledRails = repairShortRailGaps(rawRails, interpolated, raster.step) {
-                v -> raster.inside(
-                    ((v.x - raster.left) / raster.step).roundToInt(),
-                    ((v.y - raster.top) / raster.step).roundToInt()
-                )
+            // A rasterização pode eliminar espaços vetoriais estreitos
+            // entre curvas. Antes de interpolar uma barra ausente, exigir
+            // continuidade na geometria REAL TTF/OTF (sem cruzar vazados).
+            val filledRails = repairShortRailGaps(
+                rawRails, interpolated, raster.step,
+                uninterruptedVector = { from, to ->
+                    rasterRailStaysInsideOutline(contours, from, to)
+                },
+                reconstructedRailSafe = { rail ->
+                    // A medial route can be filled while the transverse bar
+                    // crosses an actual counter in the vector font.
+                    // The original rail is 50% or more of the compensated
+                    // width. Verify the central 40% (safe inside that range).
+                    fun inset(t: Float) = V(
+                        rail.a.x + (rail.b.x - rail.a.x) * t,
+                        rail.a.y + (rail.b.y - rail.a.y) * t
+                    )
+                    rasterRailStaysInsideOutline(
+                        contours, inset(.30f), inset(.70f)
+                    )
+                }
+            ) { v ->
+                insideOriginalVector(contours, v)
             }
-            filledRails.forEach { row ->
+            // Suppress isolated cross-branch Satin slabs while keeping
+            // sustained thick calligraphic downstrokes unchanged.
+            smoothIsolatedSatinWidthSpikes(filledRails).forEach { row ->
                 if (row == null) {
                     endBatch()
                 } else if (seen(row)) {
@@ -271,6 +661,11 @@ internal object CleanRoomSatinEngine {
         rows: List<Rail?>,
         route: List<V>,
         gridStep: Float,
+        // Exact vector segment verification, not a few raster sample points.
+        // Default preserves the simple geometry-only unit-test contract.
+        uninterruptedVector: (V, V) -> Boolean = { _, _ -> true },
+        // The transverse reconstructed bar must not cross a vector hole.
+        reconstructedRailSafe: (Rail) -> Boolean = { true },
         insideOriginalOutline: (V) -> Boolean
     ): List<Rail?> {
         if (rows.size != route.size || rows.size < 3) return rows
@@ -286,6 +681,10 @@ internal object CleanRoomSatinEngine {
             val after = rows[i] ?: continue
             if (length(before.middle, after.middle) >
                 (gapLength + 1) * gridStep * 7.5f) continue
+            // A centre-to-centre chord may cross a tiny counter or a real
+            // break between script strokes even if every raster sample says
+            // "filled". That break must remain a JUMP, not a satin bridge.
+            if (!uninterruptedVector(before.middle, after.middle)) continue
 
             // Do not bridge across real holes/counters in the letter:
             // both the missing medial positions and the intermediate
@@ -301,14 +700,17 @@ internal object CleanRoomSatinEngine {
                 }
             }
             if (!covered) continue
-            for (j in 0 until gapLength) {
+            val candidates = (0 until gapLength).map { j ->
                 val factor = (j + 1f) / (gapLength + 1f)
                 fun mix(a: V, b: V) = V(
                     a.x + (b.x - a.x) * factor,
                     a.y + (b.y - a.y) * factor
                 )
-                repaired[start + j] = Rail(mix(before.a, after.a), mix(before.b, after.b))
+                Rail(mix(before.a, after.a), mix(before.b, after.b))
             }
+            // Validate the entire gap before filling any missing rail.
+            if (candidates.any { !reconstructedRailSafe(it) }) continue
+            candidates.forEachIndexed { j, rail -> repaired[start + j] = rail }
         }
         return repaired
     }
@@ -755,8 +1157,189 @@ internal object CleanRoomSatinEngine {
         return samples
     }
 
+    /**
+     * Refine transverse Satin endpoints against the exact TTF/OTF contours.
+     * The skeleton still defines stitch ORDER, but the bitmap cannot decide
+     * needle endpoints: its stair-step boundaries are visible as jagged glyphs.
+     *
+     * Intersect each half-ray with the first outline boundary. This preserves
+     * counters (a/o), disconnected ornaments, and narrow joins. A ray cannot
+     * continue beyond the nearest contour or a 3.5 mm half-width limit.
+     */
+    /**
+     * Avoid pulling a satin bar across the adjoining branch of a cursive
+     * letter. At a junction the medial-axis skeleton may sit very near
+     * one outline edge yet the opposite ray reaches an unrelated stroke,
+     * creating rectangular slabs on Bertilda's M, r and a.
+     *
+     * Preserve normal, center, pitch and the real outline intersections.
+     * Bound only extreme asymmetry, never insert a stitch across a counter.
+     */
+    internal fun constrainCrossStrokeExtents(
+        negativeExtent: Float,
+        positiveExtent: Float,
+        maxSideRatio: Float = 2.5f
+    ): Pair<Float, Float> {
+        require(negativeExtent.isFinite() && positiveExtent.isFinite() &&
+            negativeExtent > 0f && positiveExtent > 0f &&
+            maxSideRatio >= 2f)
+        val shorter = minOf(negativeExtent, positiveExtent)
+        val longer = shorter * maxSideRatio
+        return minOf(negativeExtent, longer) to minOf(positiveExtent, longer)
+    }
+
+    internal fun exactVectorRail(
+        contours: List<List<V>>, center: V, normal: V, pullUnits: Float
+    ): Rail? {
+        var winding = 0
+        val origin = center
+        var left = Float.POSITIVE_INFINITY
+        var right = Float.POSITIVE_INFINITY
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                val ex = b.x - a.x
+                val ey = b.y - a.y
+                // Non-zero winding: reject centres inside a genuine letter
+                // counter, even when a raster sampling pixel is occupied.
+                val side = ex * (origin.y - a.y) - ey * (origin.x - a.x)
+                if (a.y <= origin.y && b.y > origin.y && side > 0f) winding++
+                if (a.y > origin.y && b.y <= origin.y && side < 0f) winding--
+                val det = normal.x * ey - normal.y * ex
+                if (kotlin.math.abs(det) < 1e-5f) continue
+                val px = a.x - origin.x
+                val py = a.y - origin.y
+                val t = (px * ey - py * ex) / det
+                val u = (px * normal.y - py * normal.x) / det
+                if (u < 0f || u >= 1f) continue
+                if (t > 0.01f && t < right) right = t
+                if (t < -0.01f && -t < left) left = -t
+            }
+        }
+        if (winding == 0 || !left.isFinite() || !right.isFinite()) return null
+        // Wide genuine outlines need a bounded Satin bar, not a missing bar.
+        // Endpoints are still clamped to the 6 mm machine safety envelope.
+        // A large left/right mismatch at a cursive junction is evidence
+        // the ray has crossed into another branch of the font outline.
+        val (limitedLeft, limitedRight) = constrainCrossStrokeExtents(left, right)
+        val lengthScale = minOf(1f, 60f / (limitedLeft + limitedRight))
+        val safeLeft = limitedLeft * lengthScale
+        val safeRight = limitedRight * lengthScale
+        val width = safeLeft + safeRight
+        // Real 0.05–0.15 mm hairlines of imported cursive fonts must survive.
+        // Pull compensation remains proportional to the actual vector width.
+        if (width < 0.4f) return null
+        // 6mm maximum bar length including compensation: the physical
+        // embroidery machine must never sew the full 7mm search radius.
+        val safePull = minOf(
+            pullUnits,
+            max(0.4f, width * 0.5f),
+            max(0f, (60f - width) * 0.5f)
+        )
+        return Rail(
+            V(origin.x - normal.x * (safeLeft + safePull),
+                origin.y - normal.y * (safeLeft + safePull)),
+            V(origin.x + normal.x * (safeRight + safePull),
+                origin.y + normal.y * (safeRight + safePull))
+        )
+    }
+
+    /**
+     * A raster mask is only an approximation of the original TTF shape.
+     * Any emergency raster Satin rail must remain entirely inside the
+     * original non-zero-winding vector fill. In particular, it must not
+     * bridge the counter in an 'a' or a disconnected cursive flourish.
+     */
+    internal fun insideOriginalVector(
+        contours: List<List<V>>,
+        point: V
+    ): Boolean {
+        var winding = 0
+        for (ring in contours) {
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                val side = (b.x - a.x) * (point.y - a.y) -
+                    (b.y - a.y) * (point.x - a.x)
+                if (a.y <= point.y && b.y > point.y && side > 0f) winding++
+                if (a.y > point.y && b.y <= point.y && side < 0f) winding--
+            }
+        }
+        return winding != 0
+    }
+
+    internal fun rasterRailStaysInsideOutline(
+        contours: List<List<V>>, a: V, b: V
+    ): Boolean {
+        val length = length(a, b)
+        if (length < 0.45f || length > 60f ||
+            !length.isFinite()) return false
+        // Check raw (pre-pull) geometry; legitimate pull compensation can
+        // extend slightly outside. A handful of samples alone cannot detect
+        // a small counter/gap between them, so also reject ANY intersection
+        // with the original outline in the interior of this Satin chord.
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        for (ring in contours) {
+            for (i in ring.indices) {
+                val p = ring[i]
+                val q = ring[(i + 1) % ring.size]
+                val ex = q.x - p.x
+                val ey = q.y - p.y
+                val determinant = dx * ey - dy * ex
+                if (abs(determinant) < 1e-6f) continue
+                val px = p.x - a.x
+                val py = p.y - a.y
+                val t = (px * ey - py * ex) / determinant
+                val u = (px * dy - py * dx) / determinant
+                if (t > 0.001f && t < 0.999f &&
+                    u >= 0f && u < 1f) return false
+            }
+        }
+        return listOf(.1f, .25f, .5f, .75f, .9f).all { t ->
+            insideOriginalVector(contours,
+                V(a.x + dx * t, a.y + dy * t))
+        }
+    }
+
+    /**
+     * Sub-pixel centering strictly ACROSS the local stroke. Rasterization
+     * rounds a narrow hairline to a grid cell that can lie just outside the
+     * source outline. No search along the glyph or into another rail.
+     */
+    internal fun snapRasterCenterToVector(
+        contours: List<List<V>>,
+        center: V,
+        normal: V,
+        rasterStep: Float
+    ): V? {
+        require(rasterStep > 0f && rasterStep.isFinite())
+        val norm = normalized(normal) ?: return null
+        // A point exactly ON the outline can satisfy winding but have no
+        // transverse intersection on one side. Require a real vector bar
+        // before accepting the raster sample as a valid Satin centre.
+        fun usable(v: V) =
+            insideOriginalVector(contours, v) &&
+                exactVectorRail(contours, v, norm, 0f) != null
+        if (usable(center)) return center
+        val quantum = rasterStep * 0.16f
+        for (n in 1..5) {
+            for (sign in listOf(-1f, 1f)) {
+                val candidate = V(
+                    center.x + norm.x * quantum * n * sign,
+                    center.y + norm.y * quantum * n * sign
+                )
+                if (usable(candidate)) return candidate
+            }
+        }
+        return null
+    }
+
     private fun crossSection(
-        mask: Raster, center: V, normal: V, pullUnits: Float
+        mask: Raster, center: V, normal: V, pullUnits: Float,
+        contours: List<List<V>>
     ): Rail? {
         val sampling = minOf(0.85f, mask.step / 2f)
         fun insideAt(x: Float, y: Float): Boolean {
@@ -782,6 +1365,18 @@ internal object CleanRoomSatinEngine {
             V(mask.left + nearest.first * mask.step,
                 mask.top + nearest.second * mask.step)
         }
+        // A legitimately thin TTF stroke may occupy a raster cell whose
+        // centre falls just OUTSIDE its sub-pixel vector boundary. Resolve
+        // the centre against the real vector before intersecting endpoints;
+        // never accept a disconnected raster-only rail.
+        val vectorCenter = snapRasterCenterToVector(
+            contours, effectiveCenter, normal, mask.step
+        )
+        if (vectorCenter != null) {
+            exactVectorRail(contours, vectorCenter, normal, pullUnits)?.let {
+                return it
+            }
+        }
         val maxExtent = 35f // 7 mm full satin width limit
         fun edge(sign: Float): Float {
             var d = 0f
@@ -799,15 +1394,23 @@ internal object CleanRoomSatinEngine {
         val b = edge(1f)
         val originalWidth = a + b
         if (originalWidth < mask.step * 0.45f) return null
-        // Avoid inflating 0.1 mm hairlines by a full pull-compensation
-        // amount on each side. Preserve the user's configured value for
-        // normal-width Satin strokes.
-        val safePull = minOf(pullUnits, max(0.4f, originalWidth * 0.5f))
+        // Never trust a connected raster band until it is proved to be
+        // connected in the original vector shape too.
+        val rawA = V(effectiveCenter.x - normal.x * a,
+            effectiveCenter.y - normal.y * a)
+        val rawB = V(effectiveCenter.x + normal.x * b,
+            effectiveCenter.y + normal.y * b)
+        if (!rasterRailStaysInsideOutline(contours, rawA, rawB)) return null
+        // Preserve thin *real* strokes, but never generate overlong bars
+        // from a quantized mask when the exact TTF rail was rejected.
+        val safePull = minOf(pullUnits, max(0.4f, originalWidth * 0.5f),
+            max(0f, (60f - originalWidth) * 0.5f))
+        val scale = minOf(1f, 60f / (originalWidth + 2f * safePull))
         return Rail(
-            V(effectiveCenter.x - normal.x * (a + safePull),
-                effectiveCenter.y - normal.y * (a + safePull)),
-            V(effectiveCenter.x + normal.x * (b + safePull),
-                effectiveCenter.y + normal.y * (b + safePull))
+            V(effectiveCenter.x - normal.x * (a + safePull) * scale,
+                effectiveCenter.y - normal.y * (a + safePull) * scale),
+            V(effectiveCenter.x + normal.x * (b + safePull) * scale,
+                effectiveCenter.y + normal.y * (b + safePull) * scale)
         )
     }
 
@@ -852,7 +1455,11 @@ internal object CleanRoomSatinEngine {
                     StitchCommand.STITCH)
             }
         }
-        fun sewGlyph(paths: List<List<Rail>>, underlay: SatinUnderlayMode) {
+        fun sewGlyph(
+            paths: List<List<Rail>>,
+            underlay: SatinUnderlayMode,
+            forceJumpBetweenPaths: Boolean = false
+        ) {
             var anchored = false
             paths.forEach { rows ->
                 if (rows.isEmpty()) return@forEach
@@ -870,8 +1477,11 @@ internal object CleanRoomSatinEngine {
                 val cover = if (doUnderlay) rows.asReversed() else rows
                 val entry = cover.first().a
                 val lastPos = needle
-                if (lastPos == null || length(lastPos, entry) > 4f) jump(entry)
-                else sew(entry)
+                // Caminhos distintos de fonte cursiva não devem criar
+                // costura de ligação nem quando as bordas quase se tocam.
+                if (forceJumpBetweenPaths || lastPos == null ||
+                    length(lastPos, entry) > 4f
+                ) jump(entry) else sew(entry)
                 if (!anchored) {
                     // One short tie-in for this glyph, not every medial branch.
                     val r = cover.first()
@@ -881,9 +1491,22 @@ internal object CleanRoomSatinEngine {
                     sew(r.a)
                     anchored = true
                 }
-                cover.forEach { rail ->
-                    sew(rail.a)
-                    sew(rail.b)
+                // A bordadeira deve alternar o sentido de cada barra
+                // Satin. Costurar sempre a -> b força uma DIAGONAL longa
+                // de b(n) para a(n+1) a cada coluna, criando justamente
+                // o emaranhado visível no nome "Maria" em fonte cursiva.
+                cover.forEachIndexed { index, rail ->
+                    val entry = if (index % 2 == 0) rail.a else rail.b
+                    val exit = if (index % 2 == 0) rail.b else rail.a
+                    val position = needle
+                    if (position == null || length(position, entry) > 8f) {
+                        // Nunca criar uma costura de ligação através de
+                        // vazados ou entre partes desconectadas.
+                        jump(entry)
+                    } else {
+                        sew(entry)
+                    }
+                    sew(exit)
                 }
             }
             // There are deliberately NO per-path tie-off round trips.
