@@ -119,6 +119,61 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun overlappingLongCursiveBandsMustNotReturnHalfwayAcrossName() {
+        // Regressão do vídeo: duas faixas longas cobrem a mesma região X.
+        // A ordem antiga costurava toda a primeira e voltava para o começo
+        // da segunda, causando retorno de mais de 12mm.
+        fun lane(top: Float) = (0..48).map { index ->
+            val x = index * 4f
+            CleanRoomSatinEngine.Rail(
+                CleanRoomSatinEngine.V(x, top),
+                CleanRoomSatinEngine.V(x, top + 20f)
+            )
+        }
+        val first = lane(0f)
+        val second = lane(70f)
+        val ordered = CleanRoomSatinEngine.orderContextualTracks(
+            listOf(first, second), maxBacktrackUnits = 80f
+        )
+        assertEquals(first.size + second.size, ordered.sumOf { it.size })
+        assertEquals((first + second).toSet(),
+            ordered.flatten().toSet())
+        val maxBacktrack = ordered.zipWithNext().maxOf { (a,b) ->
+            a.last().middle.x - b.first().middle.x
+        }
+        assertTrue("A agulha não pode regressar por metade do nome.",
+            maxBacktrack <= 80.1f)
+        val simulated = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+            CleanRoomSatinEngine.PlannedGlyph(
+                ordered, ordered.sumOf { it.size }, 0
+            )
+        )
+        assertTrue("As regiões desconectadas devem usar JUMP.",
+            simulated.count { it.command == StitchCommand.JUMP } >= 2)
+        val accidentalCrossings = simulated.zipWithNext().filter { (a,b) ->
+            b.command == StitchCommand.STITCH &&
+                kotlin.math.abs(a.yUnits - b.yUnits) > 35
+        }
+        assertTrue("Nunca costurar diagonais cruzando outras letras.",
+            accidentalCrossings.isEmpty())
+    }
+
+    @Test
+    fun singleCursiveBandKeepsAlreadyApprovedTravelAndCoverage() {
+        val rails = (0..22).map { i ->
+            val x = i * 4f
+            CleanRoomSatinEngine.Rail(
+                CleanRoomSatinEngine.V(x, 0f),
+                CleanRoomSatinEngine.V(x, 18f)
+            )
+        }
+        assertEquals(
+            listOf(rails),
+            CleanRoomSatinEngine.orderContextualTracks(listOf(rails))
+        )
+    }
+
+    @Test
     fun contextualCursiveFillMaintainsWordFootprintWithoutOverlappingRows() {
         val contours = listOf(
             rectangle(0f, 0f, 24f, 85f),
