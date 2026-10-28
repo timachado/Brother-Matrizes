@@ -217,6 +217,66 @@ internal object CleanRoomSatinEngine {
      * Em vez de afirmar Satin perfeito para todo TTF, esta rota
      * conservadora mantém a aparência e não costura através de vazados.
      */
+    /**
+     * Stable left-to-right route for connected cursive lettering.
+     *
+     * A whole connected word can contain two long, overlapping satin bands.
+     * Finishing one band from x=0 to x=600 and subsequently starting another
+     * at x=0 sends the needle backwards across half of the name.
+     *
+     * Reorder only when there is a large reversal. Divide the existing satin
+     * rails into short X windows; keep their exact geometry, direction, and
+     * coverage. Distinct fragments still use explicit JUMP commands, so a
+     * return never stitches through the hollow portions of a letter.
+     */
+    internal fun orderContextualTracks(
+        tracks: List<List<Rail>>,
+        maxBacktrackUnits: Float = 80f
+    ): List<List<Rail>> {
+        require(maxBacktrackUnits.isFinite() && maxBacktrackUnits >= 20f)
+        val original = tracks.filter { it.isNotEmpty() }.sortedWith(
+            compareBy<List<Rail>> { it.first().middle.x }
+                .thenBy { it.first().middle.y }
+        )
+        if (original.size < 2) return original
+        // Preserve existing stitch-out exactly when no significant reversal
+        // can happen: avoids extra jumps in simple single-stroke glyphs.
+        val largeReversal = original.zipWithNext().any { (before, after) ->
+            before.last().middle.x - after.first().middle.x > maxBacktrackUnits
+        }
+        if (!largeReversal) return original
+
+        val minX = original.minOf { path -> path.first().middle.x }
+        data class Fragment(val window: Int, val rails: List<Rail>)
+        val fragments = mutableListOf<Fragment>()
+        original.forEach { route ->
+            var window = Int.MIN_VALUE
+            var rows = mutableListOf<Rail>()
+            fun flush() {
+                if (rows.isNotEmpty()) {
+                    fragments += Fragment(window, rows.toList())
+                    rows = mutableListOf()
+                }
+            }
+            route.forEach { rail ->
+                val nextWindow = kotlin.math.floor(
+                    ((rail.middle.x - minX) / maxBacktrackUnits).toDouble()
+                ).toInt()
+                if (nextWindow != window) {
+                    flush()
+                    window = nextWindow
+                }
+                rows += rail
+            }
+            flush()
+        }
+        return fragments.sortedWith(
+            compareBy<Fragment> { it.window }
+                .thenBy { it.rails.first().middle.x }
+                .thenBy { it.rails.first().middle.y }
+        ).map { it.rails }
+    }
+
     internal fun planContextualFill(
         contours: List<List<V>>,
         densityMm: Float
@@ -296,9 +356,9 @@ internal object CleanRoomSatinEngine {
             oldRanges = next
         }
         endTracks()
-        val filtered = completed.filter { it.isNotEmpty() }
-            .sortedWith(compareBy<List<Rail>> { it.first().middle.x }
-                .thenBy { it.first().middle.y })
+        // Short, bounded returns between overlapping satin bands instead of
+        // a long rewind to the beginning of an unfinished cursive word.
+        val filtered = orderContextualTracks(completed)
         return PlannedGlyph(
             rails = filtered,
             sampledEdges = filtered.sumOf { it.size },
