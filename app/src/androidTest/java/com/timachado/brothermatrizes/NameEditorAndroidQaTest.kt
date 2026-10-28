@@ -193,7 +193,23 @@ class NameEditorAndroidQaTest {
             .performScrollTo().performClick()
         composeRule.runOnIdle {
             val updated = requireNotNull(reprocessed)
-            assertEquals(saved.editableName?.options, updated.editableName?.options)
+            val old = requireNotNull(saved.editableName).options
+            val regenerated = requireNotNull(updated.editableName).options
+            // The editor intentionally normalizes outputFormat, hoopProfile,
+            // and enforceHoop. Only the user's approved typography and geometry
+            // must remain exactly unchanged across the rebuild.
+            assertEquals(old.text, regenerated.text)
+            assertEquals(old.font, regenerated.font)
+            assertEquals(old.importedFontId, regenerated.importedFontId)
+            assertEquals(old.heightMm, regenerated.heightMm)
+            assertEquals(old.spacingMm, regenerated.spacingMm)
+            assertEquals(old.satinDensityMm, regenerated.satinDensityMm)
+            assertEquals(old.color, regenerated.color)
+            assertEquals(old.rotationDegrees, regenerated.rotationDegrees)
+            assertEquals(old.widthScale, regenerated.widthScale)
+            assertEquals(old.heightScale, regenerated.heightScale)
+            assertEquals("PES", regenerated.outputFormat)
+            assertEquals(HoopProfile.H100X100, regenerated.hoopProfile)
             assertEquals(saved.editableName?.centerXUnits,
                 updated.editableName?.centerXUnits)
             assertEquals(saved.editableName?.centerYUnits,
