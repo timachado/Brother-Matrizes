@@ -1238,12 +1238,31 @@ internal object CleanRoomSatinEngine {
         val length = length(a, b)
         if (length < 0.45f || length > 60f ||
             !length.isFinite()) return false
-        // Check the raw (pre-pull) coverage, since legitimate Satin pull
-        // compensation deliberately extends slightly outside the outline.
+        // Check raw (pre-pull) geometry; legitimate pull compensation can
+        // extend slightly outside. A handful of samples alone cannot detect
+        // a small counter/gap between them, so also reject ANY intersection
+        // with the original outline in the interior of this Satin chord.
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        for (ring in contours) {
+            for (i in ring.indices) {
+                val p = ring[i]
+                val q = ring[(i + 1) % ring.size]
+                val ex = q.x - p.x
+                val ey = q.y - p.y
+                val determinant = dx * ey - dy * ex
+                if (abs(determinant) < 1e-6f) continue
+                val px = p.x - a.x
+                val py = p.y - a.y
+                val t = (px * ey - py * ex) / determinant
+                val u = (px * dy - py * dx) / determinant
+                if (t > 0.001f && t < 0.999f &&
+                    u >= 0f && u < 1f) return false
+            }
+        }
         return listOf(.1f, .25f, .5f, .75f, .9f).all { t ->
             insideOriginalVector(contours,
-                V(a.x + (b.x - a.x) * t,
-                    a.y + (b.y - a.y) * t))
+                V(a.x + dx * t, a.y + dy * t))
         }
     }
 
