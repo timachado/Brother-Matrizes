@@ -1133,7 +1133,10 @@ internal object CleanRoomSatinEngine {
             left > 35f || right > 35f) return null
         // A large left/right mismatch at a cursive junction is evidence
         // the ray has crossed into another branch of the font outline.
-        val (safeLeft, safeRight) = constrainCrossStrokeExtents(left, right)
+        val (limitedLeft, limitedRight) = constrainCrossStrokeExtents(left, right)
+        val lengthScale = minOf(1f, 60f / (limitedLeft + limitedRight))
+        val safeLeft = limitedLeft * lengthScale
+        val safeRight = limitedRight * lengthScale
         val width = safeLeft + safeRight
         if (width < 1.5f) return null
         // 6mm maximum bar length including compensation: the physical
