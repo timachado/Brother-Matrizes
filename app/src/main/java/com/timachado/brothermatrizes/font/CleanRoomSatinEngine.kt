@@ -1077,6 +1077,28 @@ internal object CleanRoomSatinEngine {
      * counters (a/o), disconnected ornaments, and narrow joins. A ray cannot
      * continue beyond the nearest contour or a 3.5 mm half-width limit.
      */
+    /**
+     * Avoid pulling a satin bar across the adjoining branch of a cursive
+     * letter. At a junction the medial-axis skeleton may sit very near
+     * one outline edge yet the opposite ray reaches an unrelated stroke,
+     * creating rectangular slabs on Bertilda's M, r and a.
+     *
+     * Preserve normal, center, pitch and the real outline intersections.
+     * Bound only extreme asymmetry, never insert a stitch across a counter.
+     */
+    internal fun constrainCrossStrokeExtents(
+        negativeExtent: Float,
+        positiveExtent: Float,
+        maxSideRatio: Float = 2.5f
+    ): Pair<Float, Float> {
+        require(negativeExtent.isFinite() && positiveExtent.isFinite() &&
+            negativeExtent > 0f && positiveExtent > 0f &&
+            maxSideRatio >= 2f)
+        val shorter = minOf(negativeExtent, positiveExtent)
+        val longer = shorter * maxSideRatio
+        return minOf(negativeExtent, longer) to minOf(positiveExtent, longer)
+    }
+
     internal fun exactVectorRail(
         contours: List<List<V>>, center: V, normal: V, pullUnits: Float
     ): Rail? {
@@ -1109,14 +1131,23 @@ internal object CleanRoomSatinEngine {
         }
         if (winding == 0 || !left.isFinite() || !right.isFinite() ||
             left > 35f || right > 35f) return null
-        val width = left + right
+        // A large left/right mismatch at a cursive junction is evidence
+        // the ray has crossed into another branch of the font outline.
+        val (safeLeft, safeRight) = constrainCrossStrokeExtents(left, right)
+        val width = safeLeft + safeRight
         if (width < 1.5f) return null
-        val safePull = minOf(pullUnits, max(0.4f, width * 0.5f))
+        // 6mm maximum bar length including compensation: the physical
+        // embroidery machine must never sew the full 7mm search radius.
+        val safePull = minOf(
+            pullUnits,
+            max(0.4f, width * 0.5f),
+            max(0f, (60f - width) * 0.5f)
+        )
         return Rail(
-            V(origin.x - normal.x * (left + safePull),
-                origin.y - normal.y * (left + safePull)),
-            V(origin.x + normal.x * (right + safePull),
-                origin.y + normal.y * (right + safePull))
+            V(origin.x - normal.x * (safeLeft + safePull),
+                origin.y - normal.y * (safeLeft + safePull)),
+            V(origin.x + normal.x * (safeRight + safePull),
+                origin.y + normal.y * (safeRight + safePull))
         )
     }
 
