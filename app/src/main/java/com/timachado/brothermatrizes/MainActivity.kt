@@ -339,7 +339,9 @@ private sealed interface Screen {
             ),
         val showConnections:
             Boolean =
-            false
+            false,
+        val rebuildStatus: String? = null,
+        val rebuildInProgress: Boolean = false
     ) : Screen
 
     data class Converter(
@@ -2461,6 +2463,8 @@ private fun BrotherMatrizesApp(
                             current.referenceHoop,
                         showConnections =
                             current.showConnections,
+                        rebuildStatus = current.rebuildStatus,
+                        rebuildInProgress = current.rebuildInProgress,
                         onBack = {
                             goBack()
                         },
@@ -2478,12 +2482,17 @@ private fun BrotherMatrizesApp(
                             current.design.editableName?.options?.importedFontId != null
                         ) {
                             {
-                                if (!loading) {
+                                if (!loading && !current.rebuildInProgress) {
                                     loading = true
                                     val previous = current.design
                                     val previousMode = current.displayMode
                                     val previousHoop = current.referenceHoop
                                     val previousConnections = current.showConnections
+                                    val originalCode = stitchSequenceFingerprint(previous)
+                                    screen = current.copy(
+                                        rebuildStatus = null,
+                                        rebuildInProgress = true
+                                    )
                                     scope.launch {
                                         try {
                                             val recalculated = withContext(Dispatchers.Default) {
@@ -2492,8 +2501,8 @@ private fun BrotherMatrizesApp(
                                                 val font = ImportedFontStore.list(context)
                                                     .firstOrNull { it.id == fontId }
                                                     ?: throw IllegalStateException(
-                                                        "Fonte importada não encontrada nesta instalação. " +
-                                                            "Reimporte a Bertilda no editor."
+                                                        "A fonte desta matriz não está instalada neste APK. " +
+                                                            "Reimporte a mesma Bertilda TTF/OTF no editor."
                                                     )
                                                 NamePersonalization.invalidatePreparedPreview()
                                                 NamePersonalization.add(
@@ -2513,31 +2522,37 @@ private fun BrotherMatrizesApp(
                                                 ).getOrThrow()
                                             }
                                             if (recalculated.points == previous.points) {
-                                                snackbar.showSnackbar(
-                                                    "Reprocessamento concluído, mas as pontadas " +
-                                                        "continuam idênticas. A matriz antiga foi preservada."
+                                                screen = current.copy(
+                                                    rebuildStatus =
+                                                        "Sem alteração: sequência " + originalCode +
+                                                        ". O motor produziu as mesmas pontadas; " +
+                                                        "a matriz original foi preservada.",
+                                                    rebuildInProgress = false
                                                 )
                                             } else {
-                                                // Never silently overwrite the user's saved
-                                                // project. The new output opens as the active
-                                                // QA design, retaining the old project's data.
+                                                val newCode = stitchSequenceFingerprint(recalculated)
                                                 activateDesign(recalculated)
                                                 screen = Screen.Simulator(
                                                     design = recalculated,
                                                     displayMode = previousMode,
                                                     referenceHoop = previousHoop,
-                                                    showConnections = previousConnections
-                                                )
-                                                snackbar.showSnackbar(
-                                                    "Novas pontadas calculadas. Compare o código " +
-                                                        "Sequência antes de enviar à bordadeira."
+                                                    showConnections = previousConnections,
+                                                    rebuildStatus =
+                                                        "Pontadas NOVAS: " + originalCode + " -> " +
+                                                        newCode + " (" +
+                                                        previous.stitchCount + " -> " +
+                                                        recalculated.stitchCount + " pontos). " +
+                                                        "Ainda não liberado para a máquina.",
+                                                    rebuildInProgress = false
                                                 )
                                             }
                                         } catch (error: Exception) {
-                                            snackbar.showSnackbar(
-                                                "Não foi possível recalcular: " +
-                                                    (error.message ?: "erro desconhecido") +
-                                                    ". A matriz anterior foi preservada."
+                                            screen = current.copy(
+                                                rebuildStatus =
+                                                    "REPROCESSAMENTO FALHOU: " +
+                                                    (error.message ?: error.javaClass.simpleName) +
+                                                    ". A sequência " + originalCode + " NÃO mudou.",
+                                                rebuildInProgress = false
                                             )
                                         } finally {
                                             loading = false
