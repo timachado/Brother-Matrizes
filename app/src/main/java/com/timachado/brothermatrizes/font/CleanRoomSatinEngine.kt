@@ -469,6 +469,58 @@ internal object CleanRoomSatinEngine {
             ?.let { V(-it.y, it.x) }
     }
 
+    /**
+     * Cap isolated, geometrically implausible Satin width spikes at cursive
+     * intersections. At a medial-axis junction, a transverse ray can touch a
+     * neighbouring stroke and create a wide rectangular slab (seen in the
+     * Bertilda M). Real thick strokes cover several consecutive rails and
+     * retain their natural width because the local median is also wide.
+     *
+     * This never adds rails, crosses gaps, changes their centres or direction,
+     * and does not join paths. Original letter coverage is validated after
+     * generation by ImportedFontCoverageGuard.
+     */
+    internal fun smoothIsolatedSatinWidthSpikes(
+        rows: List<Rail?>,
+        windowRadius: Int = 4
+    ): List<Rail?> {
+        require(windowRadius in 2..8)
+        if (rows.size < windowRadius * 2 + 1) return rows
+        fun span(rail: Rail) = length(rail.a, rail.b)
+        return rows.mapIndexed { index, rail ->
+            if (rail == null) return@mapIndexed null
+            // Do not look across missing sections: they represent actual
+            // counters or disconnects in the original font.
+            val contiguous = mutableListOf<Float>()
+            var start = index
+            while (start > 0 && index - start < windowRadius && rows[start - 1] != null) {
+                start--
+            }
+            var end = index
+            while (end < rows.lastIndex && end - index < windowRadius && rows[end + 1] != null) {
+                end++
+            }
+            for (j in start..end) {
+                rows[j]?.let { contiguous += span(it) }
+            }
+            if (contiguous.size < 5) return@mapIndexed rail
+            contiguous.sort()
+            val median = contiguous[contiguous.size / 2]
+            val current = span(rail)
+            // 8 units = 0.8 mm: smaller changes should remain untouched.
+            val cap = max(14f, median * 1.85f)
+            if (current <= cap + 8f) return@mapIndexed rail
+            val centre = rail.middle
+            val fraction = cap / current
+            Rail(
+                V(centre.x + (rail.a.x - centre.x) * fraction,
+                    centre.y + (rail.a.y - centre.y) * fraction),
+                V(centre.x + (rail.b.x - centre.x) * fraction,
+                    centre.y + (rail.b.y - centre.y) * fraction)
+            )
+        }
+    }
+
     internal fun planContours(
         contours: List<List<V>>,
         densityMm: Float,
@@ -543,7 +595,9 @@ internal object CleanRoomSatinEngine {
                     ((v.y - raster.top) / raster.step).roundToInt()
                 )
             }
-            filledRails.forEach { row ->
+            // Suppress isolated cross-branch Satin slabs while keeping
+            // sustained thick calligraphic downstrokes unchanged.
+            smoothIsolatedSatinWidthSpikes(filledRails).forEach { row ->
                 if (row == null) {
                     endBatch()
                 } else if (seen(row)) {
