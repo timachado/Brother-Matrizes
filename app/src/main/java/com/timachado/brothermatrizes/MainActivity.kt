@@ -2507,7 +2507,9 @@ private fun BrotherMatrizesApp(
                                                 NamePersonalization.invalidatePreparedPreview()
                                                 NamePersonalization.add(
                                                     original = previous,
-                                                    options = layer.options.copy(
+                                                    options = NamePersonalization.optionsForSatinRegeneration(
+                                                        layer.options
+                                                    ).copy(
                                                         outputFormat = previous.format,
                                                         hoopProfile = previousHoop,
                                                         enforceHoop = true
@@ -2525,8 +2527,11 @@ private fun BrotherMatrizesApp(
                                                 screen = current.copy(
                                                     rebuildStatus =
                                                         "Sem alteração: sequência " + originalCode +
-                                                        ". O motor produziu as mesmas pontadas; " +
-                                                        "a matriz original foi preservada.",
+                                                        ". Estilo original: " + 
+                                                        previous.editableName?.options?.style?.displayName +
+                                                        ". Testado com motor Satin vetorial; " +
+                                                        "as pontadas geradas permaneceram iguais. " +
+                                                        "A matriz original foi preservada.",
                                                     rebuildInProgress = false
                                                 )
                                             } else {
