@@ -736,6 +736,64 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun tinyRealTTFGapBetweenCurvesIsNotClosedByRasterBasedRepair() {
+        // Um intervalo de 0,05 mm entre duas hastes cursivas é menor que
+        // alguns pixels do raster. Amostras isoladas podem mascará-lo.
+        // A continuidade exata do contorno deve vetar a barra interpolada.
+        val geometry = listOf(
+            rectangle(0f, 0f, 20f, 30f),
+            rectangle(20.5f, 0f, 20f, 30f)
+        )
+        fun rail(x: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, 8f),
+            CleanRoomSatinEngine.V(x, 20f)
+        )
+        val original = listOf(rail(12f), rail(16f), null, rail(24f), rail(28f))
+        val route = (0..4).map { i ->
+            CleanRoomSatinEngine.V(12f + i * 4f, 14f)
+        }
+        val repaired = CleanRoomSatinEngine.repairShortRailGaps(
+            original, route, gridStep = 1.1f,
+            uninterruptedVector = { a, b ->
+                CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                    geometry, a, b
+                )
+            }
+        ) { true /* raster equivocadamente declara todos como preenchidos */ }
+        assertNull("Não juntar letras através de uma abertura vetorial real.",
+            repaired[2])
+        assertEquals("Os trechos preservados não podem ser alterados.",
+            original[1], repaired[1])
+        assertEquals(original[3], repaired[3])
+    }
+
+    @Test
+    fun legitimateShortGapInsideOneContinuousVectorStrokeIsRestored() {
+        val geometry = listOf(rectangle(0f, 0f, 40f, 30f))
+        fun rail(x: Float) = CleanRoomSatinEngine.Rail(
+            CleanRoomSatinEngine.V(x, 8f),
+            CleanRoomSatinEngine.V(x, 20f)
+        )
+        val original = listOf(rail(12f), rail(16f), null, rail(24f), rail(28f))
+        val route = (0..4).map { i ->
+            CleanRoomSatinEngine.V(12f + i * 4f, 14f)
+        }
+        val repaired = CleanRoomSatinEngine.repairShortRailGaps(
+            original, route, gridStep = 1.1f,
+            uninterruptedVector = { a, b ->
+                CleanRoomSatinEngine.rasterRailStaysInsideOutline(
+                    geometry, a, b
+                )
+            }
+        ) { v -> CleanRoomSatinEngine.insideOriginalVector(geometry, v) }
+        assertNotNull("Falhas de uma barra dentro da mesma haste devem ser reparadas.",
+            repaired[2])
+        assertEquals(20f, repaired[2]!!.middle.x, .01f)
+        assertEquals(original[1], repaired[1])
+        assertEquals(original[3], repaired[3])
+    }
+
+    @Test
     fun tinyMissingSatinRailIsRestoredOnlyInsideOriginalFontGeometry() {
         fun rail(y: Float) = CleanRoomSatinEngine.Rail(
             CleanRoomSatinEngine.V(0f, y),
