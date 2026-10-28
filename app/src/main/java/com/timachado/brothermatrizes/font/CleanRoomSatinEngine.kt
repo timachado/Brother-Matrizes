@@ -589,11 +589,16 @@ internal object CleanRoomSatinEngine {
             // Missing one or two columns in an otherwise continuous glyph
             // must not turn the font into a dashed line. Interpolation is
             // allowed ONLY where the original filled font mask remains solid.
-            val filledRails = repairShortRailGaps(rawRails, interpolated, raster.step) {
-                v -> raster.inside(
-                    ((v.x - raster.left) / raster.step).roundToInt(),
-                    ((v.y - raster.top) / raster.step).roundToInt()
-                )
+            // A rasterização pode eliminar espaços vetoriais estreitos
+            // entre curvas. Antes de interpolar uma barra ausente, exigir
+            // continuidade na geometria REAL TTF/OTF (sem cruzar vazados).
+            val filledRails = repairShortRailGaps(
+                rawRails, interpolated, raster.step,
+                uninterruptedVector = { from, to ->
+                    rasterRailStaysInsideOutline(contours, from, to)
+                }
+            ) { v ->
+                insideOriginalVector(contours, v)
             }
             // Suppress isolated cross-branch Satin slabs while keeping
             // sustained thick calligraphic downstrokes unchanged.
@@ -638,6 +643,9 @@ internal object CleanRoomSatinEngine {
         rows: List<Rail?>,
         route: List<V>,
         gridStep: Float,
+        // Exact vector segment verification, not a few raster sample points.
+        // Default preserves the simple geometry-only unit-test contract.
+        uninterruptedVector: (V, V) -> Boolean = { _, _ -> true },
         insideOriginalOutline: (V) -> Boolean
     ): List<Rail?> {
         if (rows.size != route.size || rows.size < 3) return rows
@@ -653,6 +661,10 @@ internal object CleanRoomSatinEngine {
             val after = rows[i] ?: continue
             if (length(before.middle, after.middle) >
                 (gapLength + 1) * gridStep * 7.5f) continue
+            // A centre-to-centre chord may cross a tiny counter or a real
+            // break between script strokes even if every raster sample says
+            // "filled". That break must remain a JUMP, not a satin bridge.
+            if (!uninterruptedVector(before.middle, after.middle)) continue
 
             // Do not bridge across real holes/counters in the letter:
             // both the missing medial positions and the intermediate
