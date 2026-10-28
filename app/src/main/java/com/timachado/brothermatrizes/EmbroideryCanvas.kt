@@ -976,20 +976,28 @@ private fun DrawScope.drawStitchByDisplay(
             if (
                 lightweight
             ) {
+                // Keep a visible thread relief in optimized previews.
+                // Previously this branch drew a single flat line, making
+                // Realista indistinguishable from Sólida on large designs.
                 drawLine(
-                    color =
-                        color,
-                    start =
-                        start,
-                    end =
-                        end,
-                    strokeWidth =
-                        1.25.dp
-                            .toPx(),
-                    cap =
-                        StrokeCap.Round
+                    color = Color(
+                        red = color.red * .42f,
+                        green = color.green * .42f,
+                        blue = color.blue * .42f,
+                        alpha = .76f
+                    ),
+                    start = start,
+                    end = end,
+                    strokeWidth = 2.2.dp.toPx(),
+                    cap = StrokeCap.Round
                 )
-
+                drawLine(
+                    color = color.copy(alpha = .96f),
+                    start = start,
+                    end = end,
+                    strokeWidth = .95.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
                 return
             }
 
