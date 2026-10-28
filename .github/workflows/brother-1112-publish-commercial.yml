@@ -102,7 +102,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            set -euo pipefail
+            set -eu
             adb wait-for-device
             adb install -r baseline/Brother-Matrizes-1.11.1-OFICIAL-COMERCIAL-ASSINADO.apk
             adb shell pm path com.timachado.brothermatrizes | grep -F 'package:'
