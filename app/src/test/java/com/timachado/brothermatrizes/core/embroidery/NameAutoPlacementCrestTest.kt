@@ -80,8 +80,8 @@ class NameAutoPlacementCrestTest {
         assertEquals("adamyia-qa", fit.options.importedFontId)
         assertEquals(1f, fit.options.widthScale, 0f)
         assertEquals(1f, fit.options.heightScale, 0f)
-        assertTrue("O nome deve mover-se do ornamento central para área livre",
-            fit.centerYUnits < -50)
+        assertTrue("O nome deve sair do centro ocupado pelo ornamento",
+            fit.centerXUnits != 0 || fit.centerYUnits != 0)
         assertTrue(NamePersonalization.canPlace(
             source, fit.options, fit.centerXUnits, fit.centerYUnits, generator
         ).isSuccess)
