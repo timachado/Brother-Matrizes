@@ -620,16 +620,11 @@ fun NameEditorScreen(
                     .testTag("brother_name_drag_handle"),
                 contentAlignment = Alignment.Center
             ) {
-                if (preview == null) {
-                    Text(
-                        draft.name,
-                        color = Color(draft.color or 0xFF000000.toInt()),
-                        fontSize = (draft.height * 1.6f).coerceIn(12f, 42f).sp,
-                        modifier = Modifier.graphicsLayer {
-                            rotationZ = draft.rotation
-                        }
-                    )
-                }
+                // Não desenhar o nome com a fonte genérica do Android
+                // quando o Satin real falhou: aquela imagem NÃO representa
+                // a fonte Adamya/TTF selecionada nem é uma matriz segura.
+                // A área de toque permanece disponível; o erro aparece abaixo.
+
             }
         }
 
@@ -646,7 +641,7 @@ fun NameEditorScreen(
                 color = FioTextMuted, fontSize = 12.sp
             )
             preview == null -> Text(
-                currentError ?: autoFitError ?: "Prévia indisponível.",
+                autoFitError ?: currentError ?: "Prévia de pontadas indisponível. Use o ajuste automático.",
                 color = Color(0xFFFF9393), fontSize = 12.sp
             )
             else -> Text(
@@ -677,6 +672,7 @@ fun NameEditorScreen(
 
         OutlinedButton(
             onClick = {
+                autoFitError = null
                 autoFitRequest++
                 autoFitEnabled = true
             },
