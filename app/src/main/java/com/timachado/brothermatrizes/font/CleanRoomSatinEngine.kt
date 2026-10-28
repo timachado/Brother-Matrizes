@@ -277,6 +277,44 @@ internal object CleanRoomSatinEngine {
         ).map { it.rails }
     }
 
+    /**
+     * Exact intersections with the vector outline at a vertical satin rail.
+     * A bitmap cell only establishes connectivity; the needle must land on
+     * the TrueType/OTF outline, not on the rounded edge of that bitmap cell.
+     * Non-zero winding retains a/o/e counters and intentional spaces.
+     */
+    internal fun vectorSpansAtX(contours: List<List<V>>, x: Float): List<Pair<Float, Float>> {
+        val crossings = ArrayList<Pair<Float, Int>>()
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) {
+                    val y = a.y + (x - a.x) * (b.y - a.y) / (b.x - a.x)
+                    if (y.isFinite()) crossings += y to if (b.x > a.x) 1 else -1
+                }
+            }
+        }
+        crossings.sortBy { it.first }
+        var winding = 0
+        val spans = ArrayList<Pair<Float, Float>>()
+        for (i in 0 until crossings.lastIndex) {
+            winding += crossings[i].second
+            if (winding != 0 && crossings[i + 1].first > crossings[i].first + 0.01f) {
+                val low = crossings[i].first
+                val high = crossings[i + 1].first
+                val previous = spans.lastOrNull()
+                if (previous != null && low <= previous.second + 0.02f) {
+                    spans[spans.lastIndex] = previous.first to high
+                } else {
+                    spans += low to high
+                }
+            }
+        }
+        return spans
+    }
+
     internal fun planContextualFill(
         contours: List<List<V>>,
         densityMm: Float
@@ -290,7 +328,9 @@ internal object CleanRoomSatinEngine {
         val maxBarUnits = 60f
         val active = mutableListOf<MutableList<Rail>>()
         val completed = mutableListOf<List<Rail>>()
-        data class Section(val top: Int, val bottom: Int)
+        data class Section(
+            val top: Int, val bottom: Int, val railTop: Float, val railBottom: Float
+        )
         var oldRanges = emptyList<Section>()
 
         fun endTracks() {
@@ -299,6 +339,8 @@ internal object CleanRoomSatinEngine {
             oldRanges = emptyList()
         }
         for (x in 1 until raster.width - 1 step colPitch) {
+            val atX = raster.left + x * raster.step
+            val vectorSpans = vectorSpansAtX(contours, atX)
             val next = ArrayList<Section>()
             var y = 1
             while (y < raster.height - 1) {
@@ -307,13 +349,30 @@ internal object CleanRoomSatinEngine {
                 while (y < raster.height - 1 && raster.inside(x, y)) y++
                 val bottom = y - 1
                 if (bottom < top) continue
-                val pixelSpan = max(1, ceil((bottom - top + 1) *
-                    raster.step / maxBarUnits).toInt())
-                for (piece in 0 until pixelSpan) {
-                    val a = top + ((bottom - top + 1) * piece) / pixelSpan
+                val maskTop = raster.top + (top - 0.3f) * raster.step
+                val maskBottom = raster.top + (bottom + 0.3f) * raster.step
+                // Multiple outline spans in the same raster band indicate
+                // a real narrow counter. Never close it with one long rail.
+                val touching = vectorSpans.filter { (low, high) ->
+                    high >= maskTop - raster.step &&
+                        low <= maskBottom + raster.step
+                }
+                val exact = touching.singleOrNull()
+                val railTop = exact?.first ?: maskTop
+                val railBottom = exact?.second ?: maskBottom
+                val sectionLength = (railBottom - railTop).coerceAtLeast(0f)
+                val pieces = max(1, ceil(sectionLength / maxBarUnits).toInt())
+                for (piece in 0 until pieces) {
+                    val a = top + ((bottom - top + 1) * piece) / pieces
                     val b = top + ((bottom - top + 1) * (piece + 1)) /
-                        pixelSpan - 1
-                    if (a <= b) next += Section(a, b)
+                        pieces - 1
+                    if (a <= b) {
+                        next += Section(
+                            a, b,
+                            railTop + sectionLength * piece / pieces,
+                            railTop + sectionLength * (piece + 1) / pieces
+                        )
+                    }
                 }
             }
             // Spans in consecutive columns belong to one satin track only
@@ -339,9 +398,8 @@ internal object CleanRoomSatinEngine {
                     matchedOld += match
                     active[match]
                 }
-                val atX = raster.left + x * raster.step
-                val yTop = raster.top + (section.top - 0.3f) * raster.step
-                val yBottom = raster.top + (section.bottom + 0.3f) * raster.step
+                val yTop = section.railTop
+                val yBottom = section.railBottom
                 if (yBottom - yTop >= 0.55f) {
                     track += Rail(V(atX, yTop), V(atX, yBottom))
                 }
