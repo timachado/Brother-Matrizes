@@ -64,6 +64,40 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun simulatorKeepsReprocessingFailureVisibleAndAllowsRetry() {
+        val base = frame()
+        val saved = NamePersonalization.add(
+            base, TextMatrixOptions(text = "Maria", heightMm = 9f),
+            0, 0
+        ).getOrThrow()
+        val imported = saved.copy(
+            editableName = requireNotNull(saved.editableName).copy(
+                options = requireNotNull(saved.editableName).options.copy(
+                    importedFontId = "old-bertilda-id"
+                )
+            )
+        )
+        var attempts = 0
+        composeRule.setContent {
+            SimulatorScreen(
+                design = imported,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onRebuildName = { attempts++ },
+                rebuildStatus =
+                    "REPROCESSAMENTO FALHOU: Fonte importada ausente. " +
+                    "A sequência 62C7DCF3 NÃO mudou."
+            )
+        }
+        composeRule.onNodeWithText("REPROCESSAMENTO FALHOU:", substring = true)
+            .assertExists()
+        composeRule.onNodeWithText("Gerar novas pontadas e simular")
+            .assertExists()
+            .performClick()
+        composeRule.runOnIdle { assertEquals(1, attempts) }
+    }
+
+    @Test
     fun simulatorOffersDirectRegenerationForEditableImportedFont() {
         val original = frame()
         val saved = NamePersonalization.add(
