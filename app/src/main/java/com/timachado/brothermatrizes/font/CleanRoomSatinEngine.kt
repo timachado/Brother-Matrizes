@@ -430,6 +430,45 @@ internal object CleanRoomSatinEngine {
         )
     }
 
+    /**
+     * Smooth the LOCAL route tangent before laying each perpendicular satin bar.
+     *
+     * Skeleton pixels move between diagonal and orthogonal steps at sharp
+     * cursive joins. The old 1-sample chord rotated adjacent bars by 45-90
+     * degrees, leaving triangular holes visible in Bertilda's M/a/r.
+     *
+     * A bounded arc-length window reduces raster stair-step noise without
+     * averaging across a whole letter or losing narrow curves. Only centreline
+     * direction changes: actual needle endpoints are still snapped to the
+     * original vector outline by exactVectorRail().
+     */
+    internal fun satinNormalAlongRoute(route: List<V>, index: Int): V? {
+        if (route.size < 2 || index !in route.indices) return null
+        val radius = 3
+        val first = (index - radius).coerceAtLeast(0)
+        val last = (index + radius).coerceAtMost(route.lastIndex)
+        // Weighted local least-squares direction. The signed weights keep
+        // the normal stable in the presence of 1-pixel skeleton jitter.
+        val origin = route[index]
+        var dx = 0f
+        var dy = 0f
+        var totalWeight = 0f
+        for (j in first..last) {
+            if (j == index) continue
+            val delta = (j - index).toFloat()
+            val weight = 1f / (1f + kotlin.math.abs(delta) * 0.55f)
+            dx += (route[j].x - origin.x) * delta * weight
+            dy += (route[j].y - origin.y) * delta * weight
+            totalWeight += delta * delta * weight
+        }
+        val tangent = if (totalWeight > 0f) normalized(V(dx, dy)) else null
+        if (tangent != null) return V(-tangent.y, tangent.x)
+        val previous = route[(index - 1).coerceAtLeast(0)]
+        val next = route[(index + 1).coerceAtMost(route.lastIndex)]
+        return normalized(V(next.x - previous.x, next.y - previous.y))
+            ?.let { V(-it.y, it.x) }
+    }
+
     internal fun planContours(
         contours: List<List<V>>,
         densityMm: Float,
@@ -491,11 +530,8 @@ internal object CleanRoomSatinEngine {
                 batch = mutableListOf()
             }
             val rawRails = interpolated.mapIndexed { i, c ->
-                val prev = interpolated[(i - 1).coerceAtLeast(0)]
-                val next = interpolated[(i + 1).coerceAtMost(interpolated.lastIndex)]
-                val tangent = normalized(V(next.x - prev.x, next.y - prev.y))
-                tangent?.let {
-                    crossSection(raster, c, V(-it.y, it.x), pullMm * 10f, contours)
+                satinNormalAlongRoute(interpolated, i)?.let { normal ->
+                    crossSection(raster, c, normal, pullMm * 10f, contours)
                 }?.takeIf { length(it.a, it.b) >= 1.5f }
             }
             // Missing one or two columns in an otherwise continuous glyph
