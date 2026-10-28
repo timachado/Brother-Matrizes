@@ -230,6 +230,52 @@ class CleanRoomSatinEngineTest {
     }
 
     @Test
+    fun bertildaVectorSatinEndsOnExactSlopingOutline() {
+        // Linear ramp is an analytic proxy for a curved cursive segment.
+        // Quantizing to the raster grid used to yield stepped/flat tips.
+        val outline = listOf(
+            CleanRoomSatinEngine.V(0f, 0f),
+            CleanRoomSatinEngine.V(100f, 20f),
+            CleanRoomSatinEngine.V(100f, 60f),
+            CleanRoomSatinEngine.V(0f, 40f)
+        )
+        for (x in 10..90 step 10) {
+            val xf = x.toFloat()
+            val middle = CleanRoomSatinEngine.V(xf, 20f + xf * .2f)
+            val rail = requireNotNull(
+                CleanRoomSatinEngine.exactVectorRail(
+                    listOf(outline), middle,
+                    CleanRoomSatinEngine.V(0f, 1f), 0f
+                )
+            )
+            assertEquals(xf * .2f, rail.a.y, .025f)
+            assertEquals(40f + xf * .2f, rail.b.y, .025f)
+            assertEquals(0f, rail.a.x - xf, .025f)
+            assertEquals(40f, rail.b.y - rail.a.y, .025f)
+        }
+    }
+
+    @Test
+    fun bertildaVectorRailDoesNotFillCounterOrDetachedSpace() {
+        val outer = rectangle(0f, 0f, 100f, 100f)
+        val inner = rectangle(25f, 25f, 75f, 75f).reversed()
+        val centreInHole = CleanRoomSatinEngine.exactVectorRail(
+            listOf(outer, inner),
+            CleanRoomSatinEngine.V(50f, 50f),
+            CleanRoomSatinEngine.V(1f, 0f), 0f
+        )
+        assertNull("Nunca fechar o vazado do a/o com Satin.", centreInHole)
+        val withinStroke = CleanRoomSatinEngine.exactVectorRail(
+            listOf(outer, inner),
+            CleanRoomSatinEngine.V(12f, 50f),
+            CleanRoomSatinEngine.V(1f, 0f), 0f
+        )
+        assertNotNull(withinStroke)
+        assertTrue(withinStroke!!.a.x >= -.01f &&
+            withinStroke.b.x <= 25.01f)
+    }
+
+    @Test
     fun vectorOutlineKeepsCurvedEdgesInsteadOfPixelStaircase() {
         // Slanted stem: its upper border has continuously varying Y.
         // Nearest-neighbour raster coordinates used to make stair steps.
