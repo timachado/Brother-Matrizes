@@ -46,6 +46,9 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
 import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
+import com.timachado.brothermatrizes.font.ImportedFontStore
+import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
@@ -2469,6 +2472,78 @@ private fun BrotherMatrizesApp(
                                     design = current.design,
                                     referenceHoop = current.referenceHoop
                                 )
+                            }
+                        } else null,
+                        onRebuildName = if (
+                            current.design.editableName?.options?.importedFontId != null
+                        ) {
+                            {
+                                if (!loading) {
+                                    loading = true
+                                    val previous = current.design
+                                    val previousMode = current.displayMode
+                                    val previousHoop = current.referenceHoop
+                                    val previousConnections = current.showConnections
+                                    scope.launch {
+                                        try {
+                                            val recalculated = withContext(Dispatchers.Default) {
+                                                val layer = requireNotNull(previous.editableName)
+                                                val fontId = requireNotNull(layer.options.importedFontId)
+                                                val font = ImportedFontStore.list(context)
+                                                    .firstOrNull { it.id == fontId }
+                                                    ?: throw IllegalStateException(
+                                                        "Fonte importada não encontrada nesta instalação. " +
+                                                            "Reimporte a Bertilda no editor."
+                                                    )
+                                                NamePersonalization.invalidatePreparedPreview()
+                                                NamePersonalization.add(
+                                                    original = previous,
+                                                    options = layer.options.copy(
+                                                        outputFormat = previous.format,
+                                                        hoopProfile = previousHoop,
+                                                        enforceHoop = true
+                                                    ),
+                                                    centerXUnits = layer.centerXUnits,
+                                                    centerYUnits = layer.centerYUnits,
+                                                    importedGenerator = { options ->
+                                                        ImportedFontMatrixGenerator.generateText(
+                                                            font, options.text, options
+                                                        )
+                                                    }
+                                                ).getOrThrow()
+                                            }
+                                            if (recalculated.points == previous.points) {
+                                                snackbar.showSnackbar(
+                                                    "Reprocessamento concluído, mas as pontadas " +
+                                                        "continuam idênticas. A matriz antiga foi preservada."
+                                                )
+                                            } else {
+                                                // Never silently overwrite the user's saved
+                                                // project. The new output opens as the active
+                                                // QA design, retaining the old project's data.
+                                                activateDesign(recalculated)
+                                                screen = Screen.Simulator(
+                                                    design = recalculated,
+                                                    displayMode = previousMode,
+                                                    referenceHoop = previousHoop,
+                                                    showConnections = previousConnections
+                                                )
+                                                snackbar.showSnackbar(
+                                                    "Novas pontadas calculadas. Compare o código " +
+                                                        "Sequência antes de enviar à bordadeira."
+                                                )
+                                            }
+                                        } catch (error: Exception) {
+                                            snackbar.showSnackbar(
+                                                "Não foi possível recalcular: " +
+                                                    (error.message ?: "erro desconhecido") +
+                                                    ". A matriz anterior foi preservada."
+                                            )
+                                        } finally {
+                                            loading = false
+                                        }
+                                    }
+                                }
                             }
                         } else null
                     )
