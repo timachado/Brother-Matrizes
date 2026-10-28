@@ -692,6 +692,14 @@ class CleanRoomSatinEngineTest {
         )
         assertNotNull("Recuperar uma haste TTF estreita, sem inventar glifos.", snapped)
         assertTrue(CleanRoomSatinEngine.insideOriginalVector(slender, snapped!!))
+        // A máscara pode escolher exatamente a borda x=3.15: o centro
+        // ainda precisa ser movido para o INTERIOR antes das interseções.
+        val onBoundary = CleanRoomSatinEngine.snapRasterCenterToVector(
+            slender, CleanRoomSatinEngine.V(3.15f, 25f),
+            CleanRoomSatinEngine.V(1f, 0f), rasterStep = 1.04f
+        )
+        assertNotNull("O pixel na borda não pode eliminar a haste.", onBoundary)
+        assertTrue(onBoundary!!.x > 3.15f && onBoundary.x < 4f)
 
         val separated = listOf(
             rectangle(0f, 0f, 10f, 50f),
