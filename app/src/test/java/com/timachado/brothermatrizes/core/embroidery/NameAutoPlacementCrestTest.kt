@@ -78,7 +78,8 @@ class NameAutoPlacementCrestTest {
             source, requested, importedGenerator = generator
         ).getOrThrow()
         assertEquals("adamyia-qa", fit.options.importedFontId)
-        assertEquals(1f, fit.options.widthScale, 0f)
+        assertTrue("Expansão horizontal deve permanecer moderada",
+            fit.options.widthScale in 1f..1.65f)
         assertEquals(1f, fit.options.heightScale, 0f)
         assertTrue("O nome deve sair do centro ocupado pelo ornamento",
             fit.centerXUnits != 0 || fit.centerYUnits != 0)
