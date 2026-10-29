@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.3",
-  "versionCode": 190,
+  "versionName": "1.11.4",
+  "versionCode": 191,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.3/Brother-Matrizes-1.11.3-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "c4d87b53fa00210388bd6f32445ddec3f817c5b74d50527013ab8b1cc10aecdf",
-  "releaseNotes": "Fonte Adamiya (Adamyia) com melhor geração de pontadas Satin em nomes.; Ajuste automático longitudinal em molduras florais e brasões, com centralização aprimorada.; Busca de largura intermediária e posicionamento fino, mantendo margem de segurança de 1,5 mm dos ornamentos.; Melhoria na apresentação do nome e no comportamento da prévia.; Atualização da versão 1.11.2 preservando o identificador e o certificado comercial original.; Exportação deve ser conferida na simulação antes de usar na bordadeira.",
-  "publishedAt": "2026-10-29T02:24:01Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.3/Brother-Matrizes-1.11.3-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.4/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "13d6043804e72e63c1a2c26f9d47072c22239807ad53572ab65c2f4e22266178",
+  "releaseNotes": "Rotação real da matriz inteira com controles de 15, 90, 180 e 270 graus.; Nome vinculado acompanha a rotação; proteção da área útil do bastidor.; Novo controle Expansão horizontal de 70 a 140 por cento, separado da largura da palavra.; Pontadas Satin recalculadas e projetos salvos com os novos ajustes.; Correções de arraste do nome e de interferência do autoencaixe durante gestos.; Atualização comercial assinada compatível com a versão 1.11.3.",
+  "publishedAt": "2026-10-29T13:46:42Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.4/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
