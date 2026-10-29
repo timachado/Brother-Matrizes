@@ -91,6 +91,33 @@ internal object CleanRoomSatinEngine {
         }
     }
 
+    /**
+     * Expande cada glifo ao redor de SEU centro, preservando os avanços e
+     * o kerning definidos pela fonte. Diferente de widthScale, que aumenta
+     * a largura da palavra inteira. Fontes contextualizadas num único
+     * contorno permanecem unidas; não separar ligações cursivas artificialmente.
+     */
+    internal fun expandGlyphWidths(
+        glyphs: List<List<List<AndroidSkiaOutlineExtractor.Point>>>,
+        scale: Float
+    ): List<List<List<AndroidSkiaOutlineExtractor.Point>>> {
+        require(scale.isFinite() && scale in .7f..1.4f) {
+            "Expansão horizontal deve ficar entre 70% e 140%."
+        }
+        if (scale == 1f) return glyphs
+        return glyphs.map { glyph ->
+            val xs = glyph.flatMap { it }.map { it.x }
+            if (xs.isEmpty()) glyph else {
+                val pivotX = (xs.min() + xs.max()) * .5f
+                glyph.map { contour ->
+                    contour.map { point ->
+                        point.copy(x = pivotX + (point.x - pivotX) * scale)
+                    }
+                }
+            }
+        }
+    }
+
     fun generate(
         font: ImportedFont,
         sourceText: String,
@@ -125,7 +152,8 @@ internal object CleanRoomSatinEngine {
         // Pitch and maximum satin bar length therefore remain physical
         // values in millimetres instead of being stretched with the text.
         val scaledGlyphs = scaleGlyphContours(
-            outlines.glyphPolygons,
+            expandGlyphWidths(outlines.glyphPolygons,
+                options.horizontalGlyphScale),
             options.widthScale,
             options.heightScale
         )
