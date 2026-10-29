@@ -228,8 +228,22 @@ class NameEditorAndroidQaTest {
         // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .assertExists().performClick()
+        // The initial auto-fit can legitimately choose negative X.
+        // Capture its actual position after rotation rather than assuming 0.
+        composeRule.waitUntil(timeoutMillis = 30_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        val beforeX = composeRule.runOnIdle {
+            requireNotNull(applied).editableName?.centerXUnits
+                ?: error("Initial saved name has no center X")
+        }
+        composeRule.runOnIdle { applied = null }
+
         composeRule.onNodeWithTag("brother_name_drag_handle")
-            .assertExists()
+            .performScrollTo().assertExists()
             .performTouchInput {
                 swipe(
                     start = center,
@@ -246,7 +260,11 @@ class NameEditorAndroidQaTest {
         composeRule.runOnIdle {
             val edited = requireNotNull(applied)
             assertEquals(15f, edited.editableName?.options?.rotationDegrees ?: -1f)
-            assertTrue((edited.editableName?.centerXUnits ?: 0) > 0)
+            val afterX = requireNotNull(edited.editableName).centerXUnits
+            assertTrue(
+                "Arraste horizontal não foi salvo: antes=$beforeX, depois=$afterX",
+                afterX > beforeX
+            )
             assertEquals(source.points.dropLast(1),
                 edited.points.take(source.points.size - 1))
         }
