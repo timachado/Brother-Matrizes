@@ -8,6 +8,10 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MachineFinishingInfo
+import com.timachado.brothermatrizes.core.embroidery.NamePersonalizationLayer
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.storage.AtomicFileWriter
 import java.io.BufferedInputStream
@@ -38,7 +42,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        3
+        7
 
     private const val MAX_POINTS =
         2_000_000
@@ -249,6 +253,60 @@ object ProjectCodec {
                 )
             }
 
+        /*
+         * v4: camada editável reconstituível sem gravar um segundo conjunto
+         * completo de pontos. A composição preserva todo o prefixo da matriz
+         * original; salvamos apenas seu END, metadados e opções tipográficas.
+         * Projetos legados v1..v3 continuam legíveis.
+         */
+        val layer = design.editableName
+        output.writeBoolean(layer != null)
+        if (layer != null) {
+            val base = layer.original
+            require(base.editableName == null) {
+                "Camadas de nome aninhadas não são suportadas."
+            }
+            require(base.points.size >= 2 && base.points.last().command == StitchCommand.END) {
+                "Matriz-base de nome inválida."
+            }
+            require(
+                design.points.size > base.points.size &&
+                    design.points.subList(0, base.points.size - 1) ==
+                    base.points.dropLast(1)
+            ) {
+                "O desenho de base mudou. Salve uma nova matriz sem camada editável."
+            }
+            require(base.threadColors.size in 0..MAX_COLORS) {
+                "A paleta original é grande demais."
+            }
+            output.writeInt(base.points.size)
+            val originalEnd = base.points.last()
+            output.writeInt(originalEnd.xUnits)
+            output.writeInt(originalEnd.yUnits)
+            output.writeInt(originalEnd.colorIndex)
+            output.writeUTF(base.fileName.take(500))
+            writeNullableString(output, base.label)
+            output.writeInt(base.threadColors.size)
+            base.threadColors.forEach(output::writeInt)
+            writeNullableString(output, base.hoopProfile?.name)
+            writeNullableString(output, base.fabricProfile?.name)
+            val fontOptions = layer.options
+            output.writeUTF(fontOptions.text.take(24))
+            output.writeUTF(fontOptions.font.name)
+            output.writeFloat(fontOptions.heightMm)
+            output.writeFloat(fontOptions.spacingMm)
+            output.writeFloat(fontOptions.satinDensityMm)
+            output.writeInt(fontOptions.color)
+            output.writeInt(layer.centerXUnits)
+            output.writeInt(layer.centerYUnits)
+            // v5: rotação da camada de texto, sem alterar a matriz-base.
+            output.writeFloat(fontOptions.rotationDegrees)
+            // v6: preservar fonte da Biblioteca de Fontes por ID.
+            writeNullableString(output, fontOptions.importedFontId)
+            // v7: preserva independentemente a largura e a altura da pinça.
+            output.writeFloat(fontOptions.widthScale)
+            output.writeFloat(fontOptions.heightScale)
+        }
         output.flush()
     }
 
@@ -469,6 +527,101 @@ object ProjectCodec {
                     emptyList()
                 }
 
+            val editableLayer = if (version >= 4 && input.readBoolean()) {
+                val baseCount = input.readInt()
+                require(baseCount in 2..points.size) {
+                    "Prefixo de nome inválido."
+                }
+                val endPoint = EmbroideryPoint(
+                    xUnits = input.readInt(),
+                    yUnits = input.readInt(),
+                    command = StitchCommand.END,
+                    colorIndex = input.readInt()
+                )
+                val originalFileName = input.readUTF()
+                val originalLabel = readNullableString(input)
+                val originalColorCount = input.readInt()
+                require(originalColorCount in 0..MAX_COLORS) {
+                    "Paleta de nome inválida."
+                }
+                val originalColors = List(originalColorCount) { input.readInt() }
+                val originalHoop = readNullableString(input)?.let {
+                    runCatching { HoopProfile.valueOf(it) }.getOrNull()
+                }
+                val originalFabric = readNullableString(input)?.let {
+                    runCatching { FabricProfile.valueOf(it) }.getOrNull()
+                }
+                val name = input.readUTF()
+                require(name.length <= 24) { "Nome editável grande demais." }
+                val font = EmbroideryFontPreset.valueOf(input.readUTF())
+                val height = input.readFloat()
+                val spacing = input.readFloat()
+                val density = input.readFloat()
+                val nameColor = input.readInt()
+                val posX = input.readInt()
+                val posY = input.readInt()
+                val rotation = if (version >= 5) input.readFloat() else 0f
+                val importedFontId = if (version >= 6) readNullableString(input) else null
+                val widthScale = if (version >= 7) input.readFloat() else 1f
+                val heightScale = if (version >= 7) input.readFloat() else 1f
+                require(importedFontId == null ||
+                    (importedFontId.length <= 160 &&
+                        (importedFontId.endsWith(".ttf", true) ||
+                            importedFontId.endsWith(".otf", true)))) {
+                    "Identificador de fonte importada inválido."
+                }
+                require(
+                    height.isFinite() && height in 4f..60f &&
+                        spacing.isFinite() && spacing in 0f..8f &&
+                        density.isFinite() && density in .3f..1.2f &&
+                        rotation.isFinite() && rotation in -180f..180f &&
+                        widthScale.isFinite() && widthScale in .5f..2.5f &&
+                        heightScale.isFinite() && heightScale in .5f..2.5f
+                ) { "Parâmetros de nome corrompidos." }
+                val originalDesign = EmbroideryIntegrity.normalize(
+                    EmbroideryDesign(
+                        fileName = originalFileName,
+                        format = format,
+                        label = originalLabel,
+                        points = points.take(baseCount - 1) + endPoint,
+                        bounds = EmbroideryBounds(0, 0, 0, 0),
+                        stitchCount = 0,
+                        jumpCount = 0,
+                        colorChanges = 0,
+                        endFound = true,
+                        sourceBytes = ByteArray(0),
+                        guidePoints = guidePoints,
+                        threadColors = originalColors,
+                        sourceYAxisDown = sourceYAxisDown,
+                        isModified = true,
+                        hoopProfile = originalHoop,
+                        fabricProfile = originalFabric,
+                        machineFinishing = finishing
+                    )
+                ).getOrThrow().design
+                NamePersonalizationLayer(
+                    original = originalDesign,
+                    options = TextMatrixOptions(
+                        text = name,
+                        heightMm = height,
+                        spacingMm = spacing,
+                        satinDensityMm = density,
+                        rotationDegrees = rotation,
+                        widthScale = widthScale,
+                        heightScale = heightScale,
+                        importedFontId = importedFontId,
+                        color = nameColor,
+                        font = font,
+                        style = TextStitchStyle.SATIN,
+                        outputFormat = format
+                    ),
+                    centerXUnits = posX,
+                    centerYUnits = posY
+                )
+            } else {
+                null
+            }
+
             EmbroideryIntegrity
                 .normalize(
                     EmbroideryDesign(
@@ -510,7 +663,8 @@ object ProjectCodec {
                         fabricProfile =
                             fabric,
                         machineFinishing =
-                            finishing
+                            finishing,
+                        editableName = editableLayer
                     )
                 )
                 .getOrElse {

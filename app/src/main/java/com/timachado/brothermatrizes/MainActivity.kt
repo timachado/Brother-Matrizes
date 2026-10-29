@@ -46,6 +46,9 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
 import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
+import com.timachado.brothermatrizes.font.ImportedFontStore
+import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator
 import com.timachado.brothermatrizes.core.embroidery.MatrixExporter
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
@@ -275,15 +278,15 @@ internal fun recommendedHoopFor(
                 hoop ->
             (
                 designWidth <=
-                    hoop.widthMm &&
+                    hoop.usableWidthMm &&
                 designHeight <=
-                    hoop.heightMm
+                    hoop.usableHeightMm
                 ) ||
                 (
                     designWidth <=
-                        hoop.heightMm &&
+                        hoop.usableHeightMm &&
                     designHeight <=
-                        hoop.widthMm
+                        hoop.usableWidthMm
                     )
         }
         ?: HoopProfile.entries
@@ -336,11 +339,18 @@ private sealed interface Screen {
             ),
         val showConnections:
             Boolean =
-            false
+            false,
+        val rebuildStatus: String? = null,
+        val rebuildInProgress: Boolean = false
     ) : Screen
 
     data class Converter(
         val design: EmbroideryDesign
+    ) : Screen
+
+    data class NameEditor(
+        val design: EmbroideryDesign,
+        val referenceHoop: HoopProfile = recommendedHoopFor(design)
     ) : Screen
 
     data class Editor(
@@ -753,6 +763,12 @@ private fun BrotherMatrizesApp(
                         current.design
                     )
 
+                is Screen.NameEditor ->
+                    Screen.Viewer(
+                        design = current.design,
+                        referenceHoop = current.referenceHoop
+                    )
+
                 is Screen.Editor ->
                     Screen.Viewer(
                         design =
@@ -804,19 +820,31 @@ private fun BrotherMatrizesApp(
             }
 
             scope.launch {
-                val permit = BrotherMatrizesAccountService.authorizeImport(
-                    context, isFont = false
+                // QA de homologação isolada: testar um PES local não depende
+                // da autenticação Google do pacote comercial nem debita cotas.
+                // A exceção exige simultaneamente build DEBUG e applicationId
+                // exclusivo; NUNCA se aplica ao aplicativo de produção.
+                val localNameQaImport = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                    debugBuild = BuildConfig.DEBUG,
+                    applicationId = context.packageName
                 )
-                if (permit.isFailure) {
-                    telegramImportPending = false
-                    snackbar.showSnackbar(permit.exceptionOrNull()?.message
-                        ?: "Login Google ou cota de matrizes indisponível.")
-                    if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
-                        screen = Screen.Account
+                val quotaKey = if (localNameQaImport) {
+                    null
+                } else {
+                    val permit = BrotherMatrizesAccountService.authorizeImport(
+                        context, isFont = false
+                    )
+                    if (permit.isFailure) {
+                        telegramImportPending = false
+                        snackbar.showSnackbar(permit.exceptionOrNull()?.message
+                            ?: "Login Google ou cota de matrizes indisponível.")
+                        if (BrotherMatrizesAccountService.ensureGoogleSession().isFailure) {
+                            screen = Screen.Account
+                        }
+                        return@launch
                     }
-                    return@launch
+                    permit.getOrThrow()
                 }
-                val quotaKey = permit.getOrThrow()
                 loading = true
 
                 val result =
@@ -829,12 +857,15 @@ private fun BrotherMatrizesApp(
                         )
                     }
 
-                val registered = BrotherMatrizesAccountService.finalizeImport(
-                    context, isFont = false, requestKey = quotaKey,
-                    success = result is EmbroideryLoadResult.Success
-                )
-                if (registered.isFailure) {
-                    snackbar.showSnackbar("Não foi possível confirmar a cota da importação.")
+                // A confirmação de consumo só existe na importação comercial.
+                if (quotaKey != null) {
+                    val registered = BrotherMatrizesAccountService.finalizeImport(
+                        context, isFont = false, requestKey = quotaKey,
+                        success = result is EmbroideryLoadResult.Success
+                    )
+                    if (registered.isFailure) {
+                        snackbar.showSnackbar("Não foi possível confirmar a cota da importação.")
+                    }
                 }
 
                 loading = false
@@ -875,11 +906,17 @@ private fun BrotherMatrizesApp(
 
     fun launchMatrixPicker(fromTelegram: Boolean = false) {
         scope.launch {
-            val google = BrotherMatrizesAccountService.ensureGoogleSession()
-            if (google.isFailure) {
-                screen = Screen.Account
-                snackbar.showSnackbar("Entre com Google antes de abrir ou importar matrizes.")
-                return@launch
+            val localNameQaImport = NameQaImportPolicy.allowLocalImportWithoutAccount(
+                debugBuild = BuildConfig.DEBUG,
+                applicationId = context.packageName
+            )
+            if (!localNameQaImport) {
+                val google = BrotherMatrizesAccountService.ensureGoogleSession()
+                if (google.isFailure) {
+                    screen = Screen.Account
+                    snackbar.showSnackbar("Entre com Google antes de abrir ou importar matrizes.")
+                    return@launch
+                }
             }
             telegramImportPending = fromTelegram
             picker.launch(arrayOf("*/*"))
@@ -2375,6 +2412,12 @@ private fun BrotherMatrizesApp(
                                             current.showConnections
                                     )
                         },
+                        onEditName = {
+                            screen = Screen.NameEditor(
+                                design = current.design,
+                                referenceHoop = current.referenceHoop
+                            )
+                        },
                         onConvert = {
                             screen =
                                 Screen
@@ -2420,9 +2463,109 @@ private fun BrotherMatrizesApp(
                             current.referenceHoop,
                         showConnections =
                             current.showConnections,
+                        rebuildStatus = current.rebuildStatus,
+                        rebuildInProgress = current.rebuildInProgress,
                         onBack = {
                             goBack()
-                        }
+                        },
+                        onEditName = if (
+                            current.design.editableName?.options?.importedFontId != null
+                        ) {
+                            {
+                                screen = Screen.NameEditor(
+                                    design = current.design,
+                                    referenceHoop = current.referenceHoop
+                                )
+                            }
+                        } else null,
+                        onRebuildName = if (
+                            current.design.editableName?.options?.importedFontId != null
+                        ) {
+                            {
+                                if (!loading && !current.rebuildInProgress) {
+                                    loading = true
+                                    val previous = current.design
+                                    val previousMode = current.displayMode
+                                    val previousHoop = current.referenceHoop
+                                    val previousConnections = current.showConnections
+                                    val originalCode = stitchSequenceFingerprint(previous)
+                                    screen = current.copy(
+                                        rebuildStatus = null,
+                                        rebuildInProgress = true
+                                    )
+                                    scope.launch {
+                                        try {
+                                            val recalculated = withContext(Dispatchers.Default) {
+                                                val layer = requireNotNull(previous.editableName)
+                                                val fontId = requireNotNull(layer.options.importedFontId)
+                                                val font = ImportedFontStore.list(context)
+                                                    .firstOrNull { it.id == fontId }
+                                                    ?: throw IllegalStateException(
+                                                        "A fonte desta matriz não está instalada neste APK. " +
+                                                            "Reimporte a mesma Bertilda TTF/OTF no editor."
+                                                    )
+                                                NamePersonalization.invalidatePreparedPreview()
+                                                NamePersonalization.add(
+                                                    original = previous,
+                                                    options = NamePersonalization.optionsForSatinRegeneration(
+                                                        layer.options
+                                                    ).copy(
+                                                        outputFormat = previous.format,
+                                                        hoopProfile = previousHoop,
+                                                        enforceHoop = true
+                                                    ),
+                                                    centerXUnits = layer.centerXUnits,
+                                                    centerYUnits = layer.centerYUnits,
+                                                    importedGenerator = { options ->
+                                                        ImportedFontMatrixGenerator.generateText(
+                                                            font, options.text, options
+                                                        )
+                                                    }
+                                                ).getOrThrow()
+                                            }
+                                            if (recalculated.points == previous.points) {
+                                                screen = current.copy(
+                                                    rebuildStatus =
+                                                        "Sem alteração: sequência " + originalCode +
+                                                        ". Estilo original: " + 
+                                                        previous.editableName?.options?.style?.displayName +
+                                                        ". Testado com motor Satin vetorial; " +
+                                                        "as pontadas geradas permaneceram iguais. " +
+                                                        "A matriz original foi preservada.",
+                                                    rebuildInProgress = false
+                                                )
+                                            } else {
+                                                val newCode = stitchSequenceFingerprint(recalculated)
+                                                activateDesign(recalculated)
+                                                screen = Screen.Simulator(
+                                                    design = recalculated,
+                                                    displayMode = previousMode,
+                                                    referenceHoop = previousHoop,
+                                                    showConnections = previousConnections,
+                                                    rebuildStatus =
+                                                        "Pontadas NOVAS: " + originalCode + " -> " +
+                                                        newCode + " (" +
+                                                        previous.stitchCount + " -> " +
+                                                        recalculated.stitchCount + " pontos). " +
+                                                        "Ainda não liberado para a máquina.",
+                                                    rebuildInProgress = false
+                                                )
+                                            }
+                                        } catch (error: Exception) {
+                                            screen = current.copy(
+                                                rebuildStatus =
+                                                    "REPROCESSAMENTO FALHOU: " +
+                                                    (error.message ?: error.javaClass.simpleName) +
+                                                    ". A sequência " + originalCode + " NÃO mudou.",
+                                                rebuildInProgress = false
+                                            )
+                                        } finally {
+                                            loading = false
+                                        }
+                                    }
+                                }
+                            }
+                        } else null
                     )
                 }
 
@@ -2451,6 +2594,21 @@ private fun BrotherMatrizesApp(
                                         .design,
                                 targetFormat =
                                     format
+                            )
+                        }
+                    )
+                }
+
+                is Screen.NameEditor -> {
+                    NameEditorScreen(
+                        original = current.design,
+                        referenceHoop = current.referenceHoop,
+                        onBack = { goBack() },
+                        onApply = { personalized ->
+                            activateDesign(personalized)
+                            screen = Screen.Viewer(
+                                design = personalized,
+                                referenceHoop = current.referenceHoop
                             )
                         }
                     )
