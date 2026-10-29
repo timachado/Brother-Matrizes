@@ -14,8 +14,10 @@ import kotlin.math.roundToInt
  * candidatos inviáveis (por exemplo, a coroa deslocada de um brasão).
  * Primeiro encontrar uma altura utilizável, depois aumentá-la.
  *
- * Fontes TTF/OTF mantêm a sua proporção original: ajustar a altura não é
- * esticar a tipografia. Nunca mover flores, borboletas ou o brasão.
+ * Primeiro expandir a fonte mantendo suas proporções (pela altura).
+ * Se a largura do corredor limitar a altura, usar extensão longitudinal
+ * moderada no contorno vetorial, recalculando o Satin na escala FINAL.
+ * Nunca mover flores, borboletas ou o brasão.
  */
 object NameAutoPlacement {
     data class Fit(
@@ -154,10 +156,13 @@ object NameAutoPlacement {
             return false
         }
 
-        suspend fun probe(height: Float): Candidate? {
+        suspend fun probe(height: Float, wordLengthScale: Float = 1f): Candidate? {
             val options = requested.copy(
                 heightMm = height,
-                widthScale = 1f,
+                // A largura da palavra corresponde ao eixo longo de um nome
+                // rodado 90 graus em molduras verticais. Não comprimir a
+                // altura do glifo nem mexer na posição das flores.
+                widthScale = wordLengthScale,
                 heightScale = 1f,
                 enforceHoop = true
             )
@@ -178,6 +183,7 @@ object NameAutoPlacement {
                             // A escala aqui só mede a geometria provisória.
                             // NÃO alterar as pontadas Satin da matriz final.
                             scale = height / referenceHeight,
+                            scaleX = wordLengthScale,
                             mirrorVertical =
                                 source.sourceYAxisDown != reference.sourceYAxisDown
                         )
@@ -248,14 +254,41 @@ object NameAutoPlacement {
             }
         }
 
+        // A altura sozinha nem sempre ocupa o corredor central. A Adamiya
+        // é cursiva e aumentar o espaçamento entre letras rompe as ligações:
+        // alongar levemente o contorno da palavra no eixo da leitura
+        // preserva as conexões entre os glifos. Limite 165% para impedir
+        // deformações exageradas. Somente candidatos realmente livres
+        // (incluindo 1,5 mm de margem) podem ser aplicados.
+        //
+        // Fazer essa busca DEPOIS da altura mantém a tipografia natural
+        // sempre que possível e evita consultas ao motor Satin em loop.
+        if (selected != null && withinBudget() &&
+            requested.importedFontId != null
+        ) {
+            val fittedHeight = selected.options.heightMm
+            for (stretch in listOf(1.65f, 1.45f, 1.25f)) {
+                currentCoroutineContext().ensureActive()
+                if (!withinBudget()) break
+                val longer = probe(fittedHeight, stretch)
+                if (longer != null) {
+                    selected = longer
+                    break
+                }
+            }
+        }
+
         // O pré-teste usa geometria escalada; o resultado comercial
         // SEMPRE regenera os pontos no tamanho final e exige margem real.
         // Limitar tentativas caras e testar também a altura original de
         // referência quando o maior candidato não puder ser bordado.
         for (candidate in validCandidates
-            .distinctBy { Triple(it.options.heightMm, it.x, it.y) }
-            .sortedByDescending { it.options.heightMm }
-            .take(5)
+            .distinctBy { listOf(it.options.heightMm,
+                it.options.widthScale, it.x.toFloat(), it.y.toFloat()) }
+            .sortedWith(compareByDescending<Candidate> {
+                it.options.heightMm * it.options.widthScale
+            }.thenByDescending { it.options.heightMm })
+            .take(8)
         ) {
             currentCoroutineContext().ensureActive()
             val result = NamePersonalization.add(
