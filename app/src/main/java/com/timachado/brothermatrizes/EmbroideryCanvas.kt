@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -78,7 +79,11 @@ fun EmbroideryCanvas(
     hoop: HoopProfile? = null,
     displayMode: EmbroideryDisplayMode =
         EmbroideryDisplayMode.REALISTIC,
-    showConnections: Boolean = false
+    showConnections: Boolean = false,
+    // Deslocamento visual TEMPORÁRIO durante o gesto de posicionar. O bastidor
+    // permanece parado. O arquivo só muda ao concluir o arraste validado.
+    designDragOffset: Offset = Offset.Zero,
+    positionMode: Boolean = false
 ) {
     var zoom by remember(
         design.fileName,
@@ -92,6 +97,13 @@ fun EmbroideryCanvas(
         design.isModified
     ) {
         mutableStateOf(Offset.Zero)
+    }
+
+    LaunchedEffect(positionMode) {
+        if (positionMode) {
+            zoom = 1f
+            offset = Offset.Zero
+        }
     }
 
     val fullPreview =
@@ -210,7 +222,7 @@ fun EmbroideryCanvas(
                 lightweight =
                     optimizePreview,
                 userScale = zoom,
-                userOffset = offset,
+                userOffset = offset + designDragOffset,
                 hoop = hoop,
                 displayMode =
                     displayMode,
