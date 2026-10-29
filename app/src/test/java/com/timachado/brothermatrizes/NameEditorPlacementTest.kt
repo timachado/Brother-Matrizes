@@ -93,10 +93,9 @@ class NameEditorPlacementTest {
             HoopProfile.H130X180, maxX, maxY, 360, 600, 36f)
         val centerX = 180f + (p1.x + p2.x) / 2f
         val centerY = 300f + (p1.y + p2.y) / 2f
-        val target = com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target
-        assertEquals(target.NAME, NameEditorPlacement.targetAtTouch(named,
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.NAME, NameEditorPlacement.targetAtTouch(named,
             HoopProfile.H130X180, centerX, centerY, 360, 600, 36f))
-        assertEquals(target.MATRIX, NameEditorPlacement.targetAtTouch(named,
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.MATRIX, NameEditorPlacement.targetAtTouch(named,
             HoopProfile.H130X180, 12f, 300f, 360, 600, 36f))
         val locked = com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
             .prepare(named, HoopProfile.H130X180).getOrThrow()
@@ -111,7 +110,7 @@ class NameEditorPlacementTest {
             HoopProfile.H130X180,
             fixedPoints.maxOf { it.xUnits }, fixedPoints.maxOf { it.yUnits },
             360, 600, 36f)
-        assertEquals(target.NAME, NameEditorPlacement.targetAtTouch(
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.NAME, NameEditorPlacement.targetAtTouch(
             locked, HoopProfile.H130X180,
             180f + (a.x + b.x) / 2f, 300f + (a.y + b.y) / 2f,
             360, 600, 36f
