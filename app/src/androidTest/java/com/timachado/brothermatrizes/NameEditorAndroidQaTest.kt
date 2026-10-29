@@ -85,6 +85,76 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun viewerMovesMatrixAndNameIndependentlyAndReopensAtSavedPositions() {
+        val compact = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val named = NamePersonalization.add(
+            compact, TextMatrixOptions(text = "Maria", heightMm = 8f),
+            0, 0
+        ).getOrThrow()
+        var displayed by mutableStateOf(named)
+        composeRule.setContent {
+            ViewerScreen(
+                design = displayed,
+                displayMode = EmbroideryDisplayMode.SOLID,
+                onDisplayModeChange = {},
+                referenceHoop = HoopProfile.H100X100,
+                onReferenceHoopChange = {},
+                showConnections = false,
+                onShowConnectionsChange = {},
+                onBack = {},
+                onOpen = {},
+                onSimulate = {},
+                onEdit = {},
+                onEditName = {},
+                onConvert = {},
+                onTransfer = {},
+                onSaveProject = {},
+                onSaveCopy = {},
+                onShare = {},
+                onPositionChange = { displayed = it }
+            )
+        }
+        val originalName = named.editableName!!.centerYUnits
+        composeRule.onNodeWithTag("brother_position_matrix")
+            .assertExists().performClick()
+        composeRule.waitForIdle()
+        val aligned = displayed
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(start = center, end = center + Offset(0f, 24f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        val movedMatrix = displayed
+        assertTrue(movedMatrix.hoopPositionLocked)
+        assertTrue(aligned.points != movedMatrix.points)
+        assertEquals(aligned.editableName!!.centerYUnits,
+            movedMatrix.editableName!!.centerYUnits)
+        assertEquals(aligned.editableName!!.original.points[1].xUnits,
+            movedMatrix.editableName!!.original.points[1].xUnits)
+
+        composeRule.onNodeWithTag("brother_position_name")
+            .assertExists().performClick()
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(start = center, end = center - Offset(0f, 24f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        val independentlyMoved = displayed
+        assertEquals(movedMatrix.editableName!!.original.points,
+            independentlyMoved.editableName!!.original.points)
+        assertTrue(independentlyMoved.editableName!!.centerYUnits !=
+            movedMatrix.editableName!!.centerYUnits)
+        val reopened = ProjectCodec.decode(ProjectCodec.encode(independentlyMoved))
+        assertEquals(independentlyMoved.points, reopened.points)
+        assertEquals(independentlyMoved.editableName!!.centerYUnits,
+            reopened.editableName!!.centerYUnits)
+        assertTrue(reopened.hoopPositionLocked)
+        assertEquals(originalName, named.editableName!!.centerYUnits)
+    }
+
+    @Test
     fun simulatorKeepsReprocessingFailureVisibleAndAllowsRetry() {
         val base = frame()
         val saved = NamePersonalization.add(
