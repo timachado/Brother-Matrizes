@@ -538,6 +538,9 @@ internal fun shouldPreserveHoopPosition(
     hoop: HoopProfile,
     rotateHoop: Boolean
 ): Boolean {
+    // Posição gravada em projeto v9 deve prevalecer mesmo ao reabrir:
+    // recentralizar pelos bounds apagaria visualmente o arraste salvo.
+    if (design.hoopPositionLocked) return true
     if (
         !design.isModified
     ) {
