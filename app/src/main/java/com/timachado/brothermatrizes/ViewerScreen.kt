@@ -73,11 +73,13 @@ fun ViewerScreen(
     var placementTarget by remember { mutableStateOf<HoopLayerPositioning.Target?>(null) }
     var placementError by remember { mutableStateOf<String?>(null) }
     var gestureDelta by remember { mutableStateOf(Offset.Zero) }
+    var gestureTarget by remember { mutableStateOf<HoopLayerPositioning.Target?>(null) }
     var positioningCanvas by remember { mutableStateOf(IntSize.Zero) }
 
     fun selectPlacement(target: HoopLayerPositioning.Target) {
         placementError = null
         gestureDelta = Offset.Zero
+        gestureTarget = null
         if (placementTarget == target) {
             placementTarget = null
         } else {
@@ -230,14 +232,21 @@ fun ViewerScreen(
                     .testTag("brother_position_error")
             )
         }
-        if (placementTarget != null) {
-            Text(
-                "Arraste com um dedo para posicionar. Toque no modo novamente " +
-                    "para concluir; salve em Minhas Matrizes para manter a posição.",
-                color = FioTextMuted, fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 18.dp)
-            )
-        }
+        Text(
+            if (placementTarget == null) {
+                "Arraste as flores para mover a matriz; toque e arraste o nome para " +
+                    "movê-lo sozinho. Os botões acima permitem escolher a camada. " +
+                    "Salve em Minhas Matrizes para manter as posições."
+            } else {
+                "Movendo apenas " +
+                    (if (placementTarget == HoopLayerPositioning.Target.NAME)
+                        "o nome" else "a matriz") +
+                    ". Toque no botão novamente para voltar à seleção por toque."
+            },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 18.dp)
+                .testTag("brother_position_help")
+        )
 
         Box(
             modifier = Modifier
@@ -246,55 +255,78 @@ fun ViewerScreen(
                 .padding(horizontal = 16.dp)
                 .onSizeChanged { positioningCanvas = it }
                 .testTag("brother_position_canvas")
-                .then(if (placementTarget != null) {
-                    Modifier.pointerInput(placementTarget, design, referenceHoop) {
-                        detectDragGestures(
-                            onDragStart = { gestureDelta = Offset.Zero },
-                            onDragCancel = { gestureDelta = Offset.Zero },
-                            onDragEnd = {
-                                val activeTarget = placementTarget
-                                if (activeTarget != null &&
-                                    positioningCanvas.width > 0 &&
-                                    positioningCanvas.height > 0 &&
-                                    gestureDelta != Offset.Zero
-                                ) {
-                                    val placement = NameEditorPlacement.screenOffset(
-                                        design, referenceHoop, 0, 0,
-                                        positioningCanvas.width,
-                                        positioningCanvas.height,
-                                        36.dp.toPx()
-                                    )
-                                    val direction =
-                                        if (design.sourceYAxisDown) 1f else -1f
-                                    val (dx, dy) = NameEditorPlacement.dragUnits(
-                                        gestureDelta.x, gestureDelta.y,
-                                        placement.unitsPerPixel, direction
-                                    )
-                                    HoopLayerPositioning.move(
-                                        design, dx, dy, activeTarget,
-                                        referenceHoop
-                                    ).fold(
+                .pointerInput(placementTarget, design, referenceHoop) {
+                    // Sem seleção explícita, detectar o objeto tocado.
+                    // Um dedo NÃO altera mais a câmera: modifica as pontadas.
+                    detectDragGestures(
+                        onDragStart = { start ->
+                            gestureDelta = Offset.Zero
+                            gestureTarget = placementTarget ?:
+                                NameEditorPlacement.targetAtTouch(
+                                    design = design,
+                                    hoop = referenceHoop,
+                                    touchX = start.x,
+                                    touchY = start.y,
+                                    canvasWidth = positioningCanvas.width,
+                                    canvasHeight = positioningCanvas.height,
+                                    paddingPixels = 36.dp.toPx()
+                                )
+                        },
+                        onDragCancel = {
+                            gestureDelta = Offset.Zero
+                            gestureTarget = null
+                        },
+                        onDragEnd = {
+                            val activeTarget = gestureTarget
+                            if (activeTarget != null &&
+                                positioningCanvas.width > 0 &&
+                                positioningCanvas.height > 0 &&
+                                gestureDelta != Offset.Zero
+                            ) {
+                                val placement = NameEditorPlacement.screenOffset(
+                                    design, referenceHoop, 0, 0,
+                                    positioningCanvas.width, positioningCanvas.height,
+                                    36.dp.toPx()
+                                )
+                                val direction =
+                                    if (design.sourceYAxisDown) 1f else -1f
+                                val (dx, dy) = NameEditorPlacement.dragUnits(
+                                    gestureDelta.x, gestureDelta.y,
+                                    placement.unitsPerPixel, direction
+                                )
+                                // Primeiro ancorar a visualização antiga no
+                                // bastidor; depois mover SÓ a camada escolhida.
+                                // Não deixar o antigo pan temporário sobreviver.
+                                HoopLayerPositioning.prepare(design, referenceHoop)
+                                    .mapCatching { anchored ->
+                                        HoopLayerPositioning.move(
+                                            anchored, dx, dy, activeTarget, referenceHoop
+                                        ).getOrThrow()
+                                    }.fold(
                                         onSuccess = {
                                             placementError = null
                                             onPositionChange(it)
                                         },
                                         onFailure = {
                                             placementError = it.message ?:
-                                                "A nova posição é inválida."
+                                                "A posição está fora da área segura."
                                         }
                                     )
-                                }
-                                gestureDelta = Offset.Zero
                             }
-                        ) { change, drag ->
-                            gestureDelta += drag
-                            change.consume()
+                            gestureDelta = Offset.Zero
+                            gestureTarget = null
                         }
+                    ) { change, drag ->
+                        gestureDelta += drag
+                        change.consume()
                     }
-                } else Modifier)
+                }
         ) {
             val editable = design.editableName
-            if (placementTarget != null && editable != null) {
+            // DUAS camadas em todo arraste, inclusive sem botão selecionado.
+            // A matriz e o nome não são mais movidos como uma imagem única.
+            val currentTarget = gestureTarget ?: placementTarget
+            if (editable != null) {
                 // Prévia em DUAS camadas: durante o gesto, apenas a camada
                 // selecionada se move. Não deslocar o nome quando o usuário
                 // arrasta a matriz, nem o desenho ao mover somente o nome.
@@ -307,7 +339,7 @@ fun ViewerScreen(
                     showConnections = showConnections,
                     positionMode = true,
                     designDragOffset =
-                        if (placementTarget == HoopLayerPositioning.Target.MATRIX)
+                        if (currentTarget == HoopLayerPositioning.Target.MATRIX)
                             gestureDelta else Offset.Zero,
                     modifier = Modifier.fillMaxSize().background(
                         Color(0xFF071017), RoundedCornerShape(24.dp))
@@ -318,22 +350,22 @@ fun ViewerScreen(
                     hoop = referenceHoop,
                     modifier = Modifier.fillMaxSize().graphicsLayer {
                         translationX =
-                            if (placementTarget == HoopLayerPositioning.Target.NAME)
+                            if (currentTarget == HoopLayerPositioning.Target.NAME)
                                 gestureDelta.x else 0f
                         translationY =
-                            if (placementTarget == HoopLayerPositioning.Target.NAME)
+                            if (currentTarget == HoopLayerPositioning.Target.NAME)
                                 gestureDelta.y else 0f
                     }
                 )
             } else {
                 EmbroideryCanvas(
                     design = design,
-                    interactive = placementTarget == null,
+                    interactive = false,
                     hoop = referenceHoop,
                     displayMode = displayMode,
                     showConnections = showConnections,
                     designDragOffset = gestureDelta,
-                    positionMode = placementTarget != null,
+                    positionMode = true,
                     modifier = Modifier.fillMaxSize().background(
                         Color(0xFF071017), RoundedCornerShape(24.dp))
                 )
