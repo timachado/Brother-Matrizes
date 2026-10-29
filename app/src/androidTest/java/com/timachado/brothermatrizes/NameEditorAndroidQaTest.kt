@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.pinch
@@ -220,6 +222,52 @@ class NameEditorAndroidQaTest {
         assertEquals(movedName.points, reopened.points)
         assertEquals(movedName.editableName!!.centerYUnits,
             reopened.editableName!!.centerYUnits)
+    }
+
+    @Test
+    fun nameEditorMatrixModeMovesOnlyFlowersAndKeepsNamePlace() {
+        val original = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val personalized = NamePersonalization.add(
+            original, TextMatrixOptions(text = "Maria", heightMm = 8f), 0, 0
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = personalized,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_editor_move_matrix")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("✓ Mover matriz").assertExists()
+        composeRule.onNodeWithTag("brother_name_canvas")
+            .performScrollTo().performTouchInput {
+                swipe(start = center, end = center + Offset(0f, 24f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("brother_name_editor_move_error")
+            .assertDoesNotExist()
+        composeRule.waitUntil(30000) {
+            runCatching {
+                composeRule.onNodeWithTag("brother_name_apply")
+                    .assertIsEnabled()
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.waitForIdle()
+        val result = requireNotNull(applied)
+        val base = requireNotNull(result.editableName).original
+        assertTrue(base.points != personalized.editableName!!.original.points)
+        assertEquals(personalized.editableName!!.centerYUnits,
+            requireNotNull(result.editableName).centerYUnits)
+        val persisted = ProjectCodec.decode(ProjectCodec.encode(result))
+        assertEquals(result.points, persisted.points)
+        assertEquals(base.points, persisted.editableName!!.original.points)
     }
 
     @Test
