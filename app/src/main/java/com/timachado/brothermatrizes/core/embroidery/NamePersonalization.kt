@@ -278,6 +278,11 @@ object NamePersonalization {
             require(directFit || rotatedFit) {
                 "O nome ultrapassa a área segura do bastidor nas duas orientações. Reduza ou mova o texto."
             }
+            // Uma matriz com posição gravada não pode usar apenas medidas
+            // de largura/altura: a localização absoluta no bastidor importa.
+            if (validated.hoopPositionLocked) {
+                HoopLayerPositioning.validateHoop(validated, hoop)
+            }
         }
         validated
     }
