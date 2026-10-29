@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -490,6 +491,18 @@ fun ViewerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("✎ Adicionar / Editar Nome")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Atalho da tela de matriz: abre o editor que faz a rotação
+                // REAL de pontos e do nome, com verificação de bastidor.
+                OutlinedButton(
+                    onClick = onEditName,
+                    modifier = Modifier.fillMaxWidth()
+                        .testTag("brother_viewer_open_matrix_rotation")
+                ) {
+                    Text("↻ Girar matriz • escolher ângulo")
                 }
 
                 Spacer(Modifier.height(8.dp))

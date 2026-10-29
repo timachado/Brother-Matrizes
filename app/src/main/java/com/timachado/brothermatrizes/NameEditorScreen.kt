@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -85,8 +86,15 @@ private data class NameDraft(
     val importedFontId: String? = null,
     val widthScale: Float = 1f,
     val heightScale: Float = 1f,
+    val horizontalGlyphScale: Float = 1f,
     val x: Int,
     val y: Int
+)
+
+private data class EditorSnapshot(
+    val name: NameDraft,
+    val background: EmbroideryDesign,
+    val matrixRotation: Float
 )
 
 @Composable
@@ -118,6 +126,8 @@ fun NameEditorScreen(
                 importedFontId = existing?.options?.importedFontId,
                 widthScale = existing?.options?.widthScale ?: 1f,
                 heightScale = existing?.options?.heightScale ?: 1f,
+                horizontalGlyphScale =
+                    existing?.options?.horizontalGlyphScale ?: 1f,
                 x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
                 y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
@@ -125,15 +135,19 @@ fun NameEditorScreen(
             )
         )
     }
-    var undo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
-    var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
+    var undo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
+    var redo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
+    var oldNameBlockSelected by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
+    var matrixRotation by remember(original) { mutableStateOf(0f) }
+    var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
 
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
-        if (history) undo = (undo + draft).takeLast(40)
+        if (history) undo = (undo + snapshot()).takeLast(40)
         redo = emptyList()
         draft = next
     }
@@ -226,6 +240,7 @@ fun NameEditorScreen(
         rotationDegrees = value.rotation,
         widthScale = value.widthScale,
         heightScale = value.heightScale,
+        horizontalGlyphScale = value.horizontalGlyphScale,
         style = TextStitchStyle.SATIN,
         outputFormat = original.format,
         color = value.color,
@@ -381,6 +396,38 @@ fun NameEditorScreen(
             (draft.rotation + deltaDegrees).coerceIn(-180f, 180f)))
     }
 
+    fun rotateMatrix(deltaDegrees: Float) {
+        if (abs(deltaDegrees) < 0.001f) return
+        autoFitEnabled = false
+        matrixRotationError = null
+        MatrixNameRotation.rotate(
+            background = baseDesign,
+            nameXUnits = draft.x,
+            nameYUnits = draft.y,
+            nameRotationDegrees = draft.rotation,
+            deltaDegrees = deltaDegrees,
+            hoop = referenceHoop
+        ).fold(
+            onSuccess = { transformed ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = transformed.background
+                draft = draft.copy(
+                    x = transformed.nameXUnits,
+                    y = transformed.nameYUnits,
+                    rotation = transformed.nameRotationDegrees
+                )
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + deltaDegrees
+                )
+                computed = null
+            },
+            onFailure = { matrixRotationError =
+                it.message ?: "Não foi possível girar a matriz com segurança."
+            }
+        )
+    }
+
     fun resize(deltaMm: Float) {
         autoFitEnabled = false
         setDraft(draft.copy(height =
@@ -394,6 +441,7 @@ fun NameEditorScreen(
             onCancel = { selectingOldName = false },
             onConfirm = { selected ->
                 baseDesign = selected.originalWithoutBlock
+                oldNameBlockSelected = true
                 setDraft(draft.copy(
                     x = selected.centerXUnits,
                     y = selected.centerYUnits
@@ -422,9 +470,12 @@ fun NameEditorScreen(
                 onClick = {
                     val previous = undo.lastOrNull()
                     if (previous != null) {
-                        redo = redo + draft
+                        redo = redo + snapshot()
                         undo = undo.dropLast(1)
-                        draft = previous
+                        baseDesign = previous.background
+                        matrixRotation = previous.matrixRotation
+                        draft = previous.name
+                        matrixRotationError = null
                     }
                 },
                 enabled = undo.isNotEmpty()
@@ -433,9 +484,12 @@ fun NameEditorScreen(
                 onClick = {
                     val next = redo.lastOrNull()
                     if (next != null) {
-                        undo = undo + draft
+                        undo = undo + snapshot()
                         redo = redo.dropLast(1)
-                        draft = next
+                        baseDesign = next.background
+                        matrixRotation = next.matrixRotation
+                        draft = next.name
+                        matrixRotationError = null
                     }
                 },
                 enabled = redo.isNotEmpty()
@@ -455,10 +509,13 @@ fun NameEditorScreen(
             }
         }
 
-        if (baseDesign !== original) {
+        if (oldNameBlockSelected) {
             OutlinedButton(
                 onClick = {
                     baseDesign = original
+                    oldNameBlockSelected = false
+                    matrixRotation = 0f
+                    computed = null
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -492,6 +549,68 @@ fun NameEditorScreen(
                 onClick = { rotate(15f) },
                 modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
             ) { Text("↷ 15°") }
+        }
+
+        Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
+            color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
+        Text("Gira a moldura e o nome juntos. A rotação altera as pontadas reais.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateMatrix(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    rotateMatrix(MatrixNameRotation.normalizeDegrees(-matrixRotation))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotateMatrix(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0f, 90f, 180f, 270f).forEach { angle ->
+                OutlinedButton(
+                    onClick = {
+                        rotateMatrix(MatrixNameRotation.normalizeDegrees(
+                            angle - matrixRotation
+                        ))
+                    },
+                    modifier = Modifier.weight(1f).testTag(
+                        "brother_matrix_rotate_" + angle.toInt()
+                    )
+                ) { Text(angle.toInt().toString() + "°") }
+            }
+        }
+        matrixRotationError?.let { message ->
+            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_matrix_rotation_error"))
+        }
+
+        // Girar um PES/DST sem necessariamente inserir um novo nome.
+        // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
+        OutlinedButton(
+            onClick = { onApply(baseDesign) },
+            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null &&
+                original.editableName == null && !oldNameBlockSelected,
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_matrix_apply_rotation_only")
+        ) {
+            Text("Aplicar só a rotação da matriz")
+        }
+        if (original.editableName != null && abs(matrixRotation) >= .001f) {
+            Text("Esta matriz contém um nome editável: use Aplicar nome para " +
+                "girar tudo sem perder as letras.",
+                color = FioTextMuted, fontSize = 11.sp)
         }
 
         Row(
@@ -534,6 +653,9 @@ fun NameEditorScreen(
                     // durante o movimento.
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
+                        // Interação manual tem prioridade sobre o autoencaixe:
+                        // não permitir que a busca assíncrona recoloque o nome.
+                        autoFitEnabled = false
                         var scaleX = 1f
                         var scaleY = 1f
                         var twoFingers = false
@@ -562,9 +684,17 @@ fun NameEditorScreen(
                                 }
                                 gestureScaleX = scaleX
                                 gestureScaleY = scaleY
-                            } else if (active.size == 1 && !twoFingers) {
-                                val change = active.first()
-                                dragPx += change.position - change.previousPosition
+                            } else if (!twoFingers) {
+                                // O último deslocamento pode chegar junto do UP:
+                                // nessa amostra pressed=false e active está vazio.
+                                // Considerar também previousPressed evita perder
+                                // a movimentação final da alça no Android.
+                                val change = event.changes.firstOrNull {
+                                    it.pressed || it.previousPressed
+                                }
+                                if (change != null) {
+                                    dragPx += change.position - change.previousPosition
+                                }
                             }
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         } while (event.changes.any { it.pressed })
@@ -798,6 +928,20 @@ fun NameEditorScreen(
             },
             valueRange = .5f..2.5f,
             modifier = Modifier.testTag("brother_name_height_scale")
+        )
+        Text("Expansão horizontal: " +
+            (draft.horizontalGlyphScale * 100f).roundToInt() + "%",
+            color = FioText)
+        Text("Ajusta a largura de cada letra, sem alterar o espaçamento da palavra.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Slider(
+            value = draft.horizontalGlyphScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(horizontalGlyphScale = it), history = false)
+            },
+            valueRange = .7f..1.4f,
+            modifier = Modifier.testTag("brother_name_horizontal_expansion")
         )
         Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
         Slider(

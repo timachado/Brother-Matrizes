@@ -116,7 +116,10 @@ data class TextMatrixOptions(
     // Transformações geométricas somente da camada de nome. Não escalar
     // a moldura nem substituir a fonte quando o usuário usa pinça.
     val widthScale: Float = 1f,
-    val heightScale: Float = 1f
+    val heightScale: Float = 1f,
+    // A largura da palavra altera o conjunto; esta opção altera cada
+    // GLIFO ao redor de seu próprio centro, mantendo os avanços de texto.
+    val horizontalGlyphScale: Float = 1f
 )
 
 object TextMatrixGenerator {
@@ -300,6 +303,11 @@ object TextMatrixGenerator {
                 "A altura deve ficar entre 4 e 60 mm."
             }
 
+            require(options.horizontalGlyphScale.isFinite() &&
+                options.horizontalGlyphScale in .7f..1.4f) {
+                "Expansão horizontal dos glifos deve ficar entre 70% e 140%."
+            }
+
             require(options.spacingMm in 0f..8f) {
                 "O espaçamento deve ficar entre 0 e 8 mm."
             }
@@ -416,7 +424,8 @@ object TextMatrixGenerator {
                                 point,
                                 cursorX,
                                 glyphWidth,
-                                heightUnits
+                                heightUnits,
+                                options.horizontalGlyphScale
                             )
                         }
 
@@ -983,12 +992,13 @@ object TextMatrixGenerator {
         point: P,
         cursorX: Float,
         width: Float,
-        height: Float
+        height: Float,
+        horizontalGlyphScale: Float = 1f
     ): Pair<Int, Int> =
         Pair(
             (
-                cursorX +
-                    point.x * width
+                cursorX + width * .5f +
+                    (point.x - .5f) * width * horizontalGlyphScale
                 ).roundToInt(),
             (
                 point.y *

@@ -42,7 +42,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        7
+        8
 
     private const val MAX_POINTS =
         2_000_000
@@ -306,6 +306,8 @@ object ProjectCodec {
             // v7: preserva independentemente a largura e a altura da pinça.
             output.writeFloat(fontOptions.widthScale)
             output.writeFloat(fontOptions.heightScale)
+            // v8: expansão horizontal dos glifos, independente da palavra.
+            output.writeFloat(fontOptions.horizontalGlyphScale)
         }
         output.flush()
     }
@@ -564,6 +566,8 @@ object ProjectCodec {
                 val importedFontId = if (version >= 6) readNullableString(input) else null
                 val widthScale = if (version >= 7) input.readFloat() else 1f
                 val heightScale = if (version >= 7) input.readFloat() else 1f
+                val horizontalGlyphScale =
+                    if (version >= 8) input.readFloat() else 1f
                 require(importedFontId == null ||
                     (importedFontId.length <= 160 &&
                         (importedFontId.endsWith(".ttf", true) ||
@@ -576,7 +580,9 @@ object ProjectCodec {
                         density.isFinite() && density in .3f..1.2f &&
                         rotation.isFinite() && rotation in -180f..180f &&
                         widthScale.isFinite() && widthScale in .5f..2.5f &&
-                        heightScale.isFinite() && heightScale in .5f..2.5f
+                        heightScale.isFinite() && heightScale in .5f..2.5f &&
+                        horizontalGlyphScale.isFinite() &&
+                        horizontalGlyphScale in .7f..1.4f
                 ) { "Parâmetros de nome corrompidos." }
                 val originalDesign = EmbroideryIntegrity.normalize(
                     EmbroideryDesign(
@@ -609,6 +615,7 @@ object ProjectCodec {
                         rotationDegrees = rotation,
                         widthScale = widthScale,
                         heightScale = heightScale,
+                        horizontalGlyphScale = horizontalGlyphScale,
                         importedFontId = importedFontId,
                         color = nameColor,
                         font = font,

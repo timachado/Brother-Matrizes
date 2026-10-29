@@ -75,7 +75,9 @@ object NamePersonalization {
     ): Result<Unit> = runCatching {
         val source = original.editableName?.original ?: original
         require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
-            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f
+            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f &&
+            options.horizontalGlyphScale.isFinite() &&
+            options.horizontalGlyphScale in .7f..1.4f
         ) { "Ajuste horizontal ou vertical fora dos limites seguros." }
         val text = prepare(
             options.copy(
@@ -130,7 +132,9 @@ object NamePersonalization {
     ): Result<EmbroideryDesign> = runCatching {
         val source = original.editableName?.original ?: original
         require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
-            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f
+            options.widthScale in 0.5f..2.5f && options.heightScale in 0.5f..2.5f &&
+            options.horizontalGlyphScale.isFinite() &&
+            options.horizontalGlyphScale in .7f..1.4f
         ) { "Ajuste horizontal ou vertical fora dos limites seguros." }
         require(source.points.any { it.command == StitchCommand.STITCH }) {
             "A matriz original não contém bordado."
@@ -231,6 +235,7 @@ object NamePersonalization {
             centerXUnits.toString(), centerYUnits.toString(),
             options.rotationDegrees.toString(), options.importedFontId.orEmpty(),
             options.widthScale.toString(), options.heightScale.toString(),
+            options.horizontalGlyphScale.toString(),
             GLYPH_ENGINE_REVISION
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
