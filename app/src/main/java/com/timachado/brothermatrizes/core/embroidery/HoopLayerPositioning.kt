@@ -27,8 +27,8 @@ object HoopLayerPositioning {
             val bx = design.bounds
             val x = -((bx.minXUnits.toLong() + bx.maxXUnits.toLong()) / 2L)
             val y = -((bx.minYUnits.toLong() + bx.maxYUnits.toLong()) / 2L)
-            require(x in Int.MIN_VALUE..Int.MAX_VALUE &&
-                y in Int.MIN_VALUE..Int.MAX_VALUE) { "Coordenadas fora do limite." }
+            require(x in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
+                y in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) { "Coordenadas fora do limite." }
             translate(design, x.toInt(), y.toInt(), Target.BOTH, hoop)
                 .getOrThrow()
         }
