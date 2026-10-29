@@ -653,6 +653,9 @@ fun NameEditorScreen(
                     // durante o movimento.
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
+                        // Interação manual tem prioridade sobre o autoencaixe:
+                        // não permitir que a busca assíncrona recoloque o nome.
+                        autoFitEnabled = false
                         var scaleX = 1f
                         var scaleY = 1f
                         var twoFingers = false
@@ -681,9 +684,17 @@ fun NameEditorScreen(
                                 }
                                 gestureScaleX = scaleX
                                 gestureScaleY = scaleY
-                            } else if (active.size == 1 && !twoFingers) {
-                                val change = active.first()
-                                dragPx += change.position - change.previousPosition
+                            } else if (!twoFingers) {
+                                // O último deslocamento pode chegar junto do UP:
+                                // nessa amostra pressed=false e active está vazio.
+                                // Considerar também previousPressed evita perder
+                                // a movimentação final da alça no Android.
+                                val change = event.changes.firstOrNull {
+                                    it.pressed || it.previousPressed
+                                }
+                                if (change != null) {
+                                    dragPx += change.position - change.previousPosition
+                                }
                             }
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         } while (event.changes.any { it.pressed })
