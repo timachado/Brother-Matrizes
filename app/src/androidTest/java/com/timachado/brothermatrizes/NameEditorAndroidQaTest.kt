@@ -12,7 +12,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.pinch
@@ -188,8 +187,8 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_position_canvas")
             .performTouchInput {
                 swipe(
-                    start = Offset(size.width * .12f, center.y),
-                    end = Offset(size.width * .12f, center.y + 22f),
+                    start = center - Offset(150f, 0f),
+                    end = center - Offset(150f, -22f),
                     durationMillis = 500
                 )
             }
