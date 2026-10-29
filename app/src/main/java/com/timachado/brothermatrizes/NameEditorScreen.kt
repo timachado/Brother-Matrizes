@@ -86,6 +86,7 @@ private data class NameDraft(
     val importedFontId: String? = null,
     val widthScale: Float = 1f,
     val heightScale: Float = 1f,
+    val horizontalGlyphScale: Float = 1f,
     val x: Int,
     val y: Int
 )
@@ -125,6 +126,8 @@ fun NameEditorScreen(
                 importedFontId = existing?.options?.importedFontId,
                 widthScale = existing?.options?.widthScale ?: 1f,
                 heightScale = existing?.options?.heightScale ?: 1f,
+                horizontalGlyphScale =
+                    existing?.options?.horizontalGlyphScale ?: 1f,
                 x = existing?.centerXUnits ?: (original.bounds.minXUnits.toLong() +
                     original.bounds.maxXUnits.toLong()).div(2).toInt(),
                 y = existing?.centerYUnits ?: (original.bounds.minYUnits.toLong() +
@@ -236,6 +239,7 @@ fun NameEditorScreen(
         rotationDegrees = value.rotation,
         widthScale = value.widthScale,
         heightScale = value.heightScale,
+        horizontalGlyphScale = value.horizontalGlyphScale,
         style = TextStitchStyle.SATIN,
         outputFormat = original.format,
         color = value.color,
@@ -890,6 +894,20 @@ fun NameEditorScreen(
             },
             valueRange = .5f..2.5f,
             modifier = Modifier.testTag("brother_name_height_scale")
+        )
+        Text("Expansão horizontal: " +
+            (draft.horizontalGlyphScale * 100f).roundToInt() + "%",
+            color = FioText)
+        Text("Ajusta a largura de cada letra, sem alterar o espaçamento da palavra.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Slider(
+            value = draft.horizontalGlyphScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(horizontalGlyphScale = it), history = false)
+            },
+            valueRange = .7f..1.4f,
+            modifier = Modifier.testTag("brother_name_horizontal_expansion")
         )
         Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
         Slider(
