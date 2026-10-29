@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -87,6 +88,12 @@ private data class NameDraft(
     val heightScale: Float = 1f,
     val x: Int,
     val y: Int
+)
+
+private data class EditorSnapshot(
+    val name: NameDraft,
+    val background: EmbroideryDesign,
+    val matrixRotation: Float
 )
 
 @Composable
@@ -125,15 +132,18 @@ fun NameEditorScreen(
             )
         )
     }
-    var undo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
-    var redo by remember(original) { mutableStateOf(emptyList<NameDraft>()) }
+    var undo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
+    var redo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
+    var matrixRotation by remember(original) { mutableStateOf(0f) }
+    var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
 
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
-        if (history) undo = (undo + draft).takeLast(40)
+        if (history) undo = (undo + snapshot()).takeLast(40)
         redo = emptyList()
         draft = next
     }
@@ -381,6 +391,37 @@ fun NameEditorScreen(
             (draft.rotation + deltaDegrees).coerceIn(-180f, 180f)))
     }
 
+    fun rotateMatrix(deltaDegrees: Float) {
+        autoFitEnabled = false
+        matrixRotationError = null
+        MatrixNameRotation.rotate(
+            background = baseDesign,
+            nameXUnits = draft.x,
+            nameYUnits = draft.y,
+            nameRotationDegrees = draft.rotation,
+            deltaDegrees = deltaDegrees,
+            hoop = referenceHoop
+        ).fold(
+            onSuccess = { transformed ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = transformed.background
+                draft = draft.copy(
+                    x = transformed.nameXUnits,
+                    y = transformed.nameYUnits,
+                    rotation = transformed.nameRotationDegrees
+                )
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + deltaDegrees
+                )
+                computed = null
+            },
+            onFailure = { matrixRotationError =
+                it.message ?: "Não foi possível girar a matriz com segurança."
+            }
+        )
+    }
+
     fun resize(deltaMm: Float) {
         autoFitEnabled = false
         setDraft(draft.copy(height =
@@ -422,9 +463,12 @@ fun NameEditorScreen(
                 onClick = {
                     val previous = undo.lastOrNull()
                     if (previous != null) {
-                        redo = redo + draft
+                        redo = redo + snapshot()
                         undo = undo.dropLast(1)
-                        draft = previous
+                        baseDesign = previous.background
+                        matrixRotation = previous.matrixRotation
+                        draft = previous.name
+                        matrixRotationError = null
                     }
                 },
                 enabled = undo.isNotEmpty()
@@ -433,9 +477,12 @@ fun NameEditorScreen(
                 onClick = {
                     val next = redo.lastOrNull()
                     if (next != null) {
-                        undo = undo + draft
+                        undo = undo + snapshot()
                         redo = redo.dropLast(1)
-                        draft = next
+                        baseDesign = next.background
+                        matrixRotation = next.matrixRotation
+                        draft = next.name
+                        matrixRotationError = null
                     }
                 },
                 enabled = redo.isNotEmpty()
@@ -492,6 +539,51 @@ fun NameEditorScreen(
                 onClick = { rotate(15f) },
                 modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
             ) { Text("↷ 15°") }
+        }
+
+        Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
+            color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
+        Text("Gira a moldura e o nome juntos. A rotação altera as pontadas reais.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateMatrix(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    rotateMatrix(MatrixNameRotation.normalizeDegrees(-matrixRotation))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotateMatrix(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0f, 90f, 180f, 270f).forEach { angle ->
+                OutlinedButton(
+                    onClick = {
+                        rotateMatrix(MatrixNameRotation.normalizeDegrees(
+                            angle - matrixRotation
+                        ))
+                    },
+                    modifier = Modifier.weight(1f).testTag(
+                        "brother_matrix_rotate_" + angle.toInt()
+                    )
+                ) { Text(angle.toInt().toString() + "°") }
+            }
+        }
+        matrixRotationError?.let { message ->
+            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_matrix_rotation_error"))
         }
 
         Row(
