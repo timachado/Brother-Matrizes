@@ -111,10 +111,42 @@ object NameAutoPlacement {
                 .div(2).toInt()
         val rotations = orientations(requested, source)
         val offsets = candidateOffsets(source)
-        val started = System.nanoTime()
         val validCandidates = ArrayList<Candidate>()
         var lastError: Throwable? = null
         var timedOut = false
+
+        // TTF/OTF ornamental: o motor Satin é caro e NÃO pode ser
+        // reexecutado a cada altura, rotação e deslocamento da busca.
+        // Gerar uma única sequência REAL de pontadas, e usar transformações
+        // apenas para o pré-teste de posição. O resultado final sempre
+        // passa pelo gerador Satin em tamanho real e validação completa.
+        val referenceHeight = 12f
+        val referenceOptions = requested.copy(
+            heightMm = referenceHeight,
+            rotationDegrees = 0f,
+            widthScale = 1f,
+            heightScale = 1f,
+            hoopProfile = null,
+            enforceHoop = false,
+            outputFormat = source.format.uppercase()
+        )
+        val reference = if (referenceOptions.importedFontId != null) {
+            val generator = importedGenerator ?: return Result.failure(
+                IllegalArgumentException("Fonte importada não disponível.")
+            )
+            generator(referenceOptions)
+        } else {
+            TextMatrixGenerator.generate(referenceOptions)
+        }.getOrElse { error ->
+            // Sem repetir a geração com falha por dezenas de offsets.
+            return Result.failure(IllegalArgumentException(
+                "A fonte selecionada não gerou pontadas Satin válidas: " +
+                    (error.message ?: "erro no processamento da fonte") +
+                    ". Revise a fonte antes de tentar o encaixe.", error
+            ))
+        }
+        val hoop = source.hoopProfile ?: requested.hoopProfile
+        val started = System.nanoTime()
 
         fun withinBudget(): Boolean {
             if (System.nanoTime() - started <= SEARCH_BUDGET_NANOS) return true
@@ -130,19 +162,56 @@ object NameAutoPlacement {
                 enforceHoop = true
             )
             for (angle in rotations) {
+                val candidate = options.copy(rotationDegrees = angle)
                 for ((dx, dy) in offsets) {
                     currentCoroutineContext().ensureActive()
                     if (!withinBudget()) return null
-                    val candidate = options.copy(rotationDegrees = angle)
                     val x = centerX + dx
                     val y = centerY + dy
-                    val safe = NamePersonalization.canPlace(
-                        source, candidate, x, y, importedGenerator
+                    val positioned = MatrixEditor.apply(
+                        reference,
+                        EditTransform(
+                            centerAtOrigin = true,
+                            offsetXUnits = x,
+                            offsetYUnits = y,
+                            rotationDegrees = angle,
+                            // A escala aqui só mede a geometria provisória.
+                            // NÃO alterar as pontadas Satin da matriz final.
+                            scale = height / referenceHeight,
+                            mirrorVertical =
+                                source.sourceYAxisDown != reference.sourceYAxisDown
+                        )
                     )
-                    if (safe.isSuccess) {
-                        return Candidate(candidate, x, y).also(validCandidates::add)
+                    val clearance = NamePlacementSafety.validate(
+                        source, positioned
+                    )
+                    if (clearance.isFailure) {
+                        lastError = clearance.exceptionOrNull()
+                        continue
                     }
-                    lastError = safe.exceptionOrNull()
+                    if (hoop != null) {
+                        val widthUnits =
+                            max(source.bounds.maxXUnits, positioned.bounds.maxXUnits)
+                                .toLong() -
+                            min(source.bounds.minXUnits, positioned.bounds.minXUnits)
+                        val heightUnits =
+                            max(source.bounds.maxYUnits, positioned.bounds.maxYUnits)
+                                .toLong() -
+                            min(source.bounds.minYUnits, positioned.bounds.minYUnits)
+                        val insideHoop =
+                            widthUnits <= (hoop.usableWidthMm * 10).toLong() &&
+                            heightUnits <= (hoop.usableHeightMm * 10).toLong() ||
+                            widthUnits <= (hoop.usableHeightMm * 10).toLong() &&
+                            heightUnits <= (hoop.usableWidthMm * 10).toLong()
+                        if (!insideHoop) {
+                            lastError = IllegalArgumentException(
+                                "O nome ultrapassa a área útil do bastidor."
+                            )
+                            continue
+                        }
+                    }
+                    return Candidate(candidate, x, y)
+                        .also(validCandidates::add)
                 }
             }
             return null
@@ -179,28 +248,35 @@ object NameAutoPlacement {
             }
         }
 
-        // canPlace() é rápido; add() gera e valida a matriz completa.
-        // Tentar do maior para o menor também protege fontes TTF/OTF
-        // cujo Satin no tamanho final difere do pré-teste leve.
-        for (candidate in validCandidates.sortedByDescending { it.options.heightMm }) {
+        // O pré-teste usa geometria escalada; o resultado comercial
+        // SEMPRE regenera os pontos no tamanho final e exige margem real.
+        // Limitar tentativas caras e testar também a altura original de
+        // referência quando o maior candidato não puder ser bordado.
+        for (candidate in validCandidates
+            .distinctBy { Triple(it.options.heightMm, it.x, it.y) }
+            .sortedByDescending { it.options.heightMm }
+            .take(5)
+        ) {
             currentCoroutineContext().ensureActive()
             val result = NamePersonalization.add(
-                source, candidate.options, candidate.x, candidate.y, importedGenerator
+                source, candidate.options, candidate.x, candidate.y,
+                importedGenerator
             )
             if (result.isSuccess) {
                 return Result.success(Fit(
-                    candidate.options, candidate.x, candidate.y, result.getOrThrow()
+                    candidate.options, candidate.x, candidate.y,
+                    result.getOrThrow()
                 ))
             }
             lastError = result.exceptionOrNull()
         }
         return Result.failure(IllegalArgumentException(
             if (timedOut && validCandidates.isEmpty()) {
-                "O ajuste automático não terminou nesta matriz. " +
-                    "Tente um nome menor ou uma fonte menos larga."
+                "A análise de encaixe ultrapassou o limite desta matriz. " +
+                    "O bordado ainda não foi liberado para a máquina."
             } else {
-                "Não existe encaixe seguro para este nome na área livre da matriz. " +
-                    "Ajuste o tamanho ou o bastidor, mantendo 1,5 mm das pontadas existentes."
+                "Não foi possível concluir um encaixe seguro. " +
+                    (lastError?.message ?: "Mantenha 1,5 mm de distância da moldura.")
             },
             lastError
         ))
