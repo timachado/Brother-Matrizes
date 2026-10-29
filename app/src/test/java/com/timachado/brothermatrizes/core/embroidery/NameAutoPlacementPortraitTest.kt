@@ -36,6 +36,29 @@ class NameAutoPlacementPortraitTest {
     }
 
     @Test
+    fun fineOffsetsRefineVerticalPlacementByTwoAndFiveMillimeters() {
+        val positions = NameAutoPlacement.fineOffsets(portrait = true)
+        assertEquals(0 to 0, positions.first())
+        assertTrue(positions.contains(0 to -25))
+        assertTrue(positions.contains(0 to 25))
+        assertTrue(positions.contains(0 to -50))
+        assertTrue(positions.contains(0 to 50))
+        assertTrue(positions.contains(-20 to 0))
+        assertTrue(positions.contains(20 to 0))
+        assertEquals(positions.size, positions.distinct().size)
+    }
+
+    @Test
+    fun fineOffsetsRefineHorizontalPlacementForWideCrest() {
+        val positions = NameAutoPlacement.fineOffsets(portrait = false)
+        assertEquals(0 to 0, positions.first())
+        assertTrue(positions.contains(-25 to 0))
+        assertTrue(positions.contains(25 to 0))
+        assertTrue(positions.contains(0 to -20))
+        assertTrue(positions.contains(0 to 20))
+    }
+
+    @Test
     fun portraitNameExpandsAlongLongAxisWithoutCoveringBorder() = runBlocking {
         val base = floralCorridor()
         val before = base.points.toList()
