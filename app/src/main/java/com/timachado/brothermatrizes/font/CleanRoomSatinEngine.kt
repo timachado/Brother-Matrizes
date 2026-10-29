@@ -129,50 +129,91 @@ internal object CleanRoomSatinEngine {
             options.widthScale,
             options.heightScale
         )
-        val points = mutableListOf<EmbroideryPoint>()
-        val stitcher = Stitcher(points)
-        var sewnGlyphs = 0
-        scaledGlyphs.forEachIndexed { glyphIndex, glyph ->
-            val contours = glyph.map { contour -> contour.map { V(it.x, it.y) } }
-            if (contours.isEmpty()) return@forEachIndexed
-            // Use a stroke-following centreline for contextual scripts.
-            // Vertical scanlines make a tall M stem sew ALONG its outline
-            // instead of crossing the stroke, yielding square bands and
-            // partially broken loops in Bertilda. The skeleton planner
-            // follows each local tangent and places satin rails normal to
-            // it; detached dots and very thin strokes have dedicated
-            // reconstruction in planContours. No silent fallback to the
-            // defective vertical-only path for a connected script.
-            val plan = planContours(
-                contours,
-                densityMm = options.satinDensityMm,
-                pullMm = options.satinPullCompensationMm
-            )
-            require(plan.rails.isNotEmpty()) {
-                "A fonte não produziu uma faixa Satin segura na letra " +
-                    (glyphIndex + 1) + ". Ajuste a altura ou a fonte."
+        /**
+         * A Adamiya possui remates finos e curvas ornadas que nem sempre
+         * sobrevivem à esqueletização. Fazer a primeira tentativa seguindo
+         * o traço, validar a cobertura e, apenas se falhar, gerar uma rota
+         * alternativa de preenchimento em barras sobre o MESMO contorno
+         * vetorial. Jamais reduzir o limiar de legibilidade.
+         *
+         * A segunda rota é recalculada por inteiro: não misturar trechos
+         * incompatíveis ou exportar a matriz defeituosa da primeira tentativa.
+         */
+        fun buildStitches(useVectorColumnFill: Boolean): MutableList<EmbroideryPoint> {
+            val result = mutableListOf<EmbroideryPoint>()
+            val stitcher = Stitcher(result)
+            var sewnGlyphs = 0
+            scaledGlyphs.forEachIndexed { glyphIndex, glyph ->
+                val contours = glyph.map { contour ->
+                    contour.map { V(it.x, it.y) }
+                }
+                if (contours.isEmpty()) return@forEachIndexed
+                val plan = if (useVectorColumnFill) {
+                    planContextualFill(
+                        contours,
+                        densityMm = options.satinDensityMm
+                    )
+                } else {
+                    planContours(
+                        contours,
+                        densityMm = options.satinDensityMm,
+                        pullMm = options.satinPullCompensationMm
+                    )
+                }
+                require(plan.rails.isNotEmpty()) {
+                    "A letra " + (glyphIndex + 1) +
+                        " não gerou faixas Satin seguras."
+                }
+                stitcher.sewGlyph(
+                    paths = plan.rails,
+                    underlay = if (useVectorColumnFill ||
+                        outlines.contextualShapingPreserved
+                    ) SatinUnderlayMode.NONE else options.satinUnderlayMode,
+                    forceJumpBetweenPaths =
+                        useVectorColumnFill || outlines.contextualShapingPreserved
+                )
+                sewnGlyphs++
             }
-            stitcher.sewGlyph(
-                plan.rails,
-                if (outlines.contextualShapingPreserved) SatinUnderlayMode.NONE
-                else options.satinUnderlayMode,
-                forceJumpBetweenPaths = outlines.contextualShapingPreserved
-            )
-            sewnGlyphs++
+            require(sewnGlyphs > 0 &&
+                result.any { it.command == StitchCommand.STITCH }
+            ) { "Não foram geradas pontadas Satin válidas." }
+            return result
         }
-        require(sewnGlyphs > 0 && points.any { it.command == StitchCommand.STITCH }) {
-            "Não foram geradas pontadas válidas."
+
+        fun verifySilhouette(
+            candidate: List<EmbroideryPoint>
+        ): ImportedFontCoverageGuard.Score {
+            // Guard é sempre executado nas duas rotas. A versão comercial
+            // jamais ignora contornos deformados para exibir um nome.
+            val score = ImportedFontCoverageGuard.check(scaledGlyphs, candidate)
+            if (outlines.contextualShapingPreserved) {
+                require(score.coverage >= .36f && score.precision >= .66f) {
+                    "A fonte conectada perdeu cobertura: " +
+                        "cobertura=" + score.coverage +
+                        ", precisão=" + score.precision
+                }
+            }
+            return score
         }
-        // A presença de pontos não é suficiente para liberar uma fonte:
-        // a sequência precisa reproduzir pelo menos a silhueta do glifo.
-        val silhouette = ImportedFontCoverageGuard.check(scaledGlyphs, points)
-        // A script must cover more than one fifth of its vector area.
-        // If thinning destroys a connection, reject the output instead
-        // of presenting broken glyphs as safe embroidery.
-        if (outlines.contextualShapingPreserved) {
-            require(silhouette.coverage >= .36f && silhouette.precision >= .66f) {
-                "Os traços da fonte importada não foram reconstruídos com " +
-                    "cobertura suficiente. Matriz não liberada para bordado."
+
+        val firstAttempt = runCatching {
+            buildStitches(useVectorColumnFill = false).also(::verifySilhouette)
+        }
+        val points = firstAttempt.getOrElse { primaryError ->
+            val safeAlternative = runCatching {
+                buildStitches(useVectorColumnFill = true).also(::verifySilhouette)
+            }
+            safeAlternative.getOrElse { secondaryError ->
+                throw IllegalArgumentException(
+                    "A fonte importada não produziu Satin legível em " +
+                        "nenhuma das duas estratégias. A matriz continua " +
+                        "bloqueada para proteger o bordado. " +
+                        "Primeira tentativa: " +
+                        (primaryError.message ?: "sem cobertura") +
+                        ". Segunda tentativa: " +
+                        (secondaryError.message ?: "sem cobertura"),
+                    secondaryError
+                )
             }
         }
         val last = points.last()
