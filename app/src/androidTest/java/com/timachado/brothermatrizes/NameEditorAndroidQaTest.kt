@@ -158,6 +158,71 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun directDragWithoutModeMovesMatrixThenNameIndependentlyAndPersists() {
+        val compact = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val named = NamePersonalization.add(
+            compact, TextMatrixOptions(text = "Maria", heightMm = 8f),
+            0, 0
+        ).getOrThrow()
+        var displayed by mutableStateOf(named)
+        composeRule.setContent {
+            ViewerScreen(
+                design = displayed,
+                displayMode = EmbroideryDisplayMode.SOLID,
+                onDisplayModeChange = {},
+                referenceHoop = HoopProfile.H100X100,
+                onReferenceHoopChange = {},
+                showConnections = false,
+                onShowConnectionsChange = {},
+                onBack = {}, onOpen = {}, onSimulate = {},
+                onEdit = {}, onEditName = {}, onConvert = {},
+                onTransfer = {}, onSaveProject = {},
+                onSaveCopy = {}, onShare = {},
+                onPositionChange = { displayed = it }
+            )
+        }
+        // Não tocar em Mover matriz/Mover nome: é precisamente a sequência
+        // do vídeo de regressão. Antes era pan temporário da câmera.
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(
+                    start = Offset(size.width * .12f, center.y),
+                    end = Offset(size.width * .12f, center.y + 22f),
+                    durationMillis = 500
+                )
+            }
+        composeRule.waitForIdle()
+        val movedBase = displayed
+        assertTrue("Arraste sem botão precisa gerar coordenadas reais",
+            movedBase.hoopPositionLocked)
+        assertTrue("Flor deve mudar posição", movedBase.editableName!!.original.points !=
+            named.editableName!!.original.points)
+        assertEquals("Nome não deve acompanhar o fundo",
+            named.editableName!!.centerYUnits,
+            movedBase.editableName!!.centerYUnits)
+        val baseline = movedBase.editableName!!.original.points
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(
+                    start = center,
+                    end = center - Offset(0f, 14f),
+                    durationMillis = 500
+                )
+            }
+        composeRule.waitForIdle()
+        val movedName = displayed
+        assertEquals("Flor parada ao arrastar só o nome",
+            baseline, movedName.editableName!!.original.points)
+        assertTrue("Nome deve mudar posição sem selecionar botão",
+            movedName.editableName!!.centerYUnits != movedBase.editableName!!.centerYUnits)
+        val reopened = ProjectCodec.decode(ProjectCodec.encode(movedName))
+        assertTrue(reopened.hoopPositionLocked)
+        assertEquals(movedName.points, reopened.points)
+        assertEquals(movedName.editableName!!.centerYUnits,
+            reopened.editableName!!.centerYUnits)
+    }
+
+    @Test
     fun simulatorKeepsReprocessingFailureVisibleAndAllowsRetry() {
         val base = frame()
         val saved = NamePersonalization.add(
