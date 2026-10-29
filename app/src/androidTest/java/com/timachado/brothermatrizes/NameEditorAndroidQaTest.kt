@@ -187,8 +187,10 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_position_canvas")
             .performTouchInput {
                 swipe(
-                    start = center - Offset(150f, 0f),
-                    end = center - Offset(150f, -22f),
+                    // Um deslocamento fixo de 150px saía do Canvas em
+                    // emuladores de largura menor e nunca iniciava o gesto.
+                    start = center - Offset(size.width * .27f, 0f),
+                    end = center - Offset(size.width * .27f, -22f),
                     durationMillis = 500
                 )
             }
@@ -243,7 +245,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithText("✓ Mover matriz").assertExists()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performScrollTo().performTouchInput {
-                swipe(start = center, end = center + Offset(0f, 24f),
+                swipe(start = center, end = center + Offset(0f, 9f),
                     durationMillis = 500)
             }
         composeRule.waitForIdle()
@@ -522,8 +524,12 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
+        // A primeira escolha manual deve cancelar o encaixe inicial
+        // antes da pinça: evita corrida com cálculo da fonte em paralelo.
+        composeRule.onNodeWithTag("brother_name_editor_move_name")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performTouchInput {
+            .performScrollTo().performTouchInput {
                 pinch(
                     start0 = center + Offset(-20f, -20f),
                     end0 = center + Offset(-23f, -23f),
