@@ -63,6 +63,29 @@ class HoopLayerPositioningTest {
         ).getOrThrow())
     }
 
+    @Test fun anchoringNamedFrameUsesFloralCenterNotCombinedBounds() {
+        val named = withName()
+        val source = requireNotNull(named.editableName).original
+        val centerX = (source.bounds.minXUnits.toLong() +
+            source.bounds.maxXUnits.toLong()) / 2L
+        val centerY = (source.bounds.minYUnits.toLong() +
+            source.bounds.maxYUnits.toLong()) / 2L
+        val anchored = HoopLayerPositioning.prepare(named, HoopProfile.H130X180)
+            .getOrThrow()
+        val base = requireNotNull(anchored.editableName).original
+        assertEquals(0L,
+            (base.bounds.minXUnits.toLong() + base.bounds.maxXUnits.toLong()) / 2L)
+        assertEquals(0L,
+            (base.bounds.minYUnits.toLong() + base.bounds.maxYUnits.toLong()) / 2L)
+        assertEquals(named.editableName!!.centerXUnits - centerX,
+            anchored.editableName!!.centerXUnits.toLong())
+        assertEquals(named.editableName!!.centerYUnits - centerY,
+            anchored.editableName!!.centerYUnits.toLong())
+        val restored = ProjectCodec.decode(ProjectCodec.encode(anchored))
+        assertEquals(base.points, restored.editableName!!.original.points)
+        assertEquals(anchored.points, restored.points)
+    }
+
     @Test fun matrixMovesDownWhileNameMovesUpWithoutFollowingMatrix() {
         val first = HoopLayerPositioning.prepare(
             withName(), HoopProfile.H130X180
