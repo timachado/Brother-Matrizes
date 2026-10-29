@@ -89,4 +89,33 @@ class NameAutoPlacementCrestTest {
         assertEquals(savedPoints.dropLast(1),
             fit.design.points.take(savedPoints.size - 1))
     }
+    @Test
+    fun importedFontGenerationFailureIsReportedOnceWithoutTimeoutLoop() = runBlocking {
+        val source = ornamentedCrest()
+        var attempts = 0
+        val brokenFont: (TextMatrixOptions) -> Result<EmbroideryDesign> = {
+            attempts++
+            Result.failure(IllegalArgumentException(
+                "Contornos da fonte não geraram cobertura Satin suficiente"
+            ))
+        }
+        val options = TextMatrixOptions(
+            text = "Maria",
+            font = EmbroideryFontPreset.ELEGANT,
+            importedFontId = "adamiya-real",
+            heightMm = 12f,
+            style = TextStitchStyle.SATIN,
+            outputFormat = "PES",
+            hoopProfile = HoopProfile.H200X300
+        )
+        val result = NameAutoPlacement.find(
+            source, options, importedGenerator = brokenFont
+        )
+        assertTrue(result.isFailure)
+        assertEquals("Erro de fonte não deve repetir digitalização",
+            1, attempts)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty()
+            .contains("cobertura Satin suficiente"))
+    }
+
 }
