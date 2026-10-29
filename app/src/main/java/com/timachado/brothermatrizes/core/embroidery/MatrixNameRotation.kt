@@ -79,6 +79,9 @@ object MatrixNameRotation {
             "A rotação ultrapassa a área útil do bastidor " +
                 hoop.displayName + ". Selecione um bastidor maior."
         }
+        if (result.hoopPositionLocked) {
+            HoopLayerPositioning.validateHoop(result, hoop)
+        }
         val (newX, newY) = rotateXY(nameXUnits, nameYUnits)
         Rotation(
             background = result,
