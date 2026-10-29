@@ -52,7 +52,10 @@ object HoopLayerPositioning {
     fun validateHoop(design: EmbroideryDesign, hoop: HoopProfile) {
         // A orientação do bastidor é a mesma usada pelo EmbroideryCanvas.
         val bounds = design.bounds
-        val designLandscape = bounds.widthMm > bounds.heightMm
+        // A orientação do bastidor acompanha a matriz-base, não muda
+        // quando um nome longo altera o retângulo combinado.
+        val referenceBounds = design.editableName?.original?.bounds ?: bounds
+        val designLandscape = referenceBounds.widthMm > referenceBounds.heightMm
         val hoopLandscape = hoop.widthMm > hoop.heightMm
         val rotate = hoop.widthMm != hoop.heightMm &&
             designLandscape != hoopLandscape
