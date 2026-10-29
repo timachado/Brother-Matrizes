@@ -60,4 +60,38 @@ class NameAutoPlacementPortraitTest {
         assertEquals("Maria", fit.design.editableName?.options?.text)
         assertTrue(fit.design.stitchCount > base.stitchCount)
     }
+    @Test
+    fun importedShortNameExpandsAlongEmptyFloralCorridorAndKeepsSafeMargins() = runBlocking {
+        val base = floralCorridor()
+        val background = base.points.toList()
+        val requested = TextMatrixOptions(
+            text = "II",
+            font = EmbroideryFontPreset.ELEGANT,
+            importedFontId = "test-font-vector",
+            heightMm = 30f,
+            style = TextStitchStyle.RUNNING,
+            outputFormat = "PES",
+            hoopProfile = HoopProfile.H130X180
+        )
+        val generator: (TextMatrixOptions) -> Result<EmbroideryDesign> = { options ->
+            TextMatrixGenerator.generate(options.copy(importedFontId = null))
+        }
+        val fit = NameAutoPlacement.find(base, requested,
+            importedGenerator = generator).getOrThrow()
+        assertEquals("O nome deve manter a rotação vertical",
+            90f, kotlin.math.abs(fit.options.rotationDegrees), 0.1f)
+        assertTrue("Usar comprimento disponível no corredor floral, se seguro",
+            fit.options.widthScale > 1f)
+        assertTrue("Não distorcer demasiadamente as letras",
+            fit.options.widthScale <= 1.65f)
+        assertEquals(1f, fit.options.heightScale, 0f)
+        assertTrue(NamePersonalization.canPlace(
+            base, fit.options, fit.centerXUnits, fit.centerYUnits,
+            generator
+        ).isSuccess)
+        assertEquals(background, base.points)
+        assertEquals(background.dropLast(1),
+            fit.design.points.take(background.size - 1))
+    }
+
 }
