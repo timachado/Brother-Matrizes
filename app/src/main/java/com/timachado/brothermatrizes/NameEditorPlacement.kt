@@ -18,6 +18,46 @@ internal object NameEditorPlacement {
             (dyPixels / (safeScale * yDirection)).roundToInt()
     }
 
+    /**
+     * Modo automático: tocar na área das pontadas do nome seleciona somente
+     * o nome. Fora dela, um dedo desloca a matriz real. Nunca tratar esse
+     * gesto como pan temporário da câmera.
+     */
+    fun targetAtTouch(
+        design: EmbroideryDesign,
+        hoop: HoopProfile,
+        touchX: Float,
+        touchY: Float,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        paddingPixels: Float,
+        nameTouchPaddingPx: Float = 12f
+    ): com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target {
+        val matrixTarget =
+            com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.MATRIX
+        val layer = design.editableName ?: return matrixTarget
+        val firstNameStitch = layer.original.points.size + 2
+        val stitches = design.points.drop(firstNameStitch).filter {
+            it.command == com.timachado.brothermatrizes.core.embroidery.StitchCommand.STITCH
+        }
+        if (stitches.isEmpty()) return matrixTarget
+        val minX = stitches.minOf { it.xUnits }
+        val maxX = stitches.maxOf { it.xUnits }
+        val minY = stitches.minOf { it.yUnits }
+        val maxY = stitches.maxOf { it.yUnits }
+        val first = screenOffset(design, hoop, minX, minY,
+            canvasWidth, canvasHeight, paddingPixels)
+        val last = screenOffset(design, hoop, maxX, maxY,
+            canvasWidth, canvasHeight, paddingPixels)
+        val left = minOf(first.x, last.x) + canvasWidth / 2f - nameTouchPaddingPx
+        val right = maxOf(first.x, last.x) + canvasWidth / 2f + nameTouchPaddingPx
+        val top = minOf(first.y, last.y) + canvasHeight / 2f - nameTouchPaddingPx
+        val bottom = maxOf(first.y, last.y) + canvasHeight / 2f + nameTouchPaddingPx
+        return if (touchX in left..right && touchY in top..bottom) {
+            com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.NAME
+        } else matrixTarget
+    }
+
     fun screenOffset(
         design: EmbroideryDesign,
         hoop: HoopProfile,
