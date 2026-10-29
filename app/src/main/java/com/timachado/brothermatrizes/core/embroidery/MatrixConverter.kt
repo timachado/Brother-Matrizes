@@ -174,9 +174,9 @@ object MatrixConverter {
                 if (
                     format == "PES"
                 ) {
-                    addBrotherPecOrigin(
-                        rawBytes,
-                        pattern
+                    PesHoopPositionMetadata.write(
+                        addBrotherPecOrigin(rawBytes, pattern),
+                        normalized
                     )
                 } else {
                     rawBytes

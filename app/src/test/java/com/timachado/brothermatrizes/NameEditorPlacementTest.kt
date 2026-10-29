@@ -54,6 +54,69 @@ class NameEditorPlacementTest {
         assertEquals(-80, upward.second)
     }
 
+    @Test fun directTouchOnSatinNameSelectsNameAndFlowersSelectMatrix() {
+        val source = com.timachado.brothermatrizes.core.embroidery.EmbroideryIntegrity
+            .normalize(com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign(
+                fileName = "flores.pes", format = "PES", label = null,
+                points = listOf(
+                    EmbroideryPoint(-220, -600, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(-220, 600, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-195, 600, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-195, -600, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(-220, -600, StitchCommand.END, 0)
+                ),
+                bounds = EmbroideryBounds(0, 0, 0, 0),
+                stitchCount = 0, jumpCount = 0, colorChanges = 0,
+                endFound = false, sourceBytes = byteArrayOf(1),
+                sourceYAxisDown = true,
+                hoopProfile = HoopProfile.H130X180
+            )).getOrThrow().design
+        val named = com.timachado.brothermatrizes.core.embroidery.NamePersonalization
+            .add(source,
+                com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions(
+                    text = "Maria", heightMm = 8f,
+                    style = com.timachado.brothermatrizes.core.embroidery.TextStitchStyle.SATIN,
+                    hoopProfile = HoopProfile.H130X180, outputFormat = "PES"
+                ),
+                centerXUnits = 175, centerYUnits = 40
+            ).getOrThrow()
+        val layer = requireNotNull(named.editableName)
+        val nameStitches = named.points.drop(layer.original.points.size + 2)
+            .filter { it.command == StitchCommand.STITCH }
+        val minX = nameStitches.minOf { it.xUnits }
+        val maxX = nameStitches.maxOf { it.xUnits }
+        val minY = nameStitches.minOf { it.yUnits }
+        val maxY = nameStitches.maxOf { it.yUnits }
+        val p1 = NameEditorPlacement.screenOffset(layer.original,
+            HoopProfile.H130X180, minX, minY, 360, 600, 36f)
+        val p2 = NameEditorPlacement.screenOffset(layer.original,
+            HoopProfile.H130X180, maxX, maxY, 360, 600, 36f)
+        val centerX = 180f + (p1.x + p2.x) / 2f
+        val centerY = 300f + (p1.y + p2.y) / 2f
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.NAME, NameEditorPlacement.targetAtTouch(named,
+            HoopProfile.H130X180, centerX, centerY, 360, 600, 36f))
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.MATRIX, NameEditorPlacement.targetAtTouch(named,
+            HoopProfile.H130X180, 12f, 300f, 360, 600, 36f))
+        val locked = com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
+            .prepare(named, HoopProfile.H130X180).getOrThrow()
+        val anchored = requireNotNull(locked.editableName)
+        val fixedPoints = locked.points.drop(anchored.original.points.size + 2)
+            .filter { it.command == StitchCommand.STITCH }
+        val a = NameEditorPlacement.screenOffset(anchored.original,
+            HoopProfile.H130X180,
+            fixedPoints.minOf { it.xUnits }, fixedPoints.minOf { it.yUnits },
+            360, 600, 36f)
+        val b = NameEditorPlacement.screenOffset(anchored.original,
+            HoopProfile.H130X180,
+            fixedPoints.maxOf { it.xUnits }, fixedPoints.maxOf { it.yUnits },
+            360, 600, 36f)
+        assertEquals(com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning.Target.NAME, NameEditorPlacement.targetAtTouch(
+            locked, HoopProfile.H130X180,
+            180f + (a.x + b.x) / 2f, 300f + (a.y + b.y) / 2f,
+            360, 600, 36f
+        ))
+    }
+
     @Test fun screenOffsetRespectsPesAxisDirection() {
         val down = NameEditorPlacement.screenOffset(
             portrait(true), HoopProfile.H130X180,

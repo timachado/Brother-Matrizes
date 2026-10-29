@@ -246,9 +246,18 @@ object EmbroideryIoParser {
             )
             .fold(
                 onSuccess = {
-                    EmbroideryLoadResult.Success(
-                        it.design
-                    )
+                    // PES exportado do app pode carregar referência de
+                    // bastidor no rótulo PEC. Restaurar a posição física
+                    // exata ao reabrir sem deslocar as pontadas da máquina.
+                    val restored = if (extension == "pes") {
+                        runCatching {
+                            PesHoopPositionMetadata.restore(bytes, it.design)
+                        }.getOrElse { return@fold EmbroideryLoadResult.Error(
+                            "O PES contém posicionamento inválido para o bastidor.",
+                            it.message
+                        ) }
+                    } else it.design
+                    EmbroideryLoadResult.Success(restored)
                 },
                 onFailure = {
                         error ->

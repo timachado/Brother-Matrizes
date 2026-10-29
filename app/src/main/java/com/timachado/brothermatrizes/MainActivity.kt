@@ -2449,6 +2449,13 @@ private fun BrotherMatrizesApp(
                                 current
                                     .design
                             )
+                        },
+                        onPositionChange = { placed ->
+                            activateDesign(placed)
+                            screen = current.copy(
+                                design = placed,
+                                referenceHoop = placed.hoopProfile ?: current.referenceHoop
+                            )
                         }
                     )
                 }

@@ -42,7 +42,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        8
+        9
 
     private const val MAX_POINTS =
         2_000_000
@@ -309,6 +309,9 @@ object ProjectCodec {
             // v8: expansão horizontal dos glifos, independente da palavra.
             output.writeFloat(fontOptions.horizontalGlyphScale)
         }
+        // v9: a posição é física dentro do bastidor, não apenas o
+        // deslocamento temporário da câmera. Persiste inclusive sem nome.
+        output.writeBoolean(design.hoopPositionLocked)
         output.flush()
     }
 
@@ -629,6 +632,13 @@ object ProjectCodec {
                 null
             }
 
+            val lockedPlacement = if (version >= 9) input.readBoolean() else false
+            val storedLayer = editableLayer?.let { layer ->
+                layer.copy(original = layer.original.copy(
+                    hoopPositionLocked = lockedPlacement
+                ))
+            }
+
             EmbroideryIntegrity
                 .normalize(
                     EmbroideryDesign(
@@ -671,7 +681,8 @@ object ProjectCodec {
                             fabric,
                         machineFinishing =
                             finishing,
-                        editableName = editableLayer
+                        editableName = storedLayer,
+                        hoopPositionLocked = lockedPlacement
                     )
                 )
                 .getOrElse {

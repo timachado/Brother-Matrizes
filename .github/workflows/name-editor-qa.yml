@@ -5,6 +5,7 @@ on:
       - feature/editor-nomes-molduras-20261026
       - feature/name-fit-floral-crest-20261028
       - feature/rotation-horizontal-expansion-206
+      - feature/persist-independent-hoop-layout-20261029
   pull_request:
     branches:
       - main

@@ -75,7 +75,10 @@ data class EmbroideryDesign(
     val fabricProfile: FabricProfile? = null,
     val machineFinishing:
         MachineFinishingInfo? = null,
-    val editableName: NamePersonalizationLayer? = null
+    val editableName: NamePersonalizationLayer? = null,
+    // v9: marcador explícito de coordenadas físicas vinculadas à origem do
+    // bastidor; impede que Viewer recentralize o desenho ao reabrir projeto.
+    val hoopPositionLocked: Boolean = false
 ) {
     val colorCount: Int
         get() = maxOf(

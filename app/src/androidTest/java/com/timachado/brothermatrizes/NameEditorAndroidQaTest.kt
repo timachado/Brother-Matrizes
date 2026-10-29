@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.pinch
@@ -82,6 +83,191 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
         composeRule.onNodeWithText("Desfazer").performScrollTo().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
+    }
+
+    @Test
+    fun viewerMovesMatrixAndNameIndependentlyAndReopensAtSavedPositions() {
+        val compact = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val named = NamePersonalization.add(
+            compact, TextMatrixOptions(text = "Maria", heightMm = 8f),
+            0, 0
+        ).getOrThrow()
+        var displayed by mutableStateOf(named)
+        composeRule.setContent {
+            ViewerScreen(
+                design = displayed,
+                displayMode = EmbroideryDisplayMode.SOLID,
+                onDisplayModeChange = {},
+                referenceHoop = HoopProfile.H100X100,
+                onReferenceHoopChange = {},
+                showConnections = false,
+                onShowConnectionsChange = {},
+                onBack = {},
+                onOpen = {},
+                onSimulate = {},
+                onEdit = {},
+                onEditName = {},
+                onConvert = {},
+                onTransfer = {},
+                onSaveProject = {},
+                onSaveCopy = {},
+                onShare = {},
+                onPositionChange = { displayed = it }
+            )
+        }
+        val originalName = named.editableName!!.centerYUnits
+        composeRule.onNodeWithTag("brother_position_matrix")
+            .assertExists().performClick()
+        composeRule.waitForIdle()
+        val aligned = displayed
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(start = center, end = center + Offset(0f, 24f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        val movedMatrix = displayed
+        assertTrue(movedMatrix.hoopPositionLocked)
+        assertTrue(aligned.points != movedMatrix.points)
+        assertEquals(aligned.editableName!!.centerYUnits,
+            movedMatrix.editableName!!.centerYUnits)
+        assertEquals(aligned.editableName!!.original.points[1].xUnits,
+            movedMatrix.editableName!!.original.points[1].xUnits)
+
+        composeRule.onNodeWithTag("brother_position_name")
+            .assertExists().performClick()
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                // O teste do gesto usa a mesma direção para manter a
+                // distância de 1,5 mm da moldura. O caso matriz para baixo /
+                // nome para cima é coberto no teste geométrico unitário.
+                swipe(start = center, end = center + Offset(0f, 24f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        val independentlyMoved = displayed
+        assertEquals(movedMatrix.editableName!!.original.points,
+            independentlyMoved.editableName!!.original.points)
+        assertTrue(independentlyMoved.editableName!!.centerYUnits !=
+            movedMatrix.editableName!!.centerYUnits)
+        val reopened = ProjectCodec.decode(ProjectCodec.encode(independentlyMoved))
+        assertEquals(independentlyMoved.points, reopened.points)
+        assertEquals(independentlyMoved.editableName!!.centerYUnits,
+            reopened.editableName!!.centerYUnits)
+        assertTrue(reopened.hoopPositionLocked)
+        assertEquals(originalName, named.editableName!!.centerYUnits)
+    }
+
+    @Test
+    fun directDragWithoutModeMovesMatrixThenNameIndependentlyAndPersists() {
+        val compact = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val named = NamePersonalization.add(
+            compact, TextMatrixOptions(text = "Maria", heightMm = 8f),
+            0, 0
+        ).getOrThrow()
+        var displayed by mutableStateOf(named)
+        composeRule.setContent {
+            ViewerScreen(
+                design = displayed,
+                displayMode = EmbroideryDisplayMode.SOLID,
+                onDisplayModeChange = {},
+                referenceHoop = HoopProfile.H100X100,
+                onReferenceHoopChange = {},
+                showConnections = false,
+                onShowConnectionsChange = {},
+                onBack = {}, onOpen = {}, onSimulate = {},
+                onEdit = {}, onEditName = {}, onConvert = {},
+                onTransfer = {}, onSaveProject = {},
+                onSaveCopy = {}, onShare = {},
+                onPositionChange = { displayed = it }
+            )
+        }
+        // Não tocar em Mover matriz/Mover nome: é precisamente a sequência
+        // do vídeo de regressão. Antes era pan temporário da câmera.
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(
+                    // Manter o toque dentro do Canvas em telas estreitas.
+                    start = center - Offset(60f, 0f),
+                    end = center - Offset(60f, -22f),
+                    durationMillis = 500
+                )
+            }
+        composeRule.waitForIdle()
+        val movedBase = displayed
+        assertTrue("Arraste sem botão precisa gerar coordenadas reais",
+            movedBase.hoopPositionLocked)
+        assertTrue("Flor deve mudar posição", movedBase.editableName!!.original.points !=
+            named.editableName!!.original.points)
+        assertEquals("Nome não deve acompanhar o fundo",
+            named.editableName!!.centerYUnits,
+            movedBase.editableName!!.centerYUnits)
+        val baseline = movedBase.editableName!!.original.points
+        composeRule.onNodeWithTag("brother_position_canvas")
+            .performTouchInput {
+                swipe(
+                    start = center,
+                    end = center - Offset(0f, 14f),
+                    durationMillis = 500
+                )
+            }
+        composeRule.waitForIdle()
+        val movedName = displayed
+        assertEquals("Flor parada ao arrastar só o nome",
+            baseline, movedName.editableName!!.original.points)
+        assertTrue("Nome deve mudar posição sem selecionar botão",
+            movedName.editableName!!.centerYUnits != movedBase.editableName!!.centerYUnits)
+        val reopened = ProjectCodec.decode(ProjectCodec.encode(movedName))
+        assertTrue(reopened.hoopPositionLocked)
+        assertEquals(movedName.points, reopened.points)
+        assertEquals(movedName.editableName!!.centerYUnits,
+            reopened.editableName!!.centerYUnits)
+    }
+
+    @Test
+    fun nameEditorMatrixModeMovesOnlyFlowersAndKeepsNamePlace() {
+        val original = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        val personalized = NamePersonalization.add(
+            original, TextMatrixOptions(text = "Maria", heightMm = 8f), 0, 0
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = personalized,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_editor_move_matrix")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("✓ Mover matriz").assertExists()
+        composeRule.onNodeWithTag("brother_name_canvas")
+            .performScrollTo().performTouchInput {
+                swipe(start = center, end = center + Offset(0f, 9f),
+                    durationMillis = 500)
+            }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("brother_name_editor_move_error")
+            .assertDoesNotExist()
+        composeRule.waitUntil(30000) {
+            runCatching {
+                composeRule.onNodeWithTag("brother_name_apply")
+                    .assertIsEnabled()
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.waitForIdle()
+        val result = requireNotNull(applied)
+        val base = requireNotNull(result.editableName).original
+        assertTrue(base.points != personalized.editableName!!.original.points)
+        assertEquals(personalized.editableName!!.centerYUnits,
+            requireNotNull(result.editableName).centerYUnits)
+        val persisted = ProjectCodec.decode(ProjectCodec.encode(result))
+        assertEquals(result.points, persisted.points)
+        assertEquals(base.points, persisted.editableName!!.original.points)
     }
 
     @Test
@@ -337,8 +523,12 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
+        // A primeira escolha manual deve cancelar o encaixe inicial
+        // antes da pinça: evita corrida com cálculo da fonte em paralelo.
+        composeRule.onNodeWithTag("brother_name_editor_move_name")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performTouchInput {
+            .performScrollTo().performTouchInput {
                 pinch(
                     start0 = center + Offset(-20f, -20f),
                     end0 = center + Offset(-23f, -23f),

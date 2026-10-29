@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
 import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
@@ -90,6 +91,8 @@ private data class NameDraft(
     val x: Int,
     val y: Int
 )
+
+private enum class NameEditorMoveMode { MATRIX, NAME }
 
 private data class EditorSnapshot(
     val name: NameDraft,
@@ -143,6 +146,8 @@ fun NameEditorScreen(
     var baseDesign by remember(original) { mutableStateOf(original) }
     var matrixRotation by remember(original) { mutableStateOf(0f) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
+    var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
+    var moveError by remember(original) { mutableStateOf<String?>(null) }
 
     fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation)
     fun setDraft(next: NameDraft, history: Boolean = true) {
@@ -370,20 +375,103 @@ fun NameEditorScreen(
     val commitGesture by rememberUpdatedState<(Offset, Float, Float) -> Unit> {
             moved, onScreenX, onScreenY ->
         autoFitEnabled = false
-        val delta = NameEditorPlacement.dragUnits(
+        val (dx, dy) = NameEditorPlacement.dragUnits(
             moved.x, moved.y, canvasScale, direction
         )
-        val radians = Math.toRadians(draft.rotation.toDouble())
-        val isSideways = abs(sin(radians)) > abs(cos(radians))
-        val localX = if (isSideways) onScreenY else onScreenX
-        val localY = if (isSideways) onScreenX else onScreenY
-        val next = draft.copy(
-            x = draft.x + delta.first,
-            y = draft.y + delta.second,
-            widthScale = (draft.widthScale * localX).coerceIn(.5f, 2.5f),
-            heightScale = (draft.heightScale * localY).coerceIn(.5f, 2.5f)
-        )
-        setDraft(next)
+        if (moveMode == NameEditorMoveMode.MATRIX) {
+            try {
+                // Um gesto na MATRIZ não deve gerar pontadas novas, alterar
+                // fonte nem deslocar o nome. Reutilizar a composição real
+                // existente, preservando o Satin e a posição do texto.
+                // Isso evita que uma nova digitalização lenta impeça salvar.
+                val namedComputed = computed?.takeIf {
+                    it.base === baseDesign && it.settings == draft
+                }?.result?.getOrNull()
+                val saved = original.editableName
+                val namedSaved = original.takeIf {
+                    baseDesign === original && saved != null &&
+                        draft.name == saved.options.text &&
+                        draft.x == saved.centerXUnits &&
+                        draft.y == saved.centerYUnits &&
+                        draft.importedFontId == saved.options.importedFontId &&
+                        draft.height == saved.options.heightMm &&
+                        draft.rotation == saved.options.rotationDegrees &&
+                        draft.widthScale == saved.options.widthScale &&
+                        draft.heightScale == saved.options.heightScale &&
+                        draft.horizontalGlyphScale == saved.options.horizontalGlyphScale
+                }
+                val named = namedComputed ?: namedSaved
+                if (named != null && named.editableName != null) {
+                    val anchoredNamed = HoopLayerPositioning.prepare(
+                        named, referenceHoop
+                    ).getOrThrow()
+                    val repositioned = HoopLayerPositioning.move(
+                        anchoredNamed, dx, dy,
+                        HoopLayerPositioning.Target.MATRIX, referenceHoop
+                    ).getOrThrow()
+                    val layer = requireNotNull(repositioned.editableName)
+                    val nextBase = layer.original
+                    val nextDraft = draft.copy(
+                        x = layer.centerXUnits, y = layer.centerYUnits
+                    )
+                    undo = (undo + snapshot()).takeLast(40)
+                    redo = emptyList()
+                    baseDesign = nextBase
+                    draft = nextDraft
+                    computed = ComputedPreview(
+                        nextBase, nextDraft, Result.success(repositioned)
+                    )
+                    moveError = null
+                } else {
+                    // Novo nome ainda sem pontadas válidas: posicionar só
+                    // a matriz e deixar o validador calcular o nome uma vez.
+                    val source = baseDesign.editableName?.original ?: baseDesign
+                    val anchored = HoopLayerPositioning.prepare(
+                        source, referenceHoop
+                    ).getOrThrow()
+                    val beforeX = (source.bounds.minXUnits.toLong() +
+                        source.bounds.maxXUnits.toLong()) / 2L
+                    val beforeY = (source.bounds.minYUnits.toLong() +
+                        source.bounds.maxYUnits.toLong()) / 2L
+                    val afterX = (anchored.bounds.minXUnits.toLong() +
+                        anchored.bounds.maxXUnits.toLong()) / 2L
+                    val afterY = (anchored.bounds.minYUnits.toLong() +
+                        anchored.bounds.maxYUnits.toLong()) / 2L
+                    val nameX = draft.x.toLong() + afterX - beforeX
+                    val nameY = draft.y.toLong() + afterY - beforeY
+                    require(nameX in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
+                        nameY in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+                        "O nome ultrapassou o limite físico de posicionamento."
+                    }
+                    val newBase = HoopLayerPositioning.move(
+                        anchored, dx, dy, HoopLayerPositioning.Target.MATRIX,
+                        referenceHoop
+                    ).getOrThrow()
+                    undo = (undo + snapshot()).takeLast(40)
+                    redo = emptyList()
+                    baseDesign = newBase
+                    draft = draft.copy(x = nameX.toInt(), y = nameY.toInt())
+                    computed = null
+                    moveError = null
+                }
+            } catch (error: Exception) {
+                moveError = error.message ?:
+                    "A matriz não pôde ser movida dentro do bastidor."
+            }
+        } else {
+            val radians = Math.toRadians(draft.rotation.toDouble())
+            val isSideways = abs(sin(radians)) > abs(cos(radians))
+            val localX = if (isSideways) onScreenY else onScreenX
+            val localY = if (isSideways) onScreenX else onScreenY
+            val next = draft.copy(
+                x = draft.x + dx,
+                y = draft.y + dy,
+                widthScale = (draft.widthScale * localX).coerceIn(.5f, 2.5f),
+                heightScale = (draft.heightScale * localY).coerceIn(.5f, 2.5f)
+            )
+            setDraft(next)
+            moveError = null
+        }
         dragging = false
         dragPx = Offset.Zero
         gestureScaleX = 1f
@@ -639,6 +727,47 @@ fun NameEditorScreen(
             ) { Text("A+ Maior") }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.MATRIX
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_matrix")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.MATRIX)
+                    "✓ Mover matriz" else "Mover matriz")
+            }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.NAME
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_name")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.NAME)
+                    "✓ Mover nome" else "Mover nome")
+            }
+        }
+        Text(
+            if (moveMode == NameEditorMoveMode.MATRIX)
+                "Arraste apenas as flores: o nome permanece na posição escolhida."
+            else "Arraste apenas o nome: as flores ficam paradas.",
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_name_editor_move_hint")
+        )
+        moveError?.let {
+            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_name_editor_move_error"))
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -647,7 +776,7 @@ fun NameEditorScreen(
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
-                .pointerInput(original, referenceHoop) {
+                .pointerInput(original, referenceHoop, moveMode) {
                     // Gestos combinados: um dedo move; dois dedos permitem
                     // pinça horizontal e vertical sem recalcular Satin
                     // durante o movimento.
@@ -676,14 +805,16 @@ fun NameEditorScreen(
                                     second.previousPosition.y)
                                 val dx = abs(first.position.x - second.position.x)
                                 val dy = abs(first.position.y - second.position.y)
-                                if (oldDx > 14f && dx > 14f) {
-                                    scaleX = (scaleX * dx / oldDx).coerceIn(.5f, 2.5f)
+                                if (moveMode == NameEditorMoveMode.NAME) {
+                                    if (oldDx > 14f && dx > 14f) {
+                                        scaleX = (scaleX * dx / oldDx).coerceIn(.5f, 2.5f)
+                                    }
+                                    if (oldDy > 14f && dy > 14f) {
+                                        scaleY = (scaleY * dy / oldDy).coerceIn(.5f, 2.5f)
+                                    }
+                                    gestureScaleX = scaleX
+                                    gestureScaleY = scaleY
                                 }
-                                if (oldDy > 14f && dy > 14f) {
-                                    scaleY = (scaleY * dy / oldDy).coerceIn(.5f, 2.5f)
-                                }
-                                gestureScaleX = scaleX
-                                gestureScaleY = scaleY
                             } else if (!twoFingers) {
                                 // O último deslocamento pode chegar junto do UP:
                                 // nessa amostra pressed=false e active está vazio.
@@ -707,6 +838,9 @@ fun NameEditorScreen(
                 hoop = referenceHoop,
                 interactive = false,
                 displayMode = EmbroideryDisplayMode.SOLID,
+                positionMode = moveMode == NameEditorMoveMode.MATRIX,
+                designDragOffset = if (moveMode == NameEditorMoveMode.MATRIX)
+                    dragPx else Offset.Zero,
                 modifier = Modifier.fillMaxSize()
             )
             // Camada com os pontos Satin reais; o enquadramento da moldura
@@ -729,8 +863,10 @@ fun NameEditorScreen(
                         )
                         scaleX = gestureScaleX
                         scaleY = gestureScaleY
-                        translationX = dragPx.x
-                        translationY = dragPx.y
+                        translationX = if (moveMode == NameEditorMoveMode.NAME)
+                            dragPx.x else 0f
+                        translationY = if (moveMode == NameEditorMoveMode.NAME)
+                            dragPx.y else 0f
                     }
                 )
             }
@@ -744,8 +880,10 @@ fun NameEditorScreen(
                 canvasHeight = canvasSize.height,
                 paddingPixels = paddingPx
             )
-            val nameX = namePosition.x + dragPx.x
-            val nameY = namePosition.y + dragPx.y
+            val nameX = namePosition.x +
+                if (moveMode == NameEditorMoveMode.NAME) dragPx.x else 0f
+            val nameY = namePosition.y +
+                if (moveMode == NameEditorMoveMode.NAME) dragPx.y else 0f
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -765,7 +903,7 @@ fun NameEditorScreen(
             }
         }
 
-        Text("Um dedo: mover • Dois dedos: expandir lateralmente e para cima.",
+        Text("Um dedo: mover a camada selecionada • Dois dedos: expandir o nome.",
             color = FioTextMuted, fontSize = 11.sp)
 
         when {
