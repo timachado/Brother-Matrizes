@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -292,17 +293,51 @@ fun ViewerScreen(
                     }
                 } else Modifier)
         ) {
-            EmbroideryCanvas(
-                design = design,
-                interactive = placementTarget == null,
-                hoop = referenceHoop,
-                displayMode = displayMode,
-                showConnections = showConnections,
-                designDragOffset = gestureDelta,
-                positionMode = placementTarget != null,
-                modifier = Modifier.fillMaxSize().background(
-                    Color(0xFF071017), RoundedCornerShape(24.dp))
-            )
+            val editable = design.editableName
+            if (placementTarget != null && editable != null) {
+                // Prévia em DUAS camadas: durante o gesto, apenas a camada
+                // selecionada se move. Não deslocar o nome quando o usuário
+                // arrasta a matriz, nem o desenho ao mover somente o nome.
+                val background = editable.original
+                EmbroideryCanvas(
+                    design = background,
+                    interactive = false,
+                    hoop = referenceHoop,
+                    displayMode = displayMode,
+                    showConnections = showConnections,
+                    positionMode = true,
+                    designDragOffset =
+                        if (placementTarget == HoopLayerPositioning.Target.MATRIX)
+                            gestureDelta else Offset.Zero,
+                    modifier = Modifier.fillMaxSize().background(
+                        Color(0xFF071017), RoundedCornerShape(24.dp))
+                )
+                NameEditorStitchLayer(
+                    original = background,
+                    result = design,
+                    hoop = referenceHoop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        translationX =
+                            if (placementTarget == HoopLayerPositioning.Target.NAME)
+                                gestureDelta.x else 0f
+                        translationY =
+                            if (placementTarget == HoopLayerPositioning.Target.NAME)
+                                gestureDelta.y else 0f
+                    }
+                )
+            } else {
+                EmbroideryCanvas(
+                    design = design,
+                    interactive = placementTarget == null,
+                    hoop = referenceHoop,
+                    displayMode = displayMode,
+                    showConnections = showConnections,
+                    designDragOffset = gestureDelta,
+                    positionMode = placementTarget != null,
+                    modifier = Modifier.fillMaxSize().background(
+                        Color(0xFF071017), RoundedCornerShape(24.dp))
+                )
+            }
         }
 
         Card(
