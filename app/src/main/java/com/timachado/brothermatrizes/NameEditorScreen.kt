@@ -596,6 +596,17 @@ fun NameEditorScreen(
                 modifier = Modifier.testTag("brother_matrix_rotation_error"))
         }
 
+        // Girar um PES/DST sem necessariamente inserir um novo nome.
+        // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
+        OutlinedButton(
+            onClick = { onApply(baseDesign) },
+            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null,
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_matrix_apply_rotation_only")
+        ) {
+            Text("Aplicar só a rotação da matriz")
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
