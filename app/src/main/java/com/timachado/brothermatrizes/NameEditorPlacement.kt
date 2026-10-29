@@ -45,9 +45,11 @@ internal object NameEditorPlacement {
         val maxX = stitches.maxOf { it.xUnits }
         val minY = stitches.minOf { it.yUnits }
         val maxY = stitches.maxOf { it.yUnits }
-        val first = screenOffset(design, hoop, minX, minY,
+        // O nome é desenhado sobre o enquadramento da matriz-base. Usar
+        // bounds da composição inteira aqui deslocaria a área tocável.
+        val first = screenOffset(layer.original, hoop, minX, minY,
             canvasWidth, canvasHeight, paddingPixels)
-        val last = screenOffset(design, hoop, maxX, maxY,
+        val last = screenOffset(layer.original, hoop, maxX, maxY,
             canvasWidth, canvasHeight, paddingPixels)
         val left = minOf(first.x, last.x) + canvasWidth / 2f - nameTouchPaddingPx
         val right = maxOf(first.x, last.x) + canvasWidth / 2f + nameTouchPaddingPx
