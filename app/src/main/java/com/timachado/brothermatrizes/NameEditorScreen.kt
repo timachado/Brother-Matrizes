@@ -150,9 +150,11 @@ fun NameEditorScreen(
         mutableStateOf<ComputedPreview?>(null)
     }
     var autoFitEnabled by remember(original) {
-        // Não iniciar uma busca exaustiva ao abrir cada matriz. O botão
-        // Ajustar automaticamente ou uma nova digitação inicia a busca.
-        mutableStateOf(false)
+        // Em uma nova personalização, primeiro procurar um encaixe seguro.
+        // Não mostrar o falso aviso de colisão do nome temporário
+        // "Maria" em fonte BM Elegante antes da escolha da Adamiya.
+        // Em nomes já existentes, preservar a edição e o tamanho salvos.
+        mutableStateOf(original.editableName == null)
     }
     var autoFitRequest by remember(original) { mutableIntStateOf(0) }
     var reprocessRequest by remember(original) { mutableIntStateOf(0) }
@@ -249,6 +251,11 @@ fun NameEditorScreen(
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
         if (autoFitEnabled) return@LaunchedEffect
+        // O resultado vindo do autoajuste já contém pontadas validadas.
+        // Evita a segunda geração lenta e um aviso vermelho atrasado.
+        if (reprocessRequest == 0 && computed?.base === baseDesign &&
+            computed?.settings == draft && computed?.result?.isSuccess == true
+        ) return@LaunchedEffect
         delay(560L) // aguardar pausa real entre gestos e edições de controles
         val target = draft
         val source = baseDesign
@@ -335,7 +342,7 @@ fun NameEditorScreen(
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
-    val previewBusy = currentPreview == null || fitting
+    val previewBusy = currentPreview == null || fitting || autoFitEnabled
 
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
@@ -632,7 +639,7 @@ fun NameEditorScreen(
             color = FioTextMuted, fontSize = 11.sp)
 
         when {
-            fitting -> Text(
+            (fitting || autoFitEnabled) -> Text(
                 "Encaixando nome automaticamente na área livre…",
                 color = FioTextMuted, fontSize = 12.sp
             )
@@ -676,6 +683,7 @@ fun NameEditorScreen(
                 autoFitRequest++
                 autoFitEnabled = true
             },
+            enabled = !fitting,
             modifier = Modifier.fillMaxWidth().testTag("brother_name_auto_fit")
         ) {
             Text("✧ Ajustar automaticamente à matriz")
