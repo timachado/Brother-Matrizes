@@ -284,7 +284,8 @@ fun ViewerScreen(
                                 gestureDelta != Offset.Zero
                             ) {
                                 val placement = NameEditorPlacement.screenOffset(
-                                    design, referenceHoop, 0, 0,
+                                    design.editableName?.original ?: design,
+                                    referenceHoop, 0, 0,
                                     positioningCanvas.width, positioningCanvas.height,
                                     36.dp.toPx()
                                 )
