@@ -380,36 +380,80 @@ fun NameEditorScreen(
         )
         if (moveMode == NameEditorMoveMode.MATRIX) {
             try {
-                val source = baseDesign.editableName?.original ?: baseDesign
-                val anchored = HoopLayerPositioning.prepare(source, referenceHoop)
-                    .getOrThrow()
-                // O PES original podia estar centrado só na TELA. Ao ancorar
-                // as pontadas, converter a posição do nome para o MESMO
-                // espaço físico. Em seguida mover SOMENTE a matriz.
-                val beforeX = (source.bounds.minXUnits.toLong() +
-                    source.bounds.maxXUnits.toLong()) / 2L
-                val beforeY = (source.bounds.minYUnits.toLong() +
-                    source.bounds.maxYUnits.toLong()) / 2L
-                val afterX = (anchored.bounds.minXUnits.toLong() +
-                    anchored.bounds.maxXUnits.toLong()) / 2L
-                val afterY = (anchored.bounds.minYUnits.toLong() +
-                    anchored.bounds.maxYUnits.toLong()) / 2L
-                val nameX = draft.x.toLong() + afterX - beforeX
-                val nameY = draft.y.toLong() + afterY - beforeY
-                require(nameX in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
-                    nameY in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-                    "O nome ultrapassou o limite físico de posicionamento."
+                // Um gesto na MATRIZ não deve gerar pontadas novas, alterar
+                // fonte nem deslocar o nome. Reutilizar a composição real
+                // existente, preservando o Satin e a posição do texto.
+                // Isso evita que uma nova digitalização lenta impeça salvar.
+                val namedComputed = computed?.takeIf {
+                    it.base === baseDesign && it.settings == draft
+                }?.result?.getOrNull()
+                val saved = original.editableName
+                val namedSaved = original.takeIf {
+                    baseDesign === original && saved != null &&
+                        draft.name == saved.options.text &&
+                        draft.x == saved.centerXUnits &&
+                        draft.y == saved.centerYUnits &&
+                        draft.importedFontId == saved.options.importedFontId &&
+                        draft.height == saved.options.heightMm &&
+                        draft.rotation == saved.options.rotationDegrees &&
+                        draft.widthScale == saved.options.widthScale &&
+                        draft.heightScale == saved.options.heightScale &&
+                        draft.horizontalGlyphScale == saved.options.horizontalGlyphScale
                 }
-                val newBase = HoopLayerPositioning.move(
-                    anchored, dx, dy, HoopLayerPositioning.Target.MATRIX,
-                    referenceHoop
-                ).getOrThrow()
-                undo = (undo + snapshot()).takeLast(40)
-                redo = emptyList()
-                baseDesign = newBase
-                draft = draft.copy(x = nameX.toInt(), y = nameY.toInt())
-                computed = null
-                moveError = null
+                val named = namedComputed ?: namedSaved
+                if (named != null && named.editableName != null) {
+                    val anchoredNamed = HoopLayerPositioning.prepare(
+                        named, referenceHoop
+                    ).getOrThrow()
+                    val repositioned = HoopLayerPositioning.move(
+                        anchoredNamed, dx, dy,
+                        HoopLayerPositioning.Target.MATRIX, referenceHoop
+                    ).getOrThrow()
+                    val layer = requireNotNull(repositioned.editableName)
+                    val nextBase = layer.original
+                    val nextDraft = draft.copy(
+                        x = layer.centerXUnits, y = layer.centerYUnits
+                    )
+                    undo = (undo + snapshot()).takeLast(40)
+                    redo = emptyList()
+                    baseDesign = nextBase
+                    draft = nextDraft
+                    computed = ComputedPreview(
+                        nextBase, nextDraft, Result.success(repositioned)
+                    )
+                    moveError = null
+                } else {
+                    // Novo nome ainda sem pontadas válidas: posicionar só
+                    // a matriz e deixar o validador calcular o nome uma vez.
+                    val source = baseDesign.editableName?.original ?: baseDesign
+                    val anchored = HoopLayerPositioning.prepare(
+                        source, referenceHoop
+                    ).getOrThrow()
+                    val beforeX = (source.bounds.minXUnits.toLong() +
+                        source.bounds.maxXUnits.toLong()) / 2L
+                    val beforeY = (source.bounds.minYUnits.toLong() +
+                        source.bounds.maxYUnits.toLong()) / 2L
+                    val afterX = (anchored.bounds.minXUnits.toLong() +
+                        anchored.bounds.maxXUnits.toLong()) / 2L
+                    val afterY = (anchored.bounds.minYUnits.toLong() +
+                        anchored.bounds.maxYUnits.toLong()) / 2L
+                    val nameX = draft.x.toLong() + afterX - beforeX
+                    val nameY = draft.y.toLong() + afterY - beforeY
+                    require(nameX in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
+                        nameY in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+                        "O nome ultrapassou o limite físico de posicionamento."
+                    }
+                    val newBase = HoopLayerPositioning.move(
+                        anchored, dx, dy, HoopLayerPositioning.Target.MATRIX,
+                        referenceHoop
+                    ).getOrThrow()
+                    undo = (undo + snapshot()).takeLast(40)
+                    redo = emptyList()
+                    baseDesign = newBase
+                    draft = draft.copy(x = nameX.toInt(), y = nameY.toInt())
+                    computed = null
+                    moveError = null
+                }
             } catch (error: Exception) {
                 moveError = error.message ?:
                     "A matriz não pôde ser movida dentro do bastidor."
