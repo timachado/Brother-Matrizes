@@ -24,7 +24,10 @@ object HoopLayerPositioning {
                 validateHoop(design, hoop)
                 return@runCatching design
             }
-            val bx = design.bounds
+            // O Viewer com nome é desenhado em camadas, enquadradas pela
+            // MATRIZ-BASE, não pela união da matriz com as letras. Ancorar
+            // pelo bounds combinado provoca um salto aparente dos dois objetos.
+            val bx = design.editableName?.original?.bounds ?: design.bounds
             val x = -((bx.minXUnits.toLong() + bx.maxXUnits.toLong()) / 2L)
             val y = -((bx.minYUnits.toLong() + bx.maxYUnits.toLong()) / 2L)
             require(x in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() &&
