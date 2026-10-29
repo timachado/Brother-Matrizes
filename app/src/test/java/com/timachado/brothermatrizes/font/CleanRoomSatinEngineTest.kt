@@ -21,6 +21,46 @@ class CleanRoomSatinEngineTest {
     )
 
     @Test
+    fun horizontalGlyphExpansionKeepsLetterCentersUnlikeWordWidth() {
+        fun glyph(left: Float) = listOf(listOf(
+            AndroidSkiaOutlineExtractor.Point(left, 0f),
+            AndroidSkiaOutlineExtractor.Point(left + 10f, 0f),
+            AndroidSkiaOutlineExtractor.Point(left + 10f, 20f),
+            AndroidSkiaOutlineExtractor.Point(left, 20f)
+        ))
+        val original = listOf(glyph(0f), glyph(30f))
+        val expanded = CleanRoomSatinEngine.expandGlyphWidths(original, 1.4f)
+        fun center(points: List<List<AndroidSkiaOutlineExtractor.Point>>): Float {
+            val xs = points.flatMap { it }.map { it.x }
+            return (xs.min() + xs.max()) / 2f
+        }
+        assertEquals(5f, center(expanded[0]), .001f)
+        assertEquals(35f, center(expanded[1]), .001f)
+        assertEquals(-2f, expanded[0][0][0].x, .001f)
+        assertEquals(28f, expanded[1][0][0].x, .001f)
+        val wordScale = CleanRoomSatinEngine.scaleGlyphContours(original,
+            widthScale = 1.4f, heightScale = 1f)
+        assertEquals(7f, center(wordScale[0]), .001f)
+        assertEquals(49f, center(wordScale[1]), .001f)
+        assertTrue("Os controles precisam produzir resultados diferentes",
+            wordScale != expanded)
+    }
+
+    @Test
+    fun rejectsHorizontalGlyphExpansionOutsideSafeRange() {
+        val glyph = listOf(listOf(listOf(
+            AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            AndroidSkiaOutlineExtractor.Point(10f, 0f)
+        )))
+        assertTrue(runCatching {
+            CleanRoomSatinEngine.expandGlyphWidths(glyph, 1.41f)
+        }.isFailure)
+        assertTrue(runCatching {
+            CleanRoomSatinEngine.expandGlyphWidths(glyph, .69f)
+        }.isFailure)
+    }
+
+    @Test
     fun satinRailsMustAlternateDirectionInsteadOfSewingLongDiagonals() {
         // Regressão do defeito: duas colunas verticais consecutivas
         // têm 5 mm de altura e 0,4 mm de avanço horizontal.
