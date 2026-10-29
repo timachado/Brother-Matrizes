@@ -120,6 +120,16 @@ object NamePersonalization {
                 (widthUnits <= (hoop.usableHeightMm * 10).toLong() &&
                     heightUnits <= (hoop.usableWidthMm * 10).toLong())
             ) { "Nome ultrapassa o bastidor selecionado." }
+            if (source.hoopPositionLocked) {
+                val allMinX = minOf(source.bounds.minXUnits, positioned.bounds.minXUnits)
+                val allMaxX = maxOf(source.bounds.maxXUnits, positioned.bounds.maxXUnits)
+                val allMinY = minOf(source.bounds.minYUnits, positioned.bounds.minYUnits)
+                val allMaxY = maxOf(source.bounds.maxYUnits, positioned.bounds.maxYUnits)
+                val preview = source.copy(
+                    bounds = EmbroideryBounds(allMinX, allMaxX, allMinY, allMaxY)
+                )
+                HoopLayerPositioning.validateHoop(preview, hoop)
+            }
         }
     }
 
