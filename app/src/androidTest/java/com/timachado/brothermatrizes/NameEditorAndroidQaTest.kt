@@ -64,6 +64,27 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
+    fun matrixRotationIsIndependentFromNameAndUndoRestoresOriginal() {
+        val base = frame()
+        composeRule.setContent {
+            NameEditorScreen(
+                original = base,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = {}
+            )
+        }
+        composeRule.onNodeWithTag("brother_matrix_rotate_90")
+            .performScrollTo().assertExists().performClick()
+        composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
+        composeRule.onNodeWithTag("brother_name_horizontal_expansion")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
+        composeRule.onNodeWithText("Desfazer").performScrollTo().performClick()
+        composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
+    }
+
+    @Test
     fun simulatorKeepsReprocessingFailureVisibleAndAllowsRetry() {
         val base = frame()
         val saved = NamePersonalization.add(
