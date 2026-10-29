@@ -244,6 +244,7 @@ fun ViewerScreen(
                 .weight(1.18f)
                 .padding(horizontal = 16.dp)
                 .onSizeChanged { positioningCanvas = it }
+                .testTag("brother_position_canvas")
                 .then(if (placementTarget != null) {
                     Modifier.pointerInput(placementTarget, design, referenceHoop) {
                         detectDragGestures(
