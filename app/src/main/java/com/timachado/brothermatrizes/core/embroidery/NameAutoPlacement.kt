@@ -33,7 +33,10 @@ object NameAutoPlacement {
         val y: Int
     )
 
-    private const val SEARCH_BUDGET_NANOS = 10_000_000_000L
+    private const val SEARCH_BUDGET_NANOS = 12_000_000_000L
+    // Reservar tempo para procurar largura; a busca antiga gastava
+    // todo o orçamento maximizando altura antes de tentar qualquer expansão.
+    private const val HEIGHT_PHASE_NANOS = 5_000_000_000L
 
     /**
      * O centro da caixa total não é necessariamente o centro da região útil.
@@ -76,6 +79,21 @@ object NameAutoPlacement {
         return offsets.toList()
     }
 
+    /**
+     * Refinamento em torno de um nome que JÁ cabe. O grid antigo saltava
+     * ~7 mm entre posições no eixo longo; uma flor exige correções de 2-5 mm.
+     * Coordenadas em décimos de milímetro, sem tocar na matriz de fundo.
+     */
+    internal fun fineOffsets(portrait: Boolean): List<Pair<Int, Int>> {
+        val along = listOf(0, -25, 25, -50, 50, -75, 75)
+        val across = listOf(0, -20, 20)
+        return buildList {
+            for (cross in across) for (travel in along) {
+                add(if (portrait) cross to travel else travel to cross)
+            }
+        }
+    }
+
     private fun orientations(
         requested: TextMatrixOptions,
         source: EmbroideryDesign
@@ -113,6 +131,7 @@ object NameAutoPlacement {
                 .div(2).toInt()
         val rotations = orientations(requested, source)
         val offsets = candidateOffsets(source)
+        val portrait = source.bounds.heightMm > source.bounds.widthMm * 1.2f
         val validCandidates = ArrayList<Candidate>()
         var lastError: Throwable? = null
         var timedOut = false
@@ -156,7 +175,11 @@ object NameAutoPlacement {
             return false
         }
 
-        suspend fun probe(height: Float, wordLengthScale: Float = 1f): Candidate? {
+        suspend fun probe(
+            height: Float,
+            wordLengthScale: Float = 1f,
+            anchor: Candidate? = null
+        ): Candidate? {
             val options = requested.copy(
                 heightMm = height,
                 // A largura da palavra corresponde ao eixo longo de um nome
@@ -166,13 +189,23 @@ object NameAutoPlacement {
                 heightScale = 1f,
                 enforceHoop = true
             )
-            for (angle in rotations) {
+            // Após encontrar uma posição segura, aumentar a palavra ao seu
+            // redor, com pequenos ajustes de 2,0–7,5 mm, em vez de repetir
+            // ângulos e deslocamentos distantes da busca inicial.
+            val trials = if (anchor == null) {
+                offsets.map { (dx, dy) -> centerX + dx to centerY + dy }
+            } else {
+                fineOffsets(portrait).map { (dx, dy) ->
+                    anchor.x + dx to anchor.y + dy
+                }
+            }
+            val angles = if (anchor == null) rotations else
+                listOf(anchor.options.rotationDegrees)
+            for (angle in angles) {
                 val candidate = options.copy(rotationDegrees = angle)
-                for ((dx, dy) in offsets) {
+                for ((x, y) in trials) {
                     currentCoroutineContext().ensureActive()
                     if (!withinBudget()) return null
-                    val x = centerX + dx
-                    val y = centerY + dy
                     val positioned = MatrixEditor.apply(
                         reference,
                         EditTransform(
@@ -235,47 +268,64 @@ object NameAutoPlacement {
             if (selected != null) break
         }
 
-        if (selected != null && withinBudget()) {
-            var low = selected.options.heightMm
-            var high = 31f
-            // Busca binária por um nome maior, usando as mesmas pontadas
-            // da fonte e procurando todos os centros necessários.
-            while (high - low >= 1.5f && withinBudget()) {
-                currentCoroutineContext().ensureActive()
-                val middle = ((low + high) / 2f).coerceIn(4f, 30f)
-                val larger = probe(middle)
-                if (larger != null) {
-                    selected = larger
-                    low = middle
-                } else {
-                    if (timedOut) break
-                    high = middle
+        if (selected != null && withinBudget() &&
+            System.nanoTime() - started < HEIGHT_PHASE_NANOS
+        ) {
+            // Tentar 30 mm uma única vez no entorno da posição válida.
+            // Se não couber, refinar a altura por busca binária limitada.
+            val top = probe(30f, anchor = selected)
+            if (top != null) {
+                selected = top
+            } else {
+                var low = selected.options.heightMm
+                var high = 30f
+                while (high - low >= 1.5f && withinBudget() &&
+                    System.nanoTime() - started < HEIGHT_PHASE_NANOS
+                ) {
+                    currentCoroutineContext().ensureActive()
+                    val middle = (low + high) / 2f
+                    val larger = probe(middle, anchor = selected)
+                    if (larger != null) {
+                        selected = larger
+                        low = middle
+                    } else {
+                        high = middle
+                    }
                 }
             }
         }
 
-        // A altura sozinha nem sempre ocupa o corredor central. A Adamiya
-        // é cursiva e aumentar o espaçamento entre letras rompe as ligações:
-        // alongar levemente o contorno da palavra no eixo da leitura
-        // preserva as conexões entre os glifos. Limite 165% para impedir
-        // deformações exageradas. Somente candidatos realmente livres
-        // (incluindo 1,5 mm de margem) podem ser aplicados.
-        //
-        // Fazer essa busca DEPOIS da altura mantém a tipografia natural
-        // sempre que possível e evita consultas ao motor Satin em loop.
-        if (selected != null && withinBudget() &&
-            requested.importedFontId != null
-        ) {
-            val fittedHeight = selected.options.heightMm
-            for (stretch in listOf(1.65f, 1.45f, 1.25f)) {
-                currentCoroutineContext().ensureActive()
-                if (!withinBudget()) break
-                val longer = probe(fittedHeight, stretch)
-                if (longer != null) {
-                    selected = longer
-                    break
+        // Segundo estágio obrigatório para fontes importadas: aumentar o
+        // COMPRIMENTO da palavra, mesmo quando a altura já atingiu 30 mm.
+        // A versão anterior só tentava 165/145/125% em altura única. Quando
+        // uma flor inviabilizava essas três larguras, voltava a 100% embora
+        // valores intermediários e pequenos deslocamentos pudessem caber.
+        // Também considerar uma redução discreta da altura para permitir uma
+        // palavra mais longa; a seleção maximiza comprimento real, não uma
+        // largura fixa ou um formato esticado por obrigação.
+        if (selected != null && requested.importedFontId != null && withinBudget()) {
+            var best = selected
+            val fittedHeight = best.options.heightMm
+            val heights = listOf(fittedHeight, fittedHeight * .93f,
+                fittedHeight * .86f).map { it.coerceIn(4f, 30f) }.distinct()
+            val stretches = listOf(1.65f, 1.55f, 1.45f, 1.35f,
+                1.25f, 1.15f, 1.07f)
+            for (height in heights) {
+                for (stretch in stretches) {
+                    currentCoroutineContext().ensureActive()
+                    if (!withinBudget()) break
+                    if (height * stretch <=
+                        best.options.heightMm * best.options.widthScale + .4f
+                    ) continue
+                    val fitted = probe(height, stretch, anchor = best)
+                    if (fitted != null && fitted.options.heightMm *
+                        fitted.options.widthScale >
+                        best.options.heightMm * best.options.widthScale
+                    ) best = fitted
                 }
+                if (!withinBudget()) break
             }
+            selected = best
         }
 
         // O pré-teste usa geometria escalada; o resultado comercial
@@ -288,7 +338,7 @@ object NameAutoPlacement {
             .sortedWith(compareByDescending<Candidate> {
                 it.options.heightMm * it.options.widthScale
             }.thenByDescending { it.options.heightMm })
-            .take(8)
+            .take(12)
         ) {
             currentCoroutineContext().ensureActive()
             val result = NamePersonalization.add(
