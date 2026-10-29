@@ -187,10 +187,9 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_position_canvas")
             .performTouchInput {
                 swipe(
-                    // Um deslocamento fixo de 150px saía do Canvas em
-                    // emuladores de largura menor e nunca iniciava o gesto.
-                    start = center - Offset(size.width * .27f, 0f),
-                    end = center - Offset(size.width * .27f, -22f),
+                    // Manter o toque dentro do Canvas em telas estreitas.
+                    start = center - Offset(60f, 0f),
+                    end = center - Offset(60f, -22f),
                     durationMillis = 500
                 )
             }
