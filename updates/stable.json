@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.4",
-  "versionCode": 191,
+  "versionName": "1.11.5",
+  "versionCode": 192,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.4/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "13d6043804e72e63c1a2c26f9d47072c22239807ad53572ab65c2f4e22266178",
-  "releaseNotes": "Rotação real da matriz inteira com controles de 15, 90, 180 e 270 graus.; Nome vinculado acompanha a rotação; proteção da área útil do bastidor.; Novo controle Expansão horizontal de 70 a 140 por cento, separado da largura da palavra.; Pontadas Satin recalculadas e projetos salvos com os novos ajustes.; Correções de arraste do nome e de interferência do autoencaixe durante gestos.; Atualização comercial assinada compatível com a versão 1.11.3.",
-  "publishedAt": "2026-10-29T13:46:42Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.4/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.5/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "9e4a4738cdea7169491eb71c7955783943136e0c80f8879bad2ab83d75f31e7d",
+  "releaseNotes": "Mover a matriz e o nome separadamente, sem deslocar o outro elemento.; Salvar e reabrir projetos de Minhas Matrizes conservando as coordenadas de cada camada.; Ao exportar PES criado no aplicativo, restaurar sua posição na prévia ao reimportá-lo no Brother Matrizes.; Posicionamento gravado no rótulo PEC, sem modificar pontos e comandos do arquivo de costura.; Proteções de bastidor e separação de 1,5 mm entre nome e ornamentos.; Atualização comercial assinada compatível com a versão 1.11.4.",
+  "publishedAt": "2026-10-29T17:44:59Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.5/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
