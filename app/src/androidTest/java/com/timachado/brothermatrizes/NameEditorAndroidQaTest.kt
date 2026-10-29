@@ -137,7 +137,10 @@ class NameEditorAndroidQaTest {
             .assertExists().performClick()
         composeRule.onNodeWithTag("brother_position_canvas")
             .performTouchInput {
-                swipe(start = center, end = center - Offset(0f, 24f),
+                // O teste do gesto usa a mesma direção para manter a
+                // distância de 1,5 mm da moldura. O caso matriz para baixo /
+                // nome para cima é coberto no teste geométrico unitário.
+                swipe(start = center, end = center + Offset(0f, 24f),
                     durationMillis = 500)
             }
         composeRule.waitForIdle()
