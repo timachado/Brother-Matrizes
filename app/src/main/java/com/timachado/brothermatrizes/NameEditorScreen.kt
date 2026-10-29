@@ -732,7 +732,7 @@ fun NameEditorScreen(
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
-                .pointerInput(original, referenceHoop) {
+                .pointerInput(original, referenceHoop, moveMode) {
                     // Gestos combinados: um dedo move; dois dedos permitem
                     // pinça horizontal e vertical sem recalcular Satin
                     // durante o movimento.
