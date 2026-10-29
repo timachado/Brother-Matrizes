@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.2",
-  "versionCode": 189,
+  "versionName": "1.11.3",
+  "versionCode": 190,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.2/Brother-Matrizes-1.11.2-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "d5ded13f571259475be763e57e365c3fc4d7f2854fe377a97033c9e752d9fb2b",
-  "releaseNotes": "Editor de nomes e monogramas com ajustes na visualização.; Diferença visual entre os modos Sólido e Realista.; Melhorias nos testes de criação e substituição de nomes.; Atualização comercial assinada com o certificado original.; Verificação de upgrade da versão 1.11.1 para 1.11.2 no Android.",
-  "publishedAt": "2026-10-28T22:50:45Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.2/Brother-Matrizes-1.11.2-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.3/Brother-Matrizes-1.11.3-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "c4d87b53fa00210388bd6f32445ddec3f817c5b74d50527013ab8b1cc10aecdf",
+  "releaseNotes": "Fonte Adamiya (Adamyia) com melhor geração de pontadas Satin em nomes.; Ajuste automático longitudinal em molduras florais e brasões, com centralização aprimorada.; Busca de largura intermediária e posicionamento fino, mantendo margem de segurança de 1,5 mm dos ornamentos.; Melhoria na apresentação do nome e no comportamento da prévia.; Atualização da versão 1.11.2 preservando o identificador e o certificado comercial original.; Exportação deve ser conferida na simulação antes de usar na bordadeira.",
+  "publishedAt": "2026-10-29T02:24:01Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.3/Brother-Matrizes-1.11.3-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
