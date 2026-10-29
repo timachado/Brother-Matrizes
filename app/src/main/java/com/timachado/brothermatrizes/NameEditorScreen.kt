@@ -139,6 +139,7 @@ fun NameEditorScreen(
     var redo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
     var fontsExpanded by remember { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
+    var oldNameBlockSelected by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
     var matrixRotation by remember(original) { mutableStateOf(0f) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
@@ -396,6 +397,7 @@ fun NameEditorScreen(
     }
 
     fun rotateMatrix(deltaDegrees: Float) {
+        if (abs(deltaDegrees) < 0.001f) return
         autoFitEnabled = false
         matrixRotationError = null
         MatrixNameRotation.rotate(
@@ -439,6 +441,7 @@ fun NameEditorScreen(
             onCancel = { selectingOldName = false },
             onConfirm = { selected ->
                 baseDesign = selected.originalWithoutBlock
+                oldNameBlockSelected = true
                 setDraft(draft.copy(
                     x = selected.centerXUnits,
                     y = selected.centerYUnits
@@ -506,10 +509,13 @@ fun NameEditorScreen(
             }
         }
 
-        if (baseDesign !== original) {
+        if (oldNameBlockSelected) {
             OutlinedButton(
                 onClick = {
                     baseDesign = original
+                    oldNameBlockSelected = false
+                    matrixRotation = 0f
+                    computed = null
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
