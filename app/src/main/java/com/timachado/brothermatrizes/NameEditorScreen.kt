@@ -600,11 +600,17 @@ fun NameEditorScreen(
         // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
         OutlinedButton(
             onClick = { onApply(baseDesign) },
-            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null,
+            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null &&
+                original.editableName == null && !oldNameBlockSelected,
             modifier = Modifier.fillMaxWidth()
                 .testTag("brother_matrix_apply_rotation_only")
         ) {
             Text("Aplicar só a rotação da matriz")
+        }
+        if (original.editableName != null && abs(matrixRotation) >= .001f) {
+            Text("Esta matriz contém um nome editável: use Aplicar nome para " +
+                "girar tudo sem perder as letras.",
+                color = FioTextMuted, fontSize = 11.sp)
         }
 
         Row(
