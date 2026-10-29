@@ -1,0 +1,258 @@
+name: Brother Matrizes 1.11.5 — assinatura e lançamento controlado
+
+# One-shot autorizado pelo proprietário. Alterações normais de código
+# não iniciam publicação; somente a criação/alteração deste workflow.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-1115-release-commercial.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: brother-official-v1-11-5-release
+  cancel-in-progress: false
+
+jobs:
+  sign-verify-publish:
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 120
+    steps:
+      - name: Checkout da revisão comercial
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Conferir homologação, versão nova e manifesto 1.11.4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(jq -r '.applicationId' updates/stable.json)" = "com.timachado.brothermatrizes"
+          test "$(jq -r '.versionCode' updates/stable.json)" = "191"
+          grep -Eq '^\s*versionCode = 192\s*$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.5"' app/build.gradle.kts
+          git merge-base --is-ancestor 6b785f91df004c9c0a9d8c10644572b2dbc8ccad HEAD
+          gh api "repos/$GH_REPO/actions/runs/40919551472" > /tmp/qa-approved.json
+          jq -e '.status=="completed" and .conclusion=="success" and .head_sha=="d7c9234e3c74cb2a185e2cb6a26ff030bbd2448e"' /tmp/qa-approved.json >/dev/null
+          if gh release view v1.11.5 --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "::error::Release v1.11.5 ja existe. Nao substituir nem duplicar APK."
+            exit 1
+          fi
+          bash scripts/pre_release_static_check.sh
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Instalar Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Testes, lint e build de producao
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Verificar secrets de assinatura e Firebase antes de publicar
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_B64 STORE_PASS KEY_ALIAS KEY_PASS FIREBASE_SERVICE_ACCOUNT; do
+            test -n "${!name}" || { echo "::error::Segredo $name ausente; parar sem publicar."; exit 1; }
+          done
+
+      - name: Alinhar e assinar APK com certificado original
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          ks="$RUNNER_TEMP/brother-1115-release.jks"
+          mkdir -p dist
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$ks"
+          chmod 600 "$ks"
+          test -s "$ks"
+          "$sdk/zipalign" -P 16 -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/brother-aligned.apk"
+          "$sdk/apksigner" sign \
+            --ks "$ks" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:STORE_PASS --key-pass env:KEY_PASS \
+            --out dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk \
+            "$RUNNER_TEMP/brother-aligned.apk"
+          chmod 600 dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
+          "$sdk/zipalign" -P 16 -c 4 dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk > /tmp/brother-signature-1115.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/brother-signature-1115.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/brother-signature-1115.txt
+          badging="$("$sdk/aapt" dump badging dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk | head -n 1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='192'"* ]]
+          [[ "$badging" == *"versionName='1.11.5'"* ]]
+          sha256sum dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk > dist/SHA256.txt
+          cut -d' ' -f1 dist/SHA256.txt > /tmp/expected-sha-1115
+          echo "BROTHER_RELEASE_SHA256=$(cat /tmp/expected-sha-1115)" >> "$GITHUB_ENV"
+          rm -f "$ks" "$RUNNER_TEMP/brother-aligned.apk"
+          echo 'APK comercial verificado: codigo 192, certificado original, v2 e alinhamento 16 KiB.'
+
+      - name: Baixar APK 1.11.4 e comparar assinaturas
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p baseline
+          gh release download v1.11.4 --repo "$GH_REPO" --dir baseline \
+            --pattern 'Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk'
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          old=baseline/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk
+          "$sdk/apksigner" verify --print-certs "$old" > /tmp/baseline-signature.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/baseline-signature.txt
+          info="$("$sdk/aapt" dump badging "$old" | head -n 1)"
+          [[ "$info" == *"versionCode='191'"* ]]
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+
+      - name: Guardar candidato assinado para auditoria
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.11.5-signed-production-candidate
+          path: |
+            dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
+            dist/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Permitir KVM
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Comprovar atualizacao instalada de 1.11.4 para 1.11.5
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-boot-timeout: 1800
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set -eu
+            adb wait-for-device
+            adb install -r baseline/Brother-Matrizes-1.11.4-OFICIAL-COMERCIAL-ASSINADO.apk
+            adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=191'
+            adb install -r dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
+            adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=192'
+            adb shell am start -W -n com.timachado.brothermatrizes/.MainActivity
+            sleep 8
+            adb shell pidof com.timachado.brothermatrizes
+
+      - name: Publicar APK oficial 1.11.5 somente apos upgrade aprovado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          apk=dist/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
+          echo "$(cat /tmp/expected-sha-1115)  $apk" | sha256sum -c -
+          cat >/tmp/notes-1115.md <<'NOTES'
+          # Brother Matrizes 1.11.5 — Posicionamento Persistente da Matriz e do Nome
+          - Mover a matriz e o nome separadamente, sem deslocar o outro elemento.
+          - Salvar e reabrir projetos de Minhas Matrizes conservando as coordenadas de cada camada.
+          - Ao exportar PES criado no aplicativo, restaurar sua posição na prévia ao reimportá-lo no Brother Matrizes.
+          - Posicionamento gravado no rótulo PEC, sem modificar pontos e comandos do arquivo de costura.
+          - Proteções de bastidor e separação de 1,5 mm entre nome e ornamentos.
+          - Atualização comercial assinada compatível com a versão 1.11.4.
+          - Importante: a posição na prévia do app não garante posicionamento físico em todos os modelos Brother. Verifique bastidor e simulação antes de bordar.
+          NOTES
+          gh release create v1.11.5 "$apk" \
+            --repo "$GH_REPO" --target "$GITHUB_SHA" \
+            --title "Brother Matrizes 1.11.5 — Posição Persistente do PES" \
+            --notes-file /tmp/notes-1115.md --latest
+          gh api "repos/$GH_REPO/releases/tags/v1.11.5" > /tmp/release-1115.json
+          jq -e --arg sha "sha256:$(cat /tmp/expected-sha-1115)" '
+            .draft == false and .prerelease == false and .published_at != null
+            and (.assets|length)==1
+            and .assets[0].name == "Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk"
+            and .assets[0].digest == $sha
+          ' /tmp/release-1115.json >/dev/null
+
+      - name: Solicitar atualizacao do manifesto OTA oficial
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run brother-ota-after-published.yml \
+            --repo "$GH_REPO" --ref main -f tag=v1.11.5
+
+      - name: Confirmar manifesto OTA, versao e hash antes do push
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            gh api "repos/$GH_REPO/contents/updates/stable.json?ref=main" --jq .content \
+              | tr -d '\n' | base64 --decode > /tmp/brother-verified-manifest-1115.json
+            if jq -e --arg sha "$(cat /tmp/expected-sha-1115)" '
+              .applicationId=="com.timachado.brothermatrizes" and
+              .channel=="stable" and .versionCode==192 and .versionName=="1.11.5"
+              and .sha256==$sha
+              and .downloadUrl=="https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.5/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk"
+              and .downloadApkUrl==.downloadUrl
+            ' /tmp/brother-verified-manifest-1115.json >/dev/null; then
+              echo 'OTA 1.11.5/192 confirmada com hash correto.'
+              exit 0
+            fi
+            sleep 12
+          done
+          echo "::error::OTA v1.11.5 nao foi confirmada: push bloqueado."
+          exit 1
+
+      - name: Notificar inscritos Firebase FCM somente apos OTA confirmada
+        shell: bash
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+          BROTHER_VERIFIED_MANIFEST: /tmp/brother-verified-manifest-1115.json
+          BROTHER_RELEASE_SHA256: ${{ env.BROTHER_RELEASE_SHA256 }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check 'google-auth==2.35.0' 'requests==2.32.3'
+          python3 scripts/send_verified_1115_fcm.py
