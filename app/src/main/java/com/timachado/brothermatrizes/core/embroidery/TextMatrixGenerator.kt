@@ -992,12 +992,13 @@ object TextMatrixGenerator {
         point: P,
         cursorX: Float,
         width: Float,
-        height: Float
+        height: Float,
+        horizontalGlyphScale: Float = 1f
     ): Pair<Int, Int> =
         Pair(
             (
-                cursorX +
-                    point.x * width
+                cursorX + width * .5f +
+                    (point.x - .5f) * width * horizontalGlyphScale
                 ).roundToInt(),
             (
                 point.y *
