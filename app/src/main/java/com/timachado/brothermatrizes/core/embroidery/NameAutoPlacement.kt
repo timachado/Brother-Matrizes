@@ -304,7 +304,9 @@ object NameAutoPlacement {
         // palavra mais longa; a seleção maximiza comprimento real, não uma
         // largura fixa ou um formato esticado por obrigação.
         if (selected != null && requested.importedFontId != null && withinBudget()) {
-            var best = selected
+            // O valor não é nulo após o guarda acima, mas o compilador não
+            // consegue inferir isso quando a variável é mutável.
+            var best: Candidate = requireNotNull(selected)
             val fittedHeight = best.options.heightMm
             val heights = listOf(fittedHeight, fittedHeight * .93f,
                 fittedHeight * .86f).map { it.coerceIn(4f, 30f) }.distinct()
