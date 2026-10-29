@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -33,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -59,8 +66,32 @@ fun ViewerScreen(
     onTransfer: () -> Unit,
     onSaveProject: () -> Unit,
     onSaveCopy: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onPositionChange: (EmbroideryDesign) -> Unit = {}
 ) {
+    var placementTarget by remember { mutableStateOf<HoopLayerPositioning.Target?>(null) }
+    var placementError by remember { mutableStateOf<String?>(null) }
+    var gestureDelta by remember { mutableStateOf(Offset.Zero) }
+    var positioningCanvas by remember { mutableStateOf(IntSize.Zero) }
+
+    fun selectPlacement(target: HoopLayerPositioning.Target) {
+        placementError = null
+        gestureDelta = Offset.Zero
+        if (placementTarget == target) {
+            placementTarget = null
+        } else {
+            HoopLayerPositioning.prepare(design, referenceHoop).fold(
+                onSuccess = {
+                    if (it !== design) onPositionChange(it)
+                    placementTarget = target
+                },
+                onFailure = { placementError =
+                    it.message ?: "Não foi possível iniciar o posicionamento."
+                }
+            )
+        }
+    }
+
     var showDisplaySettings by remember {
         mutableStateOf(
             false
@@ -169,32 +200,109 @@ fun ViewerScreen(
             }
         }
 
-        EmbroideryCanvas(
-            design = design,
-            interactive = true,
-            hoop =
-                referenceHoop,
-            displayMode =
-                displayMode,
-            showConnections =
-                showConnections,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1.18f)
-                    .padding(
-                        horizontal =
-                            16.dp
-                    )
-                    .background(
-                        Color(
-                            0xFF071017
-                        ),
-                        RoundedCornerShape(
-                            24.dp
-                        )
-                    )
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { selectPlacement(HoopLayerPositioning.Target.MATRIX) },
+                modifier = Modifier.weight(1f).testTag("brother_position_matrix")
+            ) {
+                Text(if (placementTarget == HoopLayerPositioning.Target.MATRIX)
+                    "✓ Matriz" else "Mover matriz", fontSize = 12.sp)
+            }
+            OutlinedButton(
+                onClick = { selectPlacement(HoopLayerPositioning.Target.NAME) },
+                enabled = design.editableName != null,
+                modifier = Modifier.weight(1f).testTag("brother_position_name")
+            ) {
+                Text(if (placementTarget == HoopLayerPositioning.Target.NAME)
+                    "✓ Nome" else "Mover nome", fontSize = 12.sp)
+            }
+        }
+        if (placementError != null) {
+            Text(
+                requireNotNull(placementError),
+                color = Color(0xFFFF9696),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 18.dp)
+                    .testTag("brother_position_error")
+            )
+        }
+        if (placementTarget != null) {
+            Text(
+                "Arraste com um dedo para posicionar. Toque no modo novamente " +
+                    "para concluir; salve em Minhas Matrizes para manter a posição.",
+                color = FioTextMuted, fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1.18f)
+                .padding(horizontal = 16.dp)
+                .onSizeChanged { positioningCanvas = it }
+                .then(if (placementTarget != null) {
+                    Modifier.pointerInput(placementTarget, design, referenceHoop) {
+                        detectDragGestures(
+                            onDragStart = { gestureDelta = Offset.Zero },
+                            onDragCancel = { gestureDelta = Offset.Zero },
+                            onDragEnd = {
+                                val activeTarget = placementTarget
+                                if (activeTarget != null &&
+                                    positioningCanvas.width > 0 &&
+                                    positioningCanvas.height > 0 &&
+                                    gestureDelta != Offset.Zero
+                                ) {
+                                    val placement = NameEditorPlacement.screenOffset(
+                                        design, referenceHoop, 0, 0,
+                                        positioningCanvas.width,
+                                        positioningCanvas.height,
+                                        36.dp.toPx()
+                                    )
+                                    val direction =
+                                        if (design.sourceYAxisDown) 1f else -1f
+                                    val (dx, dy) = NameEditorPlacement.dragUnits(
+                                        gestureDelta.x, gestureDelta.y,
+                                        placement.unitsPerPixel, direction
+                                    )
+                                    HoopLayerPositioning.move(
+                                        design, dx, dy, activeTarget,
+                                        referenceHoop
+                                    ).fold(
+                                        onSuccess = {
+                                            placementError = null
+                                            onPositionChange(it)
+                                        },
+                                        onFailure = {
+                                            placementError = it.message ?:
+                                                "A nova posição é inválida."
+                                        }
+                                    )
+                                }
+                                gestureDelta = Offset.Zero
+                            }
+                        ) { change, drag ->
+                            gestureDelta += drag
+                            change.consume()
+                        }
+                    }
+                } else Modifier)
+        ) {
+            EmbroideryCanvas(
+                design = design,
+                interactive = placementTarget == null,
+                hoop = referenceHoop,
+                displayMode = displayMode,
+                showConnections = showConnections,
+                designDragOffset = gestureDelta,
+                positionMode = placementTarget != null,
+                modifier = Modifier.fillMaxSize().background(
+                    Color(0xFF071017), RoundedCornerShape(24.dp))
+            )
+        }
 
         Card(
             modifier =
