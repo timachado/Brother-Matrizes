@@ -50,6 +50,22 @@ class EmbroideryCanvasPlacementTest {
     }
 
     @Test
+    fun savedHoopPositionNeverRecentersEvenWhenProjectReopens() {
+        val selected = design(
+            EmbroideryBounds(
+                minXUnits = -180, maxXUnits = 300,
+                minYUnits = -280, maxYUnits = 60
+            )
+        ).copy(hoopPositionLocked = true)
+        assertTrue(shouldPreserveHoopPosition(selected, HoopProfile.H100X100, false))
+        assertFalse("Um desenho sem âncora precisa manter o enquadramento antigo",
+            shouldPreserveHoopPosition(
+                selected.copy(hoopPositionLocked = false, isModified = false),
+                HoopProfile.H100X100, false
+            ))
+    }
+
+    @Test
     fun explicitEditedPositionInsideSafeAreaIsPreserved() {
         val edited =
             design(
