@@ -197,11 +197,11 @@ internal object CleanRoomSatinEngine {
         }
 
         val firstAttempt = runCatching {
-            buildStitches(useVectorColumnFill = false).also(::verifySilhouette)
+            buildStitches(useVectorColumnFill = false).also { verifySilhouette(it) }
         }
         val points = firstAttempt.getOrElse { primaryError ->
             val safeAlternative = runCatching {
-                buildStitches(useVectorColumnFill = true).also(::verifySilhouette)
+                buildStitches(useVectorColumnFill = true).also { verifySilhouette(it) }
             }
             safeAlternative.getOrElse { secondaryError ->
                 throw IllegalArgumentException(
