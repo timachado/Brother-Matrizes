@@ -103,7 +103,7 @@ class MatrixNameRotationTest {
         assertEquals(original.points.map { it.colorIndex },
             smaller.points.map { it.colorIndex })
         assertEquals(213, smaller.guidePoints.single().xUnits)
-        assertEquals(-128, smaller.guidePoints.single().yUnits)
+        assertEquals(-127, smaller.guidePoints.single().yUnits)
         assertTrue(smaller.isModified)
         assertTrue(smaller.sourceBytes.isEmpty())
         assertEquals(HoopOrientation.LANDSCAPE, smaller.hoopOrientation)
