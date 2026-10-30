@@ -678,7 +678,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithText(
             "Substituir nome existente (selecionar bloco)"
-        ).performClick()
+        ).performScrollTo().performClick()
         composeRule.waitUntil(timeoutMillis = 12_000) {
             composeRule.onAllNodesWithText("Selecionar nome antigo")
                 .fetchSemanticsNodes().isNotEmpty()
