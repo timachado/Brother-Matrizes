@@ -736,4 +736,55 @@ class NameEditorAndroidQaTest {
     }
 
 
+    @Test
+    fun horizontalHoopVerticalInitialHorizontalNamePreset() {
+        val base = EmbroideryIntegrity.normalize(frame().copy(
+            points = listOf(
+                EmbroideryPoint(-380, -160, StitchCommand.JUMP, 0),
+                EmbroideryPoint(380, -160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(380, 160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, 160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, -160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, -160, StitchCommand.END, 0)
+            ),
+            hoopProfile = HoopProfile.H130X180
+        )).getOrThrow().design
+        var exported: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = base, referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { exported = it }
+            )
+        }
+        composeRule.onNodeWithTag(
+            "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
+        ).performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_selected_hoop_orientation")
+            .assertExists()
+        composeRule.onNodeWithTag("brother_name_input").performScrollTo()
+            .performTextClearance()
+        composeRule.onNodeWithTag("brother_name_input").performTextInput("Ana")
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(exported)
+            val layer = requireNotNull(result.editableName)
+            assertEquals(HoopProfile.H130X180, result.hoopProfile)
+            assertEquals(HoopOrientation.LANDSCAPE, result.hoopOrientation)
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY, layer.compositionMode)
+            assertEquals(0f, layer.options.rotationDegrees)
+            assertTrue(layer.original.bounds.heightMm > layer.original.bounds.widthMm)
+            assertEquals(layer.original.points.dropLast(1),
+                result.points.take(layer.original.points.size - 1))
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(result))
+            assertEquals(HoopOrientation.LANDSCAPE, reopened.hoopOrientation)
+            assertEquals(result.points, reopened.points)
+        }
+    }
+
+
 }
