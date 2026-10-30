@@ -89,4 +89,44 @@ class MatrixNameRotationTest {
         assertEquals(-165f, MatrixNameRotation.normalizeDegrees(195f))
         assertEquals(0f, MatrixNameRotation.normalizeDegrees(360f))
     }
+
+    @Test fun letterResizePreservesCenterStitchCommandsAndGuides() {
+        val original = sample().copy(hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE)
+        val smaller = MatrixNameRotation.resizeLetter(
+            original, 0.85f, HoopProfile.H130X180
+        ).getOrThrow()
+        assertEquals(42.5f, smaller.bounds.widthMm, .12f)
+        assertEquals(25.5f, smaller.bounds.heightMm, .12f)
+        assertEquals(original.points.map { it.command },
+            smaller.points.map { it.command })
+        assertEquals(original.points.map { it.colorIndex },
+            smaller.points.map { it.colorIndex })
+        assertEquals(213, smaller.guidePoints.single().xUnits)
+        assertEquals(-128, smaller.guidePoints.single().yUnits)
+        assertTrue(smaller.isModified)
+        assertTrue(smaller.sourceBytes.isEmpty())
+        assertEquals(HoopOrientation.LANDSCAPE, smaller.hoopOrientation)
+        assertEquals(original.points.first().xUnits, -250)
+    }
+
+    @Test fun letterResizeRejectsUnsafeHoopAndInvalidScale() {
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), Float.NaN,
+            HoopProfile.H100X100).isFailure)
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), 0.5f,
+            HoopProfile.H100X100).isFailure)
+        val oversized = sample().copy(
+            bounds = EmbroideryBounds(-480, 480, -400, 400),
+            points = listOf(
+                EmbroideryPoint(-480,-400, StitchCommand.JUMP,0),
+                EmbroideryPoint(480,-400, StitchCommand.STITCH,0),
+                EmbroideryPoint(480,400, StitchCommand.STITCH,0),
+                EmbroideryPoint(480,400, StitchCommand.END,0)
+            )
+        )
+        assertTrue(MatrixNameRotation.resizeLetter(oversized, 1.10f,
+            HoopProfile.H100X100).isFailure)
+    }
+
+
 }
