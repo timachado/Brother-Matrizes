@@ -48,12 +48,20 @@ data class MachineFinishingInfo(
     val optimizeTravel: Boolean
 )
 
+/**
+ * STANDARD exige distância física entre nome e desenho.
+ * MONOGRAM_OVERLAY permite sobreposição intencional (ex.: inicial + nome),
+ * sem remover as verificações de bastidor, comandos ou integridade.
+ */
+enum class NameCompositionMode { STANDARD, MONOGRAM_OVERLAY }
+
 /** Metadado temporário de edição; PES/DST não guarda texto editável. */
 data class NamePersonalizationLayer(
     val original: EmbroideryDesign,
     val options: TextMatrixOptions,
     val centerXUnits: Int,
-    val centerYUnits: Int
+    val centerYUnits: Int,
+    val compositionMode: NameCompositionMode = NameCompositionMode.STANDARD
 )
 
 data class EmbroideryDesign(
