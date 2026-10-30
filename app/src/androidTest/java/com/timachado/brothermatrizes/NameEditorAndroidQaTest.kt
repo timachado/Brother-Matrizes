@@ -787,4 +787,54 @@ class NameEditorAndroidQaTest {
     }
 
 
+
+    @Test
+    fun smallerLetterDoesNotShrinkOrMoveEditableName() {
+        val base = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val options = TextMatrixOptions(
+            "Maria", heightMm = 8f, hoopProfile = HoopProfile.H130X180,
+            style = TextStitchStyle.SATIN
+        )
+        val named = NamePersonalization.add(
+            base, options, 0, 0,
+            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_letter_smaller")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText(
+            "Tamanho da letra: 95% (independente do nome)"
+        ).assertExists()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performScrollTo().performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            assertTrue(result.editableName!!.original.bounds.widthMm <
+                named.editableName!!.original.bounds.widthMm)
+            assertEquals(named.editableName!!.options,
+                result.editableName!!.options)
+            assertEquals(named.editableName!!.centerXUnits,
+                result.editableName!!.centerXUnits)
+            assertEquals(named.editableName!!.centerYUnits,
+                result.editableName!!.centerYUnits)
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(result))
+            assertEquals(result.points, reopened.points)
+            assertEquals(result.editableName!!.original.points,
+                reopened.editableName!!.original.points)
+        }
+    }
+
+
 }
