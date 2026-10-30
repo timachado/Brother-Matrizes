@@ -1075,7 +1075,8 @@ fun NameEditorScreen(
         }
 
 
-        Text("Girar nome", color = FioText, fontSize = 12.sp)
+        Text("Girar nome · ${draft.rotation.roundToInt()}°", color = FioText,
+            fontSize = 12.sp, modifier = Modifier.testTag("brother_name_rotation_value"))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
