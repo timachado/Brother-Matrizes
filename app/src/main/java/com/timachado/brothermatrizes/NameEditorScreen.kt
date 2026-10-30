@@ -914,6 +914,7 @@ fun NameEditorScreen(
                 OutlinedButton(
                     onClick = {
                         editorSection = section
+                        advancedExpanded = false
                         if (section == NameEditorSection.NAME) {
                             moveMode = NameEditorMoveMode.NAME
                         } else if (section == NameEditorSection.LETTER) {
@@ -950,6 +951,15 @@ fun NameEditorScreen(
                 .testTag("brother_name_editor_settings_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            OutlinedButton(
+                onClick = { advancedExpanded = !advancedExpanded },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_name_advanced_toggle")
+            ) {
+                Text(if (advancedExpanded) "Ocultar ajustes avançados" else
+                    "Ajustes avançados")
+            }
+            if (!advancedExpanded) {
             when (editorSection) {
                 NameEditorSection.NAME -> {
         OutlinedTextField(
@@ -1263,13 +1273,6 @@ fun NameEditorScreen(
 
                 }
             }
-            OutlinedButton(
-                onClick = { advancedExpanded = !advancedExpanded },
-                modifier = Modifier.fillMaxWidth()
-                    .testTag("brother_name_advanced_toggle")
-            ) {
-                Text(if (advancedExpanded) "Ocultar ajustes avançados" else
-                    "Ajustes avançados")
             }
             if (advancedExpanded) {
                 Text("Ferramentas de precisão", color = FioText)
