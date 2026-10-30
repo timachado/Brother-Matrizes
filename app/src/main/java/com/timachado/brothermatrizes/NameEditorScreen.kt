@@ -280,7 +280,8 @@ fun NameEditorScreen(
         // O resultado vindo do autoajuste já contém pontadas validadas.
         // Evita a segunda geração lenta e um aviso vermelho atrasado.
         if (reprocessRequest == 0 && computed?.base === baseDesign &&
-            computed?.settings == draft && computed?.result?.isSuccess == true
+            computed?.settings == draft && computed?.mode == compositionMode &&
+            computed?.result?.isSuccess == true
         ) return@LaunchedEffect
         delay(560L) // aguardar pausa real entre gestos e edições de controles
         val target = draft
