@@ -419,7 +419,6 @@ class NameEditorAndroidQaTest {
         // Exercise real touch movement without an unrelated free-area collision guard.
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .assertExists().performClick()
         // The initial auto-fit can legitimately choose negative X.
