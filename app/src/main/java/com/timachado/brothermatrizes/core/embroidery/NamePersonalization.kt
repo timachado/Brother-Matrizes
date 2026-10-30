@@ -138,7 +138,8 @@ object NamePersonalization {
         options: TextMatrixOptions,
         centerXUnits: Int,
         centerYUnits: Int,
-        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null,
+        compositionMode: NameCompositionMode = NameCompositionMode.STANDARD
     ): Result<EmbroideryDesign> = runCatching {
         val source = original.editableName?.original ?: original
         require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
@@ -197,7 +198,11 @@ object NamePersonalization {
 
         // Bloqueio geométrico: nem o nome nem o percurso Satin podem
         // tocar as flores, borboletas ou as linhas já existentes.
-        NamePlacementSafety.validate(source, positioned).getOrThrow()
+        // A colisão é proibida em molduras comuns, mas constitui o próprio
+        // objetivo do monograma. Ativar apenas por escolha explícita no editor.
+        if (compositionMode == NameCompositionMode.STANDARD) {
+            NamePlacementSafety.validate(source, positioned).getOrThrow()
+        }
 
         val preserved = source.points.dropLast(1)
         val finalOriginal = preserved.last()
@@ -246,6 +251,7 @@ object NamePersonalization {
             options.rotationDegrees.toString(), options.importedFontId.orEmpty(),
             options.widthScale.toString(), options.heightScale.toString(),
             options.horizontalGlyphScale.toString(),
+            compositionMode.name,
             GLYPH_ENGINE_REVISION
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -268,7 +274,8 @@ object NamePersonalization {
                 original = source,
                 options = options,
                 centerXUnits = centerXUnits,
-                centerYUnits = centerYUnits
+                centerYUnits = centerYUnits,
+                compositionMode = compositionMode
             )
         )
         val validated = EmbroideryIntegrity.normalize(provisional)
