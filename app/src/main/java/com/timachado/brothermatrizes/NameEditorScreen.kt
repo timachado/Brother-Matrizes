@@ -58,6 +58,7 @@ import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
 import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
+import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -97,7 +98,8 @@ private enum class NameEditorMoveMode { MATRIX, NAME }
 private data class EditorSnapshot(
     val name: NameDraft,
     val background: EmbroideryDesign,
-    val matrixRotation: Float
+    val matrixRotation: Float,
+    val compositionMode: NameCompositionMode
 )
 
 @Composable
@@ -140,6 +142,9 @@ fun NameEditorScreen(
     }
     var undo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
     var redo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
+    var compositionMode by remember(original) {
+        mutableStateOf(original.editableName?.compositionMode ?: NameCompositionMode.STANDARD)
+    }
     var fontsExpanded by remember { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var oldNameBlockSelected by remember(original) { mutableStateOf(false) }
@@ -149,7 +154,7 @@ fun NameEditorScreen(
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
-    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation)
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation, compositionMode)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
         if (history) undo = (undo + snapshot()).takeLast(40)
@@ -162,6 +167,7 @@ fun NameEditorScreen(
     data class ComputedPreview(
         val base: EmbroideryDesign,
         val settings: NameDraft,
+        val mode: NameCompositionMode,
         val result: Result<EmbroideryDesign>
     )
 
@@ -221,7 +227,7 @@ fun NameEditorScreen(
                 imported.fold(
                     onSuccess = { font ->
                         importedFonts = ImportedFontStore.list(context)
-                        autoFitEnabled = true
+                        autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
                         setDraft(draft.copy(importedFontId = font.id))
                         fontImportStatus = "Fonte ${font.displayName} selecionada."
                     },
@@ -267,7 +273,7 @@ fun NameEditorScreen(
     }
 
     LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts,
-        autoFitEnabled, reprocessRequest) {
+        autoFitEnabled, reprocessRequest, compositionMode) {
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
         if (autoFitEnabled) return@LaunchedEffect
@@ -283,10 +289,11 @@ fun NameEditorScreen(
         val validated = withContext(Dispatchers.Default) {
             NamePersonalization.add(
                 source, options, target.x, target.y,
-                importedGenerator = if (options.importedFontId != null) ::generateImported else null
+                importedGenerator = if (options.importedFontId != null) ::generateImported else null,
+                compositionMode = compositionMode
             )
         }
-        computed = ComputedPreview(source, target, validated)
+        computed = ComputedPreview(source, target, compositionMode, validated)
         if (reprocessRequest > 0) {
             reprocessResult = validated.fold(
                 onSuccess = { newMatrix ->
@@ -306,9 +313,10 @@ fun NameEditorScreen(
     }
 
     LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
-        referenceHoop, importedFonts, autoFitEnabled, autoFitRequest
+        referenceHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode
     ) {
-        if (!autoFitEnabled || draft.name.isBlank()) {
+        if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY ||
+            !autoFitEnabled || draft.name.isBlank()) {
             fitting = false
             return@LaunchedEffect
         }
@@ -345,7 +353,8 @@ fun NameEditorScreen(
                     // infinita quando o mecanismo troca fonte por Compacta.
                     autoFitEnabled = false
                     setDraft(next, history = false)
-                    computed = ComputedPreview(source, next, Result.success(found.design))
+                    computed = ComputedPreview(source, next,
+                        NameCompositionMode.STANDARD, Result.success(found.design))
                 },
                 onFailure = { error ->
                     autoFitError = error.message
@@ -358,7 +367,7 @@ fun NameEditorScreen(
     }
 
     val currentPreview = computed?.takeIf {
-        it.base === baseDesign && it.settings == draft
+        it.base === baseDesign && it.settings == draft && it.mode == compositionMode
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
@@ -385,7 +394,7 @@ fun NameEditorScreen(
                 // existente, preservando o Satin e a posição do texto.
                 // Isso evita que uma nova digitalização lenta impeça salvar.
                 val namedComputed = computed?.takeIf {
-                    it.base === baseDesign && it.settings == draft
+                    it.base === baseDesign && it.settings == draft && it.mode == compositionMode
                 }?.result?.getOrNull()
                 val saved = original.editableName
                 val namedSaved = original.takeIf {
@@ -563,6 +572,8 @@ fun NameEditorScreen(
                         baseDesign = previous.background
                         matrixRotation = previous.matrixRotation
                         draft = previous.name
+                        compositionMode = previous.compositionMode
+                        autoFitEnabled = false
                         matrixRotationError = null
                     }
                 },
@@ -577,6 +588,8 @@ fun NameEditorScreen(
                         baseDesign = next.background
                         matrixRotation = next.matrixRotation
                         draft = next.name
+                        compositionMode = next.compositionMode
+                        autoFitEnabled = false
                         matrixRotationError = null
                     }
                 },
@@ -945,8 +958,59 @@ fun NameEditorScreen(
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    if (compositionMode != NameCompositionMode.STANDARD) {
+                        undo = (undo + snapshot()).takeLast(40)
+                        redo = emptyList()
+                        compositionMode = NameCompositionMode.STANDARD
+                        autoFitEnabled = true
+                        computed = null
+                    }
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_standard_mode")
+            ) { Text(if (compositionMode == NameCompositionMode.STANDARD)
+                "✓ Área livre" else "Área livre") }
+            OutlinedButton(
+                onClick = {
+                    if (compositionMode != NameCompositionMode.MONOGRAM_OVERLAY) {
+                        undo = (undo + snapshot()).takeLast(40)
+                        redo = emptyList()
+                        compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+                        autoFitEnabled = false
+                        autoFitError = null
+                        computed = null
+                        if (original.editableName == null) {
+                            setDraft(draft.copy(
+                                x = (baseDesign.bounds.minXUnits.toLong() +
+                                    baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
+                                y = (baseDesign.bounds.minYUnits.toLong() +
+                                    baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
+                            ), history = false)
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_monogram_overlay")
+            ) { Text(if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY)
+                "✓ Sobrepor à letra" else "Sobrepor à letra") }
+        }
+        if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY) {
+            Text(
+                "Monograma: o nome pode cruzar as pontadas da inicial como no " +
+                    "exemplo enviado. Confira bastidor, densidade e sequência " +
+                    "na simulação antes de testar em tecido.",
+                color = FioTextMuted, fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_name_overlay_hint")
+            )
+        }
+
         OutlinedButton(
             onClick = {
+                compositionMode = NameCompositionMode.STANDARD
                 autoFitError = null
                 autoFitRequest++
                 autoFitEnabled = true
@@ -960,7 +1024,7 @@ fun NameEditorScreen(
         OutlinedTextField(
             value = draft.name,
             onValueChange = {
-                autoFitEnabled = true
+                autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
                 setDraft(draft.copy(name = it.take(24)))
             },
             label = { Text("Nome para bordar") },
@@ -988,7 +1052,7 @@ fun NameEditorScreen(
                         text = { Text("BM • " + font.displayName) },
                         onClick = {
                             fontsExpanded = false
-                            autoFitEnabled = true
+                            autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
                             setDraft(draft.copy(font = font, importedFontId = null))
                         }
                     )
@@ -1004,7 +1068,7 @@ fun NameEditorScreen(
                         },
                         onClick = {
                             fontsExpanded = false
-                            autoFitEnabled = true
+                            autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
                             setDraft(draft.copy(importedFontId = font.id))
                         }
                     )
