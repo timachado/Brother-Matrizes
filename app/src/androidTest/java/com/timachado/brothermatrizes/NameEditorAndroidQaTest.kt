@@ -673,4 +673,67 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_input").assertExists()
         assertEquals(1, original.points.count { it.command == StitchCommand.END })
     }
+    @Test
+    fun monogramNameOverLetterCanBeEditedSavedAndSimulated() {
+        // Inicial sintética: uma haste horizontal atravessando a palavra
+        // reproduz o caso de sobreposição intencional sem distribuir o PES real.
+        val initial = EmbroideryIntegrity.normalize(
+            frame().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, 0, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.END, 0)
+                )
+            )
+        ).getOrThrow().design
+        var applied: EmbroideryDesign? = null
+        var shown by mutableStateOf<EmbroideryDesign?>(null)
+        composeRule.setContent {
+            val current = shown
+            if (current == null) {
+                NameEditorScreen(
+                    original = initial,
+                    referenceHoop = HoopProfile.H100X100,
+                    onBack = {},
+                    onApply = { applied = it; shown = it }
+                )
+            } else {
+                SimulatorScreen(
+                    design = current,
+                    referenceHoop = HoopProfile.H100X100,
+                    onBack = {}
+                )
+            }
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_name_overlay_hint").assertExists()
+        composeRule.onNodeWithTag("brother_name_input").performScrollTo()
+            .performTextClearance()
+        composeRule.onNodeWithTag("brother_name_input")
+            .performTextInput("Sophia")
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
+            .performClick()
+        composeRule.runOnIdle {
+            val done = requireNotNull(applied)
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+                done.editableName?.compositionMode)
+            assertEquals("Sophia", done.editableName?.options?.text)
+            assertEquals(initial.points.dropLast(1),
+                done.points.take(initial.points.size - 1))
+            assertEquals(1, done.points.count { it.command == StitchCommand.END })
+            assertTrue(done.stitchCount > initial.stitchCount)
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(done))
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+                reopened.editableName?.compositionMode)
+            assertEquals(done.points, reopened.points)
+            assertTrue(shown != null) // SimulatorScreen opened after applying
+        }
+    }
+
+
 }
