@@ -296,8 +296,12 @@ object NamePersonalization {
             val rotatedFit =
                 validated.bounds.widthMm <= hoop.usableHeightMm &&
                 validated.bounds.heightMm <= hoop.usableWidthMm
-            require(directFit || rotatedFit) {
-                "O nome ultrapassa a área segura do bastidor nas duas orientações. Reduza ou mova o texto."
+            val fitsSelectedOrientation = when (validated.hoopOrientation) {
+                HoopOrientation.AUTO -> directFit || rotatedFit
+                else -> if (validated.shouldRotateHoop(hoop)) rotatedFit else directFit
+            }
+            require(fitsSelectedOrientation) {
+                "A letra ou o nome ultrapassa a área segura na orientação selecionada. Reduza ou mova o desenho."
             }
             // Uma matriz com posição gravada não pode usar apenas medidas
             // de largura/altura: a localização absoluta no bastidor importa.
