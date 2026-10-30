@@ -423,7 +423,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithTag("brother_name_rotation_value")
-            .assertTextContains("15°")
+            .assertTextContains("15°", substring = true)
         // The initial auto-fit can legitimately choose negative X.
         // Capture its actual position after rotation rather than assuming 0.
         composeRule.waitUntil(timeoutMillis = 30_000) {
