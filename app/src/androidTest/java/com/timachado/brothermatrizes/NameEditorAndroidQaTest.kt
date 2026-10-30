@@ -75,13 +75,14 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
-        composeRule.onNodeWithText("Desfazer").performScrollTo().performClick()
+        composeRule.onNodeWithText("Desfazer").performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
     }
 
@@ -239,11 +240,12 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_matrix")
             .performScrollTo().performClick()
         composeRule.onNodeWithText("✓ Mover matriz").assertExists()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performScrollTo().performTouchInput {
+            .performTouchInput {
                 swipe(start = center, end = center + Offset(0f, 9f),
                     durationMillis = 500)
             }
@@ -258,7 +260,7 @@ class NameEditorAndroidQaTest {
             }.getOrDefault(false)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.waitForIdle()
         val result = requireNotNull(applied)
         val base = requireNotNull(result.editableName).original
@@ -370,7 +372,7 @@ class NameEditorAndroidQaTest {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
-        composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_apply")
             .performClick()
         composeRule.runOnIdle {
             // O SimulatorScreen não tem obrigação de expor o título "Simulação".
@@ -412,6 +414,7 @@ class NameEditorAndroidQaTest {
             )
         }
         // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .assertExists().performClick()
         // The initial auto-fit can legitimately choose negative X.
@@ -421,7 +424,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         val beforeX = composeRule.runOnIdle {
             requireNotNull(applied).editableName?.centerXUnits
                 ?: error("Initial saved name has no center X")
@@ -429,11 +432,11 @@ class NameEditorAndroidQaTest {
         composeRule.runOnIdle { applied = null }
 
         composeRule.onNodeWithTag("brother_name_drag_handle")
-            .performScrollTo().assertExists()
+            .assertExists()
             .performTouchInput {
                 swipe(
                     start = center,
-                    end = center + androidx.compose.ui.geometry.Offset(25f, 0f),
+                    end = center + androidx.compose.ui.geometry.Offset(8f, 0f),
                     durationMillis = 330
                 )
             }
@@ -442,7 +445,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val edited = requireNotNull(applied)
             assertEquals(15f, edited.editableName?.options?.rotationDegrees ?: -1f)
@@ -474,6 +477,7 @@ class NameEditorAndroidQaTest {
                 onApply = { reprocessed = it }
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_reprocess_glyphs")
             .performScrollTo().assertExists().performClick()
         composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -481,7 +485,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val updated = requireNotNull(reprocessed)
             val old = requireNotNull(saved.editableName).options
@@ -525,10 +529,11 @@ class NameEditorAndroidQaTest {
         }
         // A primeira escolha manual deve cancelar o encaixe inicial
         // antes da pinça: evita corrida com cálculo da fonte em paralelo.
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_name")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performScrollTo().performTouchInput {
+            .performTouchInput {
                 pinch(
                     start0 = center + Offset(-20f, -20f),
                     end0 = center + Offset(-23f, -23f),
@@ -542,7 +547,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val saved = requireNotNull(applied)
             val options = requireNotNull(saved.editableName).options
@@ -586,7 +591,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val result = requireNotNull(applied)
             assertEquals(HoopProfile.H130X180, result.hoopProfile)
@@ -665,6 +670,7 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithText(
             "Substituir nome existente (selecionar bloco)"
         ).performClick()
@@ -716,7 +722,7 @@ class NameEditorAndroidQaTest {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
-        composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_apply")
             .performClick()
         composeRule.runOnIdle {
             val done = requireNotNull(applied)
@@ -756,11 +762,13 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { exported = it }
             )
         }
+        composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
         composeRule.onNodeWithTag(
             "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
         ).performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_selected_hoop_orientation")
             .assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_input").performScrollTo()
             .performTextClearance()
         composeRule.onNodeWithTag("brother_name_input").performTextInput("Ana")
@@ -769,7 +777,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val result = requireNotNull(exported)
             val layer = requireNotNull(result.editableName)
@@ -808,6 +816,7 @@ class NameEditorAndroidQaTest {
                 referenceHoop = HoopProfile.H130X180,
                 onBack = {}, onApply = { applied = it })
         }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
         composeRule.onNodeWithTag("brother_letter_smaller")
             .performScrollTo().performClick()
         composeRule.onNodeWithText(
@@ -818,13 +827,19 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val result = requireNotNull(applied)
             assertTrue(result.editableName!!.original.bounds.widthMm <
                 named.editableName!!.original.bounds.widthMm)
-            assertEquals(named.editableName!!.options,
-                result.editableName!!.options)
+            assertEquals(named.editableName!!.options.text,
+                result.editableName!!.options.text)
+            assertEquals(named.editableName!!.options.heightMm,
+                result.editableName!!.options.heightMm)
+            assertEquals(named.editableName!!.options.rotationDegrees,
+                result.editableName!!.options.rotationDegrees)
+            assertEquals(named.editableName!!.options.color,
+                result.editableName!!.options.color)
             assertEquals(named.editableName!!.centerXUnits,
                 result.editableName!!.centerXUnits)
             assertEquals(named.editableName!!.centerYUnits,
@@ -834,6 +849,32 @@ class NameEditorAndroidQaTest {
             assertEquals(result.editableName!!.original.points,
                 reopened.editableName!!.original.points)
         }
+    }
+
+
+    @Test
+    fun simplifiedEditorStartsWithPreviewAndKeepsAdvancedFunctions() {
+        composeRule.setContent {
+            NameEditorScreen(
+                original = frame(), referenceHoop = HoopProfile.H100X100,
+                onBack = {}, onApply = {}
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_canvas").assertExists()
+        composeRule.onNodeWithTag("brother_name_input").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_letter_smaller").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
+        composeRule.onNodeWithTag("brother_hoop_landscape").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_input").assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_name_horizontal_expansion")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_matrix_rotate_90")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_apply").assertExists()
     }
 
 
