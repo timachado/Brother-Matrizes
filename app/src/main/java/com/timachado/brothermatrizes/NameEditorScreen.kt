@@ -355,6 +355,10 @@ fun NameEditorScreen(
             }
             fit.fold(
                 onSuccess = { found ->
+                    // Nunca sobrescrever um giro, arraste ou modo de monograma
+                    // escolhido enquanto a busca automática estava em execução.
+                    if (!autoFitEnabled || compositionMode != NameCompositionMode.STANDARD ||
+                        draft != initial || baseDesign !== source) return@fold
                     val next = initial.copy(
                         font = found.options.font,
                         height = found.options.heightMm,
