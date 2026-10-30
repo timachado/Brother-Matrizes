@@ -101,7 +101,8 @@ private data class EditorSnapshot(
     val background: EmbroideryDesign,
     val matrixRotation: Float,
     val compositionMode: NameCompositionMode,
-    val activeHoop: HoopProfile
+    val activeHoop: HoopProfile,
+    val letterScalePercent: Int
 )
 
 @Composable
@@ -154,11 +155,15 @@ fun NameEditorScreen(
     var oldNameBlockSelected by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
     var matrixRotation by remember(original) { mutableStateOf(0f) }
+    // Valor relativo à letra no momento em que o editor foi aberto.
+    // As pontadas redimensionadas são persistidas no projeto, não só o indicador.
+    var letterScalePercent by remember(original) { mutableIntStateOf(100) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
-    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation, compositionMode, activeHoop)
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation,
+        compositionMode, activeHoop, letterScalePercent)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
         if (history) undo = (undo + snapshot()).takeLast(40)
@@ -618,6 +623,27 @@ fun NameEditorScreen(
         computed = null
     }
 
+    /** Redimensiona apenas a letra, preservando texto, posição e rotação do nome. */
+    fun resizeLetterOnly(targetPercent: Int) {
+        val target = targetPercent.coerceIn(80, 120)
+        if (target == letterScalePercent) return
+        val factor = target.toFloat() / letterScalePercent.toFloat()
+        matrixRotationError = null
+        MatrixNameRotation.resizeLetter(baseDesign, factor, activeHoop).fold(
+            onSuccess = { smallerLetter ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                autoFitEnabled = false
+                baseDesign = smallerLetter
+                letterScalePercent = target
+                computed = null // Regerar a prévia do nome com os MESMOS parâmetros.
+            },
+            onFailure = {
+                matrixRotationError = it.message ?: "A letra não cabe no bastidor."
+            }
+        )
+    }
+
     fun resize(deltaMm: Float) {
         autoFitEnabled = false
         setDraft(draft.copy(height =
@@ -664,6 +690,7 @@ fun NameEditorScreen(
                         undo = undo.dropLast(1)
                         baseDesign = previous.background
                         matrixRotation = previous.matrixRotation
+                        letterScalePercent = previous.letterScalePercent
                         draft = previous.name
                         compositionMode = previous.compositionMode
                         activeHoop = previous.activeHoop
@@ -682,6 +709,7 @@ fun NameEditorScreen(
                         redo = redo.dropLast(1)
                         baseDesign = next.background
                         matrixRotation = next.matrixRotation
+                        letterScalePercent = next.letterScalePercent
                         draft = next.name
                         compositionMode = next.compositionMode
                         activeHoop = next.activeHoop
@@ -694,6 +722,34 @@ fun NameEditorScreen(
             ) { Text("Refazer") }
         }
 
+
+        Text("Tamanho da letra: " + letterScalePercent + "% (independente do nome)",
+            color = FioText, modifier = Modifier.testTag("brother_letter_scale_label"))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent - 5) },
+                enabled = letterScalePercent > 80,
+                modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
+            ) { Text("Letra − Menor") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(100) },
+                enabled = letterScalePercent != 100,
+                modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
+            ) { Text("100%") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent + 5) },
+                enabled = letterScalePercent < 120,
+                modifier = Modifier.weight(1f).testTag("brother_letter_larger")
+            ) { Text("Letra + Maior") }
+        }
+        Text(
+            "Ajusta só as pontadas da letra (80% a 120% do tamanho inicial). " +
+                "O nome mantém tamanho, posição, rotação e fonte.",
+            color = FioTextMuted, fontSize = 11.sp
+        )
 
         Text("Orientação independente", color = FioText,
             modifier = Modifier.testTag("brother_independent_orientation_title"))
