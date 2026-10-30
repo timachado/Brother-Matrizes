@@ -28,6 +28,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPreviewOptimizer
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.ui.theme.FioGold
 
@@ -242,19 +243,7 @@ private fun DrawScope.drawHoopPreview(
     val padding =
         36.dp.toPx()
 
-    val designLandscape =
-        design.bounds.widthMm >
-            design.bounds.heightMm
-
-    val hoopLandscape =
-        hoop.widthMm >
-            hoop.heightMm
-
-    val rotateHoop =
-        hoop.widthMm !=
-            hoop.heightMm &&
-        designLandscape !=
-            hoopLandscape
+    val rotateHoop = design.shouldRotateHoop(hoop)
 
     val hoopWidthUnits =
         (
@@ -649,25 +638,7 @@ private fun DrawScope.drawDesign(
     val padding =
         36.dp.toPx()
 
-    val designLandscape =
-        widthUnits >
-            heightUnits
-
-    val hoopLandscape =
-        hoop
-            ?.let {
-                it.widthMm >
-                    it.heightMm
-            }
-            ?: designLandscape
-
-    val rotateHoop =
-        hoop !=
-            null &&
-        hoop.widthMm !=
-            hoop.heightMm &&
-        designLandscape !=
-            hoopLandscape
+    val rotateHoop = hoop?.let(design::shouldRotateHoop) ?: false
 
     val frameWidthUnits =
         hoop
