@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
 import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
@@ -99,7 +100,8 @@ private data class EditorSnapshot(
     val name: NameDraft,
     val background: EmbroideryDesign,
     val matrixRotation: Float,
-    val compositionMode: NameCompositionMode
+    val compositionMode: NameCompositionMode,
+    val activeHoop: HoopProfile
 )
 
 @Composable
@@ -116,6 +118,8 @@ fun NameEditorScreen(
     }
     var fontImportStatus by remember { mutableStateOf<String?>(null) }
     var importingFont by remember { mutableStateOf(false) }
+
+    var activeHoop by remember(original, referenceHoop) { mutableStateOf(referenceHoop) }
 
     var draft by remember(original) {
         val existing = original.editableName
@@ -154,7 +158,7 @@ fun NameEditorScreen(
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
-    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation, compositionMode)
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation, compositionMode, activeHoop)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
         if (history) undo = (undo + snapshot()).takeLast(40)
@@ -255,7 +259,7 @@ fun NameEditorScreen(
         style = TextStitchStyle.SATIN,
         outputFormat = original.format,
         color = value.color,
-        hoopProfile = referenceHoop,
+        hoopProfile = activeHoop,
         enforceHoop = true
     )
 
@@ -272,7 +276,7 @@ fun NameEditorScreen(
         return ImportedFontMatrixGenerator.generateText(font, options.text, options)
     }
 
-    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts,
+    LaunchedEffect(baseDesign, draft, activeHoop, importedFonts,
         autoFitEnabled, reprocessRequest, compositionMode) {
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
@@ -314,7 +318,7 @@ fun NameEditorScreen(
     }
 
     LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
-        referenceHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode
+        activeHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode
     ) {
         if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY ||
             !autoFitEnabled || draft.name.isBlank()) {
@@ -377,7 +381,7 @@ fun NameEditorScreen(
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
     val canvasScale = NameEditorPlacement.screenOffset(
-        backgroundDesign, referenceHoop, 0, 0,
+        backgroundDesign, activeHoop, 0, 0,
         canvasSize.width, canvasSize.height, paddingPx
     ).unitsPerPixel
     val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
@@ -413,11 +417,11 @@ fun NameEditorScreen(
                 val named = namedComputed ?: namedSaved
                 if (named != null && named.editableName != null) {
                     val anchoredNamed = HoopLayerPositioning.prepare(
-                        named, referenceHoop
+                        named, activeHoop
                     ).getOrThrow()
                     val repositioned = HoopLayerPositioning.move(
                         anchoredNamed, dx, dy,
-                        HoopLayerPositioning.Target.MATRIX, referenceHoop
+                        HoopLayerPositioning.Target.MATRIX, activeHoop
                     ).getOrThrow()
                     val layer = requireNotNull(repositioned.editableName)
                     val nextBase = layer.original
@@ -437,7 +441,7 @@ fun NameEditorScreen(
                     // a matriz e deixar o validador calcular o nome uma vez.
                     val source = baseDesign.editableName?.original ?: baseDesign
                     val anchored = HoopLayerPositioning.prepare(
-                        source, referenceHoop
+                        source, activeHoop
                     ).getOrThrow()
                     val beforeX = (source.bounds.minXUnits.toLong() +
                         source.bounds.maxXUnits.toLong()) / 2L
@@ -455,7 +459,7 @@ fun NameEditorScreen(
                     }
                     val newBase = HoopLayerPositioning.move(
                         anchored, dx, dy, HoopLayerPositioning.Target.MATRIX,
-                        referenceHoop
+                        activeHoop
                     ).getOrThrow()
                     undo = (undo + snapshot()).takeLast(40)
                     redo = emptyList()
@@ -504,7 +508,7 @@ fun NameEditorScreen(
             nameYUnits = draft.y,
             nameRotationDegrees = draft.rotation,
             deltaDegrees = deltaDegrees,
-            hoop = referenceHoop
+            hoop = activeHoop
         ).fold(
             onSuccess = { transformed ->
                 undo = (undo + snapshot()).takeLast(40)
@@ -526,6 +530,94 @@ fun NameEditorScreen(
         )
     }
 
+
+    /** Troca a orientação física do bastidor sem alterar nenhuma pontada. */
+    fun chooseHoopOrientation(hoop: HoopProfile, orientation: HoopOrientation) {
+        if (activeHoop == hoop && baseDesign.hoopOrientation == orientation) return
+        undo = (undo + snapshot()).takeLast(40)
+        redo = emptyList()
+        val layer = baseDesign.editableName
+        baseDesign = baseDesign.copy(
+            hoopProfile = hoop,
+            hoopOrientation = orientation,
+            editableName = layer?.copy(
+                original = layer.original.copy(
+                    hoopProfile = hoop, hoopOrientation = orientation
+                )
+            )
+        )
+        activeHoop = hoop
+        autoFitEnabled = false
+        matrixRotationError = null
+        computed = null
+    }
+
+    /** Gira somente a inicial nas pontadas. O nome mantém x/y e ângulo. */
+    fun rotateLetterOnly(deltaDegrees: Float) {
+        autoFitEnabled = false
+        matrixRotationError = null
+        MatrixNameRotation.rotate(
+            background = baseDesign, nameXUnits = draft.x, nameYUnits = draft.y,
+            nameRotationDegrees = draft.rotation, deltaDegrees = deltaDegrees,
+            hoop = activeHoop
+        ).fold(
+            onSuccess = { result ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = result.background.copy(
+                    hoopOrientation = baseDesign.hoopOrientation
+                )
+                // Não usar result.nameRotationDegrees: a rotação é da LETRA.
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + deltaDegrees
+                )
+                computed = null
+            },
+            onFailure = {
+                matrixRotationError = it.message ?: "Letra não cabe no bastidor."
+            }
+        )
+    }
+
+    /** Atalho solicitado: bastidor deitado, letra de pé, nome sem rotação. */
+    fun applyHorizontalLetterVerticalNameHorizontal() {
+        val selected = HoopProfile.H130X180 // largura 180, altura 130
+        val source = baseDesign.editableName?.original ?: baseDesign
+        val needsQuarterTurn = source.bounds.widthMm > source.bounds.heightMm
+        val ready = baseDesign.copy(
+            hoopProfile = selected,
+            hoopOrientation = HoopOrientation.LANDSCAPE,
+            editableName = baseDesign.editableName?.let {
+                it.copy(original = it.original.copy(
+                    hoopProfile = selected,
+                    hoopOrientation = HoopOrientation.LANDSCAPE
+                ))
+            }
+        )
+        val turned = if (needsQuarterTurn) {
+            MatrixNameRotation.rotate(
+                background = ready, nameXUnits = draft.x,
+                nameYUnits = draft.y, nameRotationDegrees = draft.rotation,
+                deltaDegrees = 90f, hoop = selected
+            ).getOrElse {
+                matrixRotationError = it.message ?: "Letra não cabe no bastidor."
+                return
+            }.background
+        } else ready
+        undo = (undo + snapshot()).takeLast(40)
+        redo = emptyList()
+        activeHoop = selected
+        baseDesign = turned.copy(hoopOrientation = HoopOrientation.LANDSCAPE)
+        draft = draft.copy(rotation = 0f)
+        if (needsQuarterTurn) matrixRotation =
+            MatrixNameRotation.normalizeDegrees(matrixRotation + 90f)
+        compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        autoFitEnabled = false
+        autoFitError = null
+        matrixRotationError = null
+        computed = null
+    }
+
     fun resize(deltaMm: Float) {
         autoFitEnabled = false
         setDraft(draft.copy(height =
@@ -535,7 +627,7 @@ fun NameEditorScreen(
     if (selectingOldName) {
         ImportedNameSelectionPanel(
             original = original,
-            hoop = referenceHoop,
+            hoop = activeHoop,
             onCancel = { selectingOldName = false },
             onConfirm = { selected ->
                 baseDesign = selected.originalWithoutBlock
@@ -574,6 +666,8 @@ fun NameEditorScreen(
                         matrixRotation = previous.matrixRotation
                         draft = previous.name
                         compositionMode = previous.compositionMode
+                        activeHoop = previous.activeHoop
+                        computed = null
                         autoFitEnabled = false
                         matrixRotationError = null
                     }
@@ -590,6 +684,8 @@ fun NameEditorScreen(
                         matrixRotation = next.matrixRotation
                         draft = next.name
                         compositionMode = next.compositionMode
+                        activeHoop = next.activeHoop
+                        computed = null
                         autoFitEnabled = false
                         matrixRotationError = null
                     }
@@ -597,6 +693,65 @@ fun NameEditorScreen(
                 enabled = redo.isNotEmpty()
             ) { Text("Refazer") }
         }
+
+
+        Text("Orientação independente", color = FioText,
+            modifier = Modifier.testTag("brother_independent_orientation_title"))
+        Text("Escolha o bastidor, gire somente a letra e mantenha o nome reto. " +
+            "As alterações são aplicadas às pontadas, não apenas à imagem.",
+            color = FioTextMuted, fontSize = 12.sp)
+        OutlinedButton(
+            onClick = { applyHorizontalLetterVerticalNameHorizontal() },
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
+        ) {
+            Text("Bastidor horizontal · Letra vertical · Nome horizontal")
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.LANDSCAPE) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_landscape")
+            ) { Text("Bastidor horizontal 180×130") }
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.PORTRAIT) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_portrait")
+            ) { Text("Bastidor vertical 130×180") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateLetterOnly(90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_90")
+            ) { Text("Letra +90°") }
+            OutlinedButton(
+                onClick = { rotateLetterOnly(-90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_minus90")
+            ) { Text("Letra −90°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_horizontal_0")
+            ) { Text("Nome 0°") }
+        }
+        Text(
+            "Bastidor selecionado: " + activeHoop.displayName +
+                " · " + when (baseDesign.hoopOrientation) {
+                    HoopOrientation.LANDSCAPE -> "horizontal"
+                    HoopOrientation.PORTRAIT -> "vertical"
+                    HoopOrientation.AUTO -> "automático"
+                },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_selected_hoop_orientation")
+        )
 
         if (original.editableName == null &&
             original.points.any { it.command ==
@@ -655,7 +810,7 @@ fun NameEditorScreen(
 
         Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
             color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
-        Text("Gira a moldura e o nome juntos. A rotação altera as pontadas reais.",
+        Text("Rotação conjunta: gira letra e nome. Para girar só a letra, use os botões acima.",
             color = FioTextMuted, fontSize = 11.sp)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -790,7 +945,7 @@ fun NameEditorScreen(
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
-                .pointerInput(original, referenceHoop, moveMode) {
+                .pointerInput(original, activeHoop, moveMode) {
                     // Gestos combinados: um dedo move; dois dedos permitem
                     // pinça horizontal e vertical sem recalcular Satin
                     // durante o movimento.
@@ -849,7 +1004,7 @@ fun NameEditorScreen(
         ) {
             EmbroideryCanvas(
                 design = backgroundDesign,
-                hoop = referenceHoop,
+                hoop = activeHoop,
                 interactive = false,
                 displayMode = EmbroideryDisplayMode.SOLID,
                 positionMode = moveMode == NameEditorMoveMode.MATRIX,
@@ -861,13 +1016,13 @@ fun NameEditorScreen(
             // não muda entre repouso, arraste e atualização da prévia.
             if (!previewBusy && preview != null) {
                 val stitchedCenter = NameEditorPlacement.screenOffset(
-                    backgroundDesign, referenceHoop, draft.x, draft.y,
+                    backgroundDesign, activeHoop, draft.x, draft.y,
                     canvasSize.width, canvasSize.height, paddingPx
                 )
                 NameEditorStitchLayer(
                     original = backgroundDesign,
                     result = preview,
-                    hoop = referenceHoop,
+                    hoop = activeHoop,
                     modifier = Modifier.graphicsLayer {
                         transformOrigin = TransformOrigin(
                             (.5f + stitchedCenter.x /
@@ -888,7 +1043,7 @@ fun NameEditorScreen(
             // Alça alinhada com o mesmo centro, escala e orientação de
             // EmbroideryCanvas. Somente o nome responde ao arraste.
             val namePosition = NameEditorPlacement.screenOffset(
-                design = backgroundDesign, hoop = referenceHoop,
+                design = backgroundDesign, hoop = activeHoop,
                 xUnits = draft.x, yUnits = draft.y,
                 canvasWidth = canvasSize.width,
                 canvasHeight = canvasSize.height,
