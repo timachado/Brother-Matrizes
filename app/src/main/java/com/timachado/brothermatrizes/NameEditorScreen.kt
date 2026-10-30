@@ -429,7 +429,7 @@ fun NameEditorScreen(
                     baseDesign = nextBase
                     draft = nextDraft
                     computed = ComputedPreview(
-                        nextBase, nextDraft, Result.success(repositioned)
+                        nextBase, nextDraft, compositionMode, Result.success(repositioned)
                     )
                     moveError = null
                 } else {
