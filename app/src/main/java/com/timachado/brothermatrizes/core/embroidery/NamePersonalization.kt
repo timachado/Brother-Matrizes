@@ -269,7 +269,11 @@ object NamePersonalization {
             threadColors = palette,
             isModified = true,
             // A origem e orientação da matriz são preservadas, sem mover flores.
-            hoopProfile = source.hoopProfile ?: options.hoopProfile,
+            // Monogramas podem exceder a inicial: respeitar o bastidor
+            // selecionado explicitamente no editor, nunca o 10x10 herdado.
+            hoopProfile = if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY)
+                options.hoopProfile ?: source.hoopProfile
+            else source.hoopProfile ?: options.hoopProfile,
             editableName = NamePersonalizationLayer(
                 original = source,
                 options = options,
