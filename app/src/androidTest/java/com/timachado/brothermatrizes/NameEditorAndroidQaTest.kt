@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
@@ -414,6 +415,10 @@ class NameEditorAndroidQaTest {
             )
         }
         // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
+        // In overlay, the matrix and name may intentionally intersect while dragging.
+        // Exercise real touch movement without an unrelated free-area collision guard.
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .assertExists().performClick()
@@ -674,6 +679,10 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithText(
             "Substituir nome existente (selecionar bloco)"
         ).performClick()
+        composeRule.waitUntil(timeoutMillis = 12_000) {
+            composeRule.onAllNodesWithText("Selecionar nome antigo")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("Selecionar nome antigo").assertExists()
         composeRule.onNodeWithText("Cancelar").performClick()
         composeRule.onNodeWithTag("brother_name_input").assertExists()
