@@ -430,8 +430,11 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_apply")
             .performClick()
         val beforeX = composeRule.runOnIdle {
-            requireNotNull(applied).editableName?.centerXUnits
-                ?: error("Initial saved name has no center X")
+            val initial = requireNotNull(applied).editableName
+                ?: error("Initial saved name has no editable layer")
+            assertEquals("Giro de 15° deve persistir antes do arraste",
+                15f, initial.options.rotationDegrees)
+            initial.centerXUnits
         }
         composeRule.runOnIdle { applied = null }
 
