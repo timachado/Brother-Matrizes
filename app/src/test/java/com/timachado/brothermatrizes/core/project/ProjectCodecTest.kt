@@ -9,6 +9,8 @@ import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MachineFinishingInfo
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
+import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -417,5 +419,21 @@ class ProjectCodecTest {
             replaced.points.take(base.points.size - 1))
         assertEquals(1, replaced.points.count { it.command == StitchCommand.COLOR_CHANGE })
     }
+
+    @Test
+    fun horizontalHoopIsNotAutoRotatedAndPersistsAcrossReopen() {
+        val physical = sample().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        assertEquals(false, physical.shouldRotateHoop(HoopProfile.H130X180))
+        val loaded = ProjectCodec.decode(ProjectCodec.encode(physical))
+        assertEquals(HoopOrientation.LANDSCAPE, loaded.hoopOrientation)
+        assertEquals(HoopProfile.H130X180, loaded.hoopProfile)
+        assertEquals(false, loaded.shouldRotateHoop(HoopProfile.H130X180))
+        val portrait = loaded.copy(hoopOrientation = HoopOrientation.PORTRAIT)
+        assertEquals(true, portrait.shouldRotateHoop(HoopProfile.H130X180))
+    }
+
 
 }
