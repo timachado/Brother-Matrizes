@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes
 
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import kotlin.math.roundToInt
 
 /**
@@ -72,8 +73,7 @@ internal object NameEditorPlacement {
         val bounds = design.bounds
         val width = (bounds.maxXUnits - bounds.minXUnits).coerceAtLeast(1)
         val height = (bounds.maxYUnits - bounds.minYUnits).coerceAtLeast(1)
-        val rotate = hoop.widthMm != hoop.heightMm &&
-            (width > height) != (hoop.widthMm > hoop.heightMm)
+        val rotate = design.shouldRotateHoop(hoop)
         val frameW = (if (rotate) hoop.heightMm else hoop.widthMm) * 10f
         val frameH = (if (rotate) hoop.widthMm else hoop.heightMm) * 10f
         val scale = minOf(
