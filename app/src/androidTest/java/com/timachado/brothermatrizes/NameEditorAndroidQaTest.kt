@@ -421,7 +421,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
-            .assertExists().performClick()
+            .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithTag("brother_name_rotation_value")
             .assertTextContains("15°")
         // The initial auto-fit can legitimately choose negative X.
