@@ -377,4 +377,39 @@ class NamePersonalizationTest {
         ).isFailure)
     }
 
+
+    @Test fun shrinkLetterKeepsNameOriginalCoordinatesAndSavedComposition() {
+        val base = floralFrame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val options = TextMatrixOptions("Maria", heightMm = 12f,
+            style = TextStitchStyle.SATIN, hoopProfile = HoopProfile.H130X180)
+        val before = NamePersonalization.add(
+            base, options, 0, 0,
+            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        val resizedBase = MatrixNameRotation.resizeLetter(
+            before, 0.85f, HoopProfile.H130X180
+        ).getOrThrow()
+        val after = NamePersonalization.add(
+            resizedBase, options, 0, 0,
+            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        assertTrue(after.editableName!!.original.bounds.widthMm <
+            before.editableName!!.original.bounds.widthMm)
+        assertEquals(options.text, after.editableName!!.options.text)
+        assertEquals(0, after.editableName!!.centerXUnits)
+        assertEquals(0, after.editableName!!.centerYUnits)
+        val baseEndBefore = before.editableName!!.original.points.size - 1
+        val baseEndAfter = after.editableName!!.original.points.size - 1
+        assertEquals(before.points.drop(baseEndBefore + 2),
+            after.points.drop(baseEndAfter + 2))
+        assertEquals(1, after.points.count { it.command == StitchCommand.END })
+        assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+            after.editableName!!.compositionMode)
+        assertEquals(HoopOrientation.LANDSCAPE, after.hoopOrientation)
+    }
+
+
 }
