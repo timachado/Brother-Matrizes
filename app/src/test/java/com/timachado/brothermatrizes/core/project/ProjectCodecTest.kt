@@ -8,6 +8,7 @@ import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MachineFinishingInfo
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -381,4 +382,40 @@ class ProjectCodecTest {
         assertEquals(base.points, restored.editableName!!.original.points)
         assertEquals(named.points, restored.points)
     }
+    @Test
+    fun monogramOverlapModeSurvivesProjectV10SaveAndReopen() {
+        val base = EmbroideryIntegrity.normalize(
+            sample().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, 0, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.END, 0)
+                ),
+                threadColors = listOf(0x123456),
+                hoopProfile = HoopProfile.H100X100
+            )
+        ).getOrThrow().design
+        val options = TextMatrixOptions(
+            text = "Maria", heightMm = 12f,
+            style = TextStitchStyle.SATIN, outputFormat = "PES"
+        )
+        val combined = NamePersonalization.add(
+            base, options, 0, 0,
+            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        val restored = ProjectCodec.decode(ProjectCodec.encode(combined))
+        assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+            restored.editableName?.compositionMode)
+        assertEquals(base.points, restored.editableName?.original?.points)
+        assertEquals(combined.points, restored.points)
+
+        val replaced = NamePersonalization.add(
+            restored, options.copy(text = "Sophia"), 0, 0,
+            compositionMode = restored.editableName!!.compositionMode
+        ).getOrThrow()
+        assertEquals(base.points.dropLast(1),
+            replaced.points.take(base.points.size - 1))
+        assertEquals(1, replaced.points.count { it.command == StitchCommand.COLOR_CHANGE })
+    }
+
 }
