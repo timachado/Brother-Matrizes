@@ -659,7 +659,11 @@ fun NameEditorScreen(
         ImportedNameSelectionPanel(
             original = original,
             hoop = activeHoop,
-            onCancel = { selectingOldName = false },
+            onCancel = {
+                selectingOldName = false
+                advancedExpanded = false
+                editorSection = NameEditorSection.NAME
+            },
             onConfirm = { selected ->
                 baseDesign = selected.originalWithoutBlock
                 oldNameBlockSelected = true
@@ -668,6 +672,8 @@ fun NameEditorScreen(
                     y = selected.centerYUnits
                 ))
                 selectingOldName = false
+                advancedExpanded = false
+                editorSection = NameEditorSection.NAME
             }
         )
         return
