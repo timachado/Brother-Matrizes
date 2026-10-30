@@ -341,4 +341,40 @@ class NamePersonalizationTest {
             base, options.copy(widthScale = 2.6f), 0, 0
         ).isFailure)
     }
+    @Test fun monogramOverlayPreservesLetterAndOnlyAllowsIntentionalCollisions() {
+        // Linha horizontal atravessando o centro da inicial. O texto central
+        // necessariamente cruza a costura, como no exemplo Letra P + nome.
+        val base = EmbroideryIntegrity.normalize(
+            floralFrame().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, 0, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.END, 0)
+                )
+            )
+        ).getOrThrow().design
+        val name = TextMatrixOptions(
+            text = "Maria", heightMm = 12f, style = TextStitchStyle.SATIN,
+            outputFormat = "PES"
+        )
+
+        val standard = NamePersonalization.add(base, name, 0, 0)
+        assertTrue("A proteção das molduras deve permanecer ativa", standard.isFailure)
+
+        val overlay = NamePersonalization.add(
+            base, name, 0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        assertEquals(base.points.dropLast(1), overlay.points.take(base.points.size - 1))
+        assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+            overlay.editableName?.compositionMode)
+        assertEquals(1, overlay.points.count { it.command == StitchCommand.END })
+        assertEquals(1, overlay.points.count { it.command == StitchCommand.COLOR_CHANGE })
+        assertTrue(overlay.stitchCount > base.stitchCount)
+
+        // Sobreposição não é autorização para exceder o bastidor.
+        assertTrue(NamePersonalization.add(
+            base, name, 2000, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).isFailure)
+    }
+
 }
