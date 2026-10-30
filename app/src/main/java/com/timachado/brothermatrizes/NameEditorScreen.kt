@@ -1071,6 +1071,29 @@ fun NameEditorScreen(
         }
 
 
+        Text("Girar nome", color = FioText, fontSize = 12.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = { rotate(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotate(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+
         Box {
             OutlinedButton(onClick = {
                 importedFonts = ImportedFontStore.list(context)
@@ -1358,28 +1381,6 @@ fun NameEditorScreen(
             color = FioTextMuted, fontSize = 12.sp
         )
 
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedButton(
-                onClick = { rotate(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(rotation = 0f))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotate(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
-            ) { Text("↷ 15°") }
-        }
 
         Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
             color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
