@@ -96,6 +96,9 @@ private data class NameDraft(
 
 private enum class NameEditorMoveMode { MATRIX, NAME }
 
+/** Navegação progressiva: todas as funções continuam disponíveis sem uma tela infinita. */
+private enum class NameEditorSection { NAME, LETTER, HOOP }
+
 private data class EditorSnapshot(
     val name: NameDraft,
     val background: EmbroideryDesign,
@@ -160,6 +163,8 @@ fun NameEditorScreen(
     var letterScalePercent by remember(original) { mutableIntStateOf(100) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
+    var editorSection by remember(original) { mutableStateOf(NameEditorSection.NAME) }
+    var advancedExpanded by remember(original) { mutableStateOf(false) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
     fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation,
@@ -669,11 +674,8 @@ fun NameEditorScreen(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.fillMaxSize().padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
@@ -723,280 +725,15 @@ fun NameEditorScreen(
         }
 
 
-        Text("Tamanho da letra: " + letterScalePercent + "% (independente do nome)",
-            color = FioText, modifier = Modifier.testTag("brother_letter_scale_label"))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { resizeLetterOnly(letterScalePercent - 5) },
-                enabled = letterScalePercent > 80,
-                modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
-            ) { Text("Letra − Menor") }
-            OutlinedButton(
-                onClick = { resizeLetterOnly(100) },
-                enabled = letterScalePercent != 100,
-                modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
-            ) { Text("100%") }
-            OutlinedButton(
-                onClick = { resizeLetterOnly(letterScalePercent + 5) },
-                enabled = letterScalePercent < 120,
-                modifier = Modifier.weight(1f).testTag("brother_letter_larger")
-            ) { Text("Letra + Maior") }
-        }
-        Text(
-            "Ajusta só as pontadas da letra (80% a 120% do tamanho inicial). " +
-                "O nome mantém tamanho, posição, rotação e fonte.",
-            color = FioTextMuted, fontSize = 11.sp
-        )
 
-        Text("Orientação independente", color = FioText,
-            modifier = Modifier.testTag("brother_independent_orientation_title"))
-        Text("Escolha o bastidor, gire somente a letra e mantenha o nome reto. " +
-            "As alterações são aplicadas às pontadas, não apenas à imagem.",
-            color = FioTextMuted, fontSize = 12.sp)
-        OutlinedButton(
-            onClick = { applyHorizontalLetterVerticalNameHorizontal() },
-            modifier = Modifier.fillMaxWidth()
-                .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
-        ) {
-            Text("Bastidor horizontal · Letra vertical · Nome horizontal")
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { chooseHoopOrientation(
-                    HoopProfile.H130X180, HoopOrientation.LANDSCAPE) },
-                modifier = Modifier.weight(1f).testTag("brother_hoop_landscape")
-            ) { Text("Bastidor horizontal 180×130") }
-            OutlinedButton(
-                onClick = { chooseHoopOrientation(
-                    HoopProfile.H130X180, HoopOrientation.PORTRAIT) },
-                modifier = Modifier.weight(1f).testTag("brother_hoop_portrait")
-            ) { Text("Bastidor vertical 130×180") }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { rotateLetterOnly(90f) },
-                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_90")
-            ) { Text("Letra +90°") }
-            OutlinedButton(
-                onClick = { rotateLetterOnly(-90f) },
-                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_minus90")
-            ) { Text("Letra −90°") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(rotation = 0f))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_horizontal_0")
-            ) { Text("Nome 0°") }
-        }
-        Text(
-            "Bastidor selecionado: " + activeHoop.displayName +
-                " · " + when (baseDesign.hoopOrientation) {
-                    HoopOrientation.LANDSCAPE -> "horizontal"
-                    HoopOrientation.PORTRAIT -> "vertical"
-                    HoopOrientation.AUTO -> "automático"
-                },
-            color = FioTextMuted, fontSize = 11.sp,
-            modifier = Modifier.testTag("brother_selected_hoop_orientation")
-        )
+        Text("Personalização de nomes e monogramas", color = FioTextMuted,
+            fontSize = 12.sp)
 
-        if (original.editableName == null &&
-            original.points.any { it.command ==
-                com.timachado.brothermatrizes.core.embroidery.StitchCommand.COLOR_CHANGE } &&
-            baseDesign === original
-        ) {
-            OutlinedButton(
-                onClick = { selectingOldName = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Substituir nome existente (selecionar bloco)")
-            }
-        }
-
-        if (oldNameBlockSelected) {
-            OutlinedButton(
-                onClick = {
-                    baseDesign = original
-                    oldNameBlockSelected = false
-                    matrixRotation = 0f
-                    computed = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Desfazer seleção do nome antigo")
-            }
-        }
-
-        Text(
-            "Arraste com um dedo para mover. Use dois dedos para ampliar " +
-                "a largura e a altura independentemente.",
-            color = FioTextMuted, fontSize = 12.sp
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedButton(
-                onClick = { rotate(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(rotation = 0f))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotate(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
-            ) { Text("↷ 15°") }
-        }
-
-        Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
-            color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
-        Text("Rotação conjunta: gira letra e nome. Para girar só a letra, use os botões acima.",
-            color = FioTextMuted, fontSize = 11.sp)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { rotateMatrix(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    rotateMatrix(MatrixNameRotation.normalizeDegrees(-matrixRotation))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotateMatrix(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
-            ) { Text("↷ 15°") }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(0f, 90f, 180f, 270f).forEach { angle ->
-                OutlinedButton(
-                    onClick = {
-                        rotateMatrix(MatrixNameRotation.normalizeDegrees(
-                            angle - matrixRotation
-                        ))
-                    },
-                    modifier = Modifier.weight(1f).testTag(
-                        "brother_matrix_rotate_" + angle.toInt()
-                    )
-                ) { Text(angle.toInt().toString() + "°") }
-            }
-        }
-        matrixRotationError?.let { message ->
-            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_matrix_rotation_error"))
-        }
-
-        // Girar um PES/DST sem necessariamente inserir um novo nome.
-        // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
-        OutlinedButton(
-            onClick = { onApply(baseDesign) },
-            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null &&
-                original.editableName == null && !oldNameBlockSelected,
-            modifier = Modifier.fillMaxWidth()
-                .testTag("brother_matrix_apply_rotation_only")
-        ) {
-            Text("Aplicar só a rotação da matriz")
-        }
-        if (original.editableName != null && abs(matrixRotation) >= .001f) {
-            Text("Esta matriz contém um nome editável: use Aplicar nome para " +
-                "girar tudo sem perder as letras.",
-                color = FioTextMuted, fontSize = 11.sp)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { resize(-1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
-            ) { Text("A− Menor") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(
-                        x = (baseDesign.bounds.minXUnits.toLong() +
-                            baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
-                        y = (baseDesign.bounds.minYUnits.toLong() +
-                            baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
-                    ))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_center")
-            ) { Text("Centralizar") }
-            OutlinedButton(
-                onClick = { resize(1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
-            ) { Text("A+ Maior") }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.MATRIX
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_matrix")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.MATRIX)
-                    "✓ Mover matriz" else "Mover matriz")
-            }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.NAME
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_name")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.NAME)
-                    "✓ Mover nome" else "Mover nome")
-            }
-        }
-        Text(
-            if (moveMode == NameEditorMoveMode.MATRIX)
-                "Arraste apenas as flores: o nome permanece na posição escolhida."
-            else "Arraste apenas o nome: as flores ficam paradas.",
-            color = FioTextMuted, fontSize = 11.sp,
-            modifier = Modifier.testTag("brother_name_editor_move_hint")
-        )
-        moveError?.let {
-            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_name_editor_move_error"))
-        }
-
+        // Preview permanece visível ao trocar entre nome, letra e bastidor.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(220.dp)
                 .onSizeChanged { canvasSize = it }
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
@@ -1151,24 +888,81 @@ fun NameEditorScreen(
             )
         }
 
-        if (original.editableName != null) {
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    NamePersonalization.invalidatePreparedPreview()
-                    computed = null
-                    reprocessResult = "Recalculando pontadas com o motor de fontes atualizado…"
-                    reprocessRequest++
-                },
-                modifier = Modifier.fillMaxWidth()
-                    .testTag("brother_name_reprocess_glyphs")
-            ) {
-                Text("↻ Reprocessar pontadas da fonte sem mudar o encaixe")
-            }
-            reprocessResult?.let { message ->
-                Text(message, color = FioTextMuted, fontSize = 12.sp)
+
+        when {
+            (fitting || autoFitEnabled) -> Text(
+                "Ajustando nome…", color = FioTextMuted, fontSize = 11.sp)
+            previewBusy -> Text(
+                "Atualizando pontadas…", color = FioTextMuted, fontSize = 11.sp)
+            preview == null -> Text(
+                autoFitError ?: currentError ?: "Prévia indisponível.",
+                color = Color(0xFFFF9393), fontSize = 11.sp)
+            else -> Text(
+                "${preview.stitchCount} pontos · " +
+                    "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
+                color = FioTextMuted, fontSize = 11.sp)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_editor_tabs"),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(
+                NameEditorSection.NAME to "Nome",
+                NameEditorSection.LETTER to "Letra",
+                NameEditorSection.HOOP to "Bastidor"
+            ).forEach { (section, label) ->
+                OutlinedButton(
+                    onClick = {
+                        editorSection = section
+                        if (section == NameEditorSection.NAME) {
+                            moveMode = NameEditorMoveMode.NAME
+                        } else if (section == NameEditorSection.LETTER) {
+                            moveMode = NameEditorMoveMode.MATRIX
+                        }
+                        moveError = null
+                    },
+                    modifier = Modifier.weight(1f).testTag(
+                        when (section) {
+                            NameEditorSection.NAME -> "brother_editor_tab_name"
+                            NameEditorSection.LETTER -> "brother_editor_tab_letter"
+                            NameEditorSection.HOOP -> "brother_editor_tab_hoop"
+                        }
+                    )
+                ) { Text(if (editorSection == section) "✓ $label" else label) }
             }
         }
+
+        Text(
+            when (editorSection) {
+                NameEditorSection.NAME ->
+                    "Arraste o nome na prévia para posicioná-lo."
+                NameEditorSection.LETTER ->
+                    "Arraste a letra na prévia; o nome não se move."
+                NameEditorSection.HOOP ->
+                    "Escolha a orientação física do bastidor."
+            },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_editor_context_hint")
+        )
+
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
+                .testTag("brother_name_editor_settings_scroll"),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            when (editorSection) {
+                NameEditorSection.NAME -> {
+        OutlinedTextField(
+            value = draft.name,
+            onValueChange = {
+                autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
+                setDraft(draft.copy(name = it.take(24)))
+            },
+            label = { Text("Nome para bordar") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
+        )
+
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1233,16 +1027,33 @@ fun NameEditorScreen(
             Text("✧ Ajustar automaticamente à matriz")
         }
 
-        OutlinedTextField(
-            value = draft.name,
-            onValueChange = {
-                autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
-                setDraft(draft.copy(name = it.take(24)))
-            },
-            label = { Text("Nome para bordar") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
-        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resize(-1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
+            ) { Text("A− Menor") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(
+                        x = (baseDesign.bounds.minXUnits.toLong() +
+                            baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
+                        y = (baseDesign.bounds.minYUnits.toLong() +
+                            baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
+                    ))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_center")
+            ) { Text("Centralizar") }
+            OutlinedButton(
+                onClick = { resize(1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
+            ) { Text("A+ Maior") }
+        }
+
 
         Box {
             OutlinedButton(onClick = {
@@ -1312,6 +1123,7 @@ fun NameEditorScreen(
                 color = Color(0xFFFF9393), fontSize = 12.sp)
         }
 
+
         Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
         Slider(
             value = draft.height,
@@ -1321,6 +1133,328 @@ fun NameEditorScreen(
             },
             valueRange = 4f..30f
         )
+
+        Text("Cor da linha", color = FioText)
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0xB22222, 0xE6BE70, 0x173E6E, 0xB83A83, 0x17846B, 0x202020)
+                .forEachIndexed { index, color ->
+                    OutlinedButton(
+                        onClick = { setDraft(draft.copy(color = color)) }
+                    ) {
+                        Text(
+                            if (color == draft.color) "✓ ${index + 1}" else "● ${index + 1}",
+                            color = Color(color or 0xFF000000.toInt())
+                        )
+                    }
+                }
+        }
+
+
+                }
+                NameEditorSection.LETTER -> {
+        Text("Tamanho da letra: " + letterScalePercent + "% (independente do nome)",
+            color = FioText, modifier = Modifier.testTag("brother_letter_scale_label"))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent - 5) },
+                enabled = letterScalePercent > 80,
+                modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
+            ) { Text("Letra − Menor") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(100) },
+                enabled = letterScalePercent != 100,
+                modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
+            ) { Text("100%") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent + 5) },
+                enabled = letterScalePercent < 120,
+                modifier = Modifier.weight(1f).testTag("brother_letter_larger")
+            ) { Text("Letra + Maior") }
+        }
+        Text(
+            "Ajusta só as pontadas da letra (80% a 120% do tamanho inicial). " +
+                "O nome mantém tamanho, posição, rotação e fonte.",
+            color = FioTextMuted, fontSize = 11.sp
+        )
+
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { rotateLetterOnly(-90f) },
+                        modifier = Modifier.weight(1f)
+                            .testTag("brother_letter_quick_rotate_left")
+                    ) { Text("Girar letra −90°") }
+                    OutlinedButton(
+                        onClick = { rotateLetterOnly(90f) },
+                        modifier = Modifier.weight(1f)
+                            .testTag("brother_letter_quick_rotate_right")
+                    ) { Text("Girar letra +90°") }
+                }
+
+                }
+                NameEditorSection.HOOP -> {
+        Text("Orientação independente", color = FioText,
+            modifier = Modifier.testTag("brother_independent_orientation_title"))
+        Text("Escolha o bastidor, gire somente a letra e mantenha o nome reto. " +
+            "As alterações são aplicadas às pontadas, não apenas à imagem.",
+            color = FioTextMuted, fontSize = 12.sp)
+        OutlinedButton(
+            onClick = { applyHorizontalLetterVerticalNameHorizontal() },
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
+        ) {
+            Text("Bastidor horizontal · Letra vertical · Nome horizontal")
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.LANDSCAPE) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_landscape")
+            ) { Text("Bastidor horizontal 180×130") }
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.PORTRAIT) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_portrait")
+            ) { Text("Bastidor vertical 130×180") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateLetterOnly(90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_90")
+            ) { Text("Letra +90°") }
+            OutlinedButton(
+                onClick = { rotateLetterOnly(-90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_minus90")
+            ) { Text("Letra −90°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_horizontal_0")
+            ) { Text("Nome 0°") }
+        }
+        Text(
+            "Bastidor selecionado: " + activeHoop.displayName +
+                " · " + when (baseDesign.hoopOrientation) {
+                    HoopOrientation.LANDSCAPE -> "horizontal"
+                    HoopOrientation.PORTRAIT -> "vertical"
+                    HoopOrientation.AUTO -> "automático"
+                },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_selected_hoop_orientation")
+        )
+
+
+                }
+            }
+            OutlinedButton(
+                onClick = { advancedExpanded = !advancedExpanded },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_name_advanced_toggle")
+            ) {
+                Text(if (advancedExpanded) "Ocultar ajustes avançados" else
+                    "Ajustes avançados")
+            }
+            if (advancedExpanded) {
+                Text("Ferramentas de precisão", color = FioText)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.MATRIX
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_matrix")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.MATRIX)
+                    "✓ Mover matriz" else "Mover matriz")
+            }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.NAME
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_name")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.NAME)
+                    "✓ Mover nome" else "Mover nome")
+            }
+        }
+        Text(
+            if (moveMode == NameEditorMoveMode.MATRIX)
+                "Arraste apenas as flores: o nome permanece na posição escolhida."
+            else "Arraste apenas o nome: as flores ficam paradas.",
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_name_editor_move_hint")
+        )
+        moveError?.let {
+            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_name_editor_move_error"))
+        }
+
+
+        if (original.editableName == null &&
+            original.points.any { it.command ==
+                com.timachado.brothermatrizes.core.embroidery.StitchCommand.COLOR_CHANGE } &&
+            baseDesign === original
+        ) {
+            OutlinedButton(
+                onClick = { selectingOldName = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Substituir nome existente (selecionar bloco)")
+            }
+        }
+
+        if (oldNameBlockSelected) {
+            OutlinedButton(
+                onClick = {
+                    baseDesign = original
+                    oldNameBlockSelected = false
+                    matrixRotation = 0f
+                    computed = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Desfazer seleção do nome antigo")
+            }
+        }
+
+        Text(
+            "Arraste com um dedo para mover. Use dois dedos para ampliar " +
+                "a largura e a altura independentemente.",
+            color = FioTextMuted, fontSize = 12.sp
+        )
+
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = { rotate(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotate(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+
+        Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
+            color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
+        Text("Rotação conjunta: gira letra e nome. Para girar só a letra, use os botões acima.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateMatrix(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    rotateMatrix(MatrixNameRotation.normalizeDegrees(-matrixRotation))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotateMatrix(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0f, 90f, 180f, 270f).forEach { angle ->
+                OutlinedButton(
+                    onClick = {
+                        rotateMatrix(MatrixNameRotation.normalizeDegrees(
+                            angle - matrixRotation
+                        ))
+                    },
+                    modifier = Modifier.weight(1f).testTag(
+                        "brother_matrix_rotate_" + angle.toInt()
+                    )
+                ) { Text(angle.toInt().toString() + "°") }
+            }
+        }
+        matrixRotationError?.let { message ->
+            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_matrix_rotation_error"))
+        }
+
+        // Girar um PES/DST sem necessariamente inserir um novo nome.
+        // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
+        OutlinedButton(
+            onClick = { onApply(baseDesign) },
+            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null &&
+                original.editableName == null && !oldNameBlockSelected,
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_matrix_apply_rotation_only")
+        ) {
+            Text("Aplicar só a rotação da matriz")
+        }
+        if (original.editableName != null && abs(matrixRotation) >= .001f) {
+            Text("Esta matriz contém um nome editável: use Aplicar nome para " +
+                "girar tudo sem perder as letras.",
+                color = FioTextMuted, fontSize = 11.sp)
+        }
+
+
+        if (original.editableName != null) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    NamePersonalization.invalidatePreparedPreview()
+                    computed = null
+                    reprocessResult = "Recalculando pontadas com o motor de fontes atualizado…"
+                    reprocessRequest++
+                },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_name_reprocess_glyphs")
+            ) {
+                Text("↻ Reprocessar pontadas da fonte sem mudar o encaixe")
+            }
+            reprocessResult?.let { message ->
+                Text(message, color = FioTextMuted, fontSize = 12.sp)
+            }
+        }
+
+
         Text("Largura: " + (draft.widthScale * 100).roundToInt() +
             "%", color = FioText)
         Slider(
@@ -1386,23 +1520,6 @@ fun NameEditorScreen(
             valueRange = -180f..180f
         )
 
-        Text("Cor da linha", color = FioText)
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(0xB22222, 0xE6BE70, 0x173E6E, 0xB83A83, 0x17846B, 0x202020)
-                .forEachIndexed { index, color ->
-                    OutlinedButton(
-                        onClick = { setDraft(draft.copy(color = color)) }
-                    ) {
-                        Text(
-                            if (color == draft.color) "✓ ${index + 1}" else "● ${index + 1}",
-                            color = Color(color or 0xFF000000.toInt())
-                        )
-                    }
-                }
-        }
 
         Text(
             "Nomes salvos em Minhas Matrizes permanecem editáveis. " +
@@ -1411,6 +1528,9 @@ fun NameEditorScreen(
             color = FioTextMuted,
             fontSize = 11.sp
         )
+
+            }
+        }
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null && !previewBusy,
@@ -1418,6 +1538,6 @@ fun NameEditorScreen(
         ) {
             Text("Aplicar nome e abrir matriz personalizada")
         }
-        Spacer(Modifier.height(8.dp))
+
     }
 }
