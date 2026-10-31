@@ -1,17 +1,26 @@
 package com.timachado.brothermatrizes
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.pinch
@@ -75,13 +84,17 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle")
+            .assertTextContains("Voltar ao editor", substring = true)
+        composeRule.onNodeWithText("Ferramentas de precisão").assertExists()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
-        composeRule.onNodeWithText("Desfazer").performScrollTo().performClick()
+        composeRule.onNodeWithText("Desfazer").performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
     }
 
@@ -226,7 +239,11 @@ class NameEditorAndroidQaTest {
 
     @Test
     fun nameEditorMatrixModeMovesOnlyFlowersAndKeepsNamePlace() {
-        val original = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        // Manter folga real entre a borda e o nome para o gesto de teste.
+        // Em uma moldura de 38 mm, deslizar 9 px podia aproximar fisicamente
+        // a letra da costura, acionando corretamente a proteção anticolisão.
+        // A moldura de 53 mm testa movimento independente em posição válida.
+        val original = MatrixEditor.apply(frame(), EditTransform(scale = .7f))
         val personalized = NamePersonalization.add(
             original, TextMatrixOptions(text = "Maria", heightMm = 8f), 0, 0
         ).getOrThrow()
@@ -239,11 +256,20 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_matrix")
             .performScrollTo().performClick()
-        composeRule.onNodeWithText("✓ Mover matriz").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").assertExists()
+        // A edição existente deve estar íntegra antes de iniciar o gesto.
+        composeRule.waitUntil(30000) {
+            runCatching {
+                composeRule.onNodeWithTag("brother_name_apply").assertIsEnabled()
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performScrollTo().performTouchInput {
+            .performTouchInput {
                 swipe(start = center, end = center + Offset(0f, 9f),
                     durationMillis = 500)
             }
@@ -258,7 +284,7 @@ class NameEditorAndroidQaTest {
             }.getOrDefault(false)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.waitForIdle()
         val result = requireNotNull(applied)
         val base = requireNotNull(result.editableName).original
@@ -370,7 +396,7 @@ class NameEditorAndroidQaTest {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
-        composeRule.onNodeWithTag("brother_name_apply").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_apply")
             .performClick()
         composeRule.runOnIdle {
             // O SimulatorScreen não tem obrigação de expor o título "Simulação".
@@ -412,8 +438,14 @@ class NameEditorAndroidQaTest {
             )
         }
         // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
+        // In overlay, the matrix and name may intentionally intersect while dragging.
+        // Exercise real touch movement without an unrelated free-area collision guard.
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
-            .assertExists().performClick()
+            .performScrollTo().assertExists().performClick()
+        composeRule.onNodeWithTag("brother_name_rotation_value")
+            .assertTextContains("15°", substring = true)
         // The initial auto-fit can legitimately choose negative X.
         // Capture its actual position after rotation rather than assuming 0.
         composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -421,19 +453,23 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         val beforeX = composeRule.runOnIdle {
-            requireNotNull(applied).editableName?.centerXUnits
-                ?: error("Initial saved name has no center X")
+            val initial = requireNotNull(applied).editableName
+                ?: error("Initial saved name has no editable layer")
+            assertEquals("Giro de 15° deve persistir antes do arraste",
+                15f, initial.options.rotationDegrees)
+            initial.centerXUnits
         }
         composeRule.runOnIdle { applied = null }
 
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_drag_handle")
-            .performScrollTo().assertExists()
+            .assertExists()
             .performTouchInput {
                 swipe(
                     start = center,
-                    end = center + androidx.compose.ui.geometry.Offset(25f, 0f),
+                    end = center + androidx.compose.ui.geometry.Offset(8f, 0f),
                     durationMillis = 330
                 )
             }
@@ -442,7 +478,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val edited = requireNotNull(applied)
             assertEquals(15f, edited.editableName?.options?.rotationDegrees ?: -1f)
@@ -474,6 +510,7 @@ class NameEditorAndroidQaTest {
                 onApply = { reprocessed = it }
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_reprocess_glyphs")
             .performScrollTo().assertExists().performClick()
         composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -481,7 +518,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val updated = requireNotNull(reprocessed)
             val old = requireNotNull(saved.editableName).options
@@ -525,10 +562,12 @@ class NameEditorAndroidQaTest {
         }
         // A primeira escolha manual deve cancelar o encaixe inicial
         // antes da pinça: evita corrida com cálculo da fonte em paralelo.
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_name")
             .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
-            .performScrollTo().performTouchInput {
+            .performTouchInput {
                 pinch(
                     start0 = center + Offset(-20f, -20f),
                     end0 = center + Offset(-23f, -23f),
@@ -542,7 +581,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val saved = requireNotNull(applied)
             val options = requireNotNull(saved.editableName).options
@@ -586,7 +625,7 @@ class NameEditorAndroidQaTest {
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
         composeRule.onNodeWithTag("brother_name_apply")
-            .performScrollTo().performClick()
+            .performClick()
         composeRule.runOnIdle {
             val result = requireNotNull(applied)
             assertEquals(HoopProfile.H130X180, result.hoopProfile)
@@ -665,12 +704,430 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithText(
             "Substituir nome existente (selecionar bloco)"
-        ).performClick()
+        ).performScrollTo().performClick()
+        composeRule.waitUntil(timeoutMillis = 12_000) {
+            composeRule.onAllNodesWithText("Selecionar nome antigo")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("Selecionar nome antigo").assertExists()
         composeRule.onNodeWithText("Cancelar").performClick()
         composeRule.onNodeWithTag("brother_name_input").assertExists()
         assertEquals(1, original.points.count { it.command == StitchCommand.END })
     }
+    @Test
+    fun monogramNameOverLetterCanBeEditedSavedAndSimulated() {
+        // Inicial sintética: uma haste horizontal atravessando a palavra
+        // reproduz o caso de sobreposição intencional sem distribuir o PES real.
+        val initial = EmbroideryIntegrity.normalize(
+            frame().copy(
+                points = listOf(
+                    EmbroideryPoint(-380, 0, StitchCommand.JUMP, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.STITCH, 0),
+                    EmbroideryPoint(380, 0, StitchCommand.END, 0)
+                )
+            )
+        ).getOrThrow().design
+        var applied: EmbroideryDesign? = null
+        var shown by mutableStateOf<EmbroideryDesign?>(null)
+        composeRule.setContent {
+            val current = shown
+            if (current == null) {
+                NameEditorScreen(
+                    original = initial,
+                    referenceHoop = HoopProfile.H100X100,
+                    onBack = {},
+                    onApply = { applied = it; shown = it }
+                )
+            } else {
+                SimulatorScreen(
+                    design = current,
+                    referenceHoop = HoopProfile.H100X100,
+                    onBack = {}
+                )
+            }
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_name_overlay_hint").assertExists()
+        composeRule.onNodeWithTag("brother_name_input").performScrollTo()
+            .performTextClearance()
+        composeRule.onNodeWithTag("brother_name_input")
+            .performTextInput("Sophia")
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performClick()
+        composeRule.runOnIdle {
+            val done = requireNotNull(applied)
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+                done.editableName?.compositionMode)
+            assertEquals("Sophia", done.editableName?.options?.text)
+            assertEquals(initial.points.dropLast(1),
+                done.points.take(initial.points.size - 1))
+            assertEquals(1, done.points.count { it.command == StitchCommand.END })
+            assertTrue(done.stitchCount > initial.stitchCount)
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(done))
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY,
+                reopened.editableName?.compositionMode)
+            assertEquals(done.points, reopened.points)
+            assertTrue(shown != null) // SimulatorScreen opened after applying
+        }
+    }
+
+
+    @Test(timeout = 180_000)
+    fun horizontalHoopVerticalInitialHorizontalNamePreset() {
+        val base = EmbroideryIntegrity.normalize(frame().copy(
+            points = listOf(
+                EmbroideryPoint(-380, -160, StitchCommand.JUMP, 0),
+                EmbroideryPoint(380, -160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(380, 160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, 160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, -160, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-380, -160, StitchCommand.END, 0)
+            ),
+            hoopProfile = HoopProfile.H130X180
+        )).getOrThrow().design
+        var exported: EmbroideryDesign? = null
+        Log.i("BrotherGestureQA", "PRESET: before setContent")
+        composeRule.setContent {
+            NameEditorScreen(
+                original = base, referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { exported = it }
+            )
+        }
+        Log.i("BrotherGestureQA", "PRESET: content ready, opening hoop")
+        composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
+        Log.i("BrotherGestureQA", "PRESET: hoop tab opened, applying preset")
+        // Preset fixo no painel de Bastidor: toque direto, sem depender
+        // de scroll ou do autoencaixe concorrente.
+        composeRule.onNodeWithTag(
+            "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
+        ).performScrollTo().assertIsDisplayed().performClick()
+        Log.i("BrotherGestureQA", "PRESET: applied, inspecting orientation")
+        composeRule.onNodeWithTag("brother_selected_hoop_orientation")
+            .performScrollTo().assertTextContains("horizontal", substring = true)
+        Log.i("BrotherGestureQA", "PRESET: opening name editor")
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_input").performScrollTo()
+            .performTextClearance()
+        composeRule.onNodeWithTag("brother_name_input").performTextInput("Ana")
+        Log.i("BrotherGestureQA", "PRESET: input ready, awaiting apply")
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        Log.i("BrotherGestureQA", "PRESET: applying name")
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performClick()
+        Log.i("BrotherGestureQA", "PRESET: verifying saved design")
+        composeRule.runOnIdle {
+            val result = requireNotNull(exported)
+            val layer = requireNotNull(result.editableName)
+            assertEquals(HoopProfile.H130X180, result.hoopProfile)
+            assertEquals(HoopOrientation.LANDSCAPE, result.hoopOrientation)
+            assertEquals(NameCompositionMode.MONOGRAM_OVERLAY, layer.compositionMode)
+            assertEquals(0f, layer.options.rotationDegrees)
+            assertTrue(layer.original.bounds.heightMm > layer.original.bounds.widthMm)
+            assertEquals(layer.original.points.dropLast(1),
+                result.points.take(layer.original.points.size - 1))
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(result))
+            assertEquals(HoopOrientation.LANDSCAPE, reopened.hoopOrientation)
+            assertEquals(result.points, reopened.points)
+        }
+    }
+
+
+
+    @Test
+    fun smallerLetterDoesNotShrinkOrMoveEditableName() {
+        val base = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val options = TextMatrixOptions(
+            "Maria", heightMm = 8f, hoopProfile = HoopProfile.H130X180,
+            style = TextStitchStyle.SATIN
+        )
+        val named = NamePersonalization.add(
+            base, options, 0, 0,
+            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        repeat(5) {
+            composeRule.onNodeWithTag("brother_letter_smaller")
+                .performScrollTo().performClick()
+        }
+        composeRule.onNodeWithText(
+            "Tamanho da letra: 75% (independente do nome)"
+        ).assertExists()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply")
+            .performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            assertTrue(result.editableName!!.original.bounds.widthMm <
+                named.editableName!!.original.bounds.widthMm)
+            assertEquals(named.editableName!!.options.text,
+                result.editableName!!.options.text)
+            assertEquals(named.editableName!!.options.heightMm,
+                result.editableName!!.options.heightMm)
+            assertEquals(named.editableName!!.options.rotationDegrees,
+                result.editableName!!.options.rotationDegrees)
+            assertEquals(named.editableName!!.options.color,
+                result.editableName!!.options.color)
+            assertEquals(named.editableName!!.centerXUnits,
+                result.editableName!!.centerXUnits)
+            assertEquals(named.editableName!!.centerYUnits,
+                result.editableName!!.centerYUnits)
+            val reopened = ProjectCodec.decode(ProjectCodec.encode(result))
+            assertEquals(result.points, reopened.points)
+            assertEquals(result.editableName!!.original.points,
+                reopened.editableName!!.original.points)
+        }
+    }
+
+
+    @Test
+    fun easyNudgeMovesOnlyNameWithoutTwoFingerGesture() {
+        val source = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val named = NamePersonalization.add(
+            source,
+            TextMatrixOptions("Maria", heightMm = 8f,
+                hoopProfile = HoopProfile.H130X180, style = TextStitchStyle.SATIN),
+            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
+        composeRule.onNodeWithTag("brother_easy_move_right")
+            .performScrollTo().assertIsDisplayed().performClick()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            val originalLayer = requireNotNull(named.editableName)
+            assertEquals(originalLayer.centerXUnits + 10, layer.centerXUnits)
+            assertEquals(originalLayer.centerYUnits, layer.centerYUnits)
+            assertEquals(originalLayer.original.points, layer.original.points)
+        }
+    }
+
+    @Test
+    fun easyLetterSizeUsesDedicatedControlsWithoutTouchingName() {
+        val source = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val named = NamePersonalization.add(
+            source,
+            TextMatrixOptions("Maria", heightMm = 8f,
+                hoopProfile = HoopProfile.H130X180, style = TextStitchStyle.SATIN),
+            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_easy_smaller")
+            .performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("brother_letter_scale_label")
+            .performScrollTo().assertIsDisplayed()
+            .assertTextContains("95% (independente do nome)", substring = true)
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertEquals(named.editableName!!.options.text, layer.options.text)
+            assertEquals(named.editableName!!.centerXUnits, layer.centerXUnits)
+            assertTrue(layer.original.bounds.widthMm <
+                named.editableName!!.original.bounds.widthMm)
+        }
+    }
+
+    @Test
+    fun compactSamsungViewportScrollsToControlsWithoutHidingApply() {
+        // Em uma tela curta o painel antigo tinha altura praticamente
+        // zero, e o usuário não conseguia alcançar nenhum ajuste.
+        composeRule.setContent {
+            Box(Modifier.fillMaxWidth().height(520.dp)) {
+                NameEditorScreen(
+                    original = frame(), referenceHoop = HoopProfile.H100X100,
+                    onBack = {}, onApply = {}
+                )
+            }
+        }
+        composeRule.onNodeWithTag("brother_name_editor_scroll").assertExists()
+        composeRule.onNodeWithTag("brother_name_apply").assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_input")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_font_selector")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle")
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_editor_tab_letter")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_letter_smaller")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_editor_tab_hoop")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_hoop_landscape")
+            .performScrollTo().assertIsDisplayed()
+        // Aplicar não depende da posição do scroll.
+        composeRule.onNodeWithTag("brother_name_apply").assertIsDisplayed()
+    }
+
+    @Test
+    fun simplifiedEditorStartsWithPreviewAndKeepsAdvancedFunctions() {
+        composeRule.setContent {
+            NameEditorScreen(
+                original = frame(), referenceHoop = HoopProfile.H100X100,
+                onBack = {}, onApply = {}
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_canvas").assertExists()
+        composeRule.onNodeWithTag("brother_name_input").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_letter_smaller").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
+        composeRule.onNodeWithTag("brother_hoop_landscape").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_input").assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_name_horizontal_expansion")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_matrix_rotate_90")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_apply").assertExists()
+    }
+
+
+
+    @Test
+    fun twoFingersRotateLetterWithoutRotatingNameOrHoop() {
+        val points = listOf(
+            EmbroideryPoint(-220, -130, StitchCommand.JUMP, 0),
+            EmbroideryPoint(220, -130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(220, 130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, 130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, -130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, -130, StitchCommand.END, 0)
+        )
+        val source = EmbroideryIntegrity.normalize(frame().copy(
+            points = points, hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.AUTO
+        )).getOrThrow().design
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source, referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
+            pinch(
+                start0 = center + Offset(-26f, 0f),
+                end0 = center + Offset(0f, -26f),
+                start1 = center + Offset(26f, 0f),
+                end1 = center + Offset(0f, 26f),
+                durationMillis = 600
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertTrue("Letra não ficou vertical após giro com dois dedos",
+                layer.original.bounds.heightMm > layer.original.bounds.widthMm)
+            assertEquals(0f, layer.options.rotationDegrees)
+            assertEquals(HoopOrientation.LANDSCAPE, result.hoopOrientation)
+            assertEquals(source.points.map { it.command },
+                layer.original.points.map { it.command })
+        }
+    }
+
+    @Test
+    fun explicitNameTabPinchNeverSwitchesToLetterOutsideNameStitches() {
+        val source = frame()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
+            // A pinça começa fora da pequena região do texto Maria.
+            // A aba Nome deve prevalecer e nenhuma pontada da letra pode mudar.
+            pinch(
+                start0 = center + Offset(-82f, -58f),
+                end0 = center + Offset(-112f, -78f),
+                start1 = center + Offset(82f, 58f),
+                end1 = center + Offset(112f, 78f),
+                durationMillis = 500
+            )
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_name").assertExists()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertTrue(layer.options.widthScale > 1.05f)
+            assertTrue(layer.options.heightScale > 1.05f)
+            assertEquals(source.points.dropLast(1),
+                result.points.take(source.points.size - 1))
+        }
+    }
+
 }

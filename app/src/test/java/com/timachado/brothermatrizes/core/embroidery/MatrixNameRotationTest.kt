@@ -83,10 +83,75 @@ class MatrixNameRotationTest {
         ).isFailure)
     }
 
+    @Test fun rotationMustRespectSelectedPhysicalHoopOrientation() {
+        val wide = sample().copy(
+            points = listOf(
+                EmbroideryPoint(-700, -500, StitchCommand.JUMP, 0),
+                EmbroideryPoint(700, -500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(700, 500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-700, 500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-700, -500, StitchCommand.END, 0)
+            ),
+            bounds = EmbroideryBounds(-700, 700, -500, 500),
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        // Após 90 graus: 100 x 140 mm. Cabe só no bastidor vertical.
+        assertTrue(MatrixNameRotation.rotate(
+            wide, 0, 0, 0f, 90f, HoopProfile.H130X180
+        ).isFailure)
+        assertTrue(MatrixNameRotation.rotate(
+            wide.copy(hoopOrientation = HoopOrientation.AUTO),
+            0, 0, 0f, 90f, HoopProfile.H130X180
+        ).isSuccess)
+    }
+
     @Test fun normalizesAnglesForRotatingMatrixAndName() {
         assertEquals(-90f, MatrixNameRotation.normalizeDegrees(270f))
         assertEquals(180f, MatrixNameRotation.normalizeDegrees(180f))
         assertEquals(-165f, MatrixNameRotation.normalizeDegrees(195f))
         assertEquals(0f, MatrixNameRotation.normalizeDegrees(360f))
     }
+
+    @Test fun letterResizePreservesCenterStitchCommandsAndGuides() {
+        val original = sample().copy(hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE)
+        val smaller = MatrixNameRotation.resizeLetter(
+            original, 0.85f, HoopProfile.H130X180
+        ).getOrThrow()
+        assertEquals(42.5f, smaller.bounds.widthMm, .12f)
+        assertEquals(25.5f, smaller.bounds.heightMm, .12f)
+        assertEquals(original.points.map { it.command },
+            smaller.points.map { it.command })
+        assertEquals(original.points.map { it.colorIndex },
+            smaller.points.map { it.colorIndex })
+        assertEquals(213, smaller.guidePoints.single().xUnits)
+        assertTrue(smaller.guidePoints.single().yUnits in -128..-127)
+        assertTrue(smaller.isModified)
+        assertTrue(smaller.sourceBytes.isEmpty())
+        assertEquals(HoopOrientation.LANDSCAPE, smaller.hoopOrientation)
+        assertEquals(original.points.first().xUnits, -250)
+    }
+
+    @Test fun letterResizeRejectsUnsafeHoopAndInvalidScale() {
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), Float.NaN,
+            HoopProfile.H100X100).isFailure)
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), 0.5f,
+            HoopProfile.H100X100).isSuccess)
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), 0.1f,
+            HoopProfile.H100X100).isFailure)
+        val oversized = sample().copy(
+            bounds = EmbroideryBounds(-480, 480, -400, 400),
+            points = listOf(
+                EmbroideryPoint(-480,-400, StitchCommand.JUMP,0),
+                EmbroideryPoint(480,-400, StitchCommand.STITCH,0),
+                EmbroideryPoint(480,400, StitchCommand.STITCH,0),
+                EmbroideryPoint(480,400, StitchCommand.END,0)
+            )
+        )
+        assertTrue(MatrixNameRotation.resizeLetter(oversized, 1.10f,
+            HoopProfile.H100X100).isFailure)
+    }
+
+
 }

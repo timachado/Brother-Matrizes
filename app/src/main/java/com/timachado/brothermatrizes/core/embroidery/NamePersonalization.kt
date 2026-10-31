@@ -138,7 +138,8 @@ object NamePersonalization {
         options: TextMatrixOptions,
         centerXUnits: Int,
         centerYUnits: Int,
-        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null
+        importedGenerator: ((TextMatrixOptions) -> Result<EmbroideryDesign>)? = null,
+        compositionMode: NameCompositionMode = NameCompositionMode.STANDARD
     ): Result<EmbroideryDesign> = runCatching {
         val source = original.editableName?.original ?: original
         require(options.widthScale.isFinite() && options.heightScale.isFinite() &&
@@ -197,7 +198,11 @@ object NamePersonalization {
 
         // Bloqueio geométrico: nem o nome nem o percurso Satin podem
         // tocar as flores, borboletas ou as linhas já existentes.
-        NamePlacementSafety.validate(source, positioned).getOrThrow()
+        // A colisão é proibida em molduras comuns, mas constitui o próprio
+        // objetivo do monograma. Ativar apenas por escolha explícita no editor.
+        if (compositionMode == NameCompositionMode.STANDARD) {
+            NamePlacementSafety.validate(source, positioned).getOrThrow()
+        }
 
         val preserved = source.points.dropLast(1)
         val finalOriginal = preserved.last()
@@ -246,6 +251,7 @@ object NamePersonalization {
             options.rotationDegrees.toString(), options.importedFontId.orEmpty(),
             options.widthScale.toString(), options.heightScale.toString(),
             options.horizontalGlyphScale.toString(),
+            compositionMode.name,
             GLYPH_ENGINE_REVISION
         ).joinToString("|")
         val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -263,12 +269,17 @@ object NamePersonalization {
             threadColors = palette,
             isModified = true,
             // A origem e orientação da matriz são preservadas, sem mover flores.
-            hoopProfile = source.hoopProfile ?: options.hoopProfile,
+            // Monogramas podem exceder a inicial: respeitar o bastidor
+            // selecionado explicitamente no editor, nunca o 10x10 herdado.
+            hoopProfile = if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY)
+                options.hoopProfile ?: source.hoopProfile
+            else source.hoopProfile ?: options.hoopProfile,
             editableName = NamePersonalizationLayer(
                 original = source,
                 options = options,
                 centerXUnits = centerXUnits,
-                centerYUnits = centerYUnits
+                centerYUnits = centerYUnits,
+                compositionMode = compositionMode
             )
         )
         val validated = EmbroideryIntegrity.normalize(provisional)
@@ -285,8 +296,12 @@ object NamePersonalization {
             val rotatedFit =
                 validated.bounds.widthMm <= hoop.usableHeightMm &&
                 validated.bounds.heightMm <= hoop.usableWidthMm
-            require(directFit || rotatedFit) {
-                "O nome ultrapassa a área segura do bastidor nas duas orientações. Reduza ou mova o texto."
+            val fitsSelectedOrientation = when (validated.hoopOrientation) {
+                HoopOrientation.AUTO -> directFit || rotatedFit
+                else -> if (validated.shouldRotateHoop(hoop)) rotatedFit else directFit
+            }
+            require(fitsSelectedOrientation) {
+                "A letra ou o nome ultrapassa a área segura na orientação selecionada. Reduza ou mova o desenho."
             }
             // Uma matriz com posição gravada não pode usar apenas medidas
             // de largura/altura: a localização absoluta no bastidor importa.

@@ -8,6 +8,8 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MachineFinishingInfo
+import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalizationLayer
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -42,7 +44,7 @@ object ProjectCodec {
         "BROTHER_MATRIZES_PROJECT"
 
     private const val VERSION =
-        9
+        11
 
     private const val MAX_POINTS =
         2_000_000
@@ -312,6 +314,11 @@ object ProjectCodec {
         // v9: a posição é física dentro do bastidor, não apenas o
         // deslocamento temporário da câmera. Persiste inclusive sem nome.
         output.writeBoolean(design.hoopPositionLocked)
+        // v10: distinção explícita entre moldura com separação e monograma
+        // com sobreposição. Projetos v1..v9 permanecem em modo STANDARD.
+        output.writeBoolean(layer?.compositionMode == NameCompositionMode.MONOGRAM_OVERLAY)
+        // v11: fixa a orientação do bastidor independentemente da letra/nome.
+        output.writeUTF(design.hoopOrientation.name)
         output.flush()
     }
 
@@ -633,9 +640,16 @@ object ProjectCodec {
             }
 
             val lockedPlacement = if (version >= 9) input.readBoolean() else false
+            val overlapMonogram = if (version >= 10) input.readBoolean() else false
+            val hoopOrientation = if (version >= 11) {
+                val raw = input.readUTF()
+                HoopOrientation.entries.firstOrNull { it.name == raw }
+                    ?: throw IllegalArgumentException("Orientação de bastidor inválida: $raw")
+            } else HoopOrientation.AUTO
             val storedLayer = editableLayer?.let { layer ->
                 layer.copy(original = layer.original.copy(
-                    hoopPositionLocked = lockedPlacement
+                    hoopPositionLocked = lockedPlacement,
+                    hoopOrientation = hoopOrientation
                 ))
             }
 
@@ -681,8 +695,13 @@ object ProjectCodec {
                             fabric,
                         machineFinishing =
                             finishing,
-                        editableName = storedLayer,
-                        hoopPositionLocked = lockedPlacement
+                        editableName = storedLayer?.copy(
+                            compositionMode = if (overlapMonogram)
+                                NameCompositionMode.MONOGRAM_OVERLAY
+                            else NameCompositionMode.STANDARD
+                        ),
+                        hoopPositionLocked = lockedPlacement,
+                        hoopOrientation = hoopOrientation
                     )
                 )
                 .getOrElse {

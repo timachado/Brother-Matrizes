@@ -16,6 +16,60 @@ object MatrixNameRotation {
         val nameRotationDegrees: Float
     )
 
+    /**
+     * Ajusta SOMENTE o tamanho da matriz-base, em torno de seu próprio centro.
+     * Não toca nos comandos, nas coordenadas ou nas configurações do nome.
+     * O editor recompõe depois a camada do nome a partir dos mesmos parâmetros.
+     */
+    fun resizeLetter(
+        background: EmbroideryDesign,
+        factor: Float,
+        hoop: HoopProfile
+    ): Result<EmbroideryDesign> = runCatching {
+        require(factor.isFinite() && factor in 0.15f..3f) {
+            "Fator de escala da letra inválido."
+        }
+        val source = background.editableName?.original ?: background
+        require(source.points.any { it.command == StitchCommand.STITCH }) {
+            "A letra não contém pontos de bordado."
+        }
+        val cx = (source.bounds.minXUnits.toLong() +
+            source.bounds.maxXUnits.toLong()) / 2.0
+        val cy = (source.bounds.minYUnits.toLong() +
+            source.bounds.maxYUnits.toLong()) / 2.0
+        fun rescalePoint(point: EmbroideryPoint): EmbroideryPoint {
+            val x = (cx + (point.xUnits - cx) * factor).roundToInt()
+            val y = (cy + (point.yUnits - cy) * factor).roundToInt()
+            return point.copy(xUnits = x, yUnits = y)
+        }
+        val adjusted = MatrixEditor.apply(source,
+            EditTransform(scale = factor)).copy(
+                guidePoints = source.guidePoints.map(::rescalePoint),
+                sourceBytes = ByteArray(0),
+                hoopProfile = hoop,
+                hoopOrientation = background.hoopOrientation,
+                isModified = true,
+                editableName = null,
+                fileName = source.fileName.substringBeforeLast('.').take(56) +
+                    "-letra-ajustada." + source.format.lowercase()
+            )
+        val result = EmbroideryIntegrity.normalize(adjusted).getOrThrow().design
+        require(maxOf(result.bounds.widthMm, result.bounds.heightMm) >= 4f) {
+            "A letra ficou pequena demais para edição segura (mínimo 4 mm)."
+        }
+        val rotatedHoop = result.shouldRotateHoop(hoop)
+        val usableWidth = if (rotatedHoop)
+            hoop.usableHeightMm else hoop.usableWidthMm
+        val usableHeight = if (rotatedHoop)
+            hoop.usableWidthMm else hoop.usableHeightMm
+        require(result.bounds.widthMm <= usableWidth &&
+            result.bounds.heightMm <= usableHeight) {
+            "A letra ultrapassa a área segura do bastidor nesta orientação."
+        }
+        if (result.hoopPositionLocked) HoopLayerPositioning.validateHoop(result, hoop)
+        result
+    }
+
     fun normalizeDegrees(degrees: Float): Float {
         require(degrees.isFinite()) { "Ângulo inválido." }
         val result = ((degrees + 180f) % 360f + 360f) % 360f - 180f
@@ -69,13 +123,13 @@ object MatrixNameRotation {
             editableName = null,
             isModified = true
         )
-        // Bastidor retangular pode ser usado girado, mas a área ÚTIL precisa
-        // comportar a matriz já rotacionada com as margens de 5 mm.
-        val fits = (result.bounds.widthMm <= hoop.usableWidthMm &&
-            result.bounds.heightMm <= hoop.usableHeightMm) ||
-            (result.bounds.widthMm <= hoop.usableHeightMm &&
-                result.bounds.heightMm <= hoop.usableWidthMm)
-        require(fits) {
+        // Validar estritamente na orientação física efetiva, não na
+        // alternativa de 90 graus que o usuário NÃO selecionou.
+        val rotateHoop = result.shouldRotateHoop(hoop)
+        val usableWidth = if (rotateHoop) hoop.usableHeightMm else hoop.usableWidthMm
+        val usableHeight = if (rotateHoop) hoop.usableWidthMm else hoop.usableHeightMm
+        require(result.bounds.widthMm <= usableWidth &&
+            result.bounds.heightMm <= usableHeight) {
             "A rotação ultrapassa a área útil do bastidor " +
                 hoop.displayName + ". Selecione um bastidor maior."
         }

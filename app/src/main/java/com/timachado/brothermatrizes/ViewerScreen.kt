@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
+import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -426,19 +427,7 @@ fun ViewerScreen(
 
                 design.hoopProfile?.let {
                     hoop ->
-                    val designLandscape =
-                        design.bounds.widthMm >
-                            design.bounds.heightMm
-
-                    val hoopLandscape =
-                        hoop.widthMm >
-                            hoop.heightMm
-
-                    val rotateForDisplay =
-                        hoop.widthMm !=
-                            hoop.heightMm &&
-                        designLandscape !=
-                            hoopLandscape
+                    val rotateForDisplay = design.shouldRotateHoop(hoop)
 
                     val effectiveWidthMm =
                         if (
