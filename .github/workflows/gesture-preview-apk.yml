@@ -1,0 +1,74 @@
+name: Brother Matrizes - APK de pre-teste por gestos
+on:
+  push:
+    branches:
+      - qa/gesture-apk-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-gestures-qa:
+    name: APK paralelo por gestos - sem publicacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Instalar SDK Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Preparar app QA com pacote separado
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'applicationIdSuffix = ".nameqa"' app/build.gradle.kts
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.nameqa" '
+            .client += [(.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.nameqa")' app/src/debug/google-services.json >/dev/null
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes NOMES QA"/' app/src/debug/AndroidManifest.xml
+      - name: Compilar e conferir integridade do instalador
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")"
+          [[ "$BADGING" == *"package: name='com.timachado.brothermatrizes.nameqa'"* ]]
+          [[ "$BADGING" == *"Brother Matrizes NOMES QA"* ]]
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK" > verify.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' verify.txt
+          mkdir -p qa-gestos
+          cp "$APK" qa-gestos/Brother-Matrizes-Gestos-PreTeste-QA.apk
+          (cd qa-gestos && sha256sum *.apk > SHA256.txt)
+          cat > qa-gestos/LEIA-ME.txt <<'EOF'
+          APK de PRE-TESTE de gestos do editor Brother Matrizes.
+          Assinatura DEBUG; pacote paralelo com sufixo .nameqa.
+          Esta compilacao NAO representa aprovacao dos testes instrumentados.
+          Nao distribuir a clientes. Nao utilizar arquivos em maquina de bordar
+          sem validacao rigorosa dos pontos, bastidor e teste em retalho.
+          A versao comercial NAO foi alterada.
+          EOF
+      - name: Disponibilizar APK apenas para testes particulares
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-GESTOS-PRE-TESTE-QA
+          path: qa-gestos/
+          retention-days: 14
+          if-no-files-found: error
