@@ -329,9 +329,13 @@ fun NameEditorScreen(
     }
 
     LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
-        activeHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode
+        activeHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode,
+        editorSection
     ) {
-        if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY ||
+        // Não manter a busca de encaixe concorrendo com gestos de orientação.
+        // Ao retornar à aba Nome, a busca pendente é retomada normalmente.
+        if (editorSection != NameEditorSection.NAME ||
+            compositionMode == NameCompositionMode.MONOGRAM_OVERLAY ||
             !autoFitEnabled || draft.name.isBlank()) {
             fitting = false
             return@LaunchedEffect
