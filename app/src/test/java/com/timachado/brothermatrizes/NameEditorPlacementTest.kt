@@ -131,4 +131,30 @@ class NameEditorPlacementTest {
         assertEquals(down.x, up.x, .01f)
         assertEquals(down.y, -up.y, .01f)
     }
+
+    @Test fun twoFingerPinchIsUniformAndRotationIsIndependent() {
+        val larger = NameEditorPlacement.twoFingerTransform(
+            -20f, 0f, 20f, 0f,
+            -25f, 0f, 25f, 0f
+        )
+        assertEquals(1.25f, larger.scale, .001f)
+        assertEquals(0f, larger.rotationDegrees, .001f)
+        val quarterTurn = NameEditorPlacement.twoFingerTransform(
+            -20f, 0f, 20f, 0f,
+            0f, -20f, 0f, 20f
+        )
+        assertEquals(1f, quarterTurn.scale, .001f)
+        assertEquals(90f, quarterTurn.rotationDegrees, .001f)
+        val smaller = NameEditorPlacement.twoFingerTransform(
+            0f, -25f, 0f, 25f,
+            0f, -20f, 0f, 20f
+        )
+        assertEquals(.8f, smaller.scale, .001f)
+        val zero = NameEditorPlacement.twoFingerTransform(
+            0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f
+        )
+        assertEquals(1f, zero.scale, .001f)
+        assertEquals(0f, zero.rotationDegrees, .001f)
+    }
+
 }
