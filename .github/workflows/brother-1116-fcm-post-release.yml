@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write  # somente comprovante de aceite da notificacao
+  actions: read    # ler os workflows de lancamento e OTA para validar gates
 
 concurrency:
   group: brother-fcm-notification-v1-11-6
