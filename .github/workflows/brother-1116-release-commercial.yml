@@ -13,7 +13,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: brother-official-v1-11-5-release
+  group: brother-official-v1-11-6-release
   cancel-in-progress: false
 
 jobs:
@@ -78,7 +78,7 @@ jobs:
           grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
 
-      - name: Verificar secrets de assinatura e Firebase antes de publicar
+      - name: Verificar secrets de assinatura antes de publicar
         shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
@@ -175,8 +175,12 @@ jobs:
             adb wait-for-device
             adb install -r baseline/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
             adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=192'
+            first_install="$(adb shell dumpsys package com.timachado.brothermatrizes | sed -n 's/.*firstInstallTime=//p' | head -n1 | tr -d '\r')"
+            test -n "$first_install"
             adb install -r dist/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk
             adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=193'
+            after_install="$(adb shell dumpsys package com.timachado.brothermatrizes | sed -n 's/.*firstInstallTime=//p' | head -n1 | tr -d '\r')"
+            test "$first_install" = "$after_install"
             adb shell am start -W -n com.timachado.brothermatrizes/.MainActivity
             sleep 8
             adb shell pidof com.timachado.brothermatrizes
@@ -239,7 +243,7 @@ jobs:
               and .downloadUrl=="https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.6/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk"
               and .downloadApkUrl==.downloadUrl
             ' /tmp/brother-verified-manifest-1116.json >/dev/null; then
-              echo 'OTA 1.11.6/192 confirmada com hash correto.'
+              echo 'OTA 1.11.6/193 confirmada com hash correto.'
               exit 0
             fi
             sleep 12
