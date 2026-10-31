@@ -840,6 +840,21 @@ fun NameEditorScreen(
             ) { Text("Refazer") }
         }
 
+        // O acesso aos ajustes avançados permanece fixo acima da rolagem.
+        // Assim o usuário do Samsung não perde a seleção ao trocar de painel,
+        // e os elementos avançados não ficam atrás de uma região recortada.
+        OutlinedButton(
+            onClick = {
+                advancedExpanded = !advancedExpanded
+                scope.launch { editorScroll.scrollTo(0) }
+            },
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_name_advanced_toggle")
+        ) {
+            Text(if (advancedExpanded) "‹ Voltar ao editor" else
+                "Ajustes avançados")
+        }
+
         // Toda a área central rola em telas compactas e em fonte ampliada.
         // Apenas a barra superior e o botão Aplicar ficam fixos.
         // Não criar um segundo contêiner rolável com weight(1f): em aparelhos
@@ -1175,17 +1190,7 @@ fun NameEditorScreen(
                 .testTag("brother_name_editor_settings_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedButton(
-                onClick = {
-                    advancedExpanded = !advancedExpanded
-                    scope.launch { editorScroll.scrollTo(0) }
-                },
-                modifier = Modifier.fillMaxWidth()
-                    .testTag("brother_name_advanced_toggle")
-            ) {
-                Text(if (advancedExpanded) "‹ Voltar ao editor" else
-                    "Ajustes avançados")
-            }
+            // O botão de alternância está fixo acima da área rolável.
             if (!advancedExpanded) {
             when (editorSection) {
                 NameEditorSection.NAME -> {

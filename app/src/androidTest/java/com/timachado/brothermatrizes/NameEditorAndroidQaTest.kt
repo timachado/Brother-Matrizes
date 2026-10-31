@@ -85,6 +85,9 @@ class NameEditorAndroidQaTest {
             )
         }
         composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle")
+            .assertTextContains("Voltar ao editor", substring = true)
+        composeRule.onNodeWithText("Ferramentas de precisão").assertExists()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
@@ -943,9 +946,9 @@ class NameEditorAndroidQaTest {
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
         composeRule.onNodeWithTag("brother_easy_smaller").performClick()
-        composeRule.onNodeWithText(
-            "Tamanho da letra: 95% (independente do nome)"
-        ).assertExists()
+        composeRule.onNodeWithTag("brother_letter_scale_label")
+            .performScrollTo()
+            .assertTextContains("95% (independente do nome)", substring = true)
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
@@ -980,7 +983,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_font_selector")
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("brother_name_advanced_toggle")
-            .performScrollTo().assertIsDisplayed()
+            .assertIsDisplayed()
         composeRule.onNodeWithTag("brother_editor_tab_letter")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_letter_smaller")
