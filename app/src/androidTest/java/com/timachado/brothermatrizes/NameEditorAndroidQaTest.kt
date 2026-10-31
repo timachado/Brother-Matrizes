@@ -781,9 +781,11 @@ class NameEditorAndroidQaTest {
         Log.i("BrotherGestureQA", "PRESET: content ready, opening hoop")
         composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
         Log.i("BrotherGestureQA", "PRESET: hoop tab opened, applying preset")
+        // Preset fixo no painel de Bastidor: toque direto, sem depender
+        // de scroll ou do autoencaixe concorrente.
         composeRule.onNodeWithTag(
             "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
-        ).performScrollTo().performClick()
+        ).assertExists().performClick()
         Log.i("BrotherGestureQA", "PRESET: applied, inspecting orientation")
         composeRule.onNodeWithTag("brother_selected_hoop_orientation")
             .assertExists()

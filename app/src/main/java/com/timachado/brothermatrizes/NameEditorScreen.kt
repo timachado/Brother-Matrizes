@@ -1004,6 +1004,9 @@ fun NameEditorScreen(
                     onClick = {
                         editorSection = section
                         advancedExpanded = false
+                        // Interromper o autoencaixe pendente antes de abrir o
+                        // painel de orientação, sem bloquear a interface.
+                        if (section == NameEditorSection.HOOP) autoFitEnabled = false
                         if (section == NameEditorSection.NAME) {
                             moveMode = NameEditorMoveMode.NAME
                         } else if (section == NameEditorSection.LETTER) {
@@ -1034,6 +1037,18 @@ fun NameEditorScreen(
             color = FioTextMuted, fontSize = 11.sp,
             modifier = Modifier.testTag("brother_editor_context_hint")
         )
+
+        // Preset essencial sempre à vista na aba Bastidor: evita rolagem
+        // longa ou operação gestual acidental para fixar a orientação.
+        if (editorSection == NameEditorSection.HOOP && !advancedExpanded) {
+            OutlinedButton(
+                onClick = { applyHorizontalLetterVerticalNameHorizontal() },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
+            ) {
+                Text("Bastidor horizontal · Letra vertical · Nome horizontal")
+            }
+        }
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
@@ -1330,13 +1345,6 @@ fun NameEditorScreen(
         Text("Escolha o bastidor, gire somente a letra e mantenha o nome reto. " +
             "As alterações são aplicadas às pontadas, não apenas à imagem.",
             color = FioTextMuted, fontSize = 12.sp)
-        OutlinedButton(
-            onClick = { applyHorizontalLetterVerticalNameHorizontal() },
-            modifier = Modifier.fillMaxWidth()
-                .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
-        ) {
-            Text("Bastidor horizontal · Letra vertical · Nome horizontal")
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
