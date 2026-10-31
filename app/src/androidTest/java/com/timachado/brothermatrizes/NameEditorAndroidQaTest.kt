@@ -892,4 +892,56 @@ class NameEditorAndroidQaTest {
     }
 
 
+
+    @Test
+    fun twoFingersRotateLetterWithoutRotatingNameOrHoop() {
+        val points = listOf(
+            EmbroideryPoint(-220, -130, StitchCommand.JUMP, 0),
+            EmbroideryPoint(220, -130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(220, 130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, 130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, -130, StitchCommand.STITCH, 0),
+            EmbroideryPoint(-220, -130, StitchCommand.END, 0)
+        )
+        val source = EmbroideryIntegrity.normalize(frame().copy(
+            points = points, hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )).getOrThrow().design
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source, referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
+            pinch(
+                start0 = center + Offset(-26f, 0f),
+                end0 = center + Offset(0f, -26f),
+                start1 = center + Offset(26f, 0f),
+                end1 = center + Offset(0f, 26f),
+                durationMillis = 600
+            )
+        }
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertTrue("Letra não ficou vertical após giro com dois dedos",
+                layer.original.bounds.heightMm > layer.original.bounds.widthMm)
+            assertEquals(0f, layer.options.rotationDegrees)
+            assertEquals(HoopOrientation.LANDSCAPE, result.hoopOrientation)
+            assertEquals(source.points.map { it.command },
+                layer.original.points.map { it.command })
+        }
+    }
+
+
 }
