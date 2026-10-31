@@ -46,6 +46,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -773,6 +776,17 @@ fun NameEditorScreen(
         return
     }
 
+    val editorScroll = rememberScrollState()
+    val preventPreviewScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset = if (source == NestedScrollSource.UserInput)
+                available else Offset.Zero
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -833,11 +847,14 @@ fun NameEditorScreen(
         // acabavam com altura zero, impedindo a rolagem.
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(editorScroll)
                 .testTag("brother_name_editor_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
 
+        // Ao abrir os ajustes avançados, mostrar apenas esse painel.
+        // Evita controles profundamente deslocados após a prévia em telas curtas.
+        if (!advancedExpanded) {
         Text("Selecione Nome ou Letra · arraste para mover · dois dedos para girar ou redimensionar",
             color = FioTextMuted, fontSize = 12.sp)
 
@@ -848,6 +865,9 @@ fun NameEditorScreen(
                 .height(280.dp)
                 .onSizeChanged { canvasSize = it }
                 .testTag("brother_name_canvas")
+                // Consome rolagem originada nesta prévia, sem bloquear
+                // o scroll de um dedo nas configurações ao redor.
+                .nestedScroll(preventPreviewScroll)
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
                 .pointerInput(original, activeHoop) {
@@ -1082,6 +1102,12 @@ fun NameEditorScreen(
                 color = FioText, fontSize = 12.sp,
                 modifier = Modifier.testTag("brother_easy_controls_title")
             )
+            if (editorSection == NameEditorSection.LETTER) {
+                Text("Tamanho da letra: " + letterScalePercent +
+                    "% (independente do nome)",
+                    color = FioText, fontSize = 12.sp,
+                    modifier = Modifier.testTag("brother_letter_scale_label"))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1142,17 +1168,22 @@ fun NameEditorScreen(
             }
         }
 
+        } // edição normal; o painel avançado dispensa prévia e abas
+
         Column(
             modifier = Modifier.fillMaxWidth()
                 .testTag("brother_name_editor_settings_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
-                onClick = { advancedExpanded = !advancedExpanded },
+                onClick = {
+                    advancedExpanded = !advancedExpanded
+                    scope.launch { editorScroll.scrollTo(0) }
+                },
                 modifier = Modifier.fillMaxWidth()
                     .testTag("brother_name_advanced_toggle")
             ) {
-                Text(if (advancedExpanded) "Ocultar ajustes avançados" else
+                Text(if (advancedExpanded) "‹ Voltar ao editor" else
                     "Ajustes avançados")
             }
             if (!advancedExpanded) {
@@ -1377,8 +1408,6 @@ fun NameEditorScreen(
 
                 }
                 NameEditorSection.LETTER -> {
-        Text("Tamanho da letra: " + letterScalePercent + "% (independente do nome)",
-            color = FioText, modifier = Modifier.testTag("brother_letter_scale_label"))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1491,6 +1520,8 @@ fun NameEditorScreen(
                     autoFitEnabled = false
                     moveMode = NameEditorMoveMode.MATRIX
                     editorSection = NameEditorSection.LETTER
+                    advancedExpanded = false
+                    scope.launch { editorScroll.scrollTo(0) }
                     moveError = null
                 },
                 modifier = Modifier.weight(1f)
@@ -1504,6 +1535,8 @@ fun NameEditorScreen(
                     autoFitEnabled = false
                     moveMode = NameEditorMoveMode.NAME
                     editorSection = NameEditorSection.NAME
+                    advancedExpanded = false
+                    scope.launch { editorScroll.scrollTo(0) }
                     moveError = null
                 },
                 modifier = Modifier.weight(1f)

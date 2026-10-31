@@ -252,7 +252,8 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_matrix")
             .performScrollTo().performClick()
-        composeRule.onNodeWithText("✓ Mover matriz").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").assertExists()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performTouchInput {
                 swipe(start = center, end = center + Offset(0f, 9f),
@@ -448,6 +449,7 @@ class NameEditorAndroidQaTest {
         }
         composeRule.runOnIdle { applied = null }
 
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_drag_handle")
             .assertExists()
             .performTouchInput {
@@ -549,6 +551,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_editor_move_name")
             .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performTouchInput {
                 pinch(
@@ -1041,6 +1044,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
             pinch(
                 start0 = center + Offset(-26f, 0f),
@@ -1082,6 +1086,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
             // A pinça começa fora da pequena região do texto Maria.
             // A aba Nome deve prevalecer e nenhuma pontada da letra pode mudar.
