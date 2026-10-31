@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -756,7 +757,7 @@ class NameEditorAndroidQaTest {
     }
 
 
-    @Test
+    @Test(timeout = 180_000)
     fun horizontalHoopVerticalInitialHorizontalNamePreset() {
         val base = EmbroideryIntegrity.normalize(frame().copy(
             points = listOf(
@@ -770,28 +771,36 @@ class NameEditorAndroidQaTest {
             hoopProfile = HoopProfile.H130X180
         )).getOrThrow().design
         var exported: EmbroideryDesign? = null
+        Log.i("BrotherGestureQA", "PRESET: before setContent")
         composeRule.setContent {
             NameEditorScreen(
                 original = base, referenceHoop = HoopProfile.H130X180,
                 onBack = {}, onApply = { exported = it }
             )
         }
+        Log.i("BrotherGestureQA", "PRESET: content ready, opening hoop")
         composeRule.onNodeWithTag("brother_editor_tab_hoop").performClick()
+        Log.i("BrotherGestureQA", "PRESET: hoop tab opened, applying preset")
         composeRule.onNodeWithTag(
             "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
         ).performScrollTo().performClick()
+        Log.i("BrotherGestureQA", "PRESET: applied, inspecting orientation")
         composeRule.onNodeWithTag("brother_selected_hoop_orientation")
             .assertExists()
+        Log.i("BrotherGestureQA", "PRESET: opening name editor")
         composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_input").performScrollTo()
             .performTextClearance()
         composeRule.onNodeWithTag("brother_name_input").performTextInput("Ana")
+        Log.i("BrotherGestureQA", "PRESET: input ready, awaiting apply")
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
         }
+        Log.i("BrotherGestureQA", "PRESET: applying name")
         composeRule.onNodeWithTag("brother_name_apply")
             .performClick()
+        Log.i("BrotherGestureQA", "PRESET: verifying saved design")
         composeRule.runOnIdle {
             val result = requireNotNull(exported)
             val layer = requireNotNull(result.editableName)
