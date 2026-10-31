@@ -789,7 +789,7 @@ fun NameEditorScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
+                .height(280.dp)
                 .onSizeChanged { canvasSize = it }
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
@@ -874,6 +874,10 @@ fun NameEditorScreen(
                 interactive = false,
                 displayMode = EmbroideryDisplayMode.SOLID,
                 positionMode = moveMode == NameEditorMoveMode.MATRIX,
+                matrixGestureScale = if (moveMode == NameEditorMoveMode.MATRIX)
+                    gestureScaleX else 1f,
+                matrixGestureRotation = if (moveMode == NameEditorMoveMode.MATRIX)
+                    gestureAngle else 0f,
                 designDragOffset = if (moveMode == NameEditorMoveMode.MATRIX)
                     dragPx else Offset.Zero,
                 modifier = Modifier.fillMaxSize()
