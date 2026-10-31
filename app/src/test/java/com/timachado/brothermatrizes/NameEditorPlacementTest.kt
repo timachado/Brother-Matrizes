@@ -4,6 +4,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -117,6 +118,22 @@ class NameEditorPlacementTest {
         ))
     }
 
+    @Test fun autoHoopOrientationIsFrozenBeforeLetterTransformation() {
+        val vertical = portrait(true).copy(hoopOrientation = HoopOrientation.AUTO)
+        assertEquals(HoopOrientation.PORTRAIT,
+            NameEditorPlacement.frozenHoopOrientation(vertical, HoopProfile.H130X180))
+        val horizontal = vertical.copy(
+            bounds = EmbroideryBounds(-820, 820, -400, 400)
+        )
+        assertEquals(HoopOrientation.LANDSCAPE,
+            NameEditorPlacement.frozenHoopOrientation(horizontal, HoopProfile.H130X180))
+        assertEquals(HoopOrientation.LANDSCAPE,
+            NameEditorPlacement.frozenHoopOrientation(
+                vertical.copy(hoopOrientation = HoopOrientation.LANDSCAPE),
+                HoopProfile.H130X180
+            ))
+    }
+
     @Test fun screenOffsetRespectsPesAxisDirection() {
         val down = NameEditorPlacement.screenOffset(
             portrait(true), HoopProfile.H130X180,
@@ -131,4 +148,30 @@ class NameEditorPlacementTest {
         assertEquals(down.x, up.x, .01f)
         assertEquals(down.y, -up.y, .01f)
     }
+
+    @Test fun twoFingerPinchIsUniformAndRotationIsIndependent() {
+        val larger = NameEditorPlacement.twoFingerTransform(
+            -20f, 0f, 20f, 0f,
+            -25f, 0f, 25f, 0f
+        )
+        assertEquals(1.25f, larger.scale, .001f)
+        assertEquals(0f, larger.rotationDegrees, .001f)
+        val quarterTurn = NameEditorPlacement.twoFingerTransform(
+            -20f, 0f, 20f, 0f,
+            0f, -20f, 0f, 20f
+        )
+        assertEquals(1f, quarterTurn.scale, .001f)
+        assertEquals(90f, quarterTurn.rotationDegrees, .001f)
+        val smaller = NameEditorPlacement.twoFingerTransform(
+            0f, -25f, 0f, 25f,
+            0f, -20f, 0f, 20f
+        )
+        assertEquals(.8f, smaller.scale, .001f)
+        val zero = NameEditorPlacement.twoFingerTransform(
+            0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f
+        )
+        assertEquals(1f, zero.scale, .001f)
+        assertEquals(0f, zero.rotationDegrees, .001f)
+    }
+
 }

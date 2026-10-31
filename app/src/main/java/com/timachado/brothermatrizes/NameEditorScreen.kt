@@ -46,6 +46,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -55,9 +58,11 @@ import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
 import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
+import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -94,10 +99,19 @@ private data class NameDraft(
 
 private enum class NameEditorMoveMode { MATRIX, NAME }
 
+private const val MIN_LETTER_SCALE_PERCENT = 30
+private const val MAX_LETTER_SCALE_PERCENT = 200
+
+/** Navegação progressiva: todas as funções continuam disponíveis sem uma tela infinita. */
+private enum class NameEditorSection { NAME, LETTER, HOOP }
+
 private data class EditorSnapshot(
     val name: NameDraft,
     val background: EmbroideryDesign,
-    val matrixRotation: Float
+    val matrixRotation: Float,
+    val compositionMode: NameCompositionMode,
+    val activeHoop: HoopProfile,
+    val letterScalePercent: Int
 )
 
 @Composable
@@ -114,6 +128,8 @@ fun NameEditorScreen(
     }
     var fontImportStatus by remember { mutableStateOf<String?>(null) }
     var importingFont by remember { mutableStateOf(false) }
+
+    var activeHoop by remember(original, referenceHoop) { mutableStateOf(referenceHoop) }
 
     var draft by remember(original) {
         val existing = original.editableName
@@ -140,16 +156,25 @@ fun NameEditorScreen(
     }
     var undo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
     var redo by remember(original) { mutableStateOf(emptyList<EditorSnapshot>()) }
+    var compositionMode by remember(original) {
+        mutableStateOf(original.editableName?.compositionMode ?: NameCompositionMode.STANDARD)
+    }
     var fontsExpanded by remember { mutableStateOf(false) }
     var selectingOldName by remember(original) { mutableStateOf(false) }
     var oldNameBlockSelected by remember(original) { mutableStateOf(false) }
     var baseDesign by remember(original) { mutableStateOf(original) }
     var matrixRotation by remember(original) { mutableStateOf(0f) }
+    // Valor relativo à letra no momento em que o editor foi aberto.
+    // As pontadas redimensionadas são persistidas no projeto, não só o indicador.
+    var letterScalePercent by remember(original) { mutableIntStateOf(100) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
+    var editorSection by remember(original) { mutableStateOf(NameEditorSection.NAME) }
+    var advancedExpanded by remember(original) { mutableStateOf(false) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
-    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation)
+    fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation,
+        compositionMode, activeHoop, letterScalePercent)
     fun setDraft(next: NameDraft, history: Boolean = true) {
         if (next == draft) return
         if (history) undo = (undo + snapshot()).takeLast(40)
@@ -162,6 +187,7 @@ fun NameEditorScreen(
     data class ComputedPreview(
         val base: EmbroideryDesign,
         val settings: NameDraft,
+        val mode: NameCompositionMode,
         val result: Result<EmbroideryDesign>
     )
 
@@ -184,6 +210,7 @@ fun NameEditorScreen(
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
     var gestureScaleX by remember(original) { mutableStateOf(1f) }
     var gestureScaleY by remember(original) { mutableStateOf(1f) }
+    var gestureAngle by remember(original) { mutableStateOf(0f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     val fontPicker = rememberLauncherForActivityResult(
@@ -221,7 +248,7 @@ fun NameEditorScreen(
                 imported.fold(
                     onSuccess = { font ->
                         importedFonts = ImportedFontStore.list(context)
-                        autoFitEnabled = true
+                        autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
                         setDraft(draft.copy(importedFontId = font.id))
                         fontImportStatus = "Fonte ${font.displayName} selecionada."
                     },
@@ -249,7 +276,7 @@ fun NameEditorScreen(
         style = TextStitchStyle.SATIN,
         outputFormat = original.format,
         color = value.color,
-        hoopProfile = referenceHoop,
+        hoopProfile = activeHoop,
         enforceHoop = true
     )
 
@@ -266,15 +293,16 @@ fun NameEditorScreen(
         return ImportedFontMatrixGenerator.generateText(font, options.text, options)
     }
 
-    LaunchedEffect(baseDesign, draft, referenceHoop, importedFonts,
-        autoFitEnabled, reprocessRequest) {
+    LaunchedEffect(baseDesign, draft, activeHoop, importedFonts,
+        autoFitEnabled, reprocessRequest, compositionMode) {
         // Enquanto o encaixe automático pesquisa, não gerar a mesma fonte
         // em paralelo em outro job: fontes TTF/OTF podem ser pesadas.
         if (autoFitEnabled) return@LaunchedEffect
         // O resultado vindo do autoajuste já contém pontadas validadas.
         // Evita a segunda geração lenta e um aviso vermelho atrasado.
         if (reprocessRequest == 0 && computed?.base === baseDesign &&
-            computed?.settings == draft && computed?.result?.isSuccess == true
+            computed?.settings == draft && computed?.mode == compositionMode &&
+            computed?.result?.isSuccess == true
         ) return@LaunchedEffect
         delay(560L) // aguardar pausa real entre gestos e edições de controles
         val target = draft
@@ -283,10 +311,11 @@ fun NameEditorScreen(
         val validated = withContext(Dispatchers.Default) {
             NamePersonalization.add(
                 source, options, target.x, target.y,
-                importedGenerator = if (options.importedFontId != null) ::generateImported else null
+                importedGenerator = if (options.importedFontId != null) ::generateImported else null,
+                compositionMode = compositionMode
             )
         }
-        computed = ComputedPreview(source, target, validated)
+        computed = ComputedPreview(source, target, compositionMode, validated)
         if (reprocessRequest > 0) {
             reprocessResult = validated.fold(
                 onSuccess = { newMatrix ->
@@ -306,9 +335,14 @@ fun NameEditorScreen(
     }
 
     LaunchedEffect(baseDesign, draft.name, draft.font, draft.importedFontId,
-        referenceHoop, importedFonts, autoFitEnabled, autoFitRequest
+        activeHoop, importedFonts, autoFitEnabled, autoFitRequest, compositionMode,
+        editorSection
     ) {
-        if (!autoFitEnabled || draft.name.isBlank()) {
+        // Não manter a busca de encaixe concorrendo com gestos de orientação.
+        // Ao retornar à aba Nome, a busca pendente é retomada normalmente.
+        if (editorSection != NameEditorSection.NAME ||
+            compositionMode == NameCompositionMode.MONOGRAM_OVERLAY ||
+            !autoFitEnabled || draft.name.isBlank()) {
             fitting = false
             return@LaunchedEffect
         }
@@ -332,6 +366,10 @@ fun NameEditorScreen(
             }
             fit.fold(
                 onSuccess = { found ->
+                    // Nunca sobrescrever um giro, arraste ou modo de monograma
+                    // escolhido enquanto a busca automática estava em execução.
+                    if (!autoFitEnabled || compositionMode != NameCompositionMode.STANDARD ||
+                        draft != initial || baseDesign !== source) return@fold
                     val next = initial.copy(
                         font = found.options.font,
                         height = found.options.heightMm,
@@ -345,7 +383,8 @@ fun NameEditorScreen(
                     // infinita quando o mecanismo troca fonte por Compacta.
                     autoFitEnabled = false
                     setDraft(next, history = false)
-                    computed = ComputedPreview(source, next, Result.success(found.design))
+                    computed = ComputedPreview(source, next,
+                        NameCompositionMode.STANDARD, Result.success(found.design))
                 },
                 onFailure = { error ->
                     autoFitError = error.message
@@ -358,7 +397,7 @@ fun NameEditorScreen(
     }
 
     val currentPreview = computed?.takeIf {
-        it.base === baseDesign && it.settings == draft
+        it.base === baseDesign && it.settings == draft && it.mode == compositionMode
     }
     val preview = currentPreview?.result?.getOrNull()
     val currentError = currentPreview?.result?.exceptionOrNull()?.message
@@ -367,25 +406,72 @@ fun NameEditorScreen(
     val paddingPx = with(LocalDensity.current) { 36.dp.toPx() }
     val backgroundDesign = baseDesign.editableName?.original ?: baseDesign
     val canvasScale = NameEditorPlacement.screenOffset(
-        backgroundDesign, referenceHoop, 0, 0,
+        backgroundDesign, activeHoop, 0, 0,
         canvasSize.width, canvasSize.height, paddingPx
     ).unitsPerPixel
     val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
+    // A leitura de estado permanece atual sem cancelar um gesto em andamento.
+    val touchSection by rememberUpdatedState(editorSection)
 
-    val commitGesture by rememberUpdatedState<(Offset, Float, Float) -> Unit> {
-            moved, onScreenX, onScreenY ->
+    val commitGesture by rememberUpdatedState<(NameEditorMoveMode, Offset, Float, Float) -> Unit> {
+            target, moved, uniformScale, turnDegrees ->
         autoFitEnabled = false
         val (dx, dy) = NameEditorPlacement.dragUnits(
             moved.x, moved.y, canvasScale, direction
         )
-        if (moveMode == NameEditorMoveMode.MATRIX) {
+        if (target == NameEditorMoveMode.MATRIX &&
+            (abs(uniformScale - 1f) > .008f || abs(turnDegrees) > .7f)) {
+            // Pinça e rotação da LETRA alteram as pontadas reais.
+            // A posição, o tamanho e a rotação do nome ficam independentes.
+            try {
+                val targetPercent = (letterScalePercent * uniformScale)
+                    .roundToInt().coerceIn(
+                        MIN_LETTER_SCALE_PERCENT, MAX_LETTER_SCALE_PERCENT
+                    )
+                val factor = targetPercent.toFloat() / letterScalePercent
+                val lockedBase = baseDesign.copy(
+                    hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                        baseDesign, activeHoop
+                    )
+                )
+                var transformed = lockedBase
+                val angle = if (abs(turnDegrees) >= 1f)
+                    turnDegrees.coerceIn(-180f, 180f) else 0f
+                if (angle != 0f) {
+                    transformed = MatrixNameRotation.rotate(
+                        transformed, draft.x, draft.y, draft.rotation,
+                        angle, activeHoop
+                    ).getOrThrow().background.copy(
+                        hoopOrientation = lockedBase.hoopOrientation
+                    )
+                }
+                if (abs(factor - 1f) >= .001f) {
+                    transformed = MatrixNameRotation.resizeLetter(
+                        transformed, factor, activeHoop
+                    ).getOrThrow()
+                }
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = transformed
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + angle
+                )
+                letterScalePercent = targetPercent
+                computed = null
+                moveError = null
+                matrixRotationError = null
+            } catch (error: Exception) {
+                moveError = error.message ?:
+                    "Reduza a letra ou escolha um bastidor maior."
+            }
+        } else if (target == NameEditorMoveMode.MATRIX) {
             try {
                 // Um gesto na MATRIZ não deve gerar pontadas novas, alterar
                 // fonte nem deslocar o nome. Reutilizar a composição real
                 // existente, preservando o Satin e a posição do texto.
                 // Isso evita que uma nova digitalização lenta impeça salvar.
                 val namedComputed = computed?.takeIf {
-                    it.base === baseDesign && it.settings == draft
+                    it.base === baseDesign && it.settings == draft && it.mode == compositionMode
                 }?.result?.getOrNull()
                 val saved = original.editableName
                 val namedSaved = original.takeIf {
@@ -403,11 +489,11 @@ fun NameEditorScreen(
                 val named = namedComputed ?: namedSaved
                 if (named != null && named.editableName != null) {
                     val anchoredNamed = HoopLayerPositioning.prepare(
-                        named, referenceHoop
+                        named, activeHoop
                     ).getOrThrow()
                     val repositioned = HoopLayerPositioning.move(
                         anchoredNamed, dx, dy,
-                        HoopLayerPositioning.Target.MATRIX, referenceHoop
+                        HoopLayerPositioning.Target.MATRIX, activeHoop
                     ).getOrThrow()
                     val layer = requireNotNull(repositioned.editableName)
                     val nextBase = layer.original
@@ -419,7 +505,7 @@ fun NameEditorScreen(
                     baseDesign = nextBase
                     draft = nextDraft
                     computed = ComputedPreview(
-                        nextBase, nextDraft, Result.success(repositioned)
+                        nextBase, nextDraft, compositionMode, Result.success(repositioned)
                     )
                     moveError = null
                 } else {
@@ -427,7 +513,7 @@ fun NameEditorScreen(
                     // a matriz e deixar o validador calcular o nome uma vez.
                     val source = baseDesign.editableName?.original ?: baseDesign
                     val anchored = HoopLayerPositioning.prepare(
-                        source, referenceHoop
+                        source, activeHoop
                     ).getOrThrow()
                     val beforeX = (source.bounds.minXUnits.toLong() +
                         source.bounds.maxXUnits.toLong()) / 2L
@@ -445,7 +531,7 @@ fun NameEditorScreen(
                     }
                     val newBase = HoopLayerPositioning.move(
                         anchored, dx, dy, HoopLayerPositioning.Target.MATRIX,
-                        referenceHoop
+                        activeHoop
                     ).getOrThrow()
                     undo = (undo + snapshot()).takeLast(40)
                     redo = emptyList()
@@ -459,15 +545,15 @@ fun NameEditorScreen(
                     "A matriz não pôde ser movida dentro do bastidor."
             }
         } else {
-            val radians = Math.toRadians(draft.rotation.toDouble())
-            val isSideways = abs(sin(radians)) > abs(cos(radians))
-            val localX = if (isSideways) onScreenY else onScreenX
-            val localY = if (isSideways) onScreenX else onScreenY
+            // Pinça proporcional, giro independente e deslocamento livre.
             val next = draft.copy(
                 x = draft.x + dx,
                 y = draft.y + dy,
-                widthScale = (draft.widthScale * localX).coerceIn(.5f, 2.5f),
-                heightScale = (draft.heightScale * localY).coerceIn(.5f, 2.5f)
+                rotation = MatrixNameRotation.normalizeDegrees(
+                    draft.rotation + turnDegrees
+                ),
+                widthScale = (draft.widthScale * uniformScale).coerceIn(.5f, 2.5f),
+                heightScale = (draft.heightScale * uniformScale).coerceIn(.5f, 2.5f)
             )
             setDraft(next)
             moveError = null
@@ -476,6 +562,7 @@ fun NameEditorScreen(
         dragPx = Offset.Zero
         gestureScaleX = 1f
         gestureScaleY = 1f
+        gestureAngle = 0f
     }
 
     fun rotate(deltaDegrees: Float) {
@@ -494,7 +581,7 @@ fun NameEditorScreen(
             nameYUnits = draft.y,
             nameRotationDegrees = draft.rotation,
             deltaDegrees = deltaDegrees,
-            hoop = referenceHoop
+            hoop = activeHoop
         ).fold(
             onSuccess = { transformed ->
                 undo = (undo + snapshot()).takeLast(40)
@@ -516,17 +603,164 @@ fun NameEditorScreen(
         )
     }
 
+
+    /** Troca a orientação física do bastidor sem alterar nenhuma pontada. */
+    fun chooseHoopOrientation(hoop: HoopProfile, orientation: HoopOrientation) {
+        if (activeHoop == hoop && baseDesign.hoopOrientation == orientation) return
+        undo = (undo + snapshot()).takeLast(40)
+        redo = emptyList()
+        val layer = baseDesign.editableName
+        baseDesign = baseDesign.copy(
+            hoopProfile = hoop,
+            hoopOrientation = orientation,
+            editableName = layer?.copy(
+                original = layer.original.copy(
+                    hoopProfile = hoop, hoopOrientation = orientation
+                )
+            )
+        )
+        activeHoop = hoop
+        autoFitEnabled = false
+        matrixRotationError = null
+        computed = null
+    }
+
+    /** Gira somente a inicial nas pontadas. O nome mantém x/y e ângulo. */
+    fun rotateLetterOnly(deltaDegrees: Float) {
+        autoFitEnabled = false
+        matrixRotationError = null
+        val lockedBase = baseDesign.copy(
+            hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                baseDesign, activeHoop
+            )
+        )
+        MatrixNameRotation.rotate(
+            background = lockedBase, nameXUnits = draft.x, nameYUnits = draft.y,
+            nameRotationDegrees = draft.rotation, deltaDegrees = deltaDegrees,
+            hoop = activeHoop
+        ).fold(
+            onSuccess = { result ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = result.background.copy(
+                    hoopOrientation = lockedBase.hoopOrientation
+                )
+                // Não usar result.nameRotationDegrees: a rotação é da LETRA.
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + deltaDegrees
+                )
+                computed = null
+            },
+            onFailure = {
+                matrixRotationError = it.message ?: "Letra não cabe no bastidor."
+            }
+        )
+    }
+
+    /** Atalho solicitado: bastidor deitado, letra de pé, nome sem rotação. */
+    fun applyHorizontalLetterVerticalNameHorizontal() {
+        val selected = HoopProfile.H130X180 // largura 180, altura 130
+        val source = baseDesign.editableName?.original ?: baseDesign
+        val needsQuarterTurn = source.bounds.widthMm > source.bounds.heightMm
+        val ready = baseDesign.copy(
+            hoopProfile = selected,
+            hoopOrientation = HoopOrientation.LANDSCAPE,
+            editableName = baseDesign.editableName?.let {
+                it.copy(original = it.original.copy(
+                    hoopProfile = selected,
+                    hoopOrientation = HoopOrientation.LANDSCAPE
+                ))
+            }
+        )
+        val turned = if (needsQuarterTurn) {
+            MatrixNameRotation.rotate(
+                background = ready, nameXUnits = draft.x,
+                nameYUnits = draft.y, nameRotationDegrees = draft.rotation,
+                deltaDegrees = 90f, hoop = selected
+            ).getOrElse {
+                matrixRotationError = it.message ?: "Letra não cabe no bastidor."
+                return
+            }.background
+        } else ready
+        undo = (undo + snapshot()).takeLast(40)
+        redo = emptyList()
+        activeHoop = selected
+        baseDesign = turned.copy(hoopOrientation = HoopOrientation.LANDSCAPE)
+        draft = draft.copy(rotation = 0f)
+        if (needsQuarterTurn) matrixRotation =
+            MatrixNameRotation.normalizeDegrees(matrixRotation + 90f)
+        compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        autoFitEnabled = false
+        autoFitError = null
+        matrixRotationError = null
+        computed = null
+    }
+
+    /** Redimensiona apenas a letra, preservando texto, posição e rotação do nome. */
+    fun resizeLetterOnly(targetPercent: Int) {
+        val target = targetPercent.coerceIn(
+            MIN_LETTER_SCALE_PERCENT, MAX_LETTER_SCALE_PERCENT
+        )
+        if (target == letterScalePercent) return
+        val factor = target.toFloat() / letterScalePercent.toFloat()
+        val lockedBase = baseDesign.copy(
+            hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                baseDesign, activeHoop
+            )
+        )
+        matrixRotationError = null
+        MatrixNameRotation.resizeLetter(lockedBase, factor, activeHoop).fold(
+            onSuccess = { smallerLetter ->
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                autoFitEnabled = false
+                baseDesign = smallerLetter
+                letterScalePercent = target
+                computed = null // Regerar a prévia do nome com os MESMOS parâmetros.
+            },
+            onFailure = {
+                matrixRotationError = it.message ?: "A letra não cabe no bastidor."
+            }
+        )
+    }
+
     fun resize(deltaMm: Float) {
         autoFitEnabled = false
         setDraft(draft.copy(height =
             (draft.height + deltaMm).coerceIn(4f, 30f)))
     }
 
+    // Ajuste por botões: um toque = 1 mm na direção VISUAL indicada.
+    // Reaproveita a mesma transformação validada dos gestos, incluindo
+    // histórico Desfazer/Refazer e independência entre Nome e Letra.
+    fun nudgeSelected(dx: Float, dy: Float) {
+        if (canvasSize.width <= 0 || canvasSize.height <= 0 ||
+            editorSection == NameEditorSection.HOOP || dragging) return
+        val target = if (editorSection == NameEditorSection.NAME)
+            NameEditorMoveMode.NAME else NameEditorMoveMode.MATRIX
+        val oneMillimeterPx = 10f * canvasScale
+        commitGesture(target, Offset(dx * oneMillimeterPx, dy * oneMillimeterPx), 1f, 0f)
+    }
+
+    fun centerNameOnLetter() {
+        autoFitEnabled = false
+        setDraft(draft.copy(
+            x = ((baseDesign.bounds.minXUnits.toLong() +
+                baseDesign.bounds.maxXUnits.toLong()) / 2L).toInt(),
+            y = ((baseDesign.bounds.minYUnits.toLong() +
+                baseDesign.bounds.maxYUnits.toLong()) / 2L).toInt()
+        ))
+    }
+
     if (selectingOldName) {
         ImportedNameSelectionPanel(
             original = original,
-            hoop = referenceHoop,
-            onCancel = { selectingOldName = false },
+            hoop = activeHoop,
+            onCancel = {
+                selectingOldName = false
+                advancedExpanded = false
+                editorSection = NameEditorSection.NAME
+            },
             onConfirm = { selected ->
                 baseDesign = selected.originalWithoutBlock
                 oldNameBlockSelected = true
@@ -535,23 +769,35 @@ fun NameEditorScreen(
                     y = selected.centerYUnits
                 ))
                 selectingOldName = false
+                advancedExpanded = false
+                editorSection = NameEditorSection.NAME
             }
         )
         return
     }
 
+    val editorScroll = rememberScrollState()
+    val preventPreviewScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset = if (source == NestedScrollSource.UserInput)
+                available else Offset.Zero
+        }
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.fillMaxSize().padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
             Text(
-                "Adicionar / Editar Nome",
+                "Editar nome",
                 color = FioText,
+                fontSize = 14.sp,
+                maxLines = 1,
                 modifier = Modifier.weight(1f)
             )
             TextButton(
@@ -562,7 +808,12 @@ fun NameEditorScreen(
                         undo = undo.dropLast(1)
                         baseDesign = previous.background
                         matrixRotation = previous.matrixRotation
+                        letterScalePercent = previous.letterScalePercent
                         draft = previous.name
+                        compositionMode = previous.compositionMode
+                        activeHoop = previous.activeHoop
+                        computed = null
+                        autoFitEnabled = false
                         matrixRotationError = null
                     }
                 },
@@ -576,13 +827,742 @@ fun NameEditorScreen(
                         redo = redo.dropLast(1)
                         baseDesign = next.background
                         matrixRotation = next.matrixRotation
+                        letterScalePercent = next.letterScalePercent
                         draft = next.name
+                        compositionMode = next.compositionMode
+                        activeHoop = next.activeHoop
+                        computed = null
+                        autoFitEnabled = false
                         matrixRotationError = null
                     }
                 },
                 enabled = redo.isNotEmpty()
             ) { Text("Refazer") }
         }
+
+        // O acesso aos ajustes avançados permanece fixo acima da rolagem.
+        // Assim o usuário do Samsung não perde a seleção ao trocar de painel,
+        // e os elementos avançados não ficam atrás de uma região recortada.
+        OutlinedButton(
+            onClick = {
+                advancedExpanded = !advancedExpanded
+                scope.launch { editorScroll.scrollTo(0) }
+            },
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_name_advanced_toggle")
+        ) {
+            Text(if (advancedExpanded) "‹ Voltar ao editor" else
+                "Ajustes avançados")
+        }
+
+        // Toda a área central rola em telas compactas e em fonte ampliada.
+        // Apenas a barra superior e o botão Aplicar ficam fixos.
+        // Não criar um segundo contêiner rolável com weight(1f): em aparelhos
+        // Samsung compactos a prévia ocupava todo o espaço e os ajustes
+        // acabavam com altura zero, impedindo a rolagem.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(editorScroll)
+                .testTag("brother_name_editor_scroll"),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+
+        // Ao abrir os ajustes avançados, mostrar apenas esse painel.
+        // Evita controles profundamente deslocados após a prévia em telas curtas.
+        if (!advancedExpanded) {
+        Text("Selecione Nome ou Letra · arraste para mover · dois dedos para girar ou redimensionar",
+            color = FioTextMuted, fontSize = 12.sp)
+
+        // Preview permanece visível ao trocar entre nome, letra e bastidor.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp)
+                .onSizeChanged { canvasSize = it }
+                .testTag("brother_name_canvas")
+                // Consome rolagem originada nesta prévia, sem bloquear
+                // o scroll de um dedo nas configurações ao redor.
+                .nestedScroll(preventPreviewScroll)
+                // Gesto em toda a prévia: o nome continua arrastável sem
+                // exibir a antiga alça escura sobre flores e borboletas.
+                .pointerInput(original, activeHoop) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        // A aba escolhida é o alvo único do gesto inteiro.
+                        // Nunca trocar Nome por Letra por causa da posição do dedo.
+                        val target = when (touchSection) {
+                            NameEditorSection.NAME -> NameEditorMoveMode.NAME
+                            NameEditorSection.LETTER -> NameEditorMoveMode.MATRIX
+                            NameEditorSection.HOOP -> null
+                        }
+                        if (target == null) {
+                            // Bastidor é configurado somente pelos controles,
+                            // sem rotação, pinça ou arraste no canvas.
+                            do {
+                                val event = awaitPointerEvent()
+                            } while (event.changes.any { it.pressed })
+                            return@awaitEachGesture
+                        }
+                        moveMode = target
+                        autoFitEnabled = false
+                        var pinchScale = 1f
+                        var rotation = 0f
+                        var multiTouch = false
+                        dragging = true
+                        dragPx = Offset.Zero
+                        gestureScaleX = 1f
+                        gestureScaleY = 1f
+                        gestureAngle = 0f
+                        do {
+                            val event = awaitPointerEvent()
+                            val active = event.changes.filter { it.pressed }
+                            if (active.size >= 2) {
+                                multiTouch = true
+                                val a = active[0]
+                                val b = active[1]
+                                val delta = NameEditorPlacement.twoFingerTransform(
+                                    a.previousPosition.x, a.previousPosition.y,
+                                    b.previousPosition.x, b.previousPosition.y,
+                                    a.position.x, a.position.y,
+                                    b.position.x, b.position.y
+                                )
+                                pinchScale = (pinchScale * delta.scale)
+                                    .coerceIn(.5f, 2f)
+                                rotation = MatrixNameRotation.normalizeDegrees(
+                                    rotation + delta.rotationDegrees
+                                )
+                                gestureScaleX = pinchScale
+                                gestureScaleY = pinchScale
+                                gestureAngle = rotation
+                            } else if (!multiTouch) {
+                                val change = event.changes.firstOrNull {
+                                    it.pressed || it.previousPressed
+                                }
+                                if (change != null) {
+                                    dragPx += change.position - change.previousPosition
+                                }
+                            }
+                            event.changes.forEach {
+                                if (it.positionChanged()) it.consume()
+                            }
+                        } while (event.changes.any { it.pressed })
+                        commitGesture(target, dragPx, pinchScale, rotation)
+                    }
+                }
+        ) {
+            EmbroideryCanvas(
+                design = backgroundDesign,
+                hoop = activeHoop,
+                interactive = false,
+                displayMode = EmbroideryDisplayMode.SOLID,
+                positionMode = moveMode == NameEditorMoveMode.MATRIX,
+                matrixGestureScale = if (moveMode == NameEditorMoveMode.MATRIX)
+                    gestureScaleX else 1f,
+                matrixGestureRotation = if (moveMode == NameEditorMoveMode.MATRIX)
+                    gestureAngle else 0f,
+                designDragOffset = if (moveMode == NameEditorMoveMode.MATRIX)
+                    dragPx else Offset.Zero,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Camada com os pontos Satin reais; o enquadramento da moldura
+            // não muda entre repouso, arraste e atualização da prévia.
+            if (!previewBusy && preview != null) {
+                val stitchedCenter = NameEditorPlacement.screenOffset(
+                    backgroundDesign, activeHoop, draft.x, draft.y,
+                    canvasSize.width, canvasSize.height, paddingPx
+                )
+                NameEditorStitchLayer(
+                    original = backgroundDesign,
+                    result = preview,
+                    hoop = activeHoop,
+                    modifier = Modifier.graphicsLayer {
+                        transformOrigin = TransformOrigin(
+                            (.5f + stitchedCenter.x /
+                                canvasSize.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                            (.5f + stitchedCenter.y /
+                                canvasSize.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                        )
+                        scaleX = gestureScaleX
+                        scaleY = gestureScaleY
+                        rotationZ = gestureAngle
+                        translationX = if (moveMode == NameEditorMoveMode.NAME)
+                            dragPx.x else 0f
+                        translationY = if (moveMode == NameEditorMoveMode.NAME)
+                            dragPx.y else 0f
+                    }
+                )
+            }
+
+            // Alça alinhada com o mesmo centro, escala e orientação de
+            // EmbroideryCanvas. Somente o nome responde ao arraste.
+            val namePosition = NameEditorPlacement.screenOffset(
+                design = backgroundDesign, hoop = activeHoop,
+                xUnits = draft.x, yUnits = draft.y,
+                canvasWidth = canvasSize.width,
+                canvasHeight = canvasSize.height,
+                paddingPixels = paddingPx
+            )
+            val nameX = namePosition.x +
+                if (moveMode == NameEditorMoveMode.NAME) dragPx.x else 0f
+            val nameY = namePosition.y +
+                if (moveMode == NameEditorMoveMode.NAME) dragPx.y else 0f
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset {
+                        IntOffset(nameX.roundToInt(), nameY.roundToInt())
+                    }
+                    // Alvo acessível sem o antigo marcador escuro.
+                    .defaultMinSize(minWidth = 112.dp, minHeight = 50.dp)
+                    .testTag("brother_name_drag_handle"),
+                contentAlignment = Alignment.Center
+            ) {
+                // Não desenhar o nome com a fonte genérica do Android
+                // quando o Satin real falhou: aquela imagem NÃO representa
+                // a fonte Adamya/TTF selecionada nem é uma matriz segura.
+                // A área de toque permanece disponível; o erro aparece abaixo.
+
+            }
+        }
+
+        Text("Para rolar a tela, deslize fora da prévia. Dentro dela, os gestos editam o elemento selecionado.",
+            color = FioTextMuted, fontSize = 11.sp)
+
+        // Uma mensagem contextual em vez de repetir avisos vermelhos.
+        when {
+            (fitting || autoFitEnabled || previewBusy) ->
+                Text("Preparando prévia do bordado…", color = FioTextMuted,
+                    fontSize = 12.sp)
+            preview == null -> {
+                Text(
+                    currentError ?: autoFitError ?:
+                        "Não foi possível ajustar o nome nessa posição.",
+                    color = Color(0xFFFF9393), fontSize = 12.sp
+                )
+                if (compositionMode == NameCompositionMode.STANDARD &&
+                    (currentError?.contains("próximo") == true ||
+                        currentError?.contains("separação") == true)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+                            autoFitEnabled = false
+                            computed = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_allow_name_over_letter")
+                    ) { Text("Quero o nome sobre a letra") }
+                }
+            }
+            else -> Text(
+                "Bordado: ${preview.stitchCount} pontos · " +
+                    "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
+                color = FioTextMuted, fontSize = 12.sp
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_editor_tabs"),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(
+                NameEditorSection.NAME to "Nome",
+                NameEditorSection.LETTER to "Letra",
+                NameEditorSection.HOOP to "Bastidor"
+            ).forEach { (section, label) ->
+                OutlinedButton(
+                    onClick = {
+                        editorSection = section
+                        advancedExpanded = false
+                        // Interromper o autoencaixe pendente antes de abrir o
+                        // painel de orientação, sem bloquear a interface.
+                        if (section == NameEditorSection.HOOP) autoFitEnabled = false
+                        if (section == NameEditorSection.NAME) {
+                            moveMode = NameEditorMoveMode.NAME
+                        } else if (section == NameEditorSection.LETTER) {
+                            moveMode = NameEditorMoveMode.MATRIX
+                        }
+                        moveError = null
+                    },
+                    modifier = Modifier.weight(1f).testTag(
+                        when (section) {
+                            NameEditorSection.NAME -> "brother_editor_tab_name"
+                            NameEditorSection.LETTER -> "brother_editor_tab_letter"
+                            NameEditorSection.HOOP -> "brother_editor_tab_hoop"
+                        }
+                    )
+                ) { Text(if (editorSection == section) "✓ $label" else label) }
+            }
+        }
+
+        Text(
+            when (editorSection) {
+                NameEditorSection.NAME ->
+                    "Arraste o nome na prévia para posicioná-lo."
+                NameEditorSection.LETTER ->
+                    "Arraste a letra na prévia; o nome não se move."
+                NameEditorSection.HOOP ->
+                    "Escolha a orientação física do bastidor."
+            },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_editor_context_hint")
+        )
+
+        // Controles acessíveis para quem não consegue usar pinça no celular.
+        // O alvo é SEMPRE a aba selecionada, jamais outro elemento sobreposto.
+        if (editorSection != NameEditorSection.HOOP) {
+            Text(
+                if (editorSection == NameEditorSection.NAME)
+                    "Ajuste fácil do NOME · cada seta move 1 mm"
+                else "Ajuste fácil da LETRA · cada seta move 1 mm",
+                color = FioText, fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_easy_controls_title")
+            )
+            if (editorSection == NameEditorSection.LETTER) {
+                Text("Tamanho da letra: " + letterScalePercent +
+                    "% (independente do nome)",
+                    color = FioText, fontSize = 12.sp,
+                    modifier = Modifier.testTag("brother_letter_scale_label"))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { nudgeSelected(-1f, 0f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_left")
+                ) { Text("← Esquerda", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(0f, -1f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_up")
+                ) { Text("↑ Cima", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(0f, 1f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_down")
+                ) { Text("↓ Baixo", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(1f, 0f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_right")
+                ) { Text("→ Direita", fontSize = 11.sp) }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        if (editorSection == NameEditorSection.NAME) resize(-1f)
+                        else resizeLetterOnly(letterScalePercent - 5)
+                    },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_smaller")
+                ) { Text("− Menor") }
+                if (editorSection == NameEditorSection.NAME) {
+                    OutlinedButton(
+                        onClick = { centerNameOnLetter() },
+                        modifier = Modifier.weight(1f).testTag("brother_easy_center_name")
+                    ) { Text("Centralizar") }
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (editorSection == NameEditorSection.NAME) resize(1f)
+                        else resizeLetterOnly(letterScalePercent + 5)
+                    },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_larger")
+                ) { Text("+ Maior") }
+            }
+        }
+
+        // Preset essencial sempre à vista na aba Bastidor: evita rolagem
+        // longa ou operação gestual acidental para fixar a orientação.
+        if (editorSection == NameEditorSection.HOOP && !advancedExpanded) {
+            OutlinedButton(
+                onClick = { applyHorizontalLetterVerticalNameHorizontal() },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_layout_horizontal_hoop_vertical_letter_horizontal_name")
+            ) {
+                Text("Bastidor horizontal · Letra vertical · Nome horizontal")
+            }
+        }
+
+        } // edição normal; o painel avançado dispensa prévia e abas
+
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .testTag("brother_name_editor_settings_scroll"),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // O botão de alternância está fixo acima da área rolável.
+            if (!advancedExpanded) {
+            when (editorSection) {
+                NameEditorSection.NAME -> {
+        OutlinedTextField(
+            value = draft.name,
+            onValueChange = {
+                autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
+                setDraft(draft.copy(name = it.take(24)))
+            },
+            label = { Text("Nome para bordar") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
+        )
+
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    if (compositionMode != NameCompositionMode.STANDARD) {
+                        undo = (undo + snapshot()).takeLast(40)
+                        redo = emptyList()
+                        compositionMode = NameCompositionMode.STANDARD
+                        autoFitEnabled = true
+                        computed = null
+                    }
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_standard_mode")
+            ) { Text(if (compositionMode == NameCompositionMode.STANDARD)
+                "✓ Área livre" else "Área livre") }
+            OutlinedButton(
+                onClick = {
+                    if (compositionMode != NameCompositionMode.MONOGRAM_OVERLAY) {
+                        undo = (undo + snapshot()).takeLast(40)
+                        redo = emptyList()
+                        compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+                        autoFitEnabled = false
+                        autoFitError = null
+                        computed = null
+                        if (original.editableName == null) {
+                            setDraft(draft.copy(
+                                x = (baseDesign.bounds.minXUnits.toLong() +
+                                    baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
+                                y = (baseDesign.bounds.minYUnits.toLong() +
+                                    baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
+                            ), history = false)
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_monogram_overlay")
+            ) { Text(if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY)
+                "✓ Sobrepor à letra" else "Sobrepor à letra") }
+        }
+        if (compositionMode == NameCompositionMode.MONOGRAM_OVERLAY) {
+            Text(
+                "Monograma: o nome pode cruzar as pontadas da inicial como no " +
+                    "exemplo enviado. Confira bastidor, densidade e sequência " +
+                    "na simulação antes de testar em tecido.",
+                color = FioTextMuted, fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_name_overlay_hint")
+            )
+        }
+
+        OutlinedButton(
+            onClick = {
+                compositionMode = NameCompositionMode.STANDARD
+                autoFitError = null
+                autoFitRequest++
+                autoFitEnabled = true
+            },
+            enabled = !fitting,
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_auto_fit")
+        ) {
+            Text("✧ Ajustar automaticamente à matriz")
+        }
+
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resize(-1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
+            ) { Text("A− Menor") }
+            OutlinedButton(
+                onClick = { centerNameOnLetter() },
+                modifier = Modifier.weight(1f).testTag("brother_name_center")
+            ) { Text("Centralizar") }
+            OutlinedButton(
+                onClick = { resize(1f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
+            ) { Text("A+ Maior") }
+        }
+
+
+        Text("Girar nome · ${draft.rotation.roundToInt()}°", color = FioText,
+            fontSize = 12.sp, modifier = Modifier.testTag("brother_name_rotation_value"))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = { rotate(-15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
+            ) { Text("↶ 15°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
+            ) { Text("Endireitar") }
+            OutlinedButton(
+                onClick = { rotate(15f) },
+                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
+            ) { Text("↷ 15°") }
+        }
+
+        Box {
+            OutlinedButton(onClick = {
+                importedFonts = ImportedFontStore.list(context)
+                fontsExpanded = true
+            }, modifier = Modifier.fillMaxWidth().testTag("brother_name_font_selector")) {
+                val label = if (draft.importedFontId == null) draft.font.displayName
+                    else importedFonts.firstOrNull {
+                        it.id == draft.importedFontId
+                    }?.displayName ?: "Fonte importada ausente"
+                Text("Fonte: " + label)
+            }
+            DropdownMenu(
+                expanded = fontsExpanded,
+                onDismissRequest = { fontsExpanded = false }
+            ) {
+                EmbroideryFontPreset.entries.forEach { font ->
+                    DropdownMenuItem(
+                        text = { Text("BM • " + font.displayName) },
+                        onClick = {
+                            fontsExpanded = false
+                            autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
+                            setDraft(draft.copy(font = font, importedFontId = null))
+                        }
+                    )
+                }
+                importedFonts.forEach { font ->
+                    DropdownMenuItem(
+                        text = {
+                            val duplicateName = importedFonts.count {
+                                it.displayName.equals(font.displayName, ignoreCase = true)
+                            } > 1
+                            Text("TTF/OTF • " + font.displayName +
+                                if (duplicateName) " (" + font.fileName + ")" else "")
+                        },
+                        onClick = {
+                            fontsExpanded = false
+                            autoFitEnabled = compositionMode == NameCompositionMode.STANDARD
+                            setDraft(draft.copy(importedFontId = font.id))
+                        }
+                    )
+                }
+            }
+        }
+        OutlinedButton(
+            onClick = {
+                fontPicker.launch(arrayOf(
+                    "font/ttf", "font/otf",
+                    "application/x-font-ttf", "application/x-font-opentype",
+                    "application/octet-stream", "*/*"
+                ))
+            },
+            enabled = !importingFont,
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_font_import")
+        ) {
+            Text(if (importingFont) "Importando fonte…" else
+                "+ Importar TTF/OTF do celular (DaFont, NetFontes)")
+        }
+        if (fontImportStatus != null) {
+            Text(fontImportStatus.orEmpty(), color = FioTextMuted, fontSize = 12.sp)
+        }
+        if (draft.importedFontId != null &&
+            importedFonts.none { it.id == draft.importedFontId }
+        ) {
+            Text("A fonte deste projeto não está instalada neste aparelho. " +
+                "Reimporte o mesmo TTF/OTF para editar o nome.",
+                color = Color(0xFFFF9393), fontSize = 12.sp)
+        }
+
+
+        Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
+        Slider(
+            value = draft.height,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(height = it), history = false)
+            },
+            valueRange = 4f..30f
+        )
+
+        Text("Cor da linha", color = FioText)
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(0xB22222, 0xE6BE70, 0x173E6E, 0xB83A83, 0x17846B, 0x202020)
+                .forEachIndexed { index, color ->
+                    OutlinedButton(
+                        onClick = { setDraft(draft.copy(color = color)) }
+                    ) {
+                        Text(
+                            if (color == draft.color) "✓ ${index + 1}" else "● ${index + 1}",
+                            color = Color(color or 0xFF000000.toInt())
+                        )
+                    }
+                }
+        }
+
+
+                }
+                NameEditorSection.LETTER -> {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent - 5) },
+                enabled = letterScalePercent > MIN_LETTER_SCALE_PERCENT,
+                modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
+            ) { Text("Letra − Menor") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(100) },
+                enabled = letterScalePercent != 100,
+                modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
+            ) { Text("100%") }
+            OutlinedButton(
+                onClick = { resizeLetterOnly(letterScalePercent + 5) },
+                enabled = letterScalePercent < MAX_LETTER_SCALE_PERCENT,
+                modifier = Modifier.weight(1f).testTag("brother_letter_larger")
+            ) { Text("Letra + Maior") }
+        }
+        Text(
+            "Ajusta só as pontadas da letra (30% a 200%, sujeito aos limites físicos). " +
+                "O nome mantém tamanho, posição, rotação e fonte.",
+            color = FioTextMuted, fontSize = 11.sp
+        )
+
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { rotateLetterOnly(-90f) },
+                        modifier = Modifier.weight(1f)
+                            .testTag("brother_letter_quick_rotate_left")
+                    ) { Text("Girar letra −90°") }
+                    OutlinedButton(
+                        onClick = { rotateLetterOnly(90f) },
+                        modifier = Modifier.weight(1f)
+                            .testTag("brother_letter_quick_rotate_right")
+                    ) { Text("Girar letra +90°") }
+                }
+
+                }
+                NameEditorSection.HOOP -> {
+        Text("Orientação independente", color = FioText,
+            modifier = Modifier.testTag("brother_independent_orientation_title"))
+        Text("Escolha o bastidor, gire somente a letra e mantenha o nome reto. " +
+            "As alterações são aplicadas às pontadas, não apenas à imagem.",
+            color = FioTextMuted, fontSize = 12.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.LANDSCAPE) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_landscape")
+            ) { Text("Bastidor horizontal 180×130") }
+            OutlinedButton(
+                onClick = { chooseHoopOrientation(
+                    HoopProfile.H130X180, HoopOrientation.PORTRAIT) },
+                modifier = Modifier.weight(1f).testTag("brother_hoop_portrait")
+            ) { Text("Bastidor vertical 130×180") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { rotateLetterOnly(90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_90")
+            ) { Text("Letra +90°") }
+            OutlinedButton(
+                onClick = { rotateLetterOnly(-90f) },
+                modifier = Modifier.weight(1f).testTag("brother_letter_rotate_only_minus90")
+            ) { Text("Letra −90°") }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    setDraft(draft.copy(rotation = 0f))
+                },
+                modifier = Modifier.weight(1f).testTag("brother_name_horizontal_0")
+            ) { Text("Nome 0°") }
+        }
+        Text(
+            "Bastidor selecionado: " + activeHoop.displayName +
+                " · " + when (baseDesign.hoopOrientation) {
+                    HoopOrientation.LANDSCAPE -> "horizontal"
+                    HoopOrientation.PORTRAIT -> "vertical"
+                    HoopOrientation.AUTO -> "automático"
+                },
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_selected_hoop_orientation")
+        )
+
+
+                }
+            }
+            }
+            if (advancedExpanded) {
+                Text("Ferramentas de precisão", color = FioText)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.MATRIX
+                    editorSection = NameEditorSection.LETTER
+                    advancedExpanded = false
+                    scope.launch { editorScroll.scrollTo(0) }
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_matrix")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.MATRIX)
+                    "✓ Mover matriz" else "Mover matriz")
+            }
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    moveMode = NameEditorMoveMode.NAME
+                    editorSection = NameEditorSection.NAME
+                    advancedExpanded = false
+                    scope.launch { editorScroll.scrollTo(0) }
+                    moveError = null
+                },
+                modifier = Modifier.weight(1f)
+                    .testTag("brother_name_editor_move_name")
+            ) {
+                Text(if (moveMode == NameEditorMoveMode.NAME)
+                    "✓ Mover nome" else "Mover nome")
+            }
+        }
+        Text(
+            if (moveMode == NameEditorMoveMode.MATRIX)
+                "Arraste apenas as flores: o nome permanece na posição escolhida."
+            else "Arraste apenas o nome: as flores ficam paradas.",
+            color = FioTextMuted, fontSize = 11.sp,
+            modifier = Modifier.testTag("brother_name_editor_move_hint")
+        )
+        moveError?.let {
+            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_name_editor_move_error"))
+        }
+
 
         if (original.editableName == null &&
             original.points.any { it.command ==
@@ -617,31 +1597,10 @@ fun NameEditorScreen(
             color = FioTextMuted, fontSize = 12.sp
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedButton(
-                onClick = { rotate(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(rotation = 0f))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotate(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
-            ) { Text("↷ 15°") }
-        }
 
         Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
             color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
-        Text("Gira a moldura e o nome juntos. A rotação altera as pontadas reais.",
+        Text("Rotação conjunta: gira letra e nome. Para girar só a letra, use os botões acima.",
             color = FioTextMuted, fontSize = 11.sp)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -701,230 +1660,6 @@ fun NameEditorScreen(
                 color = FioTextMuted, fontSize = 11.sp)
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { resize(-1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
-            ) { Text("A− Menor") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(
-                        x = (baseDesign.bounds.minXUnits.toLong() +
-                            baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
-                        y = (baseDesign.bounds.minYUnits.toLong() +
-                            baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
-                    ))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_center")
-            ) { Text("Centralizar") }
-            OutlinedButton(
-                onClick = { resize(1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
-            ) { Text("A+ Maior") }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.MATRIX
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_matrix")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.MATRIX)
-                    "✓ Mover matriz" else "Mover matriz")
-            }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.NAME
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_name")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.NAME)
-                    "✓ Mover nome" else "Mover nome")
-            }
-        }
-        Text(
-            if (moveMode == NameEditorMoveMode.MATRIX)
-                "Arraste apenas as flores: o nome permanece na posição escolhida."
-            else "Arraste apenas o nome: as flores ficam paradas.",
-            color = FioTextMuted, fontSize = 11.sp,
-            modifier = Modifier.testTag("brother_name_editor_move_hint")
-        )
-        moveError?.let {
-            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_name_editor_move_error"))
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .onSizeChanged { canvasSize = it }
-                .testTag("brother_name_canvas")
-                // Gesto em toda a prévia: o nome continua arrastável sem
-                // exibir a antiga alça escura sobre flores e borboletas.
-                .pointerInput(original, referenceHoop, moveMode) {
-                    // Gestos combinados: um dedo move; dois dedos permitem
-                    // pinça horizontal e vertical sem recalcular Satin
-                    // durante o movimento.
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        // Interação manual tem prioridade sobre o autoencaixe:
-                        // não permitir que a busca assíncrona recoloque o nome.
-                        autoFitEnabled = false
-                        var scaleX = 1f
-                        var scaleY = 1f
-                        var twoFingers = false
-                        dragging = true
-                        dragPx = Offset.Zero
-                        gestureScaleX = 1f
-                        gestureScaleY = 1f
-                        do {
-                            val event = awaitPointerEvent()
-                            val active = event.changes.filter { it.pressed }
-                            if (active.size >= 2) {
-                                twoFingers = true
-                                val first = active[0]
-                                val second = active[1]
-                                val oldDx = abs(first.previousPosition.x -
-                                    second.previousPosition.x)
-                                val oldDy = abs(first.previousPosition.y -
-                                    second.previousPosition.y)
-                                val dx = abs(first.position.x - second.position.x)
-                                val dy = abs(first.position.y - second.position.y)
-                                if (moveMode == NameEditorMoveMode.NAME) {
-                                    if (oldDx > 14f && dx > 14f) {
-                                        scaleX = (scaleX * dx / oldDx).coerceIn(.5f, 2.5f)
-                                    }
-                                    if (oldDy > 14f && dy > 14f) {
-                                        scaleY = (scaleY * dy / oldDy).coerceIn(.5f, 2.5f)
-                                    }
-                                    gestureScaleX = scaleX
-                                    gestureScaleY = scaleY
-                                }
-                            } else if (!twoFingers) {
-                                // O último deslocamento pode chegar junto do UP:
-                                // nessa amostra pressed=false e active está vazio.
-                                // Considerar também previousPressed evita perder
-                                // a movimentação final da alça no Android.
-                                val change = event.changes.firstOrNull {
-                                    it.pressed || it.previousPressed
-                                }
-                                if (change != null) {
-                                    dragPx += change.position - change.previousPosition
-                                }
-                            }
-                            event.changes.forEach { if (it.positionChanged()) it.consume() }
-                        } while (event.changes.any { it.pressed })
-                        commitGesture(dragPx, scaleX, scaleY)
-                    }
-                }
-        ) {
-            EmbroideryCanvas(
-                design = backgroundDesign,
-                hoop = referenceHoop,
-                interactive = false,
-                displayMode = EmbroideryDisplayMode.SOLID,
-                positionMode = moveMode == NameEditorMoveMode.MATRIX,
-                designDragOffset = if (moveMode == NameEditorMoveMode.MATRIX)
-                    dragPx else Offset.Zero,
-                modifier = Modifier.fillMaxSize()
-            )
-            // Camada com os pontos Satin reais; o enquadramento da moldura
-            // não muda entre repouso, arraste e atualização da prévia.
-            if (!previewBusy && preview != null) {
-                val stitchedCenter = NameEditorPlacement.screenOffset(
-                    backgroundDesign, referenceHoop, draft.x, draft.y,
-                    canvasSize.width, canvasSize.height, paddingPx
-                )
-                NameEditorStitchLayer(
-                    original = backgroundDesign,
-                    result = preview,
-                    hoop = referenceHoop,
-                    modifier = Modifier.graphicsLayer {
-                        transformOrigin = TransformOrigin(
-                            (.5f + stitchedCenter.x /
-                                canvasSize.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                            (.5f + stitchedCenter.y /
-                                canvasSize.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                        )
-                        scaleX = gestureScaleX
-                        scaleY = gestureScaleY
-                        translationX = if (moveMode == NameEditorMoveMode.NAME)
-                            dragPx.x else 0f
-                        translationY = if (moveMode == NameEditorMoveMode.NAME)
-                            dragPx.y else 0f
-                    }
-                )
-            }
-
-            // Alça alinhada com o mesmo centro, escala e orientação de
-            // EmbroideryCanvas. Somente o nome responde ao arraste.
-            val namePosition = NameEditorPlacement.screenOffset(
-                design = backgroundDesign, hoop = referenceHoop,
-                xUnits = draft.x, yUnits = draft.y,
-                canvasWidth = canvasSize.width,
-                canvasHeight = canvasSize.height,
-                paddingPixels = paddingPx
-            )
-            val nameX = namePosition.x +
-                if (moveMode == NameEditorMoveMode.NAME) dragPx.x else 0f
-            val nameY = namePosition.y +
-                if (moveMode == NameEditorMoveMode.NAME) dragPx.y else 0f
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .offset {
-                        IntOffset(nameX.roundToInt(), nameY.roundToInt())
-                    }
-                    // Alvo acessível sem o antigo marcador escuro.
-                    .defaultMinSize(minWidth = 112.dp, minHeight = 50.dp)
-                    .testTag("brother_name_drag_handle"),
-                contentAlignment = Alignment.Center
-            ) {
-                // Não desenhar o nome com a fonte genérica do Android
-                // quando o Satin real falhou: aquela imagem NÃO representa
-                // a fonte Adamya/TTF selecionada nem é uma matriz segura.
-                // A área de toque permanece disponível; o erro aparece abaixo.
-
-            }
-        }
-
-        Text("Um dedo: mover a camada selecionada • Dois dedos: expandir o nome.",
-            color = FioTextMuted, fontSize = 11.sp)
-
-        when {
-            (fitting || autoFitEnabled) -> Text(
-                "Encaixando nome automaticamente na área livre…",
-                color = FioTextMuted, fontSize = 12.sp
-            )
-            previewBusy -> Text(
-                "Atualizando prévia de pontadas sem travar a tela…",
-                color = FioTextMuted, fontSize = 12.sp
-            )
-            preview == null -> Text(
-                autoFitError ?: currentError ?: "Prévia de pontadas indisponível. Use o ajuste automático.",
-                color = Color(0xFFFF9393), fontSize = 12.sp
-            )
-            else -> Text(
-                "Pontadas calculadas: ${preview.stitchCount} pontos • " +
-                    "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
-                color = FioTextMuted, fontSize = 12.sp
-            )
-        }
 
         if (original.editableName != null) {
             OutlinedButton(
@@ -945,106 +1680,7 @@ fun NameEditorScreen(
             }
         }
 
-        OutlinedButton(
-            onClick = {
-                autoFitError = null
-                autoFitRequest++
-                autoFitEnabled = true
-            },
-            enabled = !fitting,
-            modifier = Modifier.fillMaxWidth().testTag("brother_name_auto_fit")
-        ) {
-            Text("✧ Ajustar automaticamente à matriz")
-        }
 
-        OutlinedTextField(
-            value = draft.name,
-            onValueChange = {
-                autoFitEnabled = true
-                setDraft(draft.copy(name = it.take(24)))
-            },
-            label = { Text("Nome para bordar") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
-        )
-
-        Box {
-            OutlinedButton(onClick = {
-                importedFonts = ImportedFontStore.list(context)
-                fontsExpanded = true
-            }, modifier = Modifier.fillMaxWidth().testTag("brother_name_font_selector")) {
-                val label = if (draft.importedFontId == null) draft.font.displayName
-                    else importedFonts.firstOrNull {
-                        it.id == draft.importedFontId
-                    }?.displayName ?: "Fonte importada ausente"
-                Text("Fonte: " + label)
-            }
-            DropdownMenu(
-                expanded = fontsExpanded,
-                onDismissRequest = { fontsExpanded = false }
-            ) {
-                EmbroideryFontPreset.entries.forEach { font ->
-                    DropdownMenuItem(
-                        text = { Text("BM • " + font.displayName) },
-                        onClick = {
-                            fontsExpanded = false
-                            autoFitEnabled = true
-                            setDraft(draft.copy(font = font, importedFontId = null))
-                        }
-                    )
-                }
-                importedFonts.forEach { font ->
-                    DropdownMenuItem(
-                        text = {
-                            val duplicateName = importedFonts.count {
-                                it.displayName.equals(font.displayName, ignoreCase = true)
-                            } > 1
-                            Text("TTF/OTF • " + font.displayName +
-                                if (duplicateName) " (" + font.fileName + ")" else "")
-                        },
-                        onClick = {
-                            fontsExpanded = false
-                            autoFitEnabled = true
-                            setDraft(draft.copy(importedFontId = font.id))
-                        }
-                    )
-                }
-            }
-        }
-        OutlinedButton(
-            onClick = {
-                fontPicker.launch(arrayOf(
-                    "font/ttf", "font/otf",
-                    "application/x-font-ttf", "application/x-font-opentype",
-                    "application/octet-stream", "*/*"
-                ))
-            },
-            enabled = !importingFont,
-            modifier = Modifier.fillMaxWidth().testTag("brother_name_font_import")
-        ) {
-            Text(if (importingFont) "Importando fonte…" else
-                "+ Importar TTF/OTF do celular (DaFont, NetFontes)")
-        }
-        if (fontImportStatus != null) {
-            Text(fontImportStatus.orEmpty(), color = FioTextMuted, fontSize = 12.sp)
-        }
-        if (draft.importedFontId != null &&
-            importedFonts.none { it.id == draft.importedFontId }
-        ) {
-            Text("A fonte deste projeto não está instalada neste aparelho. " +
-                "Reimporte o mesmo TTF/OTF para editar o nome.",
-                color = Color(0xFFFF9393), fontSize = 12.sp)
-        }
-
-        Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
-        Slider(
-            value = draft.height,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(height = it), history = false)
-            },
-            valueRange = 4f..30f
-        )
         Text("Largura: " + (draft.widthScale * 100).roundToInt() +
             "%", color = FioText)
         Slider(
@@ -1110,23 +1746,6 @@ fun NameEditorScreen(
             valueRange = -180f..180f
         )
 
-        Text("Cor da linha", color = FioText)
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(0xB22222, 0xE6BE70, 0x173E6E, 0xB83A83, 0x17846B, 0x202020)
-                .forEachIndexed { index, color ->
-                    OutlinedButton(
-                        onClick = { setDraft(draft.copy(color = color)) }
-                    ) {
-                        Text(
-                            if (color == draft.color) "✓ ${index + 1}" else "● ${index + 1}",
-                            color = Color(color or 0xFF000000.toInt())
-                        )
-                    }
-                }
-        }
 
         Text(
             "Nomes salvos em Minhas Matrizes permanecem editáveis. " +
@@ -1135,6 +1754,10 @@ fun NameEditorScreen(
             color = FioTextMuted,
             fontSize = 11.sp
         )
+
+            }
+        }
+        } // fim do conteúdo rolável (prévia, abas e todos os ajustes)
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null && !previewBusy,
@@ -1142,6 +1765,6 @@ fun NameEditorScreen(
         ) {
             Text("Aplicar nome e abrir matriz personalizada")
         }
-        Spacer(Modifier.height(8.dp))
+
     }
 }

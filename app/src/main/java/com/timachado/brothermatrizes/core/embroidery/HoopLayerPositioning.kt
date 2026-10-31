@@ -54,11 +54,7 @@ object HoopLayerPositioning {
         val bounds = design.bounds
         // A orientação do bastidor acompanha a matriz-base, não muda
         // quando um nome longo altera o retângulo combinado.
-        val referenceBounds = design.editableName?.original?.bounds ?: bounds
-        val designLandscape = referenceBounds.widthMm > referenceBounds.heightMm
-        val hoopLandscape = hoop.widthMm > hoop.heightMm
-        val rotate = hoop.widthMm != hoop.heightMm &&
-            designLandscape != hoopLandscape
+        val rotate = design.shouldRotateHoop(hoop)
         val width = (if (rotate) hoop.usableHeightMm else
             hoop.usableWidthMm) * 10f
         val height = (if (rotate) hoop.usableWidthMm else
@@ -147,8 +143,10 @@ object HoopLayerPositioning {
                 points = namePoints,
                 editableName = null
             )
-            NamePlacementSafety.validate(shiftedLayer.original, nameOnly)
-                .getOrThrow()
+            if (shiftedLayer.compositionMode == NameCompositionMode.STANDARD) {
+                NamePlacementSafety.validate(shiftedLayer.original, nameOnly)
+                    .getOrThrow()
+            }
         }
         moved
     }

@@ -2615,7 +2615,7 @@ private fun BrotherMatrizesApp(
                             activateDesign(personalized)
                             screen = Screen.Viewer(
                                 design = personalized,
-                                referenceHoop = current.referenceHoop
+                                referenceHoop = personalized.hoopProfile ?: current.referenceHoop
                             )
                         }
                     )
