@@ -5,6 +5,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -950,6 +956,38 @@ class NameEditorAndroidQaTest {
             assertTrue(layer.original.bounds.widthMm <
                 named.editableName!!.original.bounds.widthMm)
         }
+    }
+
+    @Test
+    fun compactSamsungViewportScrollsToControlsWithoutHidingApply() {
+        // Em uma tela curta o painel antigo tinha altura praticamente
+        // zero, e o usuário não conseguia alcançar nenhum ajuste.
+        composeRule.setContent {
+            Box(Modifier.fillMaxWidth().height(520.dp)) {
+                NameEditorScreen(
+                    original = frame(), referenceHoop = HoopProfile.H100X100,
+                    onBack = {}, onApply = {}
+                )
+            }
+        }
+        composeRule.onNodeWithTag("brother_name_editor_scroll").assertExists()
+        composeRule.onNodeWithTag("brother_name_apply").assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_input")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_font_selector")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_editor_tab_letter")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_letter_smaller")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_editor_tab_hoop")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_hoop_landscape")
+            .performScrollTo().assertIsDisplayed()
+        // Aplicar não depende da posição do scroll.
+        composeRule.onNodeWithTag("brother_name_apply").assertIsDisplayed()
     }
 
     @Test

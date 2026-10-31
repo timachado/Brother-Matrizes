@@ -780,8 +780,10 @@ fun NameEditorScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
             Text(
-                "Adicionar / Editar Nome",
+                "Editar nome",
                 color = FioText,
+                fontSize = 14.sp,
+                maxLines = 1,
                 modifier = Modifier.weight(1f)
             )
             TextButton(
@@ -824,7 +826,17 @@ fun NameEditorScreen(
             ) { Text("Refazer") }
         }
 
-
+        // Toda a área central rola em telas compactas e em fonte ampliada.
+        // Apenas a barra superior e o botão Aplicar ficam fixos.
+        // Não criar um segundo contêiner rolável com weight(1f): em aparelhos
+        // Samsung compactos a prévia ocupava todo o espaço e os ajustes
+        // acabavam com altura zero, impedindo a rolagem.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .testTag("brother_name_editor_scroll"),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
 
         Text("Selecione Nome ou Letra · arraste para mover · dois dedos para girar ou redimensionar",
             color = FioTextMuted, fontSize = 12.sp)
@@ -978,7 +990,7 @@ fun NameEditorScreen(
             }
         }
 
-        Text("Use a aba Nome ou Letra para escolher o alvo. Um dedo move; dois redimensionam ou giram somente o alvo.",
+        Text("Para rolar a tela, deslize fora da prévia. Dentro dela, os gestos editam o elemento selecionado.",
             color = FioTextMuted, fontSize = 11.sp)
 
         // Uma mensagem contextual em vez de repetir avisos vermelhos.
@@ -1131,7 +1143,7 @@ fun NameEditorScreen(
         }
 
         Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxWidth()
                 .testTag("brother_name_editor_settings_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -1707,6 +1719,7 @@ fun NameEditorScreen(
 
             }
         }
+        } // fim do conteúdo rolável (prévia, abas e todos os ajustes)
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null && !previewBusy,
