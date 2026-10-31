@@ -204,6 +204,7 @@ fun NameEditorScreen(
     var dragPx by remember(original) { mutableStateOf(Offset.Zero) }
     var gestureScaleX by remember(original) { mutableStateOf(1f) }
     var gestureScaleY by remember(original) { mutableStateOf(1f) }
+    var gestureAngle by remember(original) { mutableStateOf(0f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     val fontPicker = rememberLauncherForActivityResult(
@@ -399,14 +400,58 @@ fun NameEditorScreen(
         canvasSize.width, canvasSize.height, paddingPx
     ).unitsPerPixel
     val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
+    // A leitura de estado permanece atual sem cancelar um gesto em andamento.
+    val touchPreview by rememberUpdatedState(preview)
+    val touchCanvas by rememberUpdatedState(canvasSize)
+    val touchPadding by rememberUpdatedState(paddingPx)
+    val touchMode by rememberUpdatedState(moveMode)
+    val touchSection by rememberUpdatedState(editorSection)
 
-    val commitGesture by rememberUpdatedState<(Offset, Float, Float) -> Unit> {
-            moved, onScreenX, onScreenY ->
+    val commitGesture by rememberUpdatedState<(NameEditorMoveMode, Offset, Float, Float) -> Unit> {
+            target, moved, uniformScale, turnDegrees ->
         autoFitEnabled = false
         val (dx, dy) = NameEditorPlacement.dragUnits(
             moved.x, moved.y, canvasScale, direction
         )
-        if (moveMode == NameEditorMoveMode.MATRIX) {
+        if (target == NameEditorMoveMode.MATRIX &&
+            (abs(uniformScale - 1f) > .008f || abs(turnDegrees) > .7f)) {
+            // Pinça e rotação da LETRA alteram as pontadas reais.
+            // A posição, o tamanho e a rotação do nome ficam independentes.
+            try {
+                val targetPercent = (letterScalePercent * uniformScale)
+                    .roundToInt().coerceIn(80, 120)
+                val factor = targetPercent.toFloat() / letterScalePercent
+                var transformed = baseDesign
+                val angle = if (abs(turnDegrees) >= 1f)
+                    turnDegrees.coerceIn(-180f, 180f) else 0f
+                if (angle != 0f) {
+                    transformed = MatrixNameRotation.rotate(
+                        transformed, draft.x, draft.y, draft.rotation,
+                        angle, activeHoop
+                    ).getOrThrow().background.copy(
+                        hoopOrientation = baseDesign.hoopOrientation
+                    )
+                }
+                if (abs(factor - 1f) >= .001f) {
+                    transformed = MatrixNameRotation.resizeLetter(
+                        transformed, factor, activeHoop
+                    ).getOrThrow()
+                }
+                undo = (undo + snapshot()).takeLast(40)
+                redo = emptyList()
+                baseDesign = transformed
+                matrixRotation = MatrixNameRotation.normalizeDegrees(
+                    matrixRotation + angle
+                )
+                letterScalePercent = targetPercent
+                computed = null
+                moveError = null
+                matrixRotationError = null
+            } catch (error: Exception) {
+                moveError = error.message ?:
+                    "Reduza a letra ou escolha um bastidor maior."
+            }
+        } else if (target == NameEditorMoveMode.MATRIX) {
             try {
                 // Um gesto na MATRIZ não deve gerar pontadas novas, alterar
                 // fonte nem deslocar o nome. Reutilizar a composição real
@@ -487,15 +532,15 @@ fun NameEditorScreen(
                     "A matriz não pôde ser movida dentro do bastidor."
             }
         } else {
-            val radians = Math.toRadians(draft.rotation.toDouble())
-            val isSideways = abs(sin(radians)) > abs(cos(radians))
-            val localX = if (isSideways) onScreenY else onScreenX
-            val localY = if (isSideways) onScreenX else onScreenY
+            // Pinça proporcional, giro independente e deslocamento livre.
             val next = draft.copy(
                 x = draft.x + dx,
                 y = draft.y + dy,
-                widthScale = (draft.widthScale * localX).coerceIn(.5f, 2.5f),
-                heightScale = (draft.heightScale * localY).coerceIn(.5f, 2.5f)
+                rotation = MatrixNameRotation.normalizeDegrees(
+                    draft.rotation + turnDegrees
+                ),
+                widthScale = (draft.widthScale * uniformScale).coerceIn(.5f, 2.5f),
+                heightScale = (draft.heightScale * uniformScale).coerceIn(.5f, 2.5f)
             )
             setDraft(next)
             moveError = null
@@ -504,6 +549,7 @@ fun NameEditorScreen(
         dragPx = Offset.Zero
         gestureScaleX = 1f
         gestureScaleY = 1f
+        gestureAngle = 0f
     }
 
     fun rotate(deltaDegrees: Float) {
@@ -748,50 +794,58 @@ fun NameEditorScreen(
                 .testTag("brother_name_canvas")
                 // Gesto em toda a prévia: o nome continua arrastável sem
                 // exibir a antiga alça escura sobre flores e borboletas.
-                .pointerInput(original, activeHoop, moveMode) {
-                    // Gestos combinados: um dedo move; dois dedos permitem
-                    // pinça horizontal e vertical sem recalcular Satin
-                    // durante o movimento.
+                .pointerInput(original, activeHoop) {
                     awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        // Interação manual tem prioridade sobre o autoencaixe:
-                        // não permitir que a busca assíncrona recoloque o nome.
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val visible = touchPreview
+                        val touchedName = if (visible?.editableName != null &&
+                            touchCanvas.width > 0 && touchCanvas.height > 0) {
+                            NameEditorPlacement.targetAtTouch(
+                                visible, activeHoop, down.position.x,
+                                down.position.y, touchCanvas.width,
+                                touchCanvas.height, touchPadding
+                            ) == HoopLayerPositioning.Target.NAME
+                        } else false
+                        // Botão Letra prevalece em trechos sobrepostos do monograma.
+                        val target = when {
+                            touchSection == NameEditorSection.LETTER ->
+                                NameEditorMoveMode.MATRIX
+                            touchSection == NameEditorSection.HOOP -> touchMode
+                            touchedName -> NameEditorMoveMode.NAME
+                            else -> touchMode
+                        }
+                        moveMode = target
                         autoFitEnabled = false
-                        var scaleX = 1f
-                        var scaleY = 1f
-                        var twoFingers = false
+                        var pinchScale = 1f
+                        var rotation = 0f
+                        var multiTouch = false
                         dragging = true
                         dragPx = Offset.Zero
                         gestureScaleX = 1f
                         gestureScaleY = 1f
+                        gestureAngle = 0f
                         do {
                             val event = awaitPointerEvent()
                             val active = event.changes.filter { it.pressed }
                             if (active.size >= 2) {
-                                twoFingers = true
-                                val first = active[0]
-                                val second = active[1]
-                                val oldDx = abs(first.previousPosition.x -
-                                    second.previousPosition.x)
-                                val oldDy = abs(first.previousPosition.y -
-                                    second.previousPosition.y)
-                                val dx = abs(first.position.x - second.position.x)
-                                val dy = abs(first.position.y - second.position.y)
-                                if (moveMode == NameEditorMoveMode.NAME) {
-                                    if (oldDx > 14f && dx > 14f) {
-                                        scaleX = (scaleX * dx / oldDx).coerceIn(.5f, 2.5f)
-                                    }
-                                    if (oldDy > 14f && dy > 14f) {
-                                        scaleY = (scaleY * dy / oldDy).coerceIn(.5f, 2.5f)
-                                    }
-                                    gestureScaleX = scaleX
-                                    gestureScaleY = scaleY
-                                }
-                            } else if (!twoFingers) {
-                                // O último deslocamento pode chegar junto do UP:
-                                // nessa amostra pressed=false e active está vazio.
-                                // Considerar também previousPressed evita perder
-                                // a movimentação final da alça no Android.
+                                multiTouch = true
+                                val a = active[0]
+                                val b = active[1]
+                                val delta = NameEditorPlacement.twoFingerTransform(
+                                    a.previousPosition.x, a.previousPosition.y,
+                                    b.previousPosition.x, b.previousPosition.y,
+                                    a.position.x, a.position.y,
+                                    b.position.x, b.position.y
+                                )
+                                pinchScale = (pinchScale * delta.scale)
+                                    .coerceIn(.5f, 2f)
+                                rotation = MatrixNameRotation.normalizeDegrees(
+                                    rotation + delta.rotationDegrees
+                                )
+                                gestureScaleX = pinchScale
+                                gestureScaleY = pinchScale
+                                gestureAngle = rotation
+                            } else if (!multiTouch) {
                                 val change = event.changes.firstOrNull {
                                     it.pressed || it.previousPressed
                                 }
@@ -799,9 +853,11 @@ fun NameEditorScreen(
                                     dragPx += change.position - change.previousPosition
                                 }
                             }
-                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                            event.changes.forEach {
+                                if (it.positionChanged()) it.consume()
+                            }
                         } while (event.changes.any { it.pressed })
-                        commitGesture(dragPx, scaleX, scaleY)
+                        commitGesture(target, dragPx, pinchScale, rotation)
                     }
                 }
         ) {
@@ -835,6 +891,7 @@ fun NameEditorScreen(
                         )
                         scaleX = gestureScaleX
                         scaleY = gestureScaleY
+                        rotationZ = gestureAngle
                         translationX = if (moveMode == NameEditorMoveMode.NAME)
                             dragPx.x else 0f
                         translationY = if (moveMode == NameEditorMoveMode.NAME)
@@ -875,7 +932,7 @@ fun NameEditorScreen(
             }
         }
 
-        Text("Um dedo: mover a camada selecionada • Dois dedos: expandir o nome.",
+        Text("Toque no nome ou na letra. Arraste com um dedo; com dois, aproxime, afaste ou gire.",
             color = FioTextMuted, fontSize = 11.sp)
 
         when {
