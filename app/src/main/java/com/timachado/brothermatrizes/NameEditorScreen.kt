@@ -782,8 +782,8 @@ fun NameEditorScreen(
 
 
 
-        Text("Personalização de nomes e monogramas", color = FioTextMuted,
-            fontSize = 12.sp)
+        Text("Toque para selecionar · arraste para mover · dois dedos para girar ou redimensionar",
+            color = FioTextMuted, fontSize = 12.sp)
 
         // Preview permanece visível ao trocar entre nome, letra e bastidor.
         Box(
@@ -935,39 +935,37 @@ fun NameEditorScreen(
         Text("Toque no nome ou na letra. Arraste com um dedo; com dois, aproxime, afaste ou gire.",
             color = FioTextMuted, fontSize = 11.sp)
 
+        // Uma mensagem contextual em vez de repetir avisos vermelhos.
         when {
-            (fitting || autoFitEnabled) -> Text(
-                "Encaixando nome automaticamente na área livre…",
-                color = FioTextMuted, fontSize = 12.sp
-            )
-            previewBusy -> Text(
-                "Atualizando prévia de pontadas sem travar a tela…",
-                color = FioTextMuted, fontSize = 12.sp
-            )
-            preview == null -> Text(
-                autoFitError ?: currentError ?: "Prévia de pontadas indisponível. Use o ajuste automático.",
-                color = Color(0xFFFF9393), fontSize = 12.sp
-            )
+            (fitting || autoFitEnabled || previewBusy) ->
+                Text("Preparando prévia do bordado…", color = FioTextMuted,
+                    fontSize = 12.sp)
+            preview == null -> {
+                Text(
+                    currentError ?: autoFitError ?:
+                        "Não foi possível ajustar o nome nessa posição.",
+                    color = Color(0xFFFF9393), fontSize = 12.sp
+                )
+                if (compositionMode == NameCompositionMode.STANDARD &&
+                    (currentError?.contains("próximo") == true ||
+                        currentError?.contains("separação") == true)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+                            autoFitEnabled = false
+                            computed = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_allow_name_over_letter")
+                    ) { Text("Quero o nome sobre a letra") }
+                }
+            }
             else -> Text(
-                "Pontadas calculadas: ${preview.stitchCount} pontos • " +
+                "Bordado: ${preview.stitchCount} pontos · " +
                     "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
                 color = FioTextMuted, fontSize = 12.sp
             )
-        }
-
-
-        when {
-            (fitting || autoFitEnabled) -> Text(
-                "Ajustando nome…", color = FioTextMuted, fontSize = 11.sp)
-            previewBusy -> Text(
-                "Atualizando pontadas…", color = FioTextMuted, fontSize = 11.sp)
-            preview == null -> Text(
-                autoFitError ?: currentError ?: "Prévia indisponível.",
-                color = Color(0xFFFF9393), fontSize = 11.sp)
-            else -> Text(
-                "${preview.stitchCount} pontos · " +
-                    "${preview.bounds.widthMm} × ${preview.bounds.heightMm} mm",
-                color = FioTextMuted, fontSize = 11.sp)
         }
         Row(
             modifier = Modifier.fillMaxWidth().testTag("brother_name_editor_tabs"),
