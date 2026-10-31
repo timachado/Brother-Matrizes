@@ -260,7 +260,7 @@ jobs:
             echo "- Pacote paralelo com assinatura DEBUG: com.timachado.brothermatrizes.nameqa."
             echo "- Pode instalar ao lado da versão comercial; NÃO distribua a clientes."
             echo "- A autenticação Google poderá necessitar de credenciais específicas do pacote QA."
-            echo "- QA EXPERIMENTAL: testes instrumentados Android 35 não são requisito para gerar este artefato.
-            echo "- NÃO utilizar matrizes geradas nesta versão em máquinas de bordado; apenas diagnóstico de interface.""
+            echo "- QA EXPERIMENTAL: testes Android 35 ainda não aprovados."
+            echo "- NÃO utilizar matrizes desta versão em máquinas de bordado; apenas diagnóstico de interface."
             echo "- Sem publicação na Release, WordPress ou Play Store."
           } >> "$GITHUB_STEP_SUMMARY"
