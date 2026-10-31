@@ -4,6 +4,8 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import kotlin.math.roundToInt
+import kotlin.math.atan2
+import kotlin.math.hypot
 
 /**
  * Compartilha o enquadramento exato de EmbroideryCanvas com a alça de mover nome.
@@ -11,6 +13,30 @@ import kotlin.math.roundToInt
  */
 internal object NameEditorPlacement {
     data class ScreenOffset(val x: Float, val y: Float, val unitsPerPixel: Float)
+
+    /** Dois dedos: escala uniforme e rotação incremental com ângulo normalizado.
+     * O cálculo é independente do motor de pontos; estes só mudam ao soltar.
+     */
+    data class FingerTransform(val scale: Float, val rotationDegrees: Float)
+    fun twoFingerTransform(
+        previousX1: Float, previousY1: Float,
+        previousX2: Float, previousY2: Float,
+        x1: Float, y1: Float, x2: Float, y2: Float
+    ): FingerTransform {
+        val oldDx = previousX2 - previousX1
+        val oldDy = previousY2 - previousY1
+        val dx = x2 - x1
+        val dy = y2 - y1
+        val oldDistance = hypot(oldDx, oldDy)
+        val distance = hypot(dx, dy)
+        if (oldDistance < 12f || distance < 12f) return FingerTransform(1f, 0f)
+        val ratio = (distance / oldDistance).coerceIn(.65f, 1.35f)
+        val degrees = Math.toDegrees(
+            (atan2(dy, dx) - atan2(oldDy, oldDx)).toDouble()
+        ).toFloat()
+        val normalized = ((degrees + 180f) % 360f + 360f) % 360f - 180f
+        return FingerTransform(ratio, normalized)
+    }
 
     fun dragUnits(dxPixels: Float, dyPixels: Float, scale: Float,
                   yDirection: Float): Pair<Int, Int> {
