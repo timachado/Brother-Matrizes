@@ -797,10 +797,10 @@ class NameEditorAndroidQaTest {
         // de scroll ou do autoencaixe concorrente.
         composeRule.onNodeWithTag(
             "brother_layout_horizontal_hoop_vertical_letter_horizontal_name"
-        ).assertExists().performClick()
+        ).performScrollTo().assertIsDisplayed().performClick()
         Log.i("BrotherGestureQA", "PRESET: applied, inspecting orientation")
         composeRule.onNodeWithTag("brother_selected_hoop_orientation")
-            .assertExists()
+            .performScrollTo().assertTextContains("horizontal", substring = true)
         Log.i("BrotherGestureQA", "PRESET: opening name editor")
         composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_input").performScrollTo()
@@ -910,7 +910,8 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
-        composeRule.onNodeWithTag("brother_easy_move_right").performClick()
+        composeRule.onNodeWithTag("brother_easy_move_right")
+            .performScrollTo().assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
@@ -945,9 +946,10 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
-        composeRule.onNodeWithTag("brother_easy_smaller").performClick()
+        composeRule.onNodeWithTag("brother_easy_smaller")
+            .performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithTag("brother_letter_scale_label")
-            .performScrollTo()
+            .performScrollTo().assertIsDisplayed()
             .assertTextContains("95% (independente do nome)", substring = true)
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
