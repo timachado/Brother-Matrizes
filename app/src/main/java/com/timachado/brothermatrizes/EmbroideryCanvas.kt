@@ -84,7 +84,10 @@ fun EmbroideryCanvas(
     // Deslocamento visual TEMPORÁRIO durante o gesto de posicionar. O bastidor
     // permanece parado. O arquivo só muda ao concluir o arraste validado.
     designDragOffset: Offset = Offset.Zero,
-    positionMode: Boolean = false
+    positionMode: Boolean = false,
+    // Prévia provisória APENAS da letra sob os dedos; o bastidor não gira.
+    matrixGestureScale: Float = 1f,
+    matrixGestureRotation: Float = 0f
 ) {
     var zoom by remember(
         design.fileName,
@@ -216,6 +219,10 @@ fun EmbroideryCanvas(
                 )
             }
 
+            withTransform({
+                scale(matrixGestureScale, matrixGestureScale, pivot = center)
+                rotate(matrixGestureRotation, pivot = center)
+            }) {
             drawDesign(
                 design = design,
                 points = renderPoints,
@@ -230,6 +237,7 @@ fun EmbroideryCanvas(
                 showConnections =
                     showConnections
             )
+            }
         }
     }
 }
