@@ -170,20 +170,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            set -eu
-            adb wait-for-device
-            adb install -r baseline/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk
-            adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=192'
-            first_install="$(adb shell dumpsys package com.timachado.brothermatrizes | sed -n 's/.*firstInstallTime=//p' | head -n1 | tr -d '\r')"
-            test -n "$first_install"
-            adb install -r dist/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk
-            adb shell dumpsys package com.timachado.brothermatrizes | grep -F 'versionCode=193'
-            after_install="$(adb shell dumpsys package com.timachado.brothermatrizes | sed -n 's/.*firstInstallTime=//p' | head -n1 | tr -d '\r')"
-            test "$first_install" = "$after_install"
-            adb shell am start -W -n com.timachado.brothermatrizes/.MainActivity
-            sleep 8
-            adb shell pidof com.timachado.brothermatrizes
+          script: bash scripts/verify_brother_1116_upgrade.sh
 
       - name: Publicar APK oficial 1.11.6 somente apos upgrade aprovado
         shell: bash
