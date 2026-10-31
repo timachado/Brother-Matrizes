@@ -1,0 +1,123 @@
+name: "Brother Matrizes 1.11.6 - homologacao sem publicacao"
+
+on:
+  push:
+    branches:
+      - release/brother-matrizes-1.11.6-rc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-1116-candidate-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  unit-lint-release:
+    name: Checar integridade, unitarios, lint e APK release nao assinado
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Instalar Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Verificar candidata, OTA e controles de seguranca
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq '^ *applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Eq '^ *versionCode = 193 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.6"' app/build.gradle.kts
+          test "$(jq -r .versionCode updates/stable.json)" = 192
+          test "$(jq -r .versionName updates/stable.json)" = '1.11.5'
+          test -f releases/1.11.6-CANDIDATE-NOT-PUBLISHED.md
+          bash scripts/pre_release_static_check.sh
+          if grep -Fq 'build-qa-apk-experimental:' .github/workflows/name-editor-qa.yml; then
+            echo 'O job experimental de QA nao pode entrar no release candidate.'
+            exit 1
+          fi
+      - name: Validacao automatizada e release SEM assinatura comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug \
+            :app:compileDebugAndroidTestKotlin :app:assembleRelease \
+            -PbrotherCheckoutHandoff=true --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' \
+            app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' \
+            app/build/generated/source/buildConfig/release
+      - name: Regras de nao publicacao
+        shell: bash
+        run: |
+          {
+            echo '## Candidate Brother Matrizes 1.11.6'
+            echo '- Build RELEASE sem assinatura comercial, uso interno; nao instalavel como atualizacao publica.'
+            echo '- Necessario certificar o APK com chave original e testar upgrade 192 para 193 antes de publicar.'
+            echo '- Versao 1.11.5 e manifesto OTA permanecem intocados.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  android35-editor:
+    name: Suite completa do editor Android 35
+    needs: unit-lint-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Preparar Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Habilitar KVM no runner
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android 35 - editor, rolagem, gestos e simulacao
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: >
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.NameEditorAndroidQaTest
+      - name: Guardar resultados do editor, inclusive em caso de falha
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-1116-RC-Android35-QA-REPORT-NAO-PUBLICADO
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 14

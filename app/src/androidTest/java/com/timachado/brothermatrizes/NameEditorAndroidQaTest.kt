@@ -239,7 +239,11 @@ class NameEditorAndroidQaTest {
 
     @Test
     fun nameEditorMatrixModeMovesOnlyFlowersAndKeepsNamePlace() {
-        val original = MatrixEditor.apply(frame(), EditTransform(scale = .5f))
+        // Manter folga real entre a borda e o nome para o gesto de teste.
+        // Em uma moldura de 38 mm, deslizar 9 px podia aproximar fisicamente
+        // a letra da costura, acionando corretamente a proteção anticolisão.
+        // A moldura de 53 mm testa movimento independente em posição válida.
+        val original = MatrixEditor.apply(frame(), EditTransform(scale = .7f))
         val personalized = NamePersonalization.add(
             original, TextMatrixOptions(text = "Maria", heightMm = 8f), 0, 0
         ).getOrThrow()
@@ -256,6 +260,13 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_editor_move_matrix")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_editor_tab_letter").assertExists()
+        // A edição existente deve estar íntegra antes de iniciar o gesto.
+        composeRule.waitUntil(30000) {
+            runCatching {
+                composeRule.onNodeWithTag("brother_name_apply").assertIsEnabled()
+                true
+            }.getOrDefault(false)
+        }
         composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performTouchInput {
