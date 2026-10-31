@@ -1,0 +1,110 @@
+name: Brother Matrizes 1.11.6 — notificacao FCM apos OTA verificada
+
+# Execucao one-shot: criada pela integracao controlada na main.
+# Nao publica, recompila, assina ou substitui APK/Release/OTA.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-1116-fcm-post-release.yml'
+
+permissions:
+  contents: write  # somente comprovante de aceite da notificacao
+  actions: read    # ler os workflows de lancamento e OTA para validar gates
+
+concurrency:
+  group: brother-fcm-notification-v1-11-6
+  cancel-in-progress: false
+
+jobs:
+  verified-announcement:
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 15
+    steps:
+      - name: Checkout somente da main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verificar que a notificacao ainda nao foi enviada
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          path=updates/notifications/fcm-v1.11.6.json
+          response="$(gh api -i "repos/$GH_REPO/contents/$path?ref=main" 2>&1 || true)"
+          status="$(printf '%s\n' "$response" | sed -nE 's/^HTTP\/[0-9.]+ ([0-9]{3}).*/\1/p' | tail -n1)"
+          if [[ "$status" == '200' ]]; then
+            echo '::error::O comprovante de envio FCM 1.11.6 ja existe. Reenvio bloqueado.'
+            exit 1
+          fi
+          if [[ "$status" != '404' ]]; then
+            echo "::error::Nao foi possivel provar ausencia de envio anterior (HTTP ${status:-indefinido})."
+            exit 1
+          fi
+
+      - name: Obter somente metadados oficiais, sem nova publicacao
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/brother-fcm-verification"
+          dir="$RUNNER_TEMP/brother-fcm-verification"
+          gh api "repos/$GH_REPO/releases/tags/v1.11.6" > "$dir/release.json"
+          gh api "repos/$GH_REPO/actions/runs/41251177886" > "$dir/commercial_run.json"
+          gh api "repos/$GH_REPO/actions/runs/41251599002" > "$dir/ota_run.json"
+          gh api "repos/$GH_REPO/contents/updates/stable.json?ref=main" --jq .content |
+            tr -d '\n' | base64 --decode > "$dir/manifest.json"
+          python3 -m unittest discover -s tests -p test_send_verified_1116_fcm.py -v
+          BROTHER_VERIFIED_DIR="$dir" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.send_verified_1116_fcm import assert_verified
+          path = Path(os.environ['BROTHER_VERIFIED_DIR'])
+          names = ['manifest','release','commercial_run','ota_run']
+          values = [json.loads((path / (name + '.json')).read_text()) for name in names]
+          assert_verified(*values)
+          print('Release, OTA, versao, digest e workflow comercial validados sem envio ainda.')
+          PY
+
+      - name: Enviar aviso FCM uma unica vez apos validacao
+        shell: bash
+        env:
+          BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON }}
+          BROTHER_VERIFIED_DIR: ${{ runner.temp }}/brother-fcm-verification
+        run: |
+          set -euo pipefail
+          test -n "$BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON" || {
+            echo '::error::Segredo BROTHER_FIREBASE_SERVICE_ACCOUNT_JSON nao configurado.'
+            exit 1
+          }
+          python3 -m pip install --quiet --disable-pip-version-check 'google-auth==2.35.0' 'requests==2.32.3'
+          python3 scripts/send_verified_1116_fcm.py
+
+      - name: Registrar aceite do FCM para impedir disparo duplicado
+        shell: bash
+        run: |
+          set -euo pipefail
+          path=updates/notifications/fcm-v1.11.6.json
+          mkdir -p updates/notifications
+          if test -e "$path"; then
+            echo '::error::Comprovante ja existe. Nao substituir.'
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/brother-fcm-verification/fcm_receipt.json" "$path"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$path"
+          git commit -m 'docs(notifications): registrar aceite FCM Brother 1.11.6'
+          if ! git push origin HEAD:main; then
+            echo '::error::FCM aceitou o aviso, mas o comprovante nao foi salvo. NUNCA reexecutar sem auditoria para evitar duplicidade.'
+            exit 1
+          fi
+          echo 'Notificacao aceita pelo Firebase FCM. Entrega individual nao confirmada.'
