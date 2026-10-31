@@ -26,8 +26,8 @@ object MatrixNameRotation {
         factor: Float,
         hoop: HoopProfile
     ): Result<EmbroideryDesign> = runCatching {
-        require(factor.isFinite() && factor in 0.8f..1.2f) {
-            "Ajuste da letra fora dos limites seguros (80% a 120%)."
+        require(factor.isFinite() && factor in 0.15f..3f) {
+            "Fator de escala da letra inválido."
         }
         val source = background.editableName?.original ?: background
         require(source.points.any { it.command == StitchCommand.STITCH }) {
@@ -54,6 +54,9 @@ object MatrixNameRotation {
                     "-letra-ajustada." + source.format.lowercase()
             )
         val result = EmbroideryIntegrity.normalize(adjusted).getOrThrow().design
+        require(maxOf(result.bounds.widthMm, result.bounds.heightMm) >= 4f) {
+            "A letra ficou pequena demais para edição segura (mínimo 4 mm)."
+        }
         val rotatedHoop = result.shouldRotateHoop(hoop)
         val usableWidth = if (rotatedHoop)
             hoop.usableHeightMm else hoop.usableWidthMm
@@ -120,13 +123,13 @@ object MatrixNameRotation {
             editableName = null,
             isModified = true
         )
-        // Bastidor retangular pode ser usado girado, mas a área ÚTIL precisa
-        // comportar a matriz já rotacionada com as margens de 5 mm.
-        val fits = (result.bounds.widthMm <= hoop.usableWidthMm &&
-            result.bounds.heightMm <= hoop.usableHeightMm) ||
-            (result.bounds.widthMm <= hoop.usableHeightMm &&
-                result.bounds.heightMm <= hoop.usableWidthMm)
-        require(fits) {
+        // Validar estritamente na orientação física efetiva, não na
+        // alternativa de 90 graus que o usuário NÃO selecionou.
+        val rotateHoop = result.shouldRotateHoop(hoop)
+        val usableWidth = if (rotateHoop) hoop.usableHeightMm else hoop.usableWidthMm
+        val usableHeight = if (rotateHoop) hoop.usableWidthMm else hoop.usableHeightMm
+        require(result.bounds.widthMm <= usableWidth &&
+            result.bounds.heightMm <= usableHeight) {
             "A rotação ultrapassa a área útil do bastidor " +
                 hoop.displayName + ". Selecione um bastidor maior."
         }

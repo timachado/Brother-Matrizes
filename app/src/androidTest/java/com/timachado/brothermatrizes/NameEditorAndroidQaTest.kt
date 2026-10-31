@@ -840,10 +840,12 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
-        composeRule.onNodeWithTag("brother_letter_smaller")
-            .performScrollTo().performClick()
+        repeat(5) {
+            composeRule.onNodeWithTag("brother_letter_smaller")
+                .performScrollTo().performClick()
+        }
         composeRule.onNodeWithText(
-            "Tamanho da letra: 95% (independente do nome)"
+            "Tamanho da letra: 75% (independente do nome)"
         ).assertExists()
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
@@ -914,7 +916,7 @@ class NameEditorAndroidQaTest {
         )
         val source = EmbroideryIntegrity.normalize(frame().copy(
             points = points, hoopProfile = HoopProfile.H130X180,
-            hoopOrientation = HoopOrientation.LANDSCAPE
+            hoopOrientation = HoopOrientation.AUTO
         )).getOrThrow().design
         var applied: EmbroideryDesign? = null
         composeRule.setContent {
@@ -952,5 +954,46 @@ class NameEditorAndroidQaTest {
         }
     }
 
+    @Test
+    fun explicitNameTabPinchNeverSwitchesToLetterOutsideNameStitches() {
+        val source = frame()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(
+                original = source,
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {},
+                onApply = { applied = it }
+            )
+        }
+        composeRule.onNodeWithTag("brother_name_monogram_overlay")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
+        composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
+            // A pinça começa fora da pequena região do texto Maria.
+            // A aba Nome deve prevalecer e nenhuma pontada da letra pode mudar.
+            pinch(
+                start0 = center + Offset(-82f, -58f),
+                end0 = center + Offset(-112f, -78f),
+                start1 = center + Offset(82f, 58f),
+                end1 = center + Offset(112f, 78f),
+                durationMillis = 500
+            )
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_name").assertExists()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertTrue(layer.options.widthScale > 1.05f)
+            assertTrue(layer.options.heightScale > 1.05f)
+            assertEquals(source.points.dropLast(1),
+                result.points.take(source.points.size - 1))
+        }
+    }
 
 }

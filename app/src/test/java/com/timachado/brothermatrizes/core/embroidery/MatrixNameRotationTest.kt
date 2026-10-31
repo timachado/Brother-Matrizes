@@ -83,6 +83,29 @@ class MatrixNameRotationTest {
         ).isFailure)
     }
 
+    @Test fun rotationMustRespectSelectedPhysicalHoopOrientation() {
+        val wide = sample().copy(
+            points = listOf(
+                EmbroideryPoint(-700, -500, StitchCommand.JUMP, 0),
+                EmbroideryPoint(700, -500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(700, 500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-700, 500, StitchCommand.STITCH, 0),
+                EmbroideryPoint(-700, -500, StitchCommand.END, 0)
+            ),
+            bounds = EmbroideryBounds(-700, 700, -500, 500),
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        // Após 90 graus: 100 x 140 mm. Cabe só no bastidor vertical.
+        assertTrue(MatrixNameRotation.rotate(
+            wide, 0, 0, 0f, 90f, HoopProfile.H130X180
+        ).isFailure)
+        assertTrue(MatrixNameRotation.rotate(
+            wide.copy(hoopOrientation = HoopOrientation.AUTO),
+            0, 0, 0f, 90f, HoopProfile.H130X180
+        ).isSuccess)
+    }
+
     @Test fun normalizesAnglesForRotatingMatrixAndName() {
         assertEquals(-90f, MatrixNameRotation.normalizeDegrees(270f))
         assertEquals(180f, MatrixNameRotation.normalizeDegrees(180f))
@@ -114,6 +137,8 @@ class MatrixNameRotationTest {
         assertTrue(MatrixNameRotation.resizeLetter(sample(), Float.NaN,
             HoopProfile.H100X100).isFailure)
         assertTrue(MatrixNameRotation.resizeLetter(sample(), 0.5f,
+            HoopProfile.H100X100).isSuccess)
+        assertTrue(MatrixNameRotation.resizeLetter(sample(), 0.1f,
             HoopProfile.H100X100).isFailure)
         val oversized = sample().copy(
             bounds = EmbroideryBounds(-480, 480, -400, 400),

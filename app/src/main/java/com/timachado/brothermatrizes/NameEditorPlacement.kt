@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes
 
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import kotlin.math.roundToInt
 import kotlin.math.atan2
@@ -38,6 +39,23 @@ internal object NameEditorPlacement {
         return FingerTransform(ratio, normalized)
     }
 
+    /**
+     * Congela a orientação física que já está sendo exibida. O modo AUTO
+     * não pode reinterpretar as dimensões depois de girar a letra.
+     */
+    fun frozenHoopOrientation(design: EmbroideryDesign, hoop: HoopProfile): HoopOrientation {
+        if (design.hoopOrientation != HoopOrientation.AUTO) return design.hoopOrientation
+        if (hoop.widthMm == hoop.heightMm) return HoopOrientation.AUTO
+        val rotated = design.shouldRotateHoop(hoop)
+        val displayedWidth = if (rotated) hoop.heightMm else hoop.widthMm
+        val displayedHeight = if (rotated) hoop.widthMm else hoop.heightMm
+        return if (displayedWidth >= displayedHeight) {
+            HoopOrientation.LANDSCAPE
+        } else {
+            HoopOrientation.PORTRAIT
+        }
+    }
+
     fun dragUnits(dxPixels: Float, dyPixels: Float, scale: Float,
                   yDirection: Float): Pair<Int, Int> {
         val safeScale = scale.coerceAtLeast(0.01f)
@@ -46,9 +64,8 @@ internal object NameEditorPlacement {
     }
 
     /**
-     * Modo automático: tocar na área das pontadas do nome seleciona somente
-     * o nome. Fora dela, um dedo desloca a matriz real. Nunca tratar esse
-     * gesto como pan temporário da câmera.
+     * Hit-test opcional de coordenadas. O editor gestual usa a aba explícita
+     * como seleção permanente; nunca troca de objeto durante uma pinça.
      */
     fun targetAtTouch(
         design: EmbroideryDesign,

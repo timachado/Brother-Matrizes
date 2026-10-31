@@ -96,6 +96,9 @@ private data class NameDraft(
 
 private enum class NameEditorMoveMode { MATRIX, NAME }
 
+private const val MIN_LETTER_SCALE_PERCENT = 30
+private const val MAX_LETTER_SCALE_PERCENT = 200
+
 /** Navegação progressiva: todas as funções continuam disponíveis sem uma tela infinita. */
 private enum class NameEditorSection { NAME, LETTER, HOOP }
 
@@ -405,10 +408,6 @@ fun NameEditorScreen(
     ).unitsPerPixel
     val direction = if (backgroundDesign.sourceYAxisDown) 1f else -1f
     // A leitura de estado permanece atual sem cancelar um gesto em andamento.
-    val touchPreview by rememberUpdatedState(preview)
-    val touchCanvas by rememberUpdatedState(canvasSize)
-    val touchPadding by rememberUpdatedState(paddingPx)
-    val touchMode by rememberUpdatedState(moveMode)
     val touchSection by rememberUpdatedState(editorSection)
 
     val commitGesture by rememberUpdatedState<(NameEditorMoveMode, Offset, Float, Float) -> Unit> {
@@ -423,9 +422,16 @@ fun NameEditorScreen(
             // A posição, o tamanho e a rotação do nome ficam independentes.
             try {
                 val targetPercent = (letterScalePercent * uniformScale)
-                    .roundToInt().coerceIn(80, 120)
+                    .roundToInt().coerceIn(
+                        MIN_LETTER_SCALE_PERCENT, MAX_LETTER_SCALE_PERCENT
+                    )
                 val factor = targetPercent.toFloat() / letterScalePercent
-                var transformed = baseDesign
+                val lockedBase = baseDesign.copy(
+                    hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                        baseDesign, activeHoop
+                    )
+                )
+                var transformed = lockedBase
                 val angle = if (abs(turnDegrees) >= 1f)
                     turnDegrees.coerceIn(-180f, 180f) else 0f
                 if (angle != 0f) {
@@ -433,7 +439,7 @@ fun NameEditorScreen(
                         transformed, draft.x, draft.y, draft.rotation,
                         angle, activeHoop
                     ).getOrThrow().background.copy(
-                        hoopOrientation = baseDesign.hoopOrientation
+                        hoopOrientation = lockedBase.hoopOrientation
                     )
                 }
                 if (abs(factor - 1f) >= .001f) {
@@ -620,8 +626,13 @@ fun NameEditorScreen(
     fun rotateLetterOnly(deltaDegrees: Float) {
         autoFitEnabled = false
         matrixRotationError = null
+        val lockedBase = baseDesign.copy(
+            hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                baseDesign, activeHoop
+            )
+        )
         MatrixNameRotation.rotate(
-            background = baseDesign, nameXUnits = draft.x, nameYUnits = draft.y,
+            background = lockedBase, nameXUnits = draft.x, nameYUnits = draft.y,
             nameRotationDegrees = draft.rotation, deltaDegrees = deltaDegrees,
             hoop = activeHoop
         ).fold(
@@ -629,7 +640,7 @@ fun NameEditorScreen(
                 undo = (undo + snapshot()).takeLast(40)
                 redo = emptyList()
                 baseDesign = result.background.copy(
-                    hoopOrientation = baseDesign.hoopOrientation
+                    hoopOrientation = lockedBase.hoopOrientation
                 )
                 // Não usar result.nameRotationDegrees: a rotação é da LETRA.
                 matrixRotation = MatrixNameRotation.normalizeDegrees(
@@ -684,11 +695,18 @@ fun NameEditorScreen(
 
     /** Redimensiona apenas a letra, preservando texto, posição e rotação do nome. */
     fun resizeLetterOnly(targetPercent: Int) {
-        val target = targetPercent.coerceIn(80, 120)
+        val target = targetPercent.coerceIn(
+            MIN_LETTER_SCALE_PERCENT, MAX_LETTER_SCALE_PERCENT
+        )
         if (target == letterScalePercent) return
         val factor = target.toFloat() / letterScalePercent.toFloat()
+        val lockedBase = baseDesign.copy(
+            hoopOrientation = NameEditorPlacement.frozenHoopOrientation(
+                baseDesign, activeHoop
+            )
+        )
         matrixRotationError = null
-        MatrixNameRotation.resizeLetter(baseDesign, factor, activeHoop).fold(
+        MatrixNameRotation.resizeLetter(lockedBase, factor, activeHoop).fold(
             onSuccess = { smallerLetter ->
                 undo = (undo + snapshot()).takeLast(40)
                 redo = emptyList()
@@ -786,7 +804,7 @@ fun NameEditorScreen(
 
 
 
-        Text("Toque para selecionar · arraste para mover · dois dedos para girar ou redimensionar",
+        Text("Selecione Nome ou Letra · arraste para mover · dois dedos para girar ou redimensionar",
             color = FioTextMuted, fontSize = 12.sp)
 
         // Preview permanece visível ao trocar entre nome, letra e bastidor.
@@ -800,30 +818,21 @@ fun NameEditorScreen(
                 // exibir a antiga alça escura sobre flores e borboletas.
                 .pointerInput(original, activeHoop) {
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val visible = touchPreview
-                        val touchedName = if (visible?.editableName != null &&
-                            touchCanvas.width > 0 && touchCanvas.height > 0) {
-                            NameEditorPlacement.targetAtTouch(
-                                visible, activeHoop, down.position.x,
-                                down.position.y, touchCanvas.width,
-                                touchCanvas.height, touchPadding
-                            ) == HoopLayerPositioning.Target.NAME
-                        } else false
-                        // Botão Letra prevalece em trechos sobrepostos do monograma.
-                        val target = when {
-                            touchSection == NameEditorSection.LETTER ->
-                                NameEditorMoveMode.MATRIX
-                            touchSection == NameEditorSection.HOOP -> touchMode
-                            touchedName -> NameEditorMoveMode.NAME
-                            visible?.editableName != null -> NameEditorMoveMode.MATRIX
-                            else -> touchMode
+                        awaitFirstDown(requireUnconsumed = false)
+                        // A aba escolhida é o alvo único do gesto inteiro.
+                        // Nunca trocar Nome por Letra por causa da posição do dedo.
+                        val target = when (touchSection) {
+                            NameEditorSection.NAME -> NameEditorMoveMode.NAME
+                            NameEditorSection.LETTER -> NameEditorMoveMode.MATRIX
+                            NameEditorSection.HOOP -> null
                         }
-                        // A seleção por toque atualiza a aba; na sobreposição
-                        // dos dois desenhos a escolha explícita Letra tem prioridade.
-                        if (target != touchMode) {
-                            editorSection = if (target == NameEditorMoveMode.NAME)
-                                NameEditorSection.NAME else NameEditorSection.LETTER
+                        if (target == null) {
+                            // Bastidor é configurado somente pelos controles,
+                            // sem rotação, pinça ou arraste no canvas.
+                            do {
+                                val event = awaitPointerEvent()
+                            } while (event.changes.any { it.pressed })
+                            return@awaitEachGesture
                         }
                         moveMode = target
                         autoFitEnabled = false
@@ -947,7 +956,7 @@ fun NameEditorScreen(
             }
         }
 
-        Text("Toque no nome ou na letra. Arraste com um dedo; com dois, aproxime, afaste ou gire.",
+        Text("Use a aba Nome ou Letra para escolher o alvo. Um dedo move; dois redimensionam ou giram somente o alvo.",
             color = FioTextMuted, fontSize = 11.sp)
 
         // Uma mensagem contextual em vez de repetir avisos vermelhos.
@@ -1277,7 +1286,7 @@ fun NameEditorScreen(
         ) {
             OutlinedButton(
                 onClick = { resizeLetterOnly(letterScalePercent - 5) },
-                enabled = letterScalePercent > 80,
+                enabled = letterScalePercent > MIN_LETTER_SCALE_PERCENT,
                 modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
             ) { Text("Letra − Menor") }
             OutlinedButton(
@@ -1287,12 +1296,12 @@ fun NameEditorScreen(
             ) { Text("100%") }
             OutlinedButton(
                 onClick = { resizeLetterOnly(letterScalePercent + 5) },
-                enabled = letterScalePercent < 120,
+                enabled = letterScalePercent < MAX_LETTER_SCALE_PERCENT,
                 modifier = Modifier.weight(1f).testTag("brother_letter_larger")
             ) { Text("Letra + Maior") }
         }
         Text(
-            "Ajusta só as pontadas da letra (80% a 120% do tamanho inicial). " +
+            "Ajusta só as pontadas da letra (30% a 200%, sujeito aos limites físicos). " +
                 "O nome mantém tamanho, posição, rotação e fonte.",
             color = FioTextMuted, fontSize = 11.sp
         )
@@ -1389,6 +1398,7 @@ fun NameEditorScreen(
                 onClick = {
                     autoFitEnabled = false
                     moveMode = NameEditorMoveMode.MATRIX
+                    editorSection = NameEditorSection.LETTER
                     moveError = null
                 },
                 modifier = Modifier.weight(1f)
@@ -1401,6 +1411,7 @@ fun NameEditorScreen(
                 onClick = {
                     autoFitEnabled = false
                     moveMode = NameEditorMoveMode.NAME
+                    editorSection = NameEditorSection.NAME
                     moveError = null
                 },
                 modifier = Modifier.weight(1f)

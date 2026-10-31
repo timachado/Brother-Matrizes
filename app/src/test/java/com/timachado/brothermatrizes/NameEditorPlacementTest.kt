@@ -4,6 +4,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -115,6 +116,22 @@ class NameEditorPlacementTest {
             180f + (a.x + b.x) / 2f, 300f + (a.y + b.y) / 2f,
             360, 600, 36f
         ))
+    }
+
+    @Test fun autoHoopOrientationIsFrozenBeforeLetterTransformation() {
+        val vertical = portrait(true).copy(hoopOrientation = HoopOrientation.AUTO)
+        assertEquals(HoopOrientation.PORTRAIT,
+            NameEditorPlacement.frozenHoopOrientation(vertical, HoopProfile.H130X180))
+        val horizontal = vertical.copy(
+            bounds = EmbroideryBounds(-820, 820, -400, 400)
+        )
+        assertEquals(HoopOrientation.LANDSCAPE,
+            NameEditorPlacement.frozenHoopOrientation(horizontal, HoopProfile.H130X180))
+        assertEquals(HoopOrientation.LANDSCAPE,
+            NameEditorPlacement.frozenHoopOrientation(
+                vertical.copy(hoopOrientation = HoopOrientation.LANDSCAPE),
+                HoopProfile.H130X180
+            ))
     }
 
     @Test fun screenOffsetRespectsPesAxisDirection() {
