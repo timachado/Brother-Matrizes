@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.5",
-  "versionCode": 192,
+  "versionName": "1.11.6",
+  "versionCode": 193,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.5/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "9e4a4738cdea7169491eb71c7955783943136e0c80f8879bad2ab83d75f31e7d",
-  "releaseNotes": "Mover a matriz e o nome separadamente, sem deslocar o outro elemento.; Salvar e reabrir projetos de Minhas Matrizes conservando as coordenadas de cada camada.; Ao exportar PES criado no aplicativo, restaurar sua posição na prévia ao reimportá-lo no Brother Matrizes.; Posicionamento gravado no rótulo PEC, sem modificar pontos e comandos do arquivo de costura.; Proteções de bastidor e separação de 1,5 mm entre nome e ornamentos.; Atualização comercial assinada compatível com a versão 1.11.4.",
-  "publishedAt": "2026-10-29T17:44:59Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.5/Brother-Matrizes-1.11.5-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.6/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "9ab26113b03ffaf70638f12f720a694777fd1bb29a809a90513a7abd8cb672bd",
+  "releaseNotes": "Novo editor com nome sobreposto a letras e monogramas.; Rolagem em celulares Samsung e telas Android compactas.; Controles de movimentacao e dimensionamento independentes do nome e da letra.; Rotacao da inicial e orientacao fisica do bastidor sem alterar indevidamente o nome.; Preservacao das pontadas originais, projetos salvos e seguranca da matriz.; Atualizacao comercial compativel com 1.11.5, sem desinstalacao.",
+  "publishedAt": "2026-10-31T23:13:17Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.6/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
