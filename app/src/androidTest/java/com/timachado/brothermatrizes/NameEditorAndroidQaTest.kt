@@ -880,6 +880,79 @@ class NameEditorAndroidQaTest {
 
 
     @Test
+    fun easyNudgeMovesOnlyNameWithoutTwoFingerGesture() {
+        val source = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val named = NamePersonalization.add(
+            source,
+            TextMatrixOptions("Maria", heightMm = 8f,
+                hoopProfile = HoopProfile.H130X180, style = TextStitchStyle.SATIN),
+            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
+        composeRule.onNodeWithTag("brother_easy_move_right").performClick()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            val originalLayer = requireNotNull(named.editableName)
+            assertEquals(originalLayer.centerXUnits + 10, layer.centerXUnits)
+            assertEquals(originalLayer.centerYUnits, layer.centerYUnits)
+            assertEquals(originalLayer.original.points, layer.original.points)
+        }
+    }
+
+    @Test
+    fun easyLetterSizeUsesDedicatedControlsWithoutTouchingName() {
+        val source = frame().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val named = NamePersonalization.add(
+            source,
+            TextMatrixOptions("Maria", heightMm = 8f,
+                hoopProfile = HoopProfile.H130X180, style = TextStitchStyle.SATIN),
+            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+        var applied: EmbroideryDesign? = null
+        composeRule.setContent {
+            NameEditorScreen(original = named,
+                referenceHoop = HoopProfile.H130X180,
+                onBack = {}, onApply = { applied = it })
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_easy_smaller").performClick()
+        composeRule.onNodeWithText(
+            "Tamanho da letra: 95% (independente do nome)"
+        ).assertExists()
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            !composeRule.onNodeWithTag("brother_name_apply")
+                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+        }
+        composeRule.onNodeWithTag("brother_name_apply").performClick()
+        composeRule.runOnIdle {
+            val result = requireNotNull(applied)
+            val layer = requireNotNull(result.editableName)
+            assertEquals(named.editableName!!.options.text, layer.options.text)
+            assertEquals(named.editableName!!.centerXUnits, layer.centerXUnits)
+            assertTrue(layer.original.bounds.widthMm <
+                named.editableName!!.original.bounds.widthMm)
+        }
+    }
+
+    @Test
     fun simplifiedEditorStartsWithPreviewAndKeepsAdvancedFunctions() {
         composeRule.setContent {
             NameEditorScreen(

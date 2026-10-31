@@ -727,6 +727,28 @@ fun NameEditorScreen(
             (draft.height + deltaMm).coerceIn(4f, 30f)))
     }
 
+    // Ajuste por botões: um toque = 1 mm na direção VISUAL indicada.
+    // Reaproveita a mesma transformação validada dos gestos, incluindo
+    // histórico Desfazer/Refazer e independência entre Nome e Letra.
+    fun nudgeSelected(dx: Float, dy: Float) {
+        if (canvasSize.width <= 0 || canvasSize.height <= 0 ||
+            editorSection == NameEditorSection.HOOP || dragging) return
+        val target = if (editorSection == NameEditorSection.NAME)
+            NameEditorMoveMode.NAME else NameEditorMoveMode.MATRIX
+        val oneMillimeterPx = 10f * canvasScale
+        commitGesture(target, Offset(dx * oneMillimeterPx, dy * oneMillimeterPx), 1f, 0f)
+    }
+
+    fun centerNameOnLetter() {
+        autoFitEnabled = false
+        setDraft(draft.copy(
+            x = ((baseDesign.bounds.minXUnits.toLong() +
+                baseDesign.bounds.maxXUnits.toLong()) / 2L).toInt(),
+            y = ((baseDesign.bounds.minYUnits.toLong() +
+                baseDesign.bounds.maxYUnits.toLong()) / 2L).toInt()
+        ))
+    }
+
     if (selectingOldName) {
         ImportedNameSelectionPanel(
             original = original,
@@ -1038,6 +1060,64 @@ fun NameEditorScreen(
             modifier = Modifier.testTag("brother_editor_context_hint")
         )
 
+        // Controles acessíveis para quem não consegue usar pinça no celular.
+        // O alvo é SEMPRE a aba selecionada, jamais outro elemento sobreposto.
+        if (editorSection != NameEditorSection.HOOP) {
+            Text(
+                if (editorSection == NameEditorSection.NAME)
+                    "Ajuste fácil do NOME · cada seta move 1 mm"
+                else "Ajuste fácil da LETRA · cada seta move 1 mm",
+                color = FioText, fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_easy_controls_title")
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { nudgeSelected(-1f, 0f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_left")
+                ) { Text("← Esquerda", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(0f, -1f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_up")
+                ) { Text("↑ Cima", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(0f, 1f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_down")
+                ) { Text("↓ Baixo", fontSize = 11.sp) }
+                OutlinedButton(
+                    onClick = { nudgeSelected(1f, 0f) },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_move_right")
+                ) { Text("→ Direita", fontSize = 11.sp) }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        if (editorSection == NameEditorSection.NAME) resize(-1f)
+                        else resizeLetterOnly(letterScalePercent - 5)
+                    },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_smaller")
+                ) { Text("− Menor") }
+                if (editorSection == NameEditorSection.NAME) {
+                    OutlinedButton(
+                        onClick = { centerNameOnLetter() },
+                        modifier = Modifier.weight(1f).testTag("brother_easy_center_name")
+                    ) { Text("Centralizar") }
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (editorSection == NameEditorSection.NAME) resize(1f)
+                        else resizeLetterOnly(letterScalePercent + 5)
+                    },
+                    modifier = Modifier.weight(1f).testTag("brother_easy_larger")
+                ) { Text("+ Maior") }
+            }
+        }
+
         // Preset essencial sempre à vista na aba Bastidor: evita rolagem
         // longa ou operação gestual acidental para fixar a orientação.
         if (editorSection == NameEditorSection.HOOP && !advancedExpanded) {
@@ -1151,15 +1231,7 @@ fun NameEditorScreen(
                 modifier = Modifier.weight(1f).testTag("brother_name_size_down")
             ) { Text("A− Menor") }
             OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(
-                        x = (baseDesign.bounds.minXUnits.toLong() +
-                            baseDesign.bounds.maxXUnits.toLong()).div(2).toInt(),
-                        y = (baseDesign.bounds.minYUnits.toLong() +
-                            baseDesign.bounds.maxYUnits.toLong()).div(2).toInt()
-                    ))
-                },
+                onClick = { centerNameOnLetter() },
                 modifier = Modifier.weight(1f).testTag("brother_name_center")
             ) { Text("Centralizar") }
             OutlinedButton(
