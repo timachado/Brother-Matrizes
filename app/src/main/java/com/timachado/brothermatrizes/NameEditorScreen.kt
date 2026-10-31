@@ -812,7 +812,14 @@ fun NameEditorScreen(
                                 NameEditorMoveMode.MATRIX
                             touchSection == NameEditorSection.HOOP -> touchMode
                             touchedName -> NameEditorMoveMode.NAME
+                            visible?.editableName != null -> NameEditorMoveMode.MATRIX
                             else -> touchMode
+                        }
+                        // A seleção por toque atualiza a aba; na sobreposição
+                        // dos dois desenhos a escolha explícita Letra tem prioridade.
+                        if (target != touchMode) {
+                            editorSection = if (target == NameEditorMoveMode.NAME)
+                                NameEditorSection.NAME else NameEditorSection.LETTER
                         }
                         moveMode = target
                         autoFitEnabled = false
