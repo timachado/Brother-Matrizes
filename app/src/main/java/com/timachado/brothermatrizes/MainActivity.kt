@@ -9,16 +9,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -74,7 +77,7 @@ import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioNavigationSurface
-import com.timachado.brothermatrizes.ui.theme.FioNavigationMuted
+import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -398,6 +401,10 @@ private fun BrotherMatrizesApp(
             Screen.Home
         )
     }
+
+    // A gaveta fica independente da navegação: telas de edição não
+    // recebem gestos laterais para não interceptar toques na matriz.
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     var recent by remember {
         mutableStateOf<
@@ -784,11 +791,13 @@ private fun BrotherMatrizesApp(
     }
 
     BackHandler(
-        enabled =
-            screen !=
-                Screen.Home
+        enabled = drawerState.isOpen || screen != Screen.Home
     ) {
-        goBack()
+        if (drawerState.isOpen) {
+            scope.launch { drawerState.close() }
+        } else {
+            goBack()
+        }
     }
 
     var telegramImportPending by remember { mutableStateOf(false) }
@@ -1711,6 +1720,78 @@ private fun BrotherMatrizesApp(
         }
     }
 
+    val selectedDrawerItem = when (screen) {
+        Screen.Home -> BrotherDrawerDestination.HOME
+        Screen.CreateName -> BrotherDrawerDestination.CREATE_NAME
+        Screen.CreateMonogram -> BrotherDrawerDestination.CREATE_MONOGRAM
+        Screen.CreateDrawing -> BrotherDrawerDestination.CREATE_DRAWING
+        Screen.ProjectLibrary -> BrotherDrawerDestination.LIBRARY
+        Screen.FontLibrary -> BrotherDrawerDestination.FONTS
+        Screen.TelegramSearch -> BrotherDrawerDestination.TELEGRAM
+        Screen.Account -> BrotherDrawerDestination.ACCOUNT
+        Screen.Community -> BrotherDrawerDestination.COMMUNITY
+        is Screen.Converter -> BrotherDrawerDestination.CONVERTER
+        is Screen.Transfer -> BrotherDrawerDestination.TRANSFER
+        is Screen.Editor -> BrotherDrawerDestination.EDITOR
+        is Screen.Simulator -> BrotherDrawerDestination.SIMULATOR
+        else -> null
+    }
+
+    fun drawerNavigate(destination: BrotherDrawerDestination) {
+        scope.launch {
+            drawerState.close()
+            when (destination) {
+                BrotherDrawerDestination.HOME -> screen = Screen.Home
+                BrotherDrawerDestination.CREATE_NAME -> screen = Screen.CreateName
+                BrotherDrawerDestination.CREATE_MONOGRAM -> screen = Screen.CreateMonogram
+                BrotherDrawerDestination.CREATE_DRAWING -> screen = Screen.CreateDrawing
+                BrotherDrawerDestination.OPEN_MATRIX -> launchMatrixPicker()
+                BrotherDrawerDestination.LIBRARY -> openProjectLibrary()
+                BrotherDrawerDestination.FONTS -> screen = Screen.FontLibrary
+                BrotherDrawerDestination.TELEGRAM -> screen = Screen.TelegramSearch
+                BrotherDrawerDestination.ACCOUNT -> screen = Screen.Account
+                BrotherDrawerDestination.COMMUNITY -> screen = Screen.Community
+                BrotherDrawerDestination.EDITOR,
+                BrotherDrawerDestination.SIMULATOR,
+                BrotherDrawerDestination.CONVERTER,
+                BrotherDrawerDestination.TRANSFER -> {
+                    val current = recent
+                    if (current == null) {
+                        snackbar.showSnackbar("Abra ou crie uma matriz primeiro.")
+                    } else {
+                        screen = when (destination) {
+                            BrotherDrawerDestination.EDITOR -> Screen.Editor(current)
+                            BrotherDrawerDestination.SIMULATOR -> Screen.Simulator(current)
+                            BrotherDrawerDestination.CONVERTER -> Screen.Converter(current)
+                            BrotherDrawerDestination.TRANSFER -> Screen.Transfer(current)
+                            else -> Screen.Home
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val drawerGesturesEnabled =
+        screen == Screen.Home ||
+            screen == Screen.CreateName ||
+            screen == Screen.ProjectLibrary ||
+            screen == Screen.FontLibrary ||
+            screen == Screen.Account ||
+            screen == Screen.Community ||
+            screen == Screen.TelegramSearch
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerGesturesEnabled,
+        drawerContent = {
+            BrotherNavigationDrawerContent(
+                selected = selectedDrawerItem,
+                hasActiveMatrix = recent != null,
+                onSelect = ::drawerNavigate
+            )
+        }
+    ) {
     Scaffold(
         containerColor =
             FioBackground,
@@ -1719,174 +1800,40 @@ private fun BrotherMatrizesApp(
                 snackbar
             )
         },
-        bottomBar = {
-            val topLevelScreen =
-                screen == Screen.Home ||
-                    screen == Screen.CreateName ||
-                    screen == Screen.ProjectLibrary ||
-                    screen == Screen.FontLibrary ||
-                    screen == Screen.Account
-
-            if (topLevelScreen) {
-                NavigationBar(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .testTag("brother_premium_bottom_bar"),
-                    containerColor =
-                        FioNavigationSurface,
-                    // Sem tonalizacao Material 3 para preservar o azul exato.
-                    tonalElevation =
-                        0.dp
-                ) {
-                    val navigationColors =
-                        NavigationBarItemDefaults
-                            .colors(
-                                selectedIconColor =
-                                    FioBackground,
-                                selectedTextColor =
-                                    FioGold,
-                                indicatorColor =
-                                    FioGold,
-                                unselectedIconColor =
-                                    FioNavigationMuted,
-                                unselectedTextColor =
-                                    FioNavigationMuted
-                            )
-
-                    NavigationBarItem(
-                        selected =
-                            screen ==
-                                Screen.Home,
-                        onClick = {
-                            screen =
-                                Screen.Home
-                        },
-                        icon = {
+        // A antiga barra inferior foi removida. O menu lateral agora
+        // organiza a navegação; o editor preserva seus controles próprios.
+        topBar = {
+            if (screen != Screen.Home && drawerGesturesEnabled) {
+                Surface(color = FioNavigationSurface) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { scope.launch { drawerState.open() } },
+                            modifier = Modifier.size(48.dp)
+                                .testTag("brother_global_open_drawer")
+                        ) {
                             Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_home_rounded
-                                    ),
-                                contentDescription =
-                                    "Início"
+                                painter = painterResource(R.drawable.ic_ms_menu_rounded),
+                                contentDescription = "Abrir menu de navegação",
+                                tint = FioGold
                             )
-                        },
-                        label = {
-                            Text("Início")
-                        },
-                        colors =
-                            navigationColors
-                    )
-
-                    NavigationBarItem(
-                        selected =
-                            screen ==
-                                Screen.CreateName,
-                        onClick = {
-                            screen =
-                                Screen.CreateName
-                        },
-                        icon = {
-                            Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_text_fields_rounded
-                                    ),
-                                contentDescription =
-                                    "Criar"
-                            )
-                        },
-                        label = {
-                            Text("Criar")
-                        },
-                        colors =
-                            navigationColors
-                    )
-
-                    NavigationBarItem(
-                        selected =
-                            screen ==
-                                Screen.ProjectLibrary,
-                        onClick = {
-                            if (
-                                screen !=
-                                    Screen.ProjectLibrary
-                            ) {
-                                openProjectLibrary()
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_folder_open_rounded
-                                    ),
-                                contentDescription =
-                                    "Biblioteca"
-                            )
-                        },
-                        label = {
-                            Text("Biblioteca")
-                        },
-                        colors =
-                            navigationColors
-                    )
-
-                    NavigationBarItem(
-                        selected =
-                            screen ==
-                                Screen.FontLibrary,
-                        onClick = {
-                            screen =
-                                Screen.FontLibrary
-                        },
-                        icon = {
-                            Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_font_download_rounded
-                                    ),
-                                contentDescription =
-                                    "Fontes"
-                            )
-                        },
-                        label = {
-                            Text("Fontes")
-                        },
-                        colors =
-                            navigationColors
-                    )
-
-                    NavigationBarItem(
-                        selected =
-                            screen ==
-                                Screen.Account,
-                        onClick = {
-                            screen =
-                                Screen.Account
-                        },
-                        icon = {
-                            Icon(
-                                painter =
-                                    painterResource(
-                                        R.drawable
-                                            .ic_ms_account_circle_rounded
-                                    ),
-                                contentDescription =
-                                    "Conta"
-                            )
-                        },
-                        label = {
-                            Text("Conta")
-                        },
-                        colors =
-                            navigationColors
-                    )
+                        }
+                        Text(
+                            text = when (screen) {
+                                Screen.CreateName -> "Criar nome"
+                                Screen.ProjectLibrary -> "Minhas matrizes"
+                                Screen.FontLibrary -> "Fontes"
+                                Screen.Account -> "Minha conta"
+                                Screen.Community -> "Novidades e suporte"
+                                Screen.TelegramSearch -> "Pesquisar matrizes"
+                                else -> "Brother Matrizes"
+                            },
+                            color = FioText
+                        )
+                    }
                 }
             }
         }
@@ -1903,6 +1850,7 @@ private fun BrotherMatrizesApp(
                 Screen.Home -> {
                     HomeScreen(
                         recent = recent,
+                        onOpenMenu = { scope.launch { drawerState.open() } },
                         updateRefreshRequest = updateResumeRequest + openHomeUpdatesRequest,
                         onCreateName = {
                             screen =
@@ -2662,5 +2610,6 @@ private fun BrotherMatrizesApp(
                 )
             }
         }
+    }
     }
 }

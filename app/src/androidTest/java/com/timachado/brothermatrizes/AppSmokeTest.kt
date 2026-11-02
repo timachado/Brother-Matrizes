@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
@@ -18,18 +19,13 @@ class AppSmokeTest {
 
     @Test
     fun appStartsAndAccountNavigationKeepsExpectedAboutContent() {
-        composeRule
-            .onNodeWithText(
-                "Início"
-            )
-            .assertIsDisplayed()
-
-        composeRule
-            .onNodeWithText(
-                "Conta"
-            )
-            .assertIsDisplayed()
-            .performClick()
+        // A navegação antiga foi substituída por uma gaveta.
+        composeRule.onNodeWithTag("brother_premium_bottom_bar")
+            .assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_home_open_drawer")
+            .assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("brother_drawer_account")
+            .performScrollTo().assertIsDisplayed().performClick()
 
         // AccountHostScreen first restores the persisted Supabase session.
         // Navigation is async; do not assert the account title immediately.
@@ -84,12 +80,10 @@ class AppSmokeTest {
     }
     @Test
     fun fontLibraryMakesLocalStorageScopeExplicit() {
-        composeRule
-            .onNodeWithText(
-                "Fontes"
-            )
-            .assertIsDisplayed()
-            .performClick()
+        composeRule.onNodeWithTag("brother_home_open_drawer")
+            .assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("brother_drawer_fonts")
+            .performScrollTo().assertIsDisplayed().performClick()
 
         composeRule
             .onNodeWithText(
