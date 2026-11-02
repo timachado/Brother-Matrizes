@@ -1107,22 +1107,20 @@ fun NameEditorScreen(
             modifier = Modifier.testTag("brother_editor_context_hint")
         )
 
-        // Controles acessíveis para quem não consegue usar pinça no celular.
-        // O alvo é SEMPRE a aba selecionada, jamais outro elemento sobreposto.
-        if (editorSection != NameEditorSection.HOOP) {
+        // O nome é movido e redimensionado diretamente na prévia.
+        // Os comandos discretos da LETRA permanecem para precisão e acessibilidade.
+        if (editorSection == NameEditorSection.LETTER) {
             Text(
-                if (editorSection == NameEditorSection.NAME)
-                    "Ajuste fácil do NOME · cada seta move 1 mm"
-                else "Ajuste fácil da LETRA · cada seta move 1 mm",
+                "Ajuste fino da LETRA · cada seta move 1 mm",
                 color = FioText, fontSize = 12.sp,
                 modifier = Modifier.testTag("brother_easy_controls_title")
             )
-            if (editorSection == NameEditorSection.LETTER) {
-                Text("Tamanho da letra: " + letterScalePercent +
+            Text(
+                "Tamanho da letra: " + letterScalePercent +
                     "% (independente do nome)",
-                    color = FioText, fontSize = 12.sp,
-                    modifier = Modifier.testTag("brother_letter_scale_label"))
-            }
+                color = FioText, fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_letter_scale_label")
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1149,23 +1147,11 @@ fun NameEditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 OutlinedButton(
-                    onClick = {
-                        if (editorSection == NameEditorSection.NAME) resize(-1f)
-                        else resizeLetterOnly(letterScalePercent - 5)
-                    },
+                    onClick = { resizeLetterOnly(letterScalePercent - 5) },
                     modifier = Modifier.weight(1f).testTag("brother_easy_smaller")
                 ) { Text("− Menor") }
-                if (editorSection == NameEditorSection.NAME) {
-                    OutlinedButton(
-                        onClick = { centerNameOnLetter() },
-                        modifier = Modifier.weight(1f).testTag("brother_easy_center_name")
-                    ) { Text("Centralizar") }
-                }
                 OutlinedButton(
-                    onClick = {
-                        if (editorSection == NameEditorSection.NAME) resize(1f)
-                        else resizeLetterOnly(letterScalePercent + 5)
-                    },
+                    onClick = { resizeLetterOnly(letterScalePercent + 5) },
                     modifier = Modifier.weight(1f).testTag("brother_easy_larger")
                 ) { Text("+ Maior") }
             }
@@ -1270,48 +1256,12 @@ fun NameEditorScreen(
         }
 
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { resize(-1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_down")
-            ) { Text("A− Menor") }
-            OutlinedButton(
-                onClick = { centerNameOnLetter() },
-                modifier = Modifier.weight(1f).testTag("brother_name_center")
-            ) { Text("Centralizar") }
-            OutlinedButton(
-                onClick = { resize(1f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_size_up")
-            ) { Text("A+ Maior") }
-        }
+        // Redimensionar e girar o nome por gestos; apenas centralização permanece.
+        OutlinedButton(
+            onClick = { centerNameOnLetter() },
+            modifier = Modifier.fillMaxWidth().testTag("brother_name_center")
+        ) { Text("Centralizar nome na letra") }
 
-
-        Text("Girar nome · ${draft.rotation.roundToInt()}°", color = FioText,
-            fontSize = 12.sp, modifier = Modifier.testTag("brother_name_rotation_value"))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedButton(
-                onClick = { rotate(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    setDraft(draft.copy(rotation = 0f))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotate(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
-            ) { Text("↷ 15°") }
-        }
 
         Box {
             OutlinedButton(onClick = {
@@ -1390,6 +1340,76 @@ fun NameEditorScreen(
                 setDraft(draft.copy(height = it), history = false)
             },
             valueRange = 4f..30f
+        )
+
+        // Controles do nome agrupados após a Altura, sem alternar para o painel avançado.
+        Text("Largura: " + (draft.widthScale * 100).roundToInt() +
+            "%", color = FioText)
+        Slider(
+            value = draft.widthScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(widthScale = it), history = false)
+            },
+            valueRange = .5f..2.5f,
+            modifier = Modifier.testTag("brother_name_width_scale")
+        )
+        Text("Expansão vertical: " + (draft.heightScale * 100).roundToInt() +
+            "%", color = FioText)
+        Slider(
+            value = draft.heightScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(heightScale = it), history = false)
+            },
+            valueRange = .5f..2.5f,
+            modifier = Modifier.testTag("brother_name_height_scale")
+        )
+        Text("Expansão horizontal: " +
+            (draft.horizontalGlyphScale * 100f).roundToInt() + "%",
+            color = FioText)
+        Text("Ajusta a largura de cada letra, sem alterar o espaçamento da palavra.",
+            color = FioTextMuted, fontSize = 11.sp)
+        Slider(
+            value = draft.horizontalGlyphScale,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(horizontalGlyphScale = it), history = false)
+            },
+            valueRange = .7f..1.4f,
+            modifier = Modifier.testTag("brother_name_horizontal_expansion")
+        )
+        Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
+        Slider(
+            value = draft.spacing,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(spacing = it), history = false)
+            },
+            valueRange = 0f..5f,
+            modifier = Modifier.testTag("brother_name_spacing")
+        )
+        Text("Densidade Satin: " + "%.2f".format(draft.density) + " mm", color = FioText)
+        Slider(
+            value = draft.density,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(density = it), history = false)
+            },
+            valueRange = .3f..1.0f,
+            modifier = Modifier.testTag("brother_name_density")
+        )
+
+        Text("Rotação do nome: ${draft.rotation.roundToInt()}°", color = FioText,
+            modifier = Modifier.testTag("brother_name_rotation_value"))
+        Slider(
+            value = draft.rotation,
+            onValueChange = {
+                autoFitEnabled = false
+                setDraft(draft.copy(rotation = (it / 5f).roundToInt() * 5f), history = false)
+            },
+            valueRange = -180f..180f,
+            modifier = Modifier.testTag("brother_name_rotation_slider")
         )
 
         Text("Cor da linha", color = FioText)
@@ -1679,72 +1699,6 @@ fun NameEditorScreen(
                 Text(message, color = FioTextMuted, fontSize = 12.sp)
             }
         }
-
-
-        Text("Largura: " + (draft.widthScale * 100).roundToInt() +
-            "%", color = FioText)
-        Slider(
-            value = draft.widthScale,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(widthScale = it), history = false)
-            },
-            valueRange = .5f..2.5f,
-            modifier = Modifier.testTag("brother_name_width_scale")
-        )
-        Text("Expansão vertical: " + (draft.heightScale * 100).roundToInt() +
-            "%", color = FioText)
-        Slider(
-            value = draft.heightScale,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(heightScale = it), history = false)
-            },
-            valueRange = .5f..2.5f,
-            modifier = Modifier.testTag("brother_name_height_scale")
-        )
-        Text("Expansão horizontal: " +
-            (draft.horizontalGlyphScale * 100f).roundToInt() + "%",
-            color = FioText)
-        Text("Ajusta a largura de cada letra, sem alterar o espaçamento da palavra.",
-            color = FioTextMuted, fontSize = 11.sp)
-        Slider(
-            value = draft.horizontalGlyphScale,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(horizontalGlyphScale = it), history = false)
-            },
-            valueRange = .7f..1.4f,
-            modifier = Modifier.testTag("brother_name_horizontal_expansion")
-        )
-        Text("Espaçamento: " + "%.1f".format(draft.spacing) + " mm", color = FioText)
-        Slider(
-            value = draft.spacing,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(spacing = it), history = false)
-            },
-            valueRange = 0f..5f
-        )
-        Text("Densidade Satin: " + "%.2f".format(draft.density) + " mm", color = FioText)
-        Slider(
-            value = draft.density,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(density = it), history = false)
-            },
-            valueRange = .3f..1.0f
-        )
-
-        Text("Rotação do nome: ${draft.rotation.roundToInt()}°", color = FioText)
-        Slider(
-            value = draft.rotation,
-            onValueChange = {
-                autoFitEnabled = false
-                setDraft(draft.copy(rotation = (it / 5f).roundToInt() * 5f), history = false)
-            },
-            valueRange = -180f..180f
-        )
 
 
         Text(
