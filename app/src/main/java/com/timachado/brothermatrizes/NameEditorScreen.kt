@@ -1180,25 +1180,6 @@ fun NameEditorScreen(
                 ) { Text("+ Maior") }
             }
                 if (editorSection == NameEditorSection.NAME) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { resize(-1f) },
-                    modifier = Modifier.weight(1f).testTag("brother_name_size_down")
-                ) { Text("A− Menor") }
-                OutlinedButton(
-                    onClick = { centerNameOnLetter() },
-                    modifier = Modifier.weight(1f).testTag("brother_name_center")
-                ) { Text("Centralizar") }
-                OutlinedButton(
-                    onClick = { resize(1f) },
-                    modifier = Modifier.weight(1f).testTag("brother_name_size_up")
-                ) { Text("A+ Maior") }
-            }
-    
-    
             Text("Girar nome · ${draft.rotation.roundToInt()}°", color = FioText,
                 fontSize = 12.sp, modifier = Modifier.testTag("brother_name_rotation_value"))
             Row(
