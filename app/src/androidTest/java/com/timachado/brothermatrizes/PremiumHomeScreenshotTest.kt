@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -57,10 +58,9 @@ class PremiumHomeScreenshotTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText(heroTitle).assertIsDisplayed()
         composeRule.onNodeWithText("Criar nome").assertIsDisplayed()
-        composeRule.onNodeWithText("Início").assertIsDisplayed()
-        // A navegação Premium deve existir nas cinco abas superiores e manter
-        // a superfície azul independente dos cartões da Home.
-        composeRule.onNodeWithTag("brother_premium_bottom_bar").assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_home_open_drawer").assertIsDisplayed()
+        // Menu lateral substitui completamente a antiga barra inferior.
+        composeRule.onNodeWithTag("brother_premium_bottom_bar").assertDoesNotExist()
         // Ferramentas maiores exigem rolagem em algumas telas. Capturar a
         // primeira dobra agora e validar o botão de Recente depois da foto.
         composeRule.waitForIdle()
@@ -120,23 +120,23 @@ class PremiumHomeScreenshotTest {
         composeRule.onNodeWithText("Criar primeiro nome")
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Recente").assertIsDisplayed()
-        val navTop = composeRule.onNodeWithText("Início")
-            .fetchSemanticsNode().boundsInRoot.top
+        val screenBottom = composeRule.onRoot()
+            .fetchSemanticsNode().boundsInRoot.bottom
         var recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
             .fetchSemanticsNode().boundsInRoot.bottom
         // Deslizar na propria area rolavel, nao na raiz do Scaffold.
         // A raiz tambem contem a NavigationBar e pode ignorar o gesto.
         repeat(4) { attempt ->
-            if (recentBottom <= navTop - 30f) return@repeat
+            if (recentBottom <= screenBottom - 30f) return@repeat
             composeRule.onNodeWithTag("brother_home_scroll")
                 .performTouchInput { swipeUp() }
             composeRule.waitForIdle()
             recentBottom = composeRule.onNodeWithText("Criar primeiro nome")
                 .assertIsDisplayed().fetchSemanticsNode().boundsInRoot.bottom
-            println("QA Recente: tentativa=$attempt, CTA.bottom=$recentBottom, nav.top=$navTop")
+            println("QA Recente: tentativa=$attempt, CTA.bottom=$recentBottom, screen.bottom=$screenBottom")
         }
-        check(recentBottom <= navTop - 30f) {
-            "CTA de Recente permanece encoberto mesmo apos rolar grid: bottom=$recentBottom nav=$navTop"
+        check(recentBottom <= screenBottom - 30f) {
+            "CTA de Recente permanece encoberto mesmo apos rolar grid: bottom=$recentBottom screen=$screenBottom"
         }
 
 

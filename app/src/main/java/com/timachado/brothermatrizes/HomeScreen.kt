@@ -87,9 +87,9 @@ fun HomeScreen(
         contentPadding =
             PaddingValues(
                 top = 4.dp,
-                // Reserva zona de rolagem além da barra inferior do aplicativo:
-                // os cartões maiores não devem esconder Recente nem sua CTA.
-                bottom = 160.dp
+                // O menu principal é lateral. Reserva apenas uma margem
+                // para o último CTA ficar totalmente rolável na tela.
+                bottom = 32.dp
             ),
         horizontalArrangement =
             Arrangement.spacedBy(8.dp),
@@ -178,178 +178,17 @@ fun HomeScreen(
             )
         }
 
-        item(
-            span = {
-                GridItemSpan(maxLineSpan)
-            }
-        ) {
-            Text(
-                "Ferramentas",
-                color = FioText,
-                style =
-                    MaterialTheme.typography
-                        .titleLarge,
-                modifier =
-                    Modifier.padding(
-                        top = 4.dp,
-                        bottom = 2.dp
-                    )
-            )
-        }
-
-        item {
+        // Acesso rapido sem duplicar a lista completa do menu lateral.
+        item(span = { GridItemSpan(maxLineSpan) }) {
             ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_font_download_rounded,
-                title = "Biblioteca de fontes",
-                subtitle =
-                    "Salve e gerencie TTF/OTF",
-                enabled = true,
-                onClick =
-                    onFonts
-            )
-        }
-
-        item {
-            ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_folder_open_rounded,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
+                iconRes = R.drawable.ic_ms_folder_open_rounded,
                 title = "Abrir matriz",
-                subtitle =
-                    "DST, JEF e PES",
+                subtitle = "PES, DST e JEF do computador ou celular",
                 enabled = true,
-                onClick =
-                    onOpen
+                onClick = onOpen
             )
         }
-
-        item {
-            ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_play_arrow_rounded,
-                title = "Simulador",
-                subtitle =
-                    "Veja a sequência real",
-                enabled = true
-            ) {
-                if (
-                    recent != null
-                ) {
-                    onSimulate()
-                } else {
-                    onUnavailable(
-                        "Crie ou abra uma matriz primeiro."
-                    )
-                }
-            }
-        }
-
-        item {
-            ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_edit_rounded,
-                title = "Editor",
-                subtitle =
-                    "Mover, girar e cores",
-                enabled = true
-            ) {
-                if (
-                    recent != null
-                ) {
-                    onEdit()
-                } else {
-                    onUnavailable(
-                        "Crie ou abra uma matriz primeiro."
-                    )
-                }
-            }
-        }
-
-        item {
-            ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_swap_horiz_rounded,
-                title = "Converter",
-                subtitle =
-                    "DST, PES e JEF",
-                enabled = true
-            ) {
-                if (
-                    recent != null
-                ) {
-                    onConvert()
-                } else {
-                    onUnavailable(
-                        "Crie ou abra uma matriz primeiro."
-                    )
-                }
-            }
-        }
-
-        item {
-            ExpressiveFeatureCard(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(
-                            min = 78.dp
-                        ),
-                iconRes =
-                    R.drawable
-                        .ic_ms_upload_rounded,
-                title = "Enviar",
-                subtitle =
-                    "OTG ou Wi-Fi/app",
-                enabled = true
-            ) {
-                if (
-                    recent != null
-                ) {
-                    onTransfer()
-                } else {
-                    onUnavailable(
-                        "Crie ou abra uma matriz primeiro."
-                    )
-                }
-            }
-        }
-
-
 
         item(
             span = {
