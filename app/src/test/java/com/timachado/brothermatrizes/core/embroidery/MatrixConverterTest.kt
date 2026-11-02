@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.core.embroidery
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,6 +78,8 @@ class MatrixConverterTest {
         val source = sampleDesign()
         val machine = MatrixConverter.convert(source, "PES", "maquina").getOrThrow()
         val pc = MatrixConverter.convertForPeDesign(source).getOrThrow()
+        val fixtureDir = File("build/pe-design-fixtures").apply { mkdirs() }
+        File(fixtureDir, "cores-e-pontadas-PE_DESIGN.pes").writeBytes(pc.bytes)
 
         assertEquals("PES", pc.format)
         assertTrue(pc.fileName.endsWith("-PE_DESIGN.pes"))
@@ -117,6 +120,43 @@ class MatrixConverterTest {
         assertEquals(edited.bounds.heightMm, result.bounds.heightMm, 0.3f)
         assertEquals(sourcePoints, edited.points)
         assertFalse(original.points == edited.points)
+    }
+
+    @Test
+    fun peDesignPcExportsEditedMariaNameWithBaseAndColorBlocks() {
+        val original = sampleDesign().copy(
+            hoopProfile = HoopProfile.H130X180,
+            hoopOrientation = HoopOrientation.LANDSCAPE
+        )
+        val named = NamePersonalization.add(
+            original,
+            TextMatrixOptions(
+                text = "Maria", heightMm = 8f,
+                style = TextStitchStyle.SATIN,
+                hoopProfile = HoopProfile.H130X180,
+                outputFormat = "PES",
+                color = 0xB22222
+            ),
+            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+        ).getOrThrow()
+
+        assertTrue(named.points.count { it.command == StitchCommand.STITCH } >
+            original.points.count { it.command == StitchCommand.STITCH })
+        val sourcePoints = named.points.toList()
+        val pc = MatrixConverter.convertForPeDesign(named).getOrThrow()
+        val folder = File("build/pe-design-fixtures").apply { mkdirs() }
+        File(folder, "maria-editada-PE_DESIGN.pes").writeBytes(pc.bytes)
+
+        val decoded = EmbroideryIoParser.parse(pc.fileName, pc.bytes)
+        assertTrue("Matriz com nome precisa ser lida em PES completo.",
+            decoded is EmbroideryLoadResult.Success)
+        val result = (decoded as EmbroideryLoadResult.Success).design
+        assertTrue(result.stitchCount > original.stitchCount)
+        assertTrue(result.colorChanges >= 1)
+        assertEquals(named.bounds.widthMm, result.bounds.widthMm, 0.3f)
+        assertEquals(named.bounds.heightMm, result.bounds.heightMm, 0.3f)
+        assertEquals(sourcePoints, named.points)
+        assertEquals(original.points, named.editableName?.original?.points)
     }
 
     @Test
