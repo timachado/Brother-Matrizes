@@ -171,7 +171,6 @@ fun NameEditorScreen(
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var editorSection by remember(original) { mutableStateOf(NameEditorSection.NAME) }
     var advancedExpanded by remember(original) { mutableStateOf(false) }
-    var fineAdjustmentExpanded by remember(original) { mutableStateOf(false) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
     fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation,
@@ -1108,103 +1107,16 @@ fun NameEditorScreen(
             modifier = Modifier.testTag("brother_editor_context_hint")
         )
 
-        // Gestos são o padrão. Ações por botões ficam recolhidas,
-        // mas continuam disponíveis como alternativa de acessibilidade.
-        if (editorSection != NameEditorSection.HOOP) {
-            if (editorSection == NameEditorSection.LETTER) {
-                Text("Tamanho da letra: " + letterScalePercent +
-                    "% (independente do nome)",
-                    color = FioText, fontSize = 12.sp,
-                    modifier = Modifier.testTag("brother_letter_scale_label"))
-            }
-            TextButton(
-                onClick = { fineAdjustmentExpanded = !fineAdjustmentExpanded },
-                modifier = Modifier.fillMaxWidth()
-                    .testTag("brother_fine_adjustments_toggle")
-            ) {
-                Text(if (fineAdjustmentExpanded) "Ocultar ajuste fino por botões"
-                    else "Ajuste fino por botões (opcional)")
-            }
-            if (fineAdjustmentExpanded) {
+        // O nome é movido, girado e redimensionado por gestos na prévia.
+        // Não duplicar a interface com setas e botões verticais: os
+        // ajustes exatos ficam na aba Nome, logo após Altura.
+        if (editorSection == NameEditorSection.LETTER) {
             Text(
-                if (editorSection == NameEditorSection.NAME)
-                    "Ajuste fácil do NOME · cada seta move 1 mm"
-                else "Ajuste fácil da LETRA · cada seta move 1 mm",
+                "Tamanho da letra: " + letterScalePercent +
+                    "% (independente do nome)",
                 color = FioText, fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_easy_controls_title")
+                modifier = Modifier.testTag("brother_letter_scale_label")
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { nudgeSelected(-1f, 0f) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_move_left")
-                ) { Text("← Esquerda", fontSize = 11.sp) }
-                OutlinedButton(
-                    onClick = { nudgeSelected(0f, -1f) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_move_up")
-                ) { Text("↑ Cima", fontSize = 11.sp) }
-                OutlinedButton(
-                    onClick = { nudgeSelected(0f, 1f) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_move_down")
-                ) { Text("↓ Baixo", fontSize = 11.sp) }
-                OutlinedButton(
-                    onClick = { nudgeSelected(1f, 0f) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_move_right")
-                ) { Text("→ Direita", fontSize = 11.sp) }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        if (editorSection == NameEditorSection.NAME) resize(-1f)
-                        else resizeLetterOnly(letterScalePercent - 5)
-                    },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_smaller")
-                ) { Text("− Menor") }
-                if (editorSection == NameEditorSection.NAME) {
-                    OutlinedButton(
-                        onClick = { centerNameOnLetter() },
-                        modifier = Modifier.weight(1f).testTag("brother_easy_center_name")
-                    ) { Text("Centralizar") }
-                }
-                OutlinedButton(
-                    onClick = {
-                        if (editorSection == NameEditorSection.NAME) resize(1f)
-                        else resizeLetterOnly(letterScalePercent + 5)
-                    },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_larger")
-                ) { Text("+ Maior") }
-            }
-                if (editorSection == NameEditorSection.NAME) {
-            Text("Girar nome · ${draft.rotation.roundToInt()}°", color = FioText,
-                fontSize = 12.sp, modifier = Modifier.testTag("brother_name_rotation_value"))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = { rotate(-15f) },
-                    modifier = Modifier.weight(1f).testTag("brother_name_rotate_left")
-                ) { Text("↶ 15°") }
-                OutlinedButton(
-                    onClick = {
-                        autoFitEnabled = false
-                        setDraft(draft.copy(rotation = 0f))
-                    },
-                    modifier = Modifier.weight(1f).testTag("brother_name_rotate_reset")
-                ) { Text("Endireitar") }
-                OutlinedButton(
-                    onClick = { rotate(15f) },
-                    modifier = Modifier.weight(1f).testTag("brother_name_rotate_right")
-                ) { Text("↷ 15°") }
-            }
-                }
-            } // ajustes por botões opcionais
         }
 
         // Preset essencial sempre à vista na aba Bastidor: evita rolagem
@@ -1385,6 +1297,9 @@ fun NameEditorScreen(
             valueRange = 4f..30f,
             modifier = Modifier.testTag("brother_name_height_mm")
         )
+
+        Text("Ajustes precisos do nome", color = FioText,
+            modifier = Modifier.testTag("brother_name_precision_controls"))
 
         // Nome: ajustes dimensionais diretamente abaixo de Altura,
         // com os mesmos limites, motor de bordado e histórico do painel anterior.

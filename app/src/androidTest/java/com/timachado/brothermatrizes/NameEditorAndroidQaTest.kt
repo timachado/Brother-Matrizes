@@ -442,12 +442,10 @@ class NameEditorAndroidQaTest {
         // Exercise real touch movement without an unrelated free-area collision guard.
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
-            .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_name_rotate_right")
-            .performScrollTo().assertExists().performClick()
-        composeRule.onNodeWithTag("brother_name_rotation_value")
-            .assertTextContains("15°", substring = true)
+        // Os botões redundantes de rotação foram retirados.
+        // O controle de rotação continua na seção de precisão.
+        composeRule.onNodeWithTag("brother_name_rotation_scale")
+            .performScrollTo().assertExists()
         // The initial auto-fit can legitimately choose negative X.
         // Capture its actual position after rotation rather than assuming 0.
         composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -459,8 +457,8 @@ class NameEditorAndroidQaTest {
         val beforeX = composeRule.runOnIdle {
             val initial = requireNotNull(applied).editableName
                 ?: error("Initial saved name has no editable layer")
-            assertEquals("Giro de 15° deve persistir antes do arraste",
-                15f, initial.options.rotationDegrees)
+            assertEquals("Rotação inicial deve ser preservada",
+                0f, initial.options.rotationDegrees)
             initial.centerXUnits
         }
         composeRule.runOnIdle { applied = null }
@@ -904,41 +902,19 @@ class NameEditorAndroidQaTest {
 
 
     @Test
-    fun easyNudgeMovesOnlyNameWithoutTwoFingerGesture() {
-        val source = frame().copy(
-            hoopProfile = HoopProfile.H130X180,
-            hoopOrientation = HoopOrientation.LANDSCAPE
-        )
-        val named = NamePersonalization.add(
-            source,
-            TextMatrixOptions("Maria", heightMm = 8f,
-                hoopProfile = HoopProfile.H130X180, style = TextStitchStyle.SATIN),
-            0, 0, compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
-        ).getOrThrow()
-        var applied: EmbroideryDesign? = null
+    fun gestureFirstEditorDoesNotShowRedundantNudgeButtons() {
         composeRule.setContent {
-            NameEditorScreen(original = named,
-                referenceHoop = HoopProfile.H130X180,
-                onBack = {}, onApply = { applied = it })
+            NameEditorScreen(
+                original = frame(),
+                referenceHoop = HoopProfile.H100X100,
+                onBack = {}, onApply = {}
+            )
         }
-        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
-            .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
-        composeRule.onNodeWithTag("brother_easy_move_right")
-            .performScrollTo().assertIsDisplayed().performClick()
-        composeRule.waitUntil(timeoutMillis = 45_000) {
-            !composeRule.onNodeWithTag("brother_name_apply")
-                .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
-        }
-        composeRule.onNodeWithTag("brother_name_apply").performClick()
-        composeRule.runOnIdle {
-            val result = requireNotNull(applied)
-            val layer = requireNotNull(result.editableName)
-            val originalLayer = requireNotNull(named.editableName)
-            assertEquals(originalLayer.centerXUnits + 10, layer.centerXUnits)
-            assertEquals(originalLayer.centerYUnits, layer.centerYUnits)
-            assertEquals(originalLayer.original.points, layer.original.points)
-        }
+        composeRule.onNodeWithTag("brother_name_canvas").assertExists()
+        composeRule.onNodeWithTag("brother_fine_adjustments_toggle").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_easy_move_right").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_name_precision_controls")
+            .performScrollTo().assertExists()
     }
 
     @Test
@@ -960,9 +936,7 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
-        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
-            .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_easy_smaller")
+        composeRule.onNodeWithTag("brother_letter_smaller")
             .performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithTag("brother_letter_scale_label")
             .performScrollTo().assertIsDisplayed()
