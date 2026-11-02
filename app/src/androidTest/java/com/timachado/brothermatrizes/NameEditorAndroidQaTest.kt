@@ -91,10 +91,12 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
         composeRule.onNodeWithText("Desfazer").performClick()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
     }
 
@@ -256,10 +258,8 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
-        composeRule.onNodeWithTag("brother_name_editor_move_matrix")
-            .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_editor_tab_letter").assertExists()
+        // A aba Letra substitui a seleção duplicada no painel avançado.
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
         // A edição existente deve estar íntegra antes de iniciar o gesto.
         composeRule.waitUntil(30000) {
             runCatching {
@@ -442,6 +442,8 @@ class NameEditorAndroidQaTest {
         // Exercise real touch movement without an unrelated free-area collision guard.
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_rotate_right")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithTag("brother_name_rotation_value")
@@ -562,9 +564,8 @@ class NameEditorAndroidQaTest {
         }
         // A primeira escolha manual deve cancelar o encaixe inicial
         // antes da pinça: evita corrida com cálculo da fonte em paralelo.
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
-        composeRule.onNodeWithTag("brother_name_editor_move_name")
-            .performScrollTo().performClick()
+        // Nome já é o alvo padrão; não exige botões redundantes.
+        composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performTouchInput {
@@ -920,6 +921,8 @@ class NameEditorAndroidQaTest {
                 referenceHoop = HoopProfile.H130X180,
                 onBack = {}, onApply = { applied = it })
         }
+        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
         composeRule.onNodeWithTag("brother_easy_move_right")
             .performScrollTo().assertIsDisplayed().performClick()
@@ -957,6 +960,8 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
+        composeRule.onNodeWithTag("brother_fine_adjustments_toggle")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_easy_smaller")
             .performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithTag("brother_letter_scale_label")
@@ -1026,11 +1031,22 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_hoop_landscape").assertExists()
         composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_input").assertExists()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        // Parâmetros dimensionais saíram do avançado: estão na aba Nome,
+        // após Altura, sempre disponíveis sem alternar de painel.
+        composeRule.onNodeWithTag("brother_name_width_scale")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_height_scale")
+            .performScrollTo().assertExists()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_spacing")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_satin_density")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_width_scale").assertDoesNotExist()
         composeRule.onNodeWithTag("brother_name_apply").assertExists()
     }
 
