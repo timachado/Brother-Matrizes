@@ -56,9 +56,16 @@ android {
 
     buildTypes {
         debug {
+            manifestPlaceholders["qaAppLabel"] = "Brother Matrizes QA"
             // QA paralela: não substitui nem desinstala a versão comercial.
             // Só ativar com -PbrotherCheckoutQaParallel=true.
-            if (providers.gradleProperty("brotherNameEditorQa").orNull == "true") {
+            if (providers.gradleProperty("brotherMenuQa").orNull == "true") {
+                // Instalação separada e identificada: o usuário não confunde
+                // a navegação nova com a 1.11.6 comercial ou o antigo NAMEQA.
+                applicationIdSuffix = ".menuqa"
+                versionNameSuffix = "-MENUQA"
+                manifestPlaceholders["qaAppLabel"] = "Brother MENU NOVO QA"
+            } else if (providers.gradleProperty("brotherNameEditorQa").orNull == "true") {
                 // Homologação do editor de nomes, instalada paralelamente.
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"

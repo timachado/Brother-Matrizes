@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt'
+      - 'app/build.gradle.kts'
+      - 'app/src/debug/AndroidManifest.xml'
+      - 'app/src/androidTest/java/com/timachado/brothermatrizes/AppSmokeTest.kt'
+      - 'app/src/androidTest/java/com/timachado/brothermatrizes/PremiumHomeScreenshotTest.kt'
       - 'app/src/main/java/com/timachado/brothermatrizes/HomeScreen.kt'
       - 'app/src/main/java/com/timachado/brothermatrizes/BrotherNavigationDrawer.kt'
       - 'app/src/main/res/drawable/ic_ms_menu_rounded.xml'
@@ -52,7 +56,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:compileDebugAndroidTestKotlin :app:assembleDebug --stacktrace
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:compileDebugAndroidTestKotlin :app:assembleDebug -PbrotherMenuQa=true --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -1 | grep -F "name='com.timachado.brothermatrizes.menuqa'"
       - name: Habilitar KVM
         shell: bash
         run: |
@@ -66,7 +72,24 @@ jobs:
           disable-animations: true
           script: |
             adb shell wm size 520x1120
-            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.BrotherDrawerNavigationQaTest
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace -PbrotherMenuQa=true -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.BrotherDrawerNavigationQaTest
+      - name: Preparar APK identificado com menu lateral (uso interno)
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=menu-novo-qa
+          mkdir -p "$out"
+          cp app/build/outputs/apk/debug/app-debug.apk "$out/Brother-Matrizes-MENU-NOVO-QA.apk"
+          cd "$out"
+          sha256sum Brother-Matrizes-MENU-NOVO-QA.apk > SHA256.txt
+          printf '%s\n' 'APENAS QA: pacote .menuqa separado do Brother Matrizes comercial.' > LEIA-ME.txt
+      - name: Arquivar instalador QA com nome inequívoco
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-MENU-NOVO-QA-NAO-COMERCIAL
+          path: menu-novo-qa/
+          if-no-files-found: error
+          retention-days: 14
       - name: Preservar resultados de testes sem APK comercial
         if: always()
         uses: actions/upload-artifact@v4
