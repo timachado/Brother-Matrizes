@@ -481,7 +481,7 @@ class NameEditorAndroidQaTest {
             .performClick()
         composeRule.runOnIdle {
             val edited = requireNotNull(applied)
-            assertEquals(15f, edited.editableName?.options?.rotationDegrees ?: -1f)
+            assertEquals("Arraste não deve alterar a rotação", 0f, edited.editableName?.options?.rotationDegrees ?: -1f)
             val afterX = requireNotNull(edited.editableName).centerXUnits
             assertTrue(
                 "Arraste horizontal não foi salvo: antes=$beforeX, depois=$afterX",
