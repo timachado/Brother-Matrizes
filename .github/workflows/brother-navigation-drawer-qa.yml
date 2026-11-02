@@ -1,0 +1,80 @@
+name: Brother Matrizes - menu lateral premium (QA sem publicacao)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt'
+      - 'app/src/main/java/com/timachado/brothermatrizes/HomeScreen.kt'
+      - 'app/src/main/java/com/timachado/brothermatrizes/BrotherNavigationDrawer.kt'
+      - 'app/src/main/res/drawable/ic_ms_menu_rounded.xml'
+      - 'app/src/androidTest/java/com/timachado/brothermatrizes/BrotherDrawerNavigationQaTest.kt'
+      - '.github/workflows/brother-navigation-drawer-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-menu-qa-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  drawer-ui:
+    name: Unitarios, lint e drawer Android 35
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Garantir que nao altera versao comercial nem OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/pre_release_static_check.sh
+          grep -Eq '^ *versionCode = 193 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.6"' app/build.gradle.kts
+          test "$(jq -r .versionCode updates/stable.json)" = 193
+      - name: Compilar e testar o aplicativo
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:compileDebugAndroidTestKotlin :app:assembleDebug --stacktrace
+      - name: Habilitar KVM
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Testar drawer no Android 35 com tela compacta
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb shell wm size 520x1120
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.BrotherDrawerNavigationQaTest
+      - name: Preservar resultados de testes sem APK comercial
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-drawer-qa-results-NAO-COMERCIAL
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
+          retention-days: 14
+          if-no-files-found: ignore
