@@ -73,6 +73,61 @@ class MatrixConverterTest {
     }
 
     @Test
+    fun peDesignPcWritesCompletePesAndKeepsMachinePesUnchanged() {
+        val source = sampleDesign()
+        val machine = MatrixConverter.convert(source, "PES", "maquina").getOrThrow()
+        val pc = MatrixConverter.convertForPeDesign(source).getOrThrow()
+
+        assertEquals("PES", pc.format)
+        assertTrue(pc.fileName.endsWith("-PE_DESIGN.pes"))
+        assertEquals("#PES0001",
+            machine.bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII))
+        assertEquals("#PES0060",
+            pc.bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII))
+        assertFalse("O PES completo não pode repetir o arquivo de máquina.",
+            machine.bytes.contentEquals(pc.bytes))
+
+        val fullText = pc.bytes.toString(Charsets.ISO_8859_1)
+        assertTrue("PES completo deve conter o objeto do editor.",
+            fullText.contains("CEmbOne"))
+        assertTrue("PES completo deve conter a sequência CSewSeg.",
+            fullText.contains("CSewSeg"))
+
+        val parsed = EmbroideryIoParser.parse(pc.fileName, pc.bytes)
+        assertTrue("O PES completo precisa abrir no parser de bordado.",
+            parsed is EmbroideryLoadResult.Success)
+        val loaded = (parsed as EmbroideryLoadResult.Success).design
+        assertTrue(loaded.stitchCount > 0)
+        assertTrue(loaded.colorChanges > 0)
+        assertEquals(source.bounds.widthMm, loaded.bounds.widthMm, 0.3f)
+        assertEquals(source.bounds.heightMm, loaded.bounds.heightMm, 0.3f)
+    }
+
+    @Test
+    fun peDesignPcRoundTripsEditedPointsWithoutModifyingSource() {
+        val original = asymmetricDesign(sourceYAxisDown = false)
+        val edited = MatrixEditor.apply(original,
+            EditTransform(rotationDegrees = 90f, scale = 1.1f))
+        val sourcePoints = edited.points.toList()
+        val pc = MatrixConverter.convertForPeDesign(edited).getOrThrow()
+        val parsed = EmbroideryIoParser.parse(pc.fileName, pc.bytes)
+        assertTrue(parsed is EmbroideryLoadResult.Success)
+        val result = (parsed as EmbroideryLoadResult.Success).design
+        assertEquals(edited.bounds.widthMm, result.bounds.widthMm, 0.3f)
+        assertEquals(edited.bounds.heightMm, result.bounds.heightMm, 0.3f)
+        assertEquals(sourcePoints, edited.points)
+        assertFalse(original.points == edited.points)
+    }
+
+    @Test
+    fun peDesignPcProfileDoesNotAllowDstOutput() {
+        assertTrue(MatrixConverter.convert(
+            sampleDesign(), "DST",
+            pesExportProfile = PesExportProfile.PE_DESIGN_PC
+        ).isFailure)
+    }
+
+    @Test
     fun generatedHorizontalTextWritesBrotherPecOriginWithoutRotation() {
         val source =
             TextMatrixGenerator

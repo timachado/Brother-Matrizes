@@ -1385,6 +1385,43 @@ private fun BrotherMatrizesApp(
         }
     }
 
+    fun preparePeDesignExport(
+        design: EmbroideryDesign,
+        saveToDevice: Boolean
+    ) {
+        scope.launch {
+            loading = true
+            val result = withContext(Dispatchers.Default) {
+                MatrixConverter.convertForPeDesign(design)
+            }
+            loading = false
+            result.fold(
+                onSuccess = { file ->
+                    if (saveToDevice) {
+                        stageDocumentSave(
+                            DurablePendingDocument(
+                                fileName = MatrixExporter.safeFileName(file.fileName),
+                                bytes = file.bytes,
+                                successMessage =
+                                    "PES para PE-Design salvo. Abra no PE-Design do Windows."
+                            )
+                        )
+                    } else {
+                        openShareIntent(
+                            matrix = file,
+                            chooserTitle = "Enviar PES para o PE-Design no computador"
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    snackbar.showSnackbar(
+                        error.message ?: "Não foi possível exportar o PES para PE-Design."
+                    )
+                }
+            )
+        }
+    }
+
     fun requestSave(
         design: EmbroideryDesign
     ) {
@@ -2449,6 +2486,12 @@ private fun BrotherMatrizesApp(
                                 current
                                     .design
                             )
+                        },
+                        onSavePeDesign = {
+                            preparePeDesignExport(current.design, saveToDevice = true)
+                        },
+                        onSharePeDesign = {
+                            preparePeDesignExport(current.design, saveToDevice = false)
                         },
                         onPositionChange = { placed ->
                             activateDesign(placed)
