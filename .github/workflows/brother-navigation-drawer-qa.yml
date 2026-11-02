@@ -44,6 +44,18 @@ jobs:
           set -euo pipefail
           sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
           "$sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Preparar Firebase para pacote QA isolado (sem alterar producao)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.menuqa" '
+            .client += [(.client[] |
+              select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.menuqa")' app/src/debug/google-services.json >/dev/null
+          # Arquivo temporario do runner: nao commitar o cliente QA no codigo comercial.
       - name: Garantir que nao altera versao comercial nem OTA
         shell: bash
         run: |
