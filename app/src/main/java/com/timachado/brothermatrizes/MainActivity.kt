@@ -19,6 +19,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -398,6 +401,10 @@ private fun BrotherMatrizesApp(
             Screen.Home
         )
     }
+
+    // A gaveta fica independente da navegação: telas de edição não
+    // recebem gestos laterais para não interceptar toques na matriz.
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     var recent by remember {
         mutableStateOf<
@@ -784,11 +791,13 @@ private fun BrotherMatrizesApp(
     }
 
     BackHandler(
-        enabled =
-            screen !=
-                Screen.Home
+        enabled = drawerState.isOpen || screen != Screen.Home
     ) {
-        goBack()
+        if (drawerState.isOpen) {
+            scope.launch { drawerState.close() }
+        } else {
+            goBack()
+        }
     }
 
     var telegramImportPending by remember { mutableStateOf(false) }
@@ -1711,6 +1720,77 @@ private fun BrotherMatrizesApp(
         }
     }
 
+    val selectedDrawerItem = when (screen) {
+        Screen.Home -> BrotherDrawerDestination.HOME
+        Screen.CreateName -> BrotherDrawerDestination.CREATE_NAME
+        Screen.CreateMonogram -> BrotherDrawerDestination.CREATE_MONOGRAM
+        Screen.CreateDrawing -> BrotherDrawerDestination.CREATE_DRAWING
+        Screen.ProjectLibrary -> BrotherDrawerDestination.LIBRARY
+        Screen.FontLibrary -> BrotherDrawerDestination.FONTS
+        Screen.TelegramSearch -> BrotherDrawerDestination.TELEGRAM
+        Screen.Account -> BrotherDrawerDestination.ACCOUNT
+        Screen.Community -> BrotherDrawerDestination.COMMUNITY
+        is Screen.Converter -> BrotherDrawerDestination.CONVERTER
+        is Screen.Transfer -> BrotherDrawerDestination.TRANSFER
+        is Screen.Editor -> BrotherDrawerDestination.EDITOR
+        is Screen.Simulator -> BrotherDrawerDestination.SIMULATOR
+        else -> null
+    }
+
+    fun drawerNavigate(destination: BrotherDrawerDestination) {
+        scope.launch {
+            drawerState.close()
+            when (destination) {
+                BrotherDrawerDestination.HOME -> screen = Screen.Home
+                BrotherDrawerDestination.CREATE_NAME -> screen = Screen.CreateName
+                BrotherDrawerDestination.CREATE_MONOGRAM -> screen = Screen.CreateMonogram
+                BrotherDrawerDestination.CREATE_DRAWING -> screen = Screen.CreateDrawing
+                BrotherDrawerDestination.OPEN_MATRIX -> launchMatrixPicker()
+                BrotherDrawerDestination.LIBRARY -> openProjectLibrary()
+                BrotherDrawerDestination.FONTS -> screen = Screen.FontLibrary
+                BrotherDrawerDestination.TELEGRAM -> screen = Screen.TelegramSearch
+                BrotherDrawerDestination.ACCOUNT -> screen = Screen.Account
+                BrotherDrawerDestination.COMMUNITY -> screen = Screen.Community
+                BrotherDrawerDestination.EDITOR,
+                BrotherDrawerDestination.SIMULATOR,
+                BrotherDrawerDestination.CONVERTER,
+                BrotherDrawerDestination.TRANSFER -> {
+                    val current = recent
+                    if (current == null) {
+                        snackbar.showSnackbar("Abra ou crie uma matriz primeiro.")
+                    } else {
+                        screen = when (destination) {
+                            BrotherDrawerDestination.EDITOR -> Screen.Editor(current)
+                            BrotherDrawerDestination.SIMULATOR -> Screen.Simulator(current)
+                            BrotherDrawerDestination.CONVERTER -> Screen.Converter(current)
+                            BrotherDrawerDestination.TRANSFER -> Screen.Transfer(current)
+                            else -> Screen.Home
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val drawerGesturesEnabled =
+        screen == Screen.Home ||
+            screen == Screen.ProjectLibrary ||
+            screen == Screen.FontLibrary ||
+            screen == Screen.Account ||
+            screen == Screen.Community ||
+            screen == Screen.TelegramSearch
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerGesturesEnabled,
+        drawerContent = {
+            BrotherNavigationDrawerContent(
+                selected = selectedDrawerItem,
+                hasActiveMatrix = recent != null,
+                onSelect = ::drawerNavigate
+            )
+        }
+    ) {
     Scaffold(
         containerColor =
             FioBackground,
@@ -1903,6 +1983,7 @@ private fun BrotherMatrizesApp(
                 Screen.Home -> {
                     HomeScreen(
                         recent = recent,
+                        onOpenMenu = { scope.launch { drawerState.open() } },
                         updateRefreshRequest = updateResumeRequest + openHomeUpdatesRequest,
                         onCreateName = {
                             screen =
@@ -2662,5 +2743,6 @@ private fun BrotherMatrizesApp(
                 )
             }
         }
+    }
     }
 }

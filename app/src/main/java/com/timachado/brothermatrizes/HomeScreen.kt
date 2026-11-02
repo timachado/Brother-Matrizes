@@ -35,6 +35,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -73,7 +74,8 @@ fun HomeScreen(
     onClearRecent: () -> Unit,
     onUnavailable: (String) -> Unit,
     onCommunity: () -> Unit,
-    updateRefreshRequest: Int = 0
+    updateRefreshRequest: Int = 0,
+    onOpenMenu: () -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -100,6 +102,18 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                IconButton(
+                    onClick = onOpenMenu,
+                    modifier = Modifier.size(48.dp)
+                        .testTag("brother_home_open_drawer")
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ms_menu_rounded),
+                        contentDescription = "Abrir menu de navegação",
+                        tint = FioGold,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 Image(
                     painter = painterResource(R.drawable.brother_bm_premium_approved),
                     contentDescription = "Símbolo BM, Brother Matrizes",
