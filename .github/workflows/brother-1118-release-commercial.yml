@@ -206,7 +206,7 @@ jobs:
           NOTES
           gh release create v1.11.8 "$apk" \
             --repo "$GH_REPO" --target "$GITHUB_SHA" \
-            --title "Brother Matrizes 1.11.8 — Editor de Monogramas" \
+            --title "Brother Matrizes 1.11.8 — Editor e PE-DESIGN Windows" \
             --notes-file /tmp/notes-1118.md --latest
           gh api "repos/$GH_REPO/releases/tags/v1.11.8" > /tmp/release-1118.json
           jq -e --arg sha "sha256:$(cat /tmp/expected-sha-1118)" '
@@ -243,7 +243,7 @@ jobs:
               and .downloadUrl=="https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.8/Brother-Matrizes-1.11.8-OFICIAL-COMERCIAL-ASSINADO.apk"
               and .downloadApkUrl==.downloadUrl
             ' /tmp/brother-verified-manifest-1118.json >/dev/null; then
-              echo 'OTA 1.11.8/194 confirmada com hash correto.'
+              echo 'OTA 1.11.8/195 confirmada com hash correto.'
               exit 0
             fi
             sleep 12
