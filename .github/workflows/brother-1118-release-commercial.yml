@@ -1,7 +1,8 @@
 name: Brother Matrizes 1.11.8 — lançamento comercial manual e protegido
 
-# Não dispara no merge/push; requer comando explícito com token de confirmação.
-# Única ação de publicação: workflow_dispatch em main + confirmação deliberada.
+# Publicacao excepcional autorizada pelo proprietario via commit de acionamento unico.
+# O push apenas neste arquivo e com commit exato aciona o lançamento; demais pushes são bloqueados.
+# A via workflow_dispatch com confirmacao manual continua disponível.
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +10,10 @@ on:
         description: 'Digite PUBLICAR_V1_11_8 para autorizar Release e OTA'
         required: true
         type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-1118-release-commercial.yml'
 
 permissions:
   contents: write
@@ -20,7 +25,10 @@ concurrency:
 
 jobs:
   sign-verify-publish:
-    if: github.ref == 'refs/heads/main' && inputs.confirmacao == 'PUBLICAR_V1_11_8'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.confirmacao == 'PUBLICAR_V1_11_8') ||
+       (github.event_name == 'push' && github.event.head_commit.message == 'release(v1.11.8): PUBLICAR_V1_11_8_APROVADO_PELO_PROPRIETARIO'))
     runs-on: ubuntu-latest
     environment: brother-release-signing
     timeout-minutes: 120
