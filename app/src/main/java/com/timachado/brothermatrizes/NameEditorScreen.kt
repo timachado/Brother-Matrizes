@@ -168,6 +168,7 @@ fun NameEditorScreen(
     // As pontadas redimensionadas são persistidas no projeto, não só o indicador.
     var letterScalePercent by remember(original) { mutableIntStateOf(100) }
     var matrixRotationError by remember(original) { mutableStateOf<String?>(null) }
+    var matrixActionMessage by remember(original) { mutableStateOf<String?>(null) }
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var editorSection by remember(original) { mutableStateOf(NameEditorSection.NAME) }
     var advancedExpanded by remember(original) { mutableStateOf(false) }
@@ -572,7 +573,11 @@ fun NameEditorScreen(
     }
 
     fun rotateMatrix(deltaDegrees: Float) {
-        if (abs(deltaDegrees) < 0.001f) return
+        if (abs(deltaDegrees) < 0.001f) {
+            matrixActionMessage = "Este ângulo já está aplicado à matriz."
+            return
+        }
+        matrixActionMessage = null
         autoFitEnabled = false
         matrixRotationError = null
         MatrixNameRotation.rotate(
@@ -627,6 +632,7 @@ fun NameEditorScreen(
 
     /** Gira somente a inicial nas pontadas. O nome mantém x/y e ângulo. */
     fun rotateLetterOnly(deltaDegrees: Float) {
+        matrixActionMessage = null
         autoFitEnabled = false
         matrixRotationError = null
         val lockedBase = baseDesign.copy(
@@ -698,6 +704,7 @@ fun NameEditorScreen(
 
     /** Redimensiona apenas a letra, preservando texto, posição e rotação do nome. */
     fun resizeLetterOnly(targetPercent: Int) {
+        matrixActionMessage = null
         val target = targetPercent.coerceIn(
             MIN_LETTER_SCALE_PERCENT, MAX_LETTER_SCALE_PERCENT
         )
@@ -1106,6 +1113,16 @@ fun NameEditorScreen(
             color = FioTextMuted, fontSize = 11.sp,
             modifier = Modifier.testTag("brother_editor_context_hint")
         )
+        moveError?.let { message ->
+            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                modifier = Modifier.testTag("brother_editor_visible_move_error"))
+        }
+        if (editorSection == NameEditorSection.HOOP) {
+            matrixRotationError?.let { message ->
+                Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                    modifier = Modifier.testTag("brother_hoop_rotation_error"))
+            }
+        }
 
         // O nome é movido e redimensionado diretamente na prévia.
         // Os comandos discretos da LETRA permanecem para precisão e acessibilidade.
@@ -1142,19 +1159,51 @@ fun NameEditorScreen(
                     modifier = Modifier.weight(1f).testTag("brother_easy_move_right")
                 ) { Text("→ Direita", fontSize = 11.sp) }
             }
+            // O segundo par Menor/Maior foi removido (mesma ação da seção abaixo).
+            // Rotação antes escondida em Ajustes avançados ocupa este espaço.
+            Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
+                color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
+            Text("Gira letra e nome juntos. Para girar somente a letra, use os botões abaixo.",
+                color = FioTextMuted, fontSize = 11.sp)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 OutlinedButton(
-                    onClick = { resizeLetterOnly(letterScalePercent - 5) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_smaller")
-                ) { Text("− Menor") }
+                    onClick = { rotateMatrix(-15f) },
+                    modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
+                ) { Text("↶ 15°") }
                 OutlinedButton(
-                    onClick = { resizeLetterOnly(letterScalePercent + 5) },
-                    modifier = Modifier.weight(1f).testTag("brother_easy_larger")
-                ) { Text("+ Maior") }
+                    onClick = { rotateMatrix(15f) },
+                    modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
+                ) { Text("↷ 15°") }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(0f, 90f, 180f, 270f).forEach { angle ->
+                    OutlinedButton(
+                        onClick = {
+                            rotateMatrix(MatrixNameRotation.normalizeDegrees(
+                                angle - matrixRotation
+                            ))
+                        },
+                        modifier = Modifier.weight(1f).testTag(
+                            "brother_matrix_rotate_" + angle.toInt()
+                        )
+                    ) { Text(angle.toInt().toString() + "°") }
+                }
+            }
+            matrixActionMessage?.let { message ->
+                Text(message, color = FioTextMuted, fontSize = 12.sp,
+                    modifier = Modifier.testTag("brother_matrix_rotation_notice"))
+            }
+            matrixRotationError?.let { message ->
+                Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
+                    modifier = Modifier.testTag("brother_matrix_rotation_error"))
+            }
+
         }
 
         // Preset essencial sempre à vista na aba Bastidor: evita rolagem
@@ -1442,11 +1491,16 @@ fun NameEditorScreen(
                 enabled = letterScalePercent > MIN_LETTER_SCALE_PERCENT,
                 modifier = Modifier.weight(1f).testTag("brother_letter_smaller")
             ) { Text("Letra − Menor") }
-            OutlinedButton(
-                onClick = { resizeLetterOnly(100) },
-                enabled = letterScalePercent != 100,
-                modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
-            ) { Text("100%") }
+            if (letterScalePercent == 100) {
+                Text("100% · padrão", color = FioTextMuted,
+                    fontSize = 11.sp, modifier = Modifier.weight(1f)
+                        .testTag("brother_letter_size_default"))
+            } else {
+                OutlinedButton(
+                    onClick = { resizeLetterOnly(100) },
+                    modifier = Modifier.weight(1f).testTag("brother_letter_size_reset")
+                ) { Text("100%") }
+            }
             OutlinedButton(
                 onClick = { resizeLetterOnly(letterScalePercent + 5) },
                 enabled = letterScalePercent < MAX_LETTER_SCALE_PERCENT,
@@ -1618,51 +1672,6 @@ fun NameEditorScreen(
         )
 
 
-        Text("Rotação da matriz: " + matrixRotation.roundToInt() + "°",
-            color = FioText, modifier = Modifier.testTag("brother_matrix_rotation_label"))
-        Text("Rotação conjunta: gira letra e nome. Para girar só a letra, use os botões acima.",
-            color = FioTextMuted, fontSize = 11.sp)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { rotateMatrix(-15f) },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_left")
-            ) { Text("↶ 15°") }
-            OutlinedButton(
-                onClick = {
-                    rotateMatrix(MatrixNameRotation.normalizeDegrees(-matrixRotation))
-                },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_reset")
-            ) { Text("Endireitar") }
-            OutlinedButton(
-                onClick = { rotateMatrix(15f) },
-                modifier = Modifier.weight(1f).testTag("brother_matrix_rotate_right")
-            ) { Text("↷ 15°") }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(0f, 90f, 180f, 270f).forEach { angle ->
-                OutlinedButton(
-                    onClick = {
-                        rotateMatrix(MatrixNameRotation.normalizeDegrees(
-                            angle - matrixRotation
-                        ))
-                    },
-                    modifier = Modifier.weight(1f).testTag(
-                        "brother_matrix_rotate_" + angle.toInt()
-                    )
-                ) { Text(angle.toInt().toString() + "°") }
-            }
-        }
-        matrixRotationError?.let { message ->
-            Text(message, color = Color(0xFFFF9393), fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_matrix_rotation_error"))
-        }
-
         // Girar um PES/DST sem necessariamente inserir um novo nome.
         // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
         OutlinedButton(
@@ -1674,9 +1683,12 @@ fun NameEditorScreen(
         ) {
             Text("Aplicar só a rotação da matriz")
         }
-        if (original.editableName != null && abs(matrixRotation) >= .001f) {
-            Text("Esta matriz contém um nome editável: use Aplicar nome para " +
-                "girar tudo sem perder as letras.",
+        if (original.editableName != null) {
+            Text("Para matrizes com nome editável, use o botão amarelo Aplicar nome. " +
+                "A opção de aplicar somente a rotação fica indisponível.",
+                color = FioTextMuted, fontSize = 11.sp)
+        } else if (abs(matrixRotation) < .001f) {
+            Text("Gire a matriz antes de aplicar somente a rotação.",
                 color = FioTextMuted, fontSize = 11.sp)
         }
 
