@@ -137,7 +137,7 @@ jobs:
           cut -d' ' -f1 dist/SHA256.txt > /tmp/expected-sha-1118
           echo "BROTHER_RELEASE_SHA256=$(cat /tmp/expected-sha-1118)" >> "$GITHUB_ENV"
           rm -f "$ks" "$RUNNER_TEMP/brother-aligned.apk"
-          echo 'APK comercial verificado: codigo 194, certificado original, v2 e alinhamento 16 KiB.'
+          echo 'APK comercial verificado: codigo 195, certificado original, v2 e alinhamento 16 KiB.'
 
       - name: Baixar APK 1.11.7 e comparar assinaturas
         shell: bash
