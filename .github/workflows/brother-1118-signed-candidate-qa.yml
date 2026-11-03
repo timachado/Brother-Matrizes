@@ -41,9 +41,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{
-            github.event.pull_request.head.sha
-          }}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           git merge-base --is-ancestor 4c1c3023210866dd8db0c63f061a9d2fd801cdf3 HEAD
           grep -Eq '^ *versionCode = 195 *$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.8"' app/build.gradle.kts
