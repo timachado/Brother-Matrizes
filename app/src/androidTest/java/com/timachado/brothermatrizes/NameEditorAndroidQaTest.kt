@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertIsEnabled
@@ -84,18 +86,34 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle")
-            .assertTextContains("Voltar ao editor", substring = true)
-        composeRule.onNodeWithText("Ferramentas de precisão").assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
         composeRule.onNodeWithText("Desfazer").performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
+    }
+
+    @Test
+    fun duplicateLetterButtonsAreReplacedByMatrixRotationWithFeedback() {
+        composeRule.setContent {
+            NameEditorScreen(original = frame(), referenceHoop = HoopProfile.H100X100,
+                onBack = {}, onApply = {})
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_easy_smaller").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_easy_larger").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_letter_smaller").assertExists()
+        composeRule.onNodeWithTag("brother_matrix_rotate_0")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_matrix_rotation_notice")
+            .assertTextContains("já está aplicado", substring = true)
     }
 
     @Test
@@ -256,10 +274,9 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
-        composeRule.onNodeWithTag("brother_name_editor_move_matrix")
+        composeRule.onNodeWithTag("brother_editor_tab_letter")
             .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_editor_tab_letter").assertExists()
+        composeRule.onNodeWithTag("brother_name_editor_move_matrix").assertDoesNotExist()
         // A edição existente deve estar íntegra antes de iniciar o gesto.
         composeRule.waitUntil(30000) {
             runCatching {
@@ -274,7 +291,7 @@ class NameEditorAndroidQaTest {
                     durationMillis = 500)
             }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("brother_name_editor_move_error")
+        composeRule.onNodeWithTag("brother_editor_visible_move_error")
             .assertDoesNotExist()
         composeRule.waitUntil(30000) {
             runCatching {
@@ -437,13 +454,14 @@ class NameEditorAndroidQaTest {
                 onApply = { applied = it }
             )
         }
-        // Sem alternar modos: botões de giro e alça são visíveis imediatamente.
+        // Sem alternar modos: a rotação precisa está disponível abaixo de Altura.
         // In overlay, the matrix and name may intentionally intersect while dragging.
         // Exercise real touch movement without an unrelated free-area collision guard.
         composeRule.onNodeWithTag("brother_name_monogram_overlay")
             .performScrollTo().performClick()
-        composeRule.onNodeWithTag("brother_name_rotate_right")
-            .performScrollTo().assertExists().performClick()
+        composeRule.onNodeWithTag("brother_name_rotation_slider")
+            .performScrollTo()
+            .performSemanticsAction(SemanticsActions.SetProgress) { it(15f) }
         composeRule.onNodeWithTag("brother_name_rotation_value")
             .assertTextContains("15°", substring = true)
         // The initial auto-fit can legitimately choose negative X.
@@ -510,7 +528,6 @@ class NameEditorAndroidQaTest {
                 onApply = { reprocessed = it }
             )
         }
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithTag("brother_name_reprocess_glyphs")
             .performScrollTo().assertExists().performClick()
         composeRule.waitUntil(timeoutMillis = 30_000) {
@@ -562,9 +579,9 @@ class NameEditorAndroidQaTest {
         }
         // A primeira escolha manual deve cancelar o encaixe inicial
         // antes da pinça: evita corrida com cálculo da fonte em paralelo.
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
-        composeRule.onNodeWithTag("brother_name_editor_move_name")
+        composeRule.onNodeWithTag("brother_editor_tab_name")
             .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_name_editor_move_name").assertDoesNotExist()
         composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
         composeRule.onNodeWithTag("brother_name_canvas")
             .performTouchInput {
@@ -704,7 +721,6 @@ class NameEditorAndroidQaTest {
                 onApply = {}
             )
         }
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
         composeRule.onNodeWithText(
             "Substituir nome existente (selecionar bloco)"
         ).performScrollTo().performClick()
@@ -903,7 +919,7 @@ class NameEditorAndroidQaTest {
 
 
     @Test
-    fun easyNudgeMovesOnlyNameWithoutTwoFingerGesture() {
+    fun nameDragMovesOnlyNameWithoutRedundantArrowButtons() {
         val source = frame().copy(
             hoopProfile = HoopProfile.H130X180,
             hoopOrientation = HoopOrientation.LANDSCAPE
@@ -920,9 +936,13 @@ class NameEditorAndroidQaTest {
                 referenceHoop = HoopProfile.H130X180,
                 onBack = {}, onApply = { applied = it })
         }
-        composeRule.onNodeWithTag("brother_easy_controls_title").assertExists()
-        composeRule.onNodeWithTag("brother_easy_move_right")
-            .performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("brother_easy_controls_title").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_name_size_up").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_name_rotate_right").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_name_canvas").performScrollTo()
+        composeRule.onNodeWithTag("brother_name_canvas").performTouchInput {
+            swipe(start = center, end = center + Offset(32f, 0f), durationMillis = 350)
+        }
         composeRule.waitUntil(timeoutMillis = 45_000) {
             !composeRule.onNodeWithTag("brother_name_apply")
                 .fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
@@ -932,7 +952,7 @@ class NameEditorAndroidQaTest {
             val result = requireNotNull(applied)
             val layer = requireNotNull(result.editableName)
             val originalLayer = requireNotNull(named.editableName)
-            assertEquals(originalLayer.centerXUnits + 10, layer.centerXUnits)
+            assertTrue(layer.centerXUnits != originalLayer.centerXUnits)
             assertEquals(originalLayer.centerYUnits, layer.centerYUnits)
             assertEquals(originalLayer.original.points, layer.original.points)
         }
@@ -957,7 +977,11 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
-        composeRule.onNodeWithTag("brother_easy_smaller")
+        composeRule.onNodeWithTag("brother_easy_smaller").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_easy_larger").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_matrix_rotate_90")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_letter_smaller")
             .performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithTag("brother_letter_scale_label")
             .performScrollTo().assertIsDisplayed()
@@ -996,7 +1020,7 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_font_selector")
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("brother_name_advanced_toggle")
-            .assertIsDisplayed()
+            .assertDoesNotExist()
         composeRule.onNodeWithTag("brother_editor_tab_letter")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_letter_smaller")
@@ -1010,7 +1034,7 @@ class NameEditorAndroidQaTest {
     }
 
     @Test
-    fun simplifiedEditorStartsWithPreviewAndKeepsAdvancedFunctions() {
+    fun simplifiedEditorStartsWithPreviewAndKeepsContextualFunctions() {
         composeRule.setContent {
             NameEditorScreen(
                 original = frame(), referenceHoop = HoopProfile.H100X100,
@@ -1026,11 +1050,21 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_hoop_landscape").assertExists()
         composeRule.onNodeWithTag("brother_editor_tab_name").performClick()
         composeRule.onNodeWithTag("brother_name_input").assertExists()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_name_width_scale")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_height_scale")
+            .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
-            .performScrollTo().assertExists()
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_spacing")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_name_density")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_name_editor_move_name").assertDoesNotExist()
         composeRule.onNodeWithTag("brother_name_apply").assertExists()
     }
 

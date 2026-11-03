@@ -1,0 +1,190 @@
+name: "Brother Matrizes 1.11.7 - candidata segura, sem publicacao"
+
+# Executa SOMENTE na branch candidata; nenhum segredo de assinatura ou deploy.
+on:
+  push:
+    branches:
+      - release/brother-matrizes-1.11.7-rc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-1117-rc-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  integrity-and-unsigned-release:
+    name: Integridade, testes, lint e release NAO ASSINADA
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Guardrails do release candidate 1.11.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "release/brother-matrizes-1.11.7-rc"
+          grep -Eq '^ *applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          grep -Eq '^ *versionCode = 194 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.7"' app/build.gradle.kts
+          test "$(jq -r .versionCode updates/stable.json)" = "193"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.6"
+          test "$(jq -r .channel updates/stable.json)" = "stable"
+          test "$(jq -r .applicationId updates/stable.json)" = "com.timachado.brothermatrizes"
+          git show origin/main:updates/stable.json | cmp - updates/stable.json
+          grep -Fq 'android:allowBackup="false"' app/src/main/AndroidManifest.xml
+          grep -Fq 'android:usesCleartextTraffic="false"' app/src/main/AndroidManifest.xml
+          grep -Fq 'android:value="false"' app/src/main/AndroidManifest.xml
+          test -f releases/1.11.7-CANDIDATE-NOT-PUBLISHED.md
+          bash scripts/pre_release_static_check.sh
+          # Somente UI de nomes, testes, versao e documentos de RC.
+          git diff --name-only origin/main...HEAD | while IFS= read -r changed; do
+            case "$changed" in
+              app/build.gradle.kts|\
+              app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|\
+              app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|\
+              releases/1.11.7-CANDIDATE-NOT-PUBLISHED.md|\
+              .github/workflows/brother-1117-release-candidate-qa.yml|\
+              .github/workflows/brother-1117-signed-upgrade-qa.yml) ;;
+              *) echo "::error::Arquivo fora do escopo autorizado: $changed"; exit 1 ;;
+            esac
+          done
+      - name: Unitarios, lint e compilacao Android sem assinatura
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug \
+            :app:compileDebugAndroidTestKotlin :app:assembleRelease \
+            -PbrotherCheckoutHandoff=true --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' \
+            app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' \
+            app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' \
+            app/build/generated/source/buildConfig/release
+      - name: Registrar regras de seguranca
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Brother Matrizes 1.11.7 - RC NAO publicada"
+            echo "- Versao anterior v1.11.6 e updates/stable.json intocados."
+            echo "- Nenhuma chave de producao foi carregada; nenhum APK assinado."
+            echo "- Sem alteracao do WordPress, OTA, loja, cotas ou banco."
+            echo "- Ainda exige upgrade fisico sobre a v1.11.6 e conferencia da assinatura original."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  android35-editor:
+    name: Regressao do editor e projetos no emulador Android 35
+    needs: integrity-and-unsigned-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: SDK e bastidor Android 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Habilitar KVM no runner
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Maria/Sophia, movimentos, rolagem Samsung, fontes e exportacao
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: >
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            -Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.NameEditorAndroidQaTest
+      - name: Relatorios de regressao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-1117-RC-Android35-relatorios
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  candidate-unsigned-apk:
+    name: Gerar RC 1.11.7 NAO ASSINADA e NAO PUBLICADA
+    needs: android35-editor
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: SDK Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Verificar identidades e gerar artefato de auditoria (sem assinatura)
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          src="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$src"
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          badging="$("$sdk/aapt" dump badging "$src")"
+          [[ "$badging" == *"package: name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='194'"* ]]
+          [[ "$badging" == *"versionName='1.11.7'"* ]]
+          mkdir -p candidate
+          cp "$src" candidate/Brother-Matrizes-1.11.7-RC-NAO-ASSINADO-NAO-INSTALAR.apk
+          sha256sum candidate/*.apk > candidate/SHA256.txt
+          echo "APK de auditoria sem assinatura. NAO INSTALAR OU PUBLICAR." > candidate/LEIA-ME.txt
+      - name: Guardar candidata interna sem assinatura
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1117-RC-NAO-ASSINADO-NAO-PUBLICAR
+          path: candidate/
+          retention-days: 14
+          if-no-files-found: error

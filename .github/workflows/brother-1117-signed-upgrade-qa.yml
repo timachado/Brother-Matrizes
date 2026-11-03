@@ -1,0 +1,196 @@
+name: Brother Matrizes 1.11.7 - assinatura e upgrade de homologacao (SEM PUBLICAR)
+
+# Workflow isolado: nunca cria Release, tag, OTA ou altera o WordPress.
+on:
+  push:
+    branches: [release/brother-matrizes-1.11.7-rc]
+    paths:
+      - '.github/workflows/brother-1117-signed-upgrade-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-1117-signed-upgrade-qa
+  cancel-in-progress: false
+
+jobs:
+  signed-in-place-upgrade:
+    name: Assinar internamente e comprovar upgrade 193 para 194
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 110
+    steps:
+      - name: Checkout da candidata
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verificar homologacao e limite de escopo ANTES da assinatura
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "release/brother-matrizes-1.11.7-rc"
+          git merge-base --is-ancestor d31d3009fef5ab72b72f220949a290ce5054b06d HEAD
+          test "$(jq -r .versionCode updates/stable.json)" = "193"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.6"
+          test "$(jq -r .channel updates/stable.json)" = "stable"
+          test "$(jq -r .applicationId updates/stable.json)" = "com.timachado.brothermatrizes"
+          git show origin/main:updates/stable.json | cmp - updates/stable.json
+          grep -Eq '^ *versionCode = 194 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.7"' app/build.gradle.kts
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          for run in 41573038733 41573072572; do
+            gh api "repos/$GH_REPO/actions/runs/$run" > "/tmp/brother-run-$run.json"
+            jq -e '.status=="completed" and .conclusion=="success" and
+              .head_sha=="d31d3009fef5ab72b72f220949a290ce5054b06d"'               "/tmp/brother-run-$run.json" >/dev/null
+          done
+          bash scripts/pre_release_static_check.sh
+          # Nenhum arquivo fora da 1.11.7, editor e workflows isolados.
+          git diff --name-only origin/main...HEAD | while IFS= read -r changed; do
+            case "$changed" in
+              app/build.gradle.kts|              app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|              app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|              releases/1.11.7-CANDIDATE-NOT-PUBLISHED.md|              .github/workflows/brother-1117-release-candidate-qa.yml|              .github/workflows/brother-1117-signed-upgrade-qa.yml) ;;
+              *) echo "::error::Alteracao fora do escopo autorizado: $changed"; exit 1 ;;
+            esac
+          done
+
+      - name: Java 17 e Gradle 9.6
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build release 194 com checkout comercial preservado
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease             -PbrotherCheckoutHandoff=true --stacktrace
+          cfg=app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' "$cfg"
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' "$cfg"
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' "$cfg"
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Assinar SOMENTE com chave protegida e verificar certificado oficial
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for field in KEYSTORE_B64 STORE_PASS KEY_ALIAS KEY_PASS; do
+            test -n "${!field}" || { echo "::error::Segredo de assinatura ausente; bloquear"; exit 1; }
+          done
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          ks="$RUNNER_TEMP/brother-1117-qa.jks"
+          trap 'rm -f "$ks" "$RUNNER_TEMP"/brother-1117-aligned.apk' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$ks"
+          chmod 600 "$ks"
+          mkdir -p dist
+          "$sdk/zipalign" -P 16 -f 4             app/build/outputs/apk/release/app-release-unsigned.apk             "$RUNNER_TEMP/brother-1117-aligned.apk"
+          "$sdk/apksigner" sign             --ks "$ks" --ks-key-alias "$KEY_ALIAS"             --ks-pass env:STORE_PASS --key-pass env:KEY_PASS             --out dist/Brother-Matrizes-1.11.7-CANDIDATO-ASSINADO-NAO-PUBLICAR.apk             "$RUNNER_TEMP/brother-1117-aligned.apk"
+          apk=dist/Brother-Matrizes-1.11.7-CANDIDATO-ASSINADO-NAO-PUBLICAR.apk
+          "$sdk/zipalign" -P 16 -c 4 "$apk"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$apk" > /tmp/brother-1117-qa-signature.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/brother-1117-qa-signature.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/brother-1117-qa-signature.txt
+          badging="$("$sdk/aapt" dump badging "$apk" | head -n1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='194'"* ]]
+          [[ "$badging" == *"versionName='1.11.7'"* ]]
+          sha256sum "$apk" > dist/SHA256.txt
+
+      - name: Baixar baseline comercial v1.11.6 e conferir integridade e certificado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p baseline
+          gh release download v1.11.6 --repo "$GH_REPO" --dir baseline             --pattern Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk
+          old=baseline/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk
+          test -s "$old"
+          expected="$(jq -r .sha256 updates/stable.json)"
+          echo "$expected  $old" | sha256sum -c -
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$old" > /tmp/brother-1116-baseline-signature.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/brother-1116-baseline-signature.txt
+          badge="$("$sdk/aapt" dump badging "$old" | head -n1)"
+          [[ "$badge" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badge" == *"versionCode='193'"* ]]
+
+      - name: Preparar teste in-place em um unico processo bash
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/verify-brother-1117-upgrade.sh" <<'TEST_SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          package=com.timachado.brothermatrizes
+          before=baseline/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk
+          after=dist/Brother-Matrizes-1.11.7-CANDIDATO-ASSINADO-NAO-PUBLICAR.apk
+          adb wait-for-device
+          adb install -r "$before"
+          adb shell dumpsys package "$package" | grep -F 'versionCode=193'
+          first="$(adb shell dumpsys package "$package" | sed -n 's/.*firstInstallTime=//p' | sed -n '1p' | tr -d '\r')"
+          test -n "$first" || { echo "::error::Sem primeiro instante de instalacao"; exit 1; }
+          adb install -r "$after"
+          adb shell dumpsys package "$package" | grep -F 'versionCode=194'
+          updated="$(adb shell dumpsys package "$package" | sed -n 's/.*firstInstallTime=//p' | sed -n '1p' | tr -d '\r')"
+          test "$first" = "$updated" || { echo "::error::Primeira instalacao alterada"; exit 1; }
+          adb shell am start -W -n "$package/.MainActivity"
+          sleep 8
+          adb shell pidof "$package"
+          echo 'Upgrade in-place 193 -> 194 e inicializacao Android 35 aprovados.'
+          TEST_SCRIPT
+          chmod 700 "$RUNNER_TEMP/verify-brother-1117-upgrade.sh"
+
+      - name: Validar atualizacao da versao oficial para 1.11.7 no Android 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-boot-timeout: 1800
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash "$RUNNER_TEMP/verify-brother-1117-upgrade.sh"
+
+      - name: Guardar apenas candidato assinado APOS upgrade validado (SEM RELEASE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1117-CANDIDATO-ASSINADO-INTERNO-NAO-PUBLICAR
+          path: |
+            dist/Brother-Matrizes-1.11.7-CANDIDATO-ASSINADO-NAO-PUBLICAR.apk
+            dist/SHA256.txt
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Regras de conclusao
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## 1.11.7 — candidato de assinatura interna'
+            echo '- Sem publicacao, tag, GitHub Release, OTA, WordPress ou alteracao em main.'
+            echo '- O APK assinado fica isolado no artefato do workflow.'
+            echo '- O teste in-place em emulador nao substitui verificacao real de projetos de clientes.'
+          } >> "$GITHUB_STEP_SUMMARY"
