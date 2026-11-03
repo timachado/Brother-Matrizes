@@ -143,6 +143,8 @@ class NameEditorAndroidQaTest {
                 onSaveProject = {},
                 onSaveCopy = {},
                 onShare = {},
+                onSavePeDesign = {},
+                onSharePeDesign = {},
                 onPositionChange = { displayed = it }
             )
         }
@@ -210,6 +212,7 @@ class NameEditorAndroidQaTest {
                 onEdit = {}, onEditName = {}, onConvert = {},
                 onTransfer = {}, onSaveProject = {},
                 onSaveCopy = {}, onShare = {},
+                onSavePeDesign = {}, onSharePeDesign = {},
                 onPositionChange = { displayed = it }
             )
         }

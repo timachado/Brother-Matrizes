@@ -1037,7 +1037,7 @@ fun NameEditorScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                             .testTag("brother_allow_name_over_letter")
-                    ) { Text("Quero o nome sobre a letra") }
+                    ) { Text("Permitir sobreposição intencional") }
                 }
             }
             else -> Text(

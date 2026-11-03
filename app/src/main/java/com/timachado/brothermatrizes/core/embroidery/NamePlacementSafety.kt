@@ -91,16 +91,33 @@ internal object NamePlacementSafety {
                             segmentDistanceSquared(seg, original[id]) <
                                 clearanceSquared
                         ) {
+                            val matrixName = currentMatrixName(background)
+                            val clearanceText = if (clearanceUnits % 10 == 0) {
+                                "${clearanceUnits / 10}"
+                            } else {
+                                "${clearanceUnits / 10},${clearanceUnits % 10}"
+                            }
                             throw IllegalArgumentException(
-                                "Nome muito próximo das flores ou borboletas. " +
-                                    "Reduza a altura, escolha outra fonte ou mova o nome " +
-                                    "para manter pelo menos 1,5 mm de separação."
+                                "Nome muito próximo das pontadas da matriz \"$matrixName\". " +
+                                    "Ajuste o tamanho, a fonte ou a posição do nome para " +
+                                    "manter pelo menos $clearanceText mm de separação."
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    /** Usa apenas metadados da matriz ativa: não presume flores, letras ou animais. */
+    private fun currentMatrixName(background: EmbroideryDesign): String {
+        val nameFromFile = background.fileName.substringAfterLast('/')
+            .substringAfterLast('\\').substringBeforeLast('.')
+        return (background.label?.takeIf { it.isNotBlank() } ?: nameFromFile)
+            .trim()
+            .filter { it.code >= 32 && it.code != 127 }
+            .take(60)
+            .ifBlank { "matriz atual" }
     }
 
     private fun sewnSegments(points: List<EmbroideryPoint>): List<Segment> {
