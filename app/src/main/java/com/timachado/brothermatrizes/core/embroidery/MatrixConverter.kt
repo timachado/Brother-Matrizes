@@ -12,6 +12,9 @@ import org.embroideryio.embroideryio.EmbPattern
 import org.embroideryio.embroideryio.EmbThread
 import org.embroideryio.embroideryio.EmbroideryIO
 
+/** Perfil de saída PES. O formato da máquina deve permanecer intocado. */
+enum class PesExportProfile { BROTHER_MACHINE, PE_DESIGN_PC }
+
 object MatrixConverter {
     /*
      * Brother-first: PES é o formato preferencial do app.
@@ -40,7 +43,8 @@ object MatrixConverter {
     fun convert(
         design: EmbroideryDesign,
         targetFormat: String,
-        outputSuffix: String = "convertido"
+        outputSuffix: String = "convertido",
+        pesExportProfile: PesExportProfile = PesExportProfile.BROTHER_MACHINE
     ): Result<ConvertedMatrix> =
         runCatching {
             val format =
@@ -53,6 +57,13 @@ object MatrixConverter {
             ) {
                 "Formato de saída ainda não suportado."
             }
+
+            require(pesExportProfile == PesExportProfile.BROTHER_MACHINE ||
+                format == "PES") {
+                "PE-Design para computador requer arquivo PES."
+            }
+            val forPeDesign = format == "PES" &&
+                pesExportProfile == PesExportProfile.PE_DESIGN_PC
 
             val normalized =
                 EmbroideryIntegrity
@@ -76,10 +87,14 @@ object MatrixConverter {
                 buildOutputPattern(
                     design =
                         normalized,
-                    positiveOriginForPes =
-                        format ==
-                            "PES"
+                    positiveOriginForPes = format == "PES" && !forPeDesign
                 )
+            if (forPeDesign) {
+                // Rótulo PEC aceita melhor ASCII curto; o arquivo original não muda.
+                pattern.name = brotherSafeFileStem(
+                    normalized.label ?: normalized.fileName.substringBeforeLast('.')
+                ).take(16)
+            }
 
             val extension =
                 format.lowercase(
@@ -144,12 +159,12 @@ object MatrixConverter {
                  */
                 writer.set(
                     "pes version",
-                    1
+                    if (forPeDesign) 6 else 1
                 )
 
                 writer.set(
                     "truncated",
-                    true
+                    !forPeDesign
                 )
             }
 
@@ -171,16 +186,20 @@ object MatrixConverter {
             }
 
             val bytes =
-                if (
-                    format == "PES"
-                ) {
+                if (format == "PES" && !forPeDesign) {
+                    // O PES v1 otimizado para a máquina fica exatamente igual.
                     PesHoopPositionMetadata.write(
                         addBrotherPecOrigin(rawBytes, pattern),
                         normalized
                     )
                 } else {
+                    // PES PC v6 completo: não aplicar mutações PEC exclusivas da máquina.
                     rawBytes
                 }
+
+            if (forPeDesign) {
+                validateCompletePcPes(bytes)
+            }
 
             ConvertedMatrix(
                 fileName = outputName,
@@ -188,6 +207,32 @@ object MatrixConverter {
                 bytes = bytes
             )
         }
+
+    /**
+     * Exportação independente para o PE-DESIGN Windows (pontadas editáveis).
+     * Não cria objetos de texto nativos do PE-DESIGN.
+     */
+    fun convertForPeDesign(design: EmbroideryDesign): Result<ConvertedMatrix> =
+        convert(
+            design = design,
+            targetFormat = "PES",
+            outputSuffix = "PE_DESIGN",
+            pesExportProfile = PesExportProfile.PE_DESIGN_PC
+        )
+
+    private fun validateCompletePcPes(bytes: ByteArray) {
+        require(bytes.size > 24) { "PES para PC incompleto." }
+        require(bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII) == "#PES0060") {
+            "O arquivo de computador precisa ser PES v6 completo."
+        }
+        val offset = (bytes[8].toInt() and 0xFF) or
+            ((bytes[9].toInt() and 0xFF) shl 8) or
+            ((bytes[10].toInt() and 0xFF) shl 16) or
+            ((bytes[11].toInt() and 0xFF) shl 24)
+        require(offset >= 0x16 && offset.toLong() + 512L < bytes.size.toLong()) {
+            "O ponteiro PEC do PES de computador é inválido."
+        }
+    }
 
     internal fun brotherSafeFileStem(
         value: String
