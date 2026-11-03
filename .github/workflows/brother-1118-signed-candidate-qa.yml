@@ -1,12 +1,12 @@
 name: Brother Matrizes 1.11.8 - candidato assinado e upgrade Android (QA)
 
+# Assinatura protegida: executar somente quando a candidata auditada for
+# integrada em main. Nunca expor secrets em workflows de pull_request.
 on:
-  pull_request:
+  push:
     branches: [main]
     paths:
       - '.github/workflows/brother-1118-signed-candidate-qa.yml'
-      - 'scripts/verify_brother_1118_upgrade_qa.sh'
-      - 'app/**'
 
 permissions:
   contents: read
@@ -19,10 +19,7 @@ concurrency:
 jobs:
   sign-and-test-in-place:
     name: Assinar candidata sem publicar e testar 194 para 195
-    if: >-
-      github.event.pull_request.number == 222 &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'release/brother-1.11.8-integrated-qa-20261103'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: brother-release-signing
     timeout-minutes: 120
@@ -30,7 +27,7 @@ jobs:
       - name: Checkout da candidata auditada
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -41,7 +38,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           git merge-base --is-ancestor 4c1c3023210866dd8db0c63f061a9d2fd801cdf3 HEAD
           grep -Eq '^ *versionCode = 195 *$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.8"' app/build.gradle.kts
@@ -53,7 +50,7 @@ jobs:
           test "$(git rev-parse HEAD:updates/stable.json)" = "07e769bc9903e54863a5498018113d4df6bb5ddc"
           while IFS= read -r changed; do
             case "$changed" in
-              app/build.gradle.kts|app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt|app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|app/src/main/java/com/timachado/brothermatrizes/ViewerScreen.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverterTest.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafetyTest.kt|app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|.github/workflows/pe-design-compat-qa.yml|.github/workflows/brother-1118-signed-candidate-qa.yml|scripts/verify_pe_design_pes.py|scripts/verify_brother_1118_upgrade_qa.sh|docs/pe-design-windows-validation.md) ;;
+              app/build.gradle.kts|app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt|app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|app/src/main/java/com/timachado/brothermatrizes/ViewerScreen.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverterTest.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafetyTest.kt|app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|.github/workflows/pe-design-compat-qa.yml|.github/workflows/brother-1118-signed-candidate-qa.yml|.github/workflows/brother-1118-release-build-qa.yml|scripts/verify_pe_design_pes.py|scripts/verify_brother_1118_upgrade_qa.sh|docs/pe-design-windows-validation.md) ;;
               *) echo "::error::Alteracao fora do escopo 1.11.8: $changed"; exit 1 ;;
             esac
           done < <(git diff --name-only 4c1c3023210866dd8db0c63f061a9d2fd801cdf3..HEAD)
