@@ -1403,7 +1403,7 @@ private fun BrotherMatrizesApp(
                                 fileName = MatrixExporter.safeFileName(file.fileName),
                                 bytes = file.bytes,
                                 successMessage =
-                                    "PES para PE-Design salvo. Abra no PE-Design do Windows."
+                                    "PES para computador salvo. No PE-DESIGN 11, use Importar padrões → Do arquivo. Compatibilidade Windows em validação."
                             )
                         )
                     } else {
