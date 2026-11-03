@@ -62,7 +62,8 @@ jobs:
               app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|\
               app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|\
               releases/1.11.7-CANDIDATE-NOT-PUBLISHED.md|\
-              .github/workflows/brother-1117-release-candidate-qa.yml) ;;
+              .github/workflows/brother-1117-release-candidate-qa.yml|\
+              .github/workflows/brother-1117-signed-upgrade-qa.yml) ;;
               *) echo "::error::Arquivo fora do escopo autorizado: $changed"; exit 1 ;;
             esac
           done
