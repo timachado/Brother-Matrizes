@@ -85,11 +85,21 @@ class MatrixConverterTest {
         assertTrue(pc.fileName.endsWith("-PE_DESIGN.pes"))
         assertEquals("#PES0001",
             machine.bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII))
-        assertEquals("#PES0060",
+        assertEquals("#PES0001",
             pc.bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII))
         assertFalse("O PES completo não pode repetir o arquivo de máquina.",
             machine.bytes.contentEquals(pc.bytes))
 
+        val pecOffset = (pc.bytes[8].toInt() and 0xFF) or
+            ((pc.bytes[9].toInt() and 0xFF) shl 8) or
+            ((pc.bytes[10].toInt() and 0xFF) shl 16) or
+            ((pc.bytes[11].toInt() and 0xFF) shl 24)
+        assertTrue("Ponteiro PEC v1 deve apontar para dados reais.",
+            pecOffset > 22 && pecOffset + 512 < pc.bytes.size)
+        assertEquals("LA:", pc.bytes.copyOfRange(pecOffset, pecOffset + 3)
+            .toString(Charsets.US_ASCII))
+        assertFalse("PES da máquina não deve carregar blocos CEmbOne.",
+            machine.bytes.toString(Charsets.ISO_8859_1).contains("CEmbOne"))
         val fullText = pc.bytes.toString(Charsets.ISO_8859_1)
         assertTrue("PES completo deve conter o objeto do editor.",
             fullText.contains("CEmbOne"))
