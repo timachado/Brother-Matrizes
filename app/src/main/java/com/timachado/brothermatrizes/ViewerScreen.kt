@@ -69,6 +69,8 @@ fun ViewerScreen(
     onSaveProject: () -> Unit,
     onSaveCopy: () -> Unit,
     onShare: () -> Unit,
+    onSavePeDesign: () -> Unit,
+    onSharePeDesign: () -> Unit,
     onPositionChange: (EmbroideryDesign) -> Unit = {}
 ) {
     var placementTarget by remember { mutableStateOf<HoopLayerPositioning.Target?>(null) }
@@ -766,6 +768,39 @@ fun ViewerScreen(
                         8.dp
                     )
                 )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                        .testTag("brother_pe_design_export_card"),
+                    colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt)
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("PE-Design no computador",
+                            color = FioText, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Gere um PES completo para abrir no PE-Design do Windows. " +
+                                "Nome e letra serão pontos de bordado, não objetos de fonte. " +
+                                "Para bordar diretamente, use Enviar para máquina.",
+                            color = FioTextMuted, fontSize = 11.sp
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = onSavePeDesign,
+                                modifier = Modifier.weight(1f)
+                                    .testTag("brother_pe_design_save")
+                            ) { Text("Salvar PES para PC", fontSize = 12.sp) }
+                            OutlinedButton(
+                                onClick = onSharePeDesign,
+                                modifier = Modifier.weight(1f)
+                                    .testTag("brother_pe_design_share")
+                            ) { Text("Compartilhar PES", fontSize = 12.sp) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
 
                 Text(
                     "O original nunca é sobrescrito. Edições e conversões geram um novo arquivo.",

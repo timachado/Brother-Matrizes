@@ -1,0 +1,165 @@
+name: Brother Matrizes 1.11.8 - candidato assinado e upgrade Android (QA)
+
+# Assinatura protegida: executar somente quando a candidata auditada for
+# integrada em main. Nunca expor secrets em workflows de pull_request.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-1118-signed-candidate-qa.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: brother-1118-signed-candidate-qa
+  cancel-in-progress: false
+
+jobs:
+  sign-and-test-in-place:
+    name: Assinar candidata sem publicar e testar 194 para 195
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: brother-release-signing
+    timeout-minutes: 120
+    steps:
+      - name: Checkout da candidata auditada
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validar escopo, integridade e manifesto comercial atual
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor 4c1c3023210866dd8db0c63f061a9d2fd801cdf3 HEAD
+          grep -Eq '^ *versionCode = 195 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.8"' app/build.gradle.kts
+          test "$(jq -r .applicationId updates/stable.json)" = "com.timachado.brothermatrizes"
+          test "$(jq -r .channel updates/stable.json)" = "stable"
+          test "$(jq -r .versionCode updates/stable.json)" = "194"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.7"
+          test "$(jq -r .sha256 updates/stable.json)" = "c96434f71fb066afa4ac350d07aa3fd2ae594786809e6d98b2492460a88a5f08"
+          test "$(git rev-parse HEAD:updates/stable.json)" = "07e769bc9903e54863a5498018113d4df6bb5ddc"
+          while IFS= read -r changed; do
+            case "$changed" in
+              app/build.gradle.kts|app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt|app/src/main/java/com/timachado/brothermatrizes/NameEditorScreen.kt|app/src/main/java/com/timachado/brothermatrizes/ViewerScreen.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt|app/src/main/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/MatrixConverterTest.kt|app/src/test/java/com/timachado/brothermatrizes/core/embroidery/NamePlacementSafetyTest.kt|app/src/androidTest/java/com/timachado/brothermatrizes/NameEditorAndroidQaTest.kt|.github/workflows/pe-design-compat-qa.yml|.github/workflows/brother-1118-signed-candidate-qa.yml|.github/workflows/brother-1118-release-build-qa.yml|scripts/verify_pe_design_pes.py|scripts/verify_brother_1118_upgrade_qa.sh|docs/pe-design-windows-validation.md) ;;
+              *) echo "::error::Alteracao fora do escopo 1.11.8: $changed"; exit 1 ;;
+            esac
+          done < <(git diff --name-only 4c1c3023210866dd8db0c63f061a9d2fd801cdf3..HEAD)
+          if gh release view v1.11.8 --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "::error::Release v1.11.8 ja existe; cancelar candidata sem republicar."
+            exit 1
+          fi
+          bash scripts/pre_release_static_check.sh
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Instalar SDK Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Testes unitarios, lint, build release sem publicar
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' app/build/generated/source/buildConfig/release
+
+      - name: Baixar e autenticar baseline comercial 1.11.7
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p baseline
+          gh release download v1.11.7 --repo "$GH_REPO" --dir baseline --pattern 'Brother-Matrizes-1.11.7-OFICIAL-COMERCIAL-ASSINADO.apk'
+          old=baseline/Brother-Matrizes-1.11.7-OFICIAL-COMERCIAL-ASSINADO.apk
+          echo "$(jq -r .sha256 updates/stable.json)  $old" | sha256sum -c -
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/apksigner" verify --print-certs "$old" > /tmp/brother-1118-old-signature.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/brother-1118-old-signature.txt
+          info="$("$sdk/aapt" dump badging "$old" | head -n 1)"
+          [[ "$info" == *"versionCode='194'"* ]]
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+
+      - name: Assinar candidata com certificado original apenas no runner protegido
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in KEYSTORE_B64 STORE_PASS KEY_ALIAS KEY_PASS; do
+            test -n "${!value}" || { echo "::error::Segredo protegido ausente"; exit 1; }
+          done
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          ks="$RUNNER_TEMP/brother-1118-qa.jks"
+          aligned="$RUNNER_TEMP/brother-1118-qa-aligned.apk"
+          trap 'rm -f "$ks" "$aligned"' EXIT
+          mkdir -p dist
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$ks"
+          chmod 600 "$ks"
+          test -s "$ks"
+          "$sdk/zipalign" -P 16 -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$aligned"
+          "$sdk/apksigner" sign --ks "$ks" --ks-key-alias "$KEY_ALIAS" --ks-pass env:STORE_PASS --key-pass env:KEY_PASS --out dist/Brother-Matrizes-1.11.8-CANDIDATE-ASSINADO-NAO-PUBLICADO.apk "$aligned"
+          apk=dist/Brother-Matrizes-1.11.8-CANDIDATE-ASSINADO-NAO-PUBLICADO.apk
+          "$sdk/zipalign" -P 16 -c 4 "$apk"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$apk" > /tmp/brother-1118-qa-certificate.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/brother-1118-qa-certificate.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/brother-1118-qa-certificate.txt
+          info="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='195'"* ]]
+          [[ "$info" == *"versionName='1.11.8'"* ]]
+          sha256sum "$apk" > dist/SHA256.txt
+
+      - name: Permitir KVM ao emulador
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Upgrade 1.11.7 para 1.11.8 in-place, sem apagar dados
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-boot-timeout: 1800
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash scripts/verify_brother_1118_upgrade_qa.sh
+
+      - name: Guardar somente candidato de auditoria, sem publicar no canal estavel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.11.8-ASSINADO-CANDIDATO-NAO-COMERCIAL
+          path: |
+            dist/Brother-Matrizes-1.11.8-CANDIDATE-ASSINADO-NAO-PUBLICADO.apk
+            dist/SHA256.txt
+          if-no-files-found: error
+          retention-days: 7
