@@ -171,7 +171,6 @@ fun NameEditorScreen(
     var matrixActionMessage by remember(original) { mutableStateOf<String?>(null) }
     var moveMode by remember(original) { mutableStateOf(NameEditorMoveMode.NAME) }
     var editorSection by remember(original) { mutableStateOf(NameEditorSection.NAME) }
-    var advancedExpanded by remember(original) { mutableStateOf(false) }
     var moveError by remember(original) { mutableStateOf<String?>(null) }
 
     fun snapshot() = EditorSnapshot(draft, baseDesign, matrixRotation,
@@ -765,7 +764,6 @@ fun NameEditorScreen(
             hoop = activeHoop,
             onCancel = {
                 selectingOldName = false
-                advancedExpanded = false
                 editorSection = NameEditorSection.NAME
             },
             onConfirm = { selected ->
@@ -776,7 +774,6 @@ fun NameEditorScreen(
                     y = selected.centerYUnits
                 ))
                 selectingOldName = false
-                advancedExpanded = false
                 editorSection = NameEditorSection.NAME
             }
         )
@@ -847,21 +844,6 @@ fun NameEditorScreen(
             ) { Text("Refazer") }
         }
 
-        // O acesso aos ajustes avançados permanece fixo acima da rolagem.
-        // Assim o usuário do Samsung não perde a seleção ao trocar de painel,
-        // e os elementos avançados não ficam atrás de uma região recortada.
-        OutlinedButton(
-            onClick = {
-                advancedExpanded = !advancedExpanded
-                scope.launch { editorScroll.scrollTo(0) }
-            },
-            modifier = Modifier.fillMaxWidth()
-                .testTag("brother_name_advanced_toggle")
-        ) {
-            Text(if (advancedExpanded) "‹ Voltar ao editor" else
-                "Ajustes avançados")
-        }
-
         // Toda a área central rola em telas compactas e em fonte ampliada.
         // Apenas a barra superior e o botão Aplicar ficam fixos.
         // Não criar um segundo contêiner rolável com weight(1f): em aparelhos
@@ -874,9 +856,6 @@ fun NameEditorScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
 
-        // Ao abrir os ajustes avançados, mostrar apenas esse painel.
-        // Evita controles profundamente deslocados após a prévia em telas curtas.
-        if (!advancedExpanded) {
         Text("Selecione Nome ou Letra · arraste para mover · dois dedos para girar ou redimensionar",
             color = FioTextMuted, fontSize = 12.sp)
 
@@ -1079,7 +1058,6 @@ fun NameEditorScreen(
                 OutlinedButton(
                     onClick = {
                         editorSection = section
-                        advancedExpanded = false
                         // Interromper o autoencaixe pendente antes de abrir o
                         // painel de orientação, sem bloquear a interface.
                         if (section == NameEditorSection.HOOP) autoFitEnabled = false
@@ -1208,7 +1186,7 @@ fun NameEditorScreen(
 
         // Preset essencial sempre à vista na aba Bastidor: evita rolagem
         // longa ou operação gestual acidental para fixar a orientação.
-        if (editorSection == NameEditorSection.HOOP && !advancedExpanded) {
+        if (editorSection == NameEditorSection.HOOP) {
             OutlinedButton(
                 onClick = { applyHorizontalLetterVerticalNameHorizontal() },
                 modifier = Modifier.fillMaxWidth()
@@ -1218,15 +1196,11 @@ fun NameEditorScreen(
             }
         }
 
-        } // edição normal; o painel avançado dispensa prévia e abas
-
         Column(
             modifier = Modifier.fillMaxWidth()
                 .testTag("brother_name_editor_settings_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // O botão de alternância está fixo acima da área rolável.
-            if (!advancedExpanded) {
             when (editorSection) {
                 NameEditorSection.NAME -> {
         OutlinedTextField(
@@ -1239,6 +1213,35 @@ fun NameEditorScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().testTag("brother_name_input")
         )
+
+        // Ações de nome antigo somente quando o arquivo precisa desse fluxo.
+        if (original.editableName == null &&
+            original.points.any { it.command ==
+                com.timachado.brothermatrizes.core.embroidery.StitchCommand.COLOR_CHANGE } &&
+            baseDesign === original
+        ) {
+            OutlinedButton(
+                onClick = { selectingOldName = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Substituir nome existente (selecionar bloco)")
+            }
+        }
+
+        if (oldNameBlockSelected) {
+            OutlinedButton(
+                onClick = {
+                    baseDesign = original
+                    oldNameBlockSelected = false
+                    matrixRotation = 0f
+                    computed = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Desfazer seleção do nome antigo")
+            }
+        }
+
 
 
         Row(
@@ -1380,6 +1383,25 @@ fun NameEditorScreen(
                 color = Color(0xFFFF9393), fontSize = 12.sp)
         }
 
+
+        if (original.editableName != null) {
+            OutlinedButton(
+                onClick = {
+                    autoFitEnabled = false
+                    NamePersonalization.invalidatePreparedPreview()
+                    computed = null
+                    reprocessResult = "Recalculando pontadas com o motor de fontes atualizado…"
+                    reprocessRequest++
+                },
+                modifier = Modifier.fillMaxWidth()
+                    .testTag("brother_name_reprocess_glyphs")
+            ) {
+                Text("↻ Reprocessar pontadas da fonte sem mudar o encaixe")
+            }
+            reprocessResult?.let { message ->
+                Text(message, color = FioTextMuted, fontSize = 12.sp)
+            }
+        }
 
         Text("Altura: " + "%.1f".format(draft.height) + " mm", color = FioText)
         Slider(
@@ -1530,6 +1552,16 @@ fun NameEditorScreen(
                     ) { Text("Girar letra +90°") }
                 }
 
+                // A opção só aparece quando há rotação isolada válida a aplicar.
+                if (abs(matrixRotation) >= .001f && matrixRotationError == null &&
+                    original.editableName == null && !oldNameBlockSelected) {
+                    OutlinedButton(
+                        onClick = { onApply(baseDesign) },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_matrix_apply_rotation_only")
+                    ) { Text("Aplicar somente a rotação da matriz") }
+                }
+
                 }
                 NameEditorSection.HOOP -> {
         Text("Orientação independente", color = FioText,
@@ -1586,144 +1618,8 @@ fun NameEditorScreen(
 
                 }
             }
-            }
-            if (advancedExpanded) {
-                Text("Ferramentas de precisão", color = FioText)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.MATRIX
-                    editorSection = NameEditorSection.LETTER
-                    advancedExpanded = false
-                    scope.launch { editorScroll.scrollTo(0) }
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_matrix")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.MATRIX)
-                    "✓ Mover matriz" else "Mover matriz")
-            }
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    moveMode = NameEditorMoveMode.NAME
-                    editorSection = NameEditorSection.NAME
-                    advancedExpanded = false
-                    scope.launch { editorScroll.scrollTo(0) }
-                    moveError = null
-                },
-                modifier = Modifier.weight(1f)
-                    .testTag("brother_name_editor_move_name")
-            ) {
-                Text(if (moveMode == NameEditorMoveMode.NAME)
-                    "✓ Mover nome" else "Mover nome")
-            }
         }
-        Text(
-            if (moveMode == NameEditorMoveMode.MATRIX)
-                "Arraste apenas as flores: o nome permanece na posição escolhida."
-            else "Arraste apenas o nome: as flores ficam paradas.",
-            color = FioTextMuted, fontSize = 11.sp,
-            modifier = Modifier.testTag("brother_name_editor_move_hint")
-        )
-        moveError?.let {
-            Text(it, color = Color(0xFFFF9393), fontSize = 12.sp,
-                modifier = Modifier.testTag("brother_name_editor_move_error"))
-        }
-
-
-        if (original.editableName == null &&
-            original.points.any { it.command ==
-                com.timachado.brothermatrizes.core.embroidery.StitchCommand.COLOR_CHANGE } &&
-            baseDesign === original
-        ) {
-            OutlinedButton(
-                onClick = { selectingOldName = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Substituir nome existente (selecionar bloco)")
-            }
-        }
-
-        if (oldNameBlockSelected) {
-            OutlinedButton(
-                onClick = {
-                    baseDesign = original
-                    oldNameBlockSelected = false
-                    matrixRotation = 0f
-                    computed = null
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Desfazer seleção do nome antigo")
-            }
-        }
-
-        Text(
-            "Arraste com um dedo para mover. Use dois dedos para ampliar " +
-                "a largura e a altura independentemente.",
-            color = FioTextMuted, fontSize = 12.sp
-        )
-
-
-        // Girar um PES/DST sem necessariamente inserir um novo nome.
-        // A matriz rotacionada é uma cópia; o arquivo importado permanece intacto.
-        OutlinedButton(
-            onClick = { onApply(baseDesign) },
-            enabled = abs(matrixRotation) >= .001f && matrixRotationError == null &&
-                original.editableName == null && !oldNameBlockSelected,
-            modifier = Modifier.fillMaxWidth()
-                .testTag("brother_matrix_apply_rotation_only")
-        ) {
-            Text("Aplicar só a rotação da matriz")
-        }
-        if (original.editableName != null) {
-            Text("Para matrizes com nome editável, use o botão amarelo Aplicar nome. " +
-                "A opção de aplicar somente a rotação fica indisponível.",
-                color = FioTextMuted, fontSize = 11.sp)
-        } else if (abs(matrixRotation) < .001f) {
-            Text("Gire a matriz antes de aplicar somente a rotação.",
-                color = FioTextMuted, fontSize = 11.sp)
-        }
-
-
-        if (original.editableName != null) {
-            OutlinedButton(
-                onClick = {
-                    autoFitEnabled = false
-                    NamePersonalization.invalidatePreparedPreview()
-                    computed = null
-                    reprocessResult = "Recalculando pontadas com o motor de fontes atualizado…"
-                    reprocessRequest++
-                },
-                modifier = Modifier.fillMaxWidth()
-                    .testTag("brother_name_reprocess_glyphs")
-            ) {
-                Text("↻ Reprocessar pontadas da fonte sem mudar o encaixe")
-            }
-            reprocessResult?.let { message ->
-                Text(message, color = FioTextMuted, fontSize = 12.sp)
-            }
-        }
-
-
-        Text(
-            "Nomes salvos em Minhas Matrizes permanecem editáveis. " +
-                "Após exportar e reabrir PES/DST, a troca de nome existente exige " +
-                "seleção manual de um bloco de cor isolado; regiões ambíguas são bloqueadas.",
-            color = FioTextMuted,
-            fontSize = 11.sp
-        )
-
-            }
-        }
-        } // fim do conteúdo rolável (prévia, abas e todos os ajustes)
+        } // fim do conteúdo rolável (prévia, abas e ajustes contextualizados)
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null && !previewBusy,
