@@ -90,17 +90,34 @@ class NameEditorAndroidQaTest {
         composeRule.onNodeWithTag("brother_name_advanced_toggle")
             .assertTextContains("Voltar ao editor", substring = true)
         composeRule.onNodeWithText("Ferramentas de precisão").assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 90°").assertExists()
-        // Ajustes do nome ficam junto de Altura na tela principal.
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_name").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_name_horizontal_expansion")
             .performScrollTo().assertExists()
         composeRule.onNodeWithText("Expansão horizontal: 100%").assertExists()
         composeRule.onNodeWithText("Desfazer").performClick()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithText("Rotação da matriz: 0°").assertExists()
+    }
+
+    @Test
+    fun duplicateLetterButtonsAreReplacedByMatrixRotationWithFeedback() {
+        composeRule.setContent {
+            NameEditorScreen(original = frame(), referenceHoop = HoopProfile.H100X100,
+                onBack = {}, onApply = {})
+        }
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_easy_smaller").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_easy_larger").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_letter_smaller").assertExists()
+        composeRule.onNodeWithTag("brother_matrix_rotate_0")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithTag("brother_matrix_rotation_notice")
+            .assertTextContains("já está aplicado", substring = true)
     }
 
     @Test
@@ -967,7 +984,11 @@ class NameEditorAndroidQaTest {
                 onBack = {}, onApply = { applied = it })
         }
         composeRule.onNodeWithTag("brother_editor_tab_letter").performClick()
-        composeRule.onNodeWithTag("brother_easy_smaller")
+        composeRule.onNodeWithTag("brother_easy_smaller").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_easy_larger").assertDoesNotExist()
+        composeRule.onNodeWithTag("brother_matrix_rotate_90")
+            .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_letter_smaller")
             .performScrollTo().assertIsDisplayed().performClick()
         composeRule.onNodeWithTag("brother_letter_scale_label")
             .performScrollTo().assertIsDisplayed()
@@ -1046,9 +1067,11 @@ class NameEditorAndroidQaTest {
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("brother_name_density")
             .performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithTag("brother_editor_tab_letter").performScrollTo().performClick()
         composeRule.onNodeWithTag("brother_matrix_rotate_90")
             .performScrollTo().assertExists()
+        composeRule.onNodeWithTag("brother_name_advanced_toggle").performClick()
+        composeRule.onNodeWithText("Ferramentas de precisão").assertExists()
         composeRule.onNodeWithTag("brother_name_apply").assertExists()
     }
 
