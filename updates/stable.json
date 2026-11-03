@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.6",
-  "versionCode": 193,
+  "versionName": "1.11.7",
+  "versionCode": 194,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.6/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "9ab26113b03ffaf70638f12f720a694777fd1bb29a809a90513a7abd8cb672bd",
-  "releaseNotes": "Brother Matrizes 1.11.6 (193) — atualização comercial oficial.\n\n• Novo editor para nomes sobrepostos a letras e monogramas.\n• Movimentação e dimensionamento independentes do nome e da letra.\n• Rotação da inicial sem alterar indevidamente a orientação do bastidor.\n• Rolagem corrigida em aparelhos Samsung e telas Android compactas.\n• Preservação das pontadas originais e dos projetos salvos.\n• Atualização direta da 1.11.5, sem desinstalar o aplicativo.",
-  "publishedAt": "2026-10-31T23:13:17Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.6/Brother-Matrizes-1.11.6-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.7/Brother-Matrizes-1.11.7-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "c96434f71fb066afa4ac350d07aa3fd2ae594786809e6d98b2492460a88a5f08",
+  "releaseNotes": "Editor de nomes simplificado, sem painel redundante de Ajustes avancados.; Controles de nome, letra e bastidor reorganizados em suas abas.; Remocao de controles repetidos de tamanho e movimentacao.; Mensagens mais claras quando movimento ou rotacao nao podem ser aplicados.; Preservadas as funcoes de projetos, fontes, simulador e exportacao.; Atualizacao in-place sobre a v1.11.6 validada no emulador Android 35.",
+  "publishedAt": "2026-11-03T05:30:02Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.7/Brother-Matrizes-1.11.7-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
