@@ -146,20 +146,18 @@ object MatrixConverter {
 
             if (format == "PES") {
                 /*
-                 * Compatibilidade Brother/Innov-is:
+                 * Máquina: preservar PES v1 truncado e a correção PEC aprovada.
                  *
-                 * O PES v6 completo do EmbroideryIO inclui blocos CEmbOne/CSewSeg
-                 * com uma transformação visual própria. Em máquinas Brother esses
-                 * metadados podem deslocar a prévia para fora do bastidor, mesmo
-                 * quando os pontos PEC estão corretamente centralizados.
-                 *
-                 * Para arquivos gerados pelo app usamos o contêiner PES v1
-                 * truncado: mantém os pontos/cores PEC que a máquina borda e
-                 * elimina o bloco visual problemático. DST e JEF não mudam.
+                 * PC (PE-DESIGN 11): usar PES v1 COMPLETO, com CEmbOne/CSewSeg
+                 * e PEC, sem o cabeçalho PES v6 do writer terceiro. O PES v6
+                 * foi aceito por bibliotecas mas há relato de tela branca no
+                 * software proprietário. PES antigo é retrocompatível conforme
+                 * a documentação Brother; ainda exige homologação no Windows.
+                 * Este ramo NÃO altera o perfil da bordadeira nem DST/JEF.
                  */
                 writer.set(
                     "pes version",
-                    if (forPeDesign) 6 else 1
+                    1
                 )
 
                 writer.set(
@@ -193,7 +191,7 @@ object MatrixConverter {
                         normalized
                     )
                 } else {
-                    // PES PC v6 completo: não aplicar mutações PEC exclusivas da máquina.
+                    // PES PC v1 completo: não aplicar mutações PEC exclusivas da máquina.
                     rawBytes
                 }
 
@@ -222,8 +220,8 @@ object MatrixConverter {
 
     private fun validateCompletePcPes(bytes: ByteArray) {
         require(bytes.size > 24) { "PES para PC incompleto." }
-        require(bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII) == "#PES0060") {
-            "O arquivo de computador precisa ser PES v6 completo."
+        require(bytes.copyOfRange(0, 8).toString(Charsets.US_ASCII) == "#PES0001") {
+            "O PES para computador precisa ser v1 completo, com blocos de edição."
         }
         val offset = (bytes[8].toInt() and 0xFF) or
             ((bytes[9].toInt() and 0xFF) shl 8) or
@@ -231,6 +229,13 @@ object MatrixConverter {
             ((bytes[11].toInt() and 0xFF) shl 24)
         require(offset >= 0x16 && offset.toLong() + 512L < bytes.size.toLong()) {
             "O ponteiro PEC do PES de computador é inválido."
+        }
+        val header = bytes.copyOfRange(12, offset).toString(Charsets.ISO_8859_1)
+        require(header.contains("CEmbOne") && header.contains("CSewSeg")) {
+            "O PES do computador precisa conter segmentos editáveis de bordado."
+        }
+        require(bytes.copyOfRange(offset, offset + 3).toString(Charsets.US_ASCII) == "LA:") {
+            "O bloco de pontadas PEC não foi localizado no PES do computador."
         }
     }
 
