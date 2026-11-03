@@ -1,0 +1,9 @@
+{
+  "versionName": "1.11.7",
+  "versionCode": 194,
+  "sha256": "c96434f71fb066afa4ac350d07aa3fd2ae594786809e6d98b2492460a88a5f08",
+  "topic": "brother_matrizes_updates_stable",
+  "fcmMessage": "projects/brother-matrizes---ti-machado/messages/-5649909849427550631",
+  "status": "accepted_by_fcm",
+  "note": "FCM acceptance is not proof of delivery to all subscribers."
+}
