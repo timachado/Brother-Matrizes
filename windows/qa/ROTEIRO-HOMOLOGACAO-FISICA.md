@@ -52,6 +52,9 @@ automatizadas que constarem como aprovadas no GitHub Actions.
 - [ ] Abrir matrizes que cabem e que excedem os bastidores 100×100,
       130×180 e 200×300 mm; verificar margens, avisos de possível
       orientação alternativa e ausência de mudança automática de pontos.
+- [ ] Alterar RGB de uma linha com formato hexadecimal e verificar prévia,
+      preservação das pontadas, Desfazer/Refazer e persistência no FLP.
+      Comparar cores exportadas em PES/JEF; não presumir suporte a paleta no DST.
 - [ ] Editar escala geral, expansão H/V independente, rotação, deslocamento,
       espelhamento, Desfazer, Refazer e Restaurar original.
 - [ ] Verificar que **Desfazer/Refazer afeta só a sessão atual** e que abrir outro
