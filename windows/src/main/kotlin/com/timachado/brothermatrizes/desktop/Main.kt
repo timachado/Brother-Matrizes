@@ -105,6 +105,8 @@ private fun DesktopScreen() {
     var isError by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var scaleText by remember { mutableStateOf("1.00") }
+    var horizontalScaleText by remember { mutableStateOf("1.00") }
+    var verticalScaleText by remember { mutableStateOf("1.00") }
     var angleText by remember { mutableStateOf("0") }
     var xMmText by remember { mutableStateOf("0") }
     var yMmText by remember { mutableStateOf("0") }
@@ -166,6 +168,8 @@ private fun DesktopScreen() {
                                 stitchProgress = 1f
                                 format = it.current.format
                                 scaleText = "1.00"
+                                horizontalScaleText = "1.00"
+                                verticalScaleText = "1.00"
                                 angleText = "0"
                                 xMmText = "0"
                                 yMmText = "0"
@@ -264,6 +268,8 @@ private fun DesktopScreen() {
                                     peDesign = false
                                     stitchProgress = 1f
                                     scaleText = "1.00"
+                                    horizontalScaleText = "1.00"
+                                    verticalScaleText = "1.00"
                                     angleText = "0"
                                     xMmText = "0"
                                     yMmText = "0"
@@ -409,6 +415,8 @@ private fun DesktopScreen() {
                                         stitchProgress = 1f
                                         peDesign = false
                                         scaleText = "1.00"
+                                        horizontalScaleText = "1.00"
+                                        verticalScaleText = "1.00"
                                         angleText = "0"
                                         xMmText = "0"
                                         yMmText = "0"
@@ -451,6 +459,8 @@ private fun DesktopScreen() {
                                     format = "DST"
                                     peDesign = false
                                     scaleText = "1.00"
+                                    horizontalScaleText = "1.00"
+                                    verticalScaleText = "1.00"
                                     angleText = "0"
                                     xMmText = "0"
                                     yMmText = "0"
@@ -519,6 +529,8 @@ private fun DesktopScreen() {
                                         format = "DST"
                                         peDesign = false
                                         scaleText = "1.00"
+                                        horizontalScaleText = "1.00"
+                                        verticalScaleText = "1.00"
                                         angleText = "0"
                                         xMmText = "0"
                                         yMmText = "0"
@@ -556,6 +568,26 @@ private fun DesktopScreen() {
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         OutlinedTextField(
+                            value = horizontalScaleText,
+                            onValueChange = { horizontalScaleText = it },
+                            label = { Text("Expansão H (0,5–2,5)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = verticalScaleText,
+                            onValueChange = { verticalScaleText = it },
+                            label = { Text("Expansão V (0,5–2,5)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        "1,00 = sem expansão. Aplicar não sobrescreve a matriz original.",
+                        fontSize = 11.sp, color = muted
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        OutlinedTextField(
                             value = xMmText,
                             onValueChange = { xMmText = it },
                             label = { Text("Mover X (mm)") },
@@ -579,24 +611,21 @@ private fun DesktopScreen() {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Button(enabled = document != null && !busy, onClick = {
                             val loaded = document ?: return@Button
-                            val scale = scaleText.trim().replace(',', '.').toFloatOrNull()
-                            val degrees = angleText.trim().replace(',', '.').toFloatOrNull()
-                            val xMm = xMmText.trim().replace(',', '.').toFloatOrNull()
-                            val yMm = yMmText.trim().replace(',', '.').toFloatOrNull()
-                            if (scale == null || degrees == null || xMm == null || yMm == null ||
-                                !xMm.isFinite() || !yMm.isFinite() ||
-                                xMm !in -200f..200f || yMm !in -200f..200f
-                            ) {
-                                report("Informe escala, rotação e deslocamentos válidos (máx. 200 mm).", true)
-                            } else {
-                                val transform = EditTransform(
-                                    scale = scale,
-                                    rotationDegrees = degrees,
-                                    offsetXUnits = (xMm * 10f).roundToInt(),
-                                    offsetYUnits = (yMm * 10f).roundToInt(),
+                            val parsed = runCatching {
+                                DesktopTransformInput.parse(
+                                    scale = scaleText,
+                                    horizontal = horizontalScaleText,
+                                    vertical = verticalScaleText,
+                                    angle = angleText,
+                                    moveX = xMmText,
+                                    moveY = yMmText,
                                     mirrorHorizontal = mirrorX,
                                     mirrorVertical = mirrorY
                                 )
+                            }
+                            parsed.onFailure { report("Ajuste inválido: ${it.message}", true) }
+                            val transform = parsed.getOrNull()
+                            if (transform != null) {
                                 val before = editTimeline ?: DesktopEditTimeline.start(loaded)
                                 busy = true
                                 scope.launch {
@@ -859,6 +888,8 @@ private fun DesktopScreen() {
                                         peDesign = false
                                         stitchProgress = 1f
                                         scaleText = "1.00"
+                                        horizontalScaleText = "1.00"
+                                        verticalScaleText = "1.00"
                                         angleText = "0"
                                         xMmText = "0"
                                         yMmText = "0"
