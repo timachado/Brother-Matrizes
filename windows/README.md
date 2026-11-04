@@ -66,10 +66,21 @@ JVM isoladas:
 - escrita do marcador `BROTHER_WINDOWS_QA_SMOKE_OK` somente após todos
   os controles passarem, com arquivos de teste apagados ao final.
 
-O upload dos instaladores só ocorre **depois** de o launcher ser executado
-sem erros no **runner virtual Windows**. Isso **não significa** que o instalador
-MSI/EXE foi instalado, que a UI funciona em todos os PCs, que as fontes
-passaram em bordadeira real, ou que o produto foi homologado comercialmente.
+O CI executa duas validações sequenciais no runner virtual Windows:
+
+1. Executa o launcher da imagem distribuível com `--smoke-test`.
+2. Instala o **MSI desta própria execução**, em modo silencioso e sem reiniciar,
+   localiza o executável realmente instalado, executa o mesmo diagnóstico,
+   confirma o marcador `BROTHER_WINDOWS_MSI_INSTALLED_SMOKE_OK` e
+   **desinstala** o produto usando o ProductCode do MSI, conferindo a
+   remoção do registro de instalação (`BROTHER_WINDOWS_MSI_UNINSTALL_OK`).
+   A rotina recusa tocar em uma instalação preexistente e roda somente em
+   runner efêmero. Não executa EXE/instalador gráfico sobre outros PCs.
+
+O upload dos instaladores só ocorre **depois** das verificações no
+**runner virtual Windows**. Isso **não significa** teste de instalação em um
+PC físico, que a UI funciona em todos os computadores, que as fontes passaram
+em bordadeira real, ou que o produto foi homologado comercialmente.
 
 ## Segurança local
 
