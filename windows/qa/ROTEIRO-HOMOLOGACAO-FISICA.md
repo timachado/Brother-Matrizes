@@ -46,6 +46,12 @@ automatizadas que constarem como aprovadas no GitHub Actions.
 - [ ] Comparar prévia, número aproximado de pontos, salto, cor e dimensões com
       uma ferramenta confiável. Registrar divergências sem corrigir o original.
 - [ ] Testar desenho simples e matriz com múltiplas cores, saltos e cortes.
+- [ ] Criar composição nova com até 10 letras: selecionar segunda letra,
+      mover somente ela em X/Y, ampliar, girar e testar Desfazer/Refazer.
+      Verificar JUMP entre glifos e único END; registrar discrepâncias
+      de espaçamento e posicionamento antes de testar em bordadeira.
+- [ ] Salvar composição individual em FLP novo e reabrir: os pontos devem
+      permanecer iguais; os objetos por letra NÃO são reeditáveis após reabrir.
 - [ ] Gerar nome com fonte integrada, além de monograma de 1 a 3 iniciais.
 - [ ] Importar fonte TTF/OTF **de uso autorizado**, testar contornos com furos
       (ex.: `O`), cursivas e espaços. Registrar caracteres rejeitados.
