@@ -10,7 +10,6 @@ import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
-import java.util.Locale
 
 /**
  * Acompanhamento OPCIONAL e exclusivo da QA Windows para projetos com
@@ -171,7 +170,8 @@ internal object DesktopLetterProjectBundle {
             input.readFully(checksum)
             val text = input.readUTF()
             val height = input.readFloat()
-            val style = TextStitchStyle.entries.singleOrNull { it.name == input.readUTF() }
+            val styleCode = input.readUTF()
+            val style = TextStitchStyle.entries.singleOrNull { it.name == styleCode }
                 ?: throw IllegalArgumentException("Estilo de letras não reconhecido.")
             val count = input.readInt()
             val base = DesktopLetterComposer.start(text, height, style)
@@ -213,7 +213,13 @@ internal object DesktopLetterProjectBundle {
     }
 
     private fun requireFlpSource(flp: Path) {
-        requireFlpDestination(flp)
+        require(flp.isAbsolute && flp.fileName.toString().endsWith(".flp", ignoreCase = true)) {
+            "Selecione um projeto FLP com caminho absoluto."
+        }
+        require(Files.isDirectory(flp.parent, *noFollow) &&
+            !Files.isSymbolicLink(flp.parent)) {
+            "Pasta de origem inválida ou redirecionada."
+        }
         require(Files.isRegularFile(flp, *noFollow) && !Files.isSymbolicLink(flp)) {
             "Arquivo FLP de origem ausente ou inválido."
         }
