@@ -59,6 +59,49 @@ class DesktopFontRegressionTest {
     }
 
     @Test
+    fun `contraforma da letra O nao desaparece na extracao Java2D`() {
+        val file = availableFonts().firstOrNull() ?: return
+        val imported = ImportedFont(
+            id = "teste", displayName = file.fileName.toString(),
+            fileName = file.fileName.toString(), extension = "ttf",
+            absolutePath = file.toAbsolutePath().toString()
+        )
+        val shape = AndroidSkiaOutlineExtractor.extract(imported, "O", 180f, 0f, 0f)
+        assertTrue(shape.glyphPolygons.any { it.size >= 2 },
+            "Letra O perdeu o contorno interno; Satin não é seguro")
+    }
+
+    @Test
+    fun `palavra ANA usa motor Satin oficial e produz DST relido`() {
+        val file = availableFonts().firstOrNull() ?: return
+        val document = DesktopMatrixService.createFromImportedFont(
+            fontPath = file, text = "ANA", heightMm = 18f,
+            densityMm = 0.4f, spacingMm = 0f
+        )
+        assertTrue(document.current.stitchCount > 50)
+        assertTrue(document.current.endFound)
+        val result = DesktopMatrixService.convert(document, "DST")
+        assertTrue(result.bytes.size > 512)
+        val reloaded = DesktopMatrixService.open(result.fileName, result.bytes)
+        assertTrue(reloaded.current.stitchCount > 0)
+    }
+
+    @Test
+    fun `parametros de densidade e entreletras invalidos sao recusados`() {
+        val file = Path.of("fonte-inexistente.ttf")
+        for (density in listOf(Float.NaN, -0.3f, 2.0f)) {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                DesktopMatrixService.createFromImportedFont(file, "ANA", 18f, density, 0f)
+            }
+        }
+        for (spacing in listOf(Float.NaN, -1f, 4f)) {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                DesktopMatrixService.createFromImportedFont(file, "ANA", 18f, 0.4f, spacing)
+            }
+        }
+    }
+
+    @Test
     fun `repeticao de geometria e rotacao nao alteram tamanho do arquivo fonte`() {
         val file = availableFonts().firstOrNull() ?: return
         val imported = ImportedFont(
