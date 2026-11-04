@@ -67,6 +67,11 @@ internal object DesktopRuntimeSmoke {
                 "Expansão H/V não pôde ser desfeita."
             }
 
+            val hoops = DesktopHoopAdvisor.analyze(document.current)
+            check(hoops.size == 5 && hoops.any { it.status == DesktopHoopFit.DIRECT }) {
+                "A pré-checagem de bastidores oficiais não retornou resultados válidos."
+            }
+
             val converted = DesktopMatrixService.convert(document, "DST")
             check(converted.bytes.size > 512) { "Conversão DST incompleta." }
             val reloadedDst = DesktopMatrixService.open(converted.fileName, converted.bytes)
@@ -94,6 +99,7 @@ internal object DesktopRuntimeSmoke {
                     "Sobrescrita: bloqueada\n" +
                     "Desfazer/refazer: validado\n" +
                     "Expansão H/V: validado\n" +
+                    "Bastidores: pré-checagem validada\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
