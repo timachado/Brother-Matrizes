@@ -58,7 +58,7 @@ internal object DesktopFontPreviewService {
         val family = font.getFamily(Locale.forLanguageTag("pt-BR")).take(120)
         val postScript = font.getPSName().take(120)
         require(family.isNotBlank()) { "A fonte não possui nome válido." }
-        val missing = sample.filter { !font.canDisplay(it) }.distinct().joinToString("")
+        val missing = sample.filter { !font.canDisplay(it) }.toSet().joinToString("")
         return DesktopFontPreview(name, family, postScript, font, missing)
     }
 }
