@@ -23,7 +23,9 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
 - Monogramas Linear, Clássico e Empilhado pelo `MonogramGenerator`.
 - Biblioteca local de uma pasta escolhida explicitamente, com DST/PES/JEF/FLP.
   A pasta pode ser lembrada e esquecida nas preferências Windows; sua listagem
-  nunca é refeita automaticamente na inicialização.
+  nunca é refeita automaticamente na inicialização. A interface permite
+  **pesquisar pelo nome, filtrar formatos e navegar em páginas de 40 itens**,
+  alcançando até 500 arquivos já listados, sem buscar subpastas ou acessar rede.
 - Conversão DST/PES/JEF pelo `MatrixConverter` com verificação de releitura
   antes da gravação; PE-DESIGN PC é um perfil experimental.
 - **Projetos editáveis .FLP nativos do Android**: abrir um projeto existente
