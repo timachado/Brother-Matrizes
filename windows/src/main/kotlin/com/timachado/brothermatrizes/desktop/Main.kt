@@ -99,6 +99,7 @@ private fun launchDesktopApp() = application {
 @Composable
 private fun DesktopScreen() {
     var document by remember { mutableStateOf<DesktopMatrixDocument?>(null) }
+    var editTimeline by remember { mutableStateOf<DesktopEditTimeline?>(null) }
     val preview = remember(document) { document?.let(DesktopMatrixService::preview) }
     var message by remember { mutableStateOf("Versão Windows de homologação: sem acesso à conta ou arquivos em nuvem.") }
     var isError by remember { mutableStateOf(false) }
@@ -161,6 +162,7 @@ private fun DesktopScreen() {
                             busy = false
                             result.onSuccess {
                                 document = it
+                                editTimeline = DesktopEditTimeline.start(it)
                                 stitchProgress = 1f
                                 format = it.current.format
                                 scaleText = "1.00"
@@ -257,6 +259,7 @@ private fun DesktopScreen() {
                                 busy = false
                                 result.onSuccess {
                                     document = it
+                                    editTimeline = DesktopEditTimeline.start(it)
                                     format = "DST"
                                     peDesign = false
                                     stitchProgress = 1f
@@ -401,6 +404,7 @@ private fun DesktopScreen() {
                                     busy = false
                                     result.onSuccess {
                                         document = it
+                                        editTimeline = DesktopEditTimeline.start(it)
                                         format = "DST"
                                         stitchProgress = 1f
                                         peDesign = false
@@ -443,6 +447,7 @@ private fun DesktopScreen() {
                                 busy = false
                                 result.onSuccess {
                                     document = it
+                                    editTimeline = DesktopEditTimeline.start(it)
                                     format = "DST"
                                     peDesign = false
                                     scaleText = "1.00"
@@ -510,6 +515,7 @@ private fun DesktopScreen() {
                                     busy = false
                                     result.onSuccess {
                                         document = it
+                                        editTimeline = DesktopEditTimeline.start(it)
                                         format = "DST"
                                         peDesign = false
                                         scaleText = "1.00"
@@ -583,27 +589,25 @@ private fun DesktopScreen() {
                             ) {
                                 report("Informe escala, rotação e deslocamentos válidos (máx. 200 mm).", true)
                             } else {
+                                val transform = EditTransform(
+                                    scale = scale,
+                                    rotationDegrees = degrees,
+                                    offsetXUnits = (xMm * 10f).roundToInt(),
+                                    offsetYUnits = (yMm * 10f).roundToInt(),
+                                    mirrorHorizontal = mirrorX,
+                                    mirrorVertical = mirrorY
+                                )
                                 busy = true
                                 scope.launch {
                                     val result = withContext(Dispatchers.Default) {
-                                        runCatching {
-                                            DesktopMatrixService.edit(
-                                                loaded,
-                                                EditTransform(
-                                                    scale = scale,
-                                                    rotationDegrees = degrees,
-                                                    offsetXUnits = (xMm * 10f).roundToInt(),
-                                                    offsetYUnits = (yMm * 10f).roundToInt(),
-                                                    mirrorHorizontal = mirrorX,
-                                                    mirrorVertical = mirrorY
-                                                )
-                                            )
-                                        }
+                                        runCatching { DesktopMatrixService.edit(loaded, transform) }
                                     }
                                     busy = false
                                     result.onSuccess {
+                                        editTimeline = editTimeline?.record(DesktopEditAction.Transform(transform))
                                         document = it
-                                        report("Ajustes aplicados em memória. A matriz original está preservada.")
+                                        stitchProgress = 1f
+                                        report("Ajuste aplicado. Desfazer e refazer estão disponíveis nesta sessão.")
                                     }.onFailure {
                                         report("Ajuste recusado: ${it.message}", true)
                                     }
@@ -611,9 +615,54 @@ private fun DesktopScreen() {
                             }
                         }) { Text("Aplicar") }
                         TextButton(enabled = document != null && !busy, onClick = {
-                            document = document?.let(DesktopMatrixService::reset)
-                            report("Ajustes descartados. Matriz original restaurada.")
+                            val loaded = document ?: return@TextButton
+                            if (loaded.current != loaded.original) {
+                                editTimeline = editTimeline?.record(DesktopEditAction.RestoreOriginal)
+                                document = DesktopMatrixService.reset(loaded)
+                                stitchProgress = 1f
+                                report("Original restaurado. A operação pode ser desfeita nesta sessão.")
+                            } else {
+                                report("A matriz já está no estado original.")
+                            }
                         }) { Text("Restaurar original") }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(enabled = !busy && editTimeline?.canUndo == true, onClick = {
+                            val current = editTimeline ?: return@TextButton
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.Default) {
+                                    runCatching { current.undo() }
+                                }
+                                busy = false
+                                result.onSuccess { transition ->
+                                    editTimeline = transition.timeline
+                                    document = transition.document
+                                    stitchProgress = 1f
+                                    report("Último ajuste desfeito. Original e arquivos em disco preservados.")
+                                }.onFailure { report("Não foi possível desfazer: ${it.message}", true) }
+                            }
+                        }) { Text("Desfazer") }
+                        TextButton(enabled = !busy && editTimeline?.canRedo == true, onClick = {
+                            val current = editTimeline ?: return@TextButton
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.Default) {
+                                    runCatching { current.redo() }
+                                }
+                                busy = false
+                                result.onSuccess { transition ->
+                                    editTimeline = transition.timeline
+                                    document = transition.document
+                                    stitchProgress = 1f
+                                    report("Ajuste refeito com o motor oficial. Nada foi gravado em disco.")
+                                }.onFailure { report("Não foi possível refazer: ${it.message}", true) }
+                            }
+                        }) { Text("Refazer") }
+                        Text(
+                            "${editTimeline?.position ?: 0}/${editTimeline?.total ?: 0} · até 8 ações",
+                            fontSize = 10.sp, color = muted
+                        )
                     }
 
                     Spacer(Modifier.height(6.dp))
@@ -786,6 +835,7 @@ private fun DesktopScreen() {
                                     busy = false
                                     result.onSuccess {
                                         document = it
+                                        editTimeline = DesktopEditTimeline.start(it)
                                         format = it.current.format
                                         peDesign = false
                                         stitchProgress = 1f
