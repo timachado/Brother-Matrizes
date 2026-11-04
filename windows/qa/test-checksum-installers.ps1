@@ -14,14 +14,35 @@ try {
     [System.IO.Directory]::CreateDirectory((Split-Path $msi -Parent)) | Out-Null
     [System.IO.File]::WriteAllBytes($exe, [byte[]]@(1, 2, 3, 4, 5))
     [System.IO.File]::WriteAllBytes($msi, [byte[]]@(6, 7, 8, 9))
-    & $validator -Mode Create -Root $fixture -SourceCommit 'synthetic-test-commit' -RunId 'synthetic-test-run'
-    & $validator -Mode Verify -Root $fixture -SourceCommit 'synthetic-test-commit' -RunId 'synthetic-test-run'
+    & $validator -Mode Create -Root $fixture -SourceCommit ('1' * 40) -RunId '12345'
+    & $validator -Mode Verify -Root $fixture -SourceCommit ('1' * 40) -RunId '12345'
+
+    # O mesmo validador usado na beta deve funcionar offline no Windows.
+    & (Join-Path $PSScriptRoot 'verify-beta-package.ps1') -PackageRoot $fixture -ExpectedCommit ('1' * 40) -ExpectedRunId '12345'
+    $wrongCommitRejected = $false
+    try {
+        & (Join-Path $PSScriptRoot 'verify-beta-package.ps1') -PackageRoot $fixture -ExpectedCommit ('2' * 40) -ExpectedRunId '12345'
+    } catch {
+        $wrongCommitRejected = $true
+    }
+    if (-not $wrongCommitRejected) {
+        throw 'Verificador beta aceitou commit diferente do autorizado.'
+    }
+    $wrongRunRejected = $false
+    try {
+        & (Join-Path $PSScriptRoot 'verify-beta-package.ps1') -PackageRoot $fixture -ExpectedCommit ('1' * 40) -ExpectedRunId '67890'
+    } catch {
+        $wrongRunRejected = $true
+    }
+    if (-not $wrongRunRejected) {
+        throw 'Verificador beta aceitou workflow diferente do autorizado.'
+    }
 
     # Mesmo tamanho, dados diferentes: so o hash detecta substituicao.
     [System.IO.File]::WriteAllBytes($exe, [byte[]]@(1, 2, 3, 4, 99))
     $rejected = $false
     try {
-        & $validator -Mode Verify -Root $fixture -SourceCommit 'synthetic-test-commit' -RunId 'synthetic-test-run'
+        & $validator -Mode Verify -Root $fixture -SourceCommit ('1' * 40) -RunId '12345'
     } catch {
         $rejected = $true
         Write-Host 'Alteracao de bytes detectada conforme esperado.'
@@ -29,6 +50,16 @@ try {
     if (!$rejected) {
         throw 'Falha: pacote alterado deveria ser rejeitado pelo SHA256.'
     }
+    $betaRejected = $false
+    try {
+        & (Join-Path $PSScriptRoot 'verify-beta-package.ps1') -PackageRoot $fixture -ExpectedCommit ('1' * 40) -ExpectedRunId '12345'
+    } catch {
+        $betaRejected = $true
+    }
+    if (!$betaRejected) {
+        throw 'Falha: verificador beta aceitou EXE modificado.'
+    }
+    Write-Host 'BROTHER_WINDOWS_BETA_VERIFIER_TAMPER_REJECTED'
     Write-Host 'BROTHER_WINDOWS_QA_TAMPER_DETECTED'
 } finally {
     if (Test-Path -LiteralPath $fixture) {
