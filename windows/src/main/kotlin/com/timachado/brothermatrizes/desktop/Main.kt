@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,10 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -168,6 +171,9 @@ private fun DesktopScreen() {
     var libraryFilter by remember { mutableStateOf("TODOS") }
     var libraryPage by remember { mutableStateOf(0) }
     var stitchProgress by remember { mutableStateOf(1f) }
+    // Navegação da prévia é visual e reinicia ao abrir um projeto diferente.
+    var previewZoom by remember(document?.original) { mutableStateOf(1f) }
+    var previewPan by remember(document?.original) { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
 
     fun report(text: String, error: Boolean = false) {
@@ -264,8 +270,41 @@ private fun DesktopScreen() {
                                 }.orEmpty()
                             }
                             StitchPreview(
-                                preview, stitchProgress, previewThreadColors, Modifier.weight(1f)
+                                preview, stitchProgress, previewThreadColors,
+                                zoom = previewZoom, pan = previewPan,
+                                onPan = { delta ->
+                                    previewPan = Offset(
+                                        (previewPan.x + delta.x).coerceIn(-2000f, 2000f),
+                                        (previewPan.y + delta.y).coerceIn(-2000f, 2000f)
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
                             )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Prévia: ${previewZoom.toInt()}x", color = muted, fontSize = 11.sp)
+                                TextButton(
+                                    enabled = previewZoom > 1f,
+                                    onClick = {
+                                        previewZoom = (previewZoom / 2f).coerceAtLeast(1f)
+                                        if (previewZoom == 1f) previewPan = Offset.Zero
+                                    }
+                                ) { Text("Zoom −") }
+                                TextButton(onClick = {
+                                    previewZoom = 1f
+                                    previewPan = Offset.Zero
+                                }) { Text("Ajustar") }
+                                TextButton(
+                                    enabled = previewZoom < DesktopPreviewNavigation.MAX_ZOOM,
+                                    onClick = {
+                                        previewZoom = (previewZoom * 2f)
+                                            .coerceAtMost(DesktopPreviewNavigation.MAX_ZOOM)
+                                    }
+                                ) { Text("Zoom +") }
+                            }
+                            if (previewZoom > 1f) {
+                                Text("Arraste com o mouse para mover a prévia ampliada.",
+                                    fontSize = 11.sp, color = muted)
+                            }
                             Text(
                                 "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
                                 color = muted,
@@ -1469,27 +1508,31 @@ private fun Detail(label: String, value: String) {
 @Composable
 private fun StitchPreview(
     preview: DstPreview, progress: Float, threadColors: List<Int>,
+    zoom: Float, pan: Offset, onPan: (Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier.fillMaxSize().padding(18.dp)) {
-        renderPreview(preview, progress, threadColors)
+    val latestOnPan by rememberUpdatedState(onPan)
+    val dragModifier = if (zoom > 1f) {
+        Modifier.pointerInput(zoom) {
+            detectDragGestures { change, dragAmount ->
+                change.consume()
+                latestOnPan(dragAmount)
+            }
+        }
+    } else {
+        Modifier
+    }
+    Canvas(modifier = modifier.fillMaxSize().then(dragModifier).padding(18.dp)) {
+        renderPreview(preview, progress, threadColors, zoom, pan)
     }
 }
 
 private fun DrawScope.renderPreview(
-    design: DstPreview, progress: Float, threadColors: List<Int>
+    design: DstPreview, progress: Float, threadColors: List<Int>,
+    zoom: Float, pan: Offset
 ) {
-    val width = (design.bounds.maxX.toLong() - design.bounds.minX.toLong()).coerceAtLeast(1L).toFloat()
-    val height = (design.bounds.maxY.toLong() - design.bounds.minY.toLong()).coerceAtLeast(1L).toFloat()
-    val usableW = (size.width - 40f).coerceAtLeast(1f)
-    val usableH = (size.height - 40f).coerceAtLeast(1f)
-    val scale = minOf(usableW / width, usableH / height)
-    val offsetX = (size.width - width * scale) / 2f
-    val offsetY = (size.height - height * scale) / 2f
-
-    fun offset(x: Int, y: Int) = Offset(
-        offsetX + (x.toLong() - design.bounds.minX.toLong()).toFloat() * scale,
-        offsetY + (y.toLong() - design.bounds.minY.toLong()).toFloat() * scale
+    val viewport = DesktopPreviewNavigation.viewport(
+        design.bounds, size.width, size.height, zoom, pan
     )
 
     val stride = maxOf(1, (design.points.size + 199_999) / 200_000)
@@ -1503,8 +1546,8 @@ private fun DrawScope.renderPreview(
                 color = threadColors.getOrNull(p.colorIndex)?.let {
                     Color(0xFF000000.toInt() or (it and 0xFFFFFF))
                 } ?: palette[Math.floorMod(p.colorIndex, palette.size)],
-                start = offset(previousX, previousY),
-                end = offset(p.x, p.y),
+                start = viewport.screenPoint(previousX, previousY),
+                end = viewport.screenPoint(p.x, p.y),
                 strokeWidth = 1.3f
             )
         }
