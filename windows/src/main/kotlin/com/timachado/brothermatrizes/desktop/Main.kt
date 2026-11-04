@@ -271,7 +271,7 @@ private fun DesktopScreen() {
                         ))
                     }
                     Spacer(Modifier.height(7.dp))
-                    Text("Fonte externa TTF/OTF — prévia", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Text("Fonte externa TTF/OTF — Satin experimental", color = cyan, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
                             dialogTitle = "Selecionar fonte TTF/OTF para pré-visualização"
@@ -288,7 +288,7 @@ private fun DesktopScreen() {
                                 busy = false
                                 result.onSuccess {
                                     fontPreview = it
-                                    report("Fonte reconhecida: ${it.family}. Somente prévia, sem gerar pontadas.")
+                                    report("Fonte reconhecida: ${it.family}. Para bordar, digite o nome abaixo e escolha Gerar Satin QA.")
                                 }.onFailure {
                                     fontPreview = null
                                     report("Fonte não carregada: ${it.message}", true)
@@ -321,7 +321,7 @@ private fun DesktopScreen() {
                         }
                     }
                     Text(
-                        "Prévia visual apenas. A conversão de contornos externos em Satin ainda não foi portada e validada no Windows.",
+                        "Contornos Java2D + motor Satin oficial. Geração ainda experimental: não usar em produção ou máquinas de clientes.",
                         color = muted, fontSize = 11.sp
                     )
                     Spacer(Modifier.height(8.dp))
@@ -340,6 +340,44 @@ private fun DesktopScreen() {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Button(
+                        enabled = !busy && fontPreview != null && nameText.isNotBlank(),
+                        onClick = {
+                            val file = fontPreview?.sourcePath ?: return@Button
+                            val cleanName = nameText.trim()
+                            val height = nameHeightText.trim().replace(',', '.').toFloatOrNull()
+                            if (height == null || !height.isFinite() || height !in 4f..60f) {
+                                report("Informe altura entre 4 e 60 mm para fonte externa.", true)
+                            } else {
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            DesktopMatrixService.createFromImportedFont(
+                                                file, cleanName, height
+                                            )
+                                        }
+                                    }
+                                    busy = false
+                                    result.onSuccess {
+                                        document = it
+                                        format = "DST"
+                                        stitchProgress = 1f
+                                        peDesign = false
+                                        scaleText = "1.00"
+                                        angleText = "0"
+                                        xMmText = "0"
+                                        yMmText = "0"
+                                        mirrorX = false
+                                        mirrorY = false
+                                        report("Matriz Satin TTF/OTF gerada e verificada. QA apenas; teste físico ainda pendente.")
+                                    }.onFailure {
+                                        report("Satin bloqueado por qualidade/integridade: ${it.message}", true)
+                                    }
+                                }
+                            }
+                        }
+                    ) { Text(if (busy) "Verificando..." else "Gerar bordado Satin com fonte importada (QA)") }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         for (choice in listOf(TextStitchStyle.RUNNING, TextStitchStyle.SATIN)) {
                             TextButton(enabled = !busy, onClick = { nameStyle = choice }) {
