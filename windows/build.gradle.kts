@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.Sync
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -13,9 +14,40 @@ kotlin {
     jvmToolchain(17)
 }
 
+/**
+ * Compila NO WINDOWS os mesmos fontes Kotlin do motor Android oficial.
+ * NÃO move, substitui, edita ou sincroniza no sentido inverso arquivos do Android.
+ * O Sync escreve unicamente em windows/build/ (não versionado).
+ */
+val officialCoreDir = layout.buildDirectory.dir("generated/official-core/kotlin")
+val syncOfficialCore by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+            include("com/timachado/brothermatrizes/core/embroidery/DstParser.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIntegrity.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryModels.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryProfiles.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStats.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStressPolicy.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/MachineFinishing.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/MatrixEditor.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/PesHoopPositionMetadata.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/SatinGenerator.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/SpecialStitchProcessor.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/TextMatrixGenerator.kt")
+    }
+    into(officialCoreDir)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(officialCoreDir)
+tasks.named("compileKotlin") {
+    dependsOn(syncOfficialCore)
+}
+
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    // Mesma versão do conversor comercial Android. Testar compatibilidade JVM no CI.
+    implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
