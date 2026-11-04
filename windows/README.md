@@ -9,12 +9,12 @@ Este módulo Windows está isolado do aplicativo Android comercial. Os arquivos 
 - Visualização técnica de pontadas, cores, limites, dimensões e contagem.
 - **Sequência visual manual** de comandos (cursor de progresso). Não simula tempo real, tensão, trajetória de máquina ou qualidade de bordado.
 - Ajustes geométricos em memória: escala, rotação, deslocamento e espelhamento, com restauração do original.
-- **Criação de nova matriz de nome** pelo `TextMatrixGenerator` oficial, inicialmente com fontes integradas e estilos ponto corrido ou Satin.
-- **Biblioteca local de arquivos existentes**: usuário escolhe explicitamente a pasta; listagem não recursiva DST/PES/JEF, abre matrizes sem movê-las. Não faz upload, indexação geral nem sincronização. Exibe até 60 entradas por vez.
+- **Criação de nova matriz de nome** pelo `TextMatrixGenerator` oficial, inicialmente com fontes integradas e estilos ponto corrido ou Satin.\n- **Monogramas de 1 a 3 iniciais** com os estilos Linear, Clássico e Empilhado, usando o `MonogramGenerator` oficial Android e preservando a matriz aberta anteriormente.
+- **Biblioteca local de arquivos existentes**: usuário escolhe explicitamente a pasta; listagem não recursiva DST/PES/JEF, abre matrizes sem movê-las. A pasta é lembrada em preferências locais do Windows para a próxima abertura, mas **não é varrida automaticamente**: exige clique em Atualizar pasta. Há opção Esquecer pasta, sem apagar nenhum arquivo. Não faz upload, indexação geral nem sincronização. Exibe até 60 entradas por vez.
 - Conversão/exportação experimental DST/PES/JEF pelo `MatrixConverter` oficial, com releitura do arquivo gerado antes de gravar.
 - Perfil PES PE-DESIGN PC experimental. **Ainda não comprovado no PE-DESIGN 11 real.**
 - Exportação apenas para arquivo **novo** (`CREATE_NEW`); não substitui arquivos anteriores.
-- Testes automatizados de leitura, edição, conversão, proteção contra sobrescrita, biblioteca local e geração de nomes.
+- Testes automatizados de leitura, edição, conversão, proteção contra sobrescrita, biblioteca local, persistência de seleção, geração de nomes e monogramas.
 
 ## Motor Kotlin comum
 
@@ -22,13 +22,13 @@ O build `windows/` compila fontes selecionados diretamente de
 `app/src/main/java/com/timachado/brothermatrizes/core/embroidery/`, usando uma
 cópia de build em `windows/build/generated/official-core/kotlin/` que não altera
 o Android. Inclui `DstParser`, `EmbroideryIoParser`, `MatrixEditor`,
-`TextMatrixGenerator`, `MatrixConverter` e dependências. O Windows usa a
+`TextMatrixGenerator`, `MonogramGenerator`, `MatrixConverter` e dependências. O Windows usa a
 variante JVM de EmbroideryIO; o Android mantém sua dependência própria.
 
 ## Limitações e bloqueadores para publicação comercial
 
 **Ainda não há paridade com todas as funções Android.** Pendente:
-editor completo de objetos e letras, fontes TTF/OTF importadas, monogramas,
+editor completo de objetos e letras, fontes TTF/OTF importadas, opções avançadas de monogramas,
 biblioteca inteligente e organização persistente, projetos editáveis/backup,
 simulador de máquina, ferramentas avançadas de digitalização, integração de
 conta, licenças, cotas e planos, notificações, atualização segura, integrações
