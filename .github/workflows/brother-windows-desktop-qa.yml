@@ -97,6 +97,14 @@ jobs:
         timeout-minutes: 8
         run: ./qa/validate-installed-msi.ps1
 
+      - name: Gerar e validar integridade SHA256 dos instaladores QA
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          ./qa/test-checksum-installers.ps1
+          ./qa/checksum-installers.ps1 -Mode Create
+          ./qa/checksum-installers.ps1 -Mode Verify
+
       - name: Armazenar pacotes QA (NAO PUBLICAR)
         uses: actions/upload-artifact@v4
         with:
@@ -104,5 +112,6 @@ jobs:
           path: |
             windows/build/compose/binaries/main/exe/**
             windows/build/compose/binaries/main/msi/**
+            windows/build/compose/binaries/main/qa/**
           if-no-files-found: error
           retention-days: 7
