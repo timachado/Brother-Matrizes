@@ -134,6 +134,30 @@ class DesktopLetterProjectBundleTest {
     }
 
     @Test
+    fun `recusa sidecar excessivo e preserva FLP original`() {
+        val folder = Files.createTempDirectory("bm-layer-bundle-size-")
+        val flp = folder.resolve("camadas.flp")
+        val sidecar = DesktopLetterProjectBundle.companion(flp)
+        val params = layout()
+        try {
+            DesktopLetterProjectBundle.saveNew(
+                params, DesktopLetterComposer.render(params), flp
+            )
+            val unchangedFlp = Files.readAllBytes(flp)
+            Files.write(sidecar, ByteArray(4097) { 7 })
+            assertFailsWith<IllegalArgumentException> {
+                DesktopLetterProjectBundle.open(flp)
+            }
+            assertTrue(unchangedFlp.contentEquals(Files.readAllBytes(flp)))
+            assertEquals(4097L, Files.size(sidecar))
+        } finally {
+            Files.deleteIfExists(sidecar)
+            Files.deleteIfExists(flp)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `bloqueia associar camadas a projeto com alteracoes globais`() {
         val folder = Files.createTempDirectory("bm-layer-bundle-global-")
         val flp = folder.resolve("editado.flp")
