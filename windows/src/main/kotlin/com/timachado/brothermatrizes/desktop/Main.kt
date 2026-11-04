@@ -43,6 +43,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.timachado.brothermatrizes.core.embroidery.EditTransform
+import com.timachado.brothermatrizes.core.embroidery.MonogramStyle
+import java.nio.file.Path
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.util.Locale
 import javax.swing.JFileChooser
@@ -95,7 +97,11 @@ private fun DesktopScreen() {
     var nameText by remember { mutableStateOf("") }
     var nameHeightText by remember { mutableStateOf("12") }
     var nameStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
-    var libraryFolder by remember { mutableStateOf<String?>(null) }
+    var monogramInitials by remember { mutableStateOf("") }
+    var monogramHeight by remember { mutableStateOf("22") }
+    var monogramStyle by remember { mutableStateOf(MonogramStyle.CLASSIC) }
+    val librarySelection = remember { DesktopLibrarySelection() }
+    var libraryFolder by remember { mutableStateOf(librarySelection.recall()?.toString()) }
     var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
     var stitchProgress by remember { mutableStateOf(1f) }
     val scope = rememberCoroutineScope()
@@ -294,6 +300,71 @@ private fun DesktopScreen() {
                     )
 
                     Spacer(Modifier.height(8.dp))
+                    Text("Monogramas — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = monogramInitials,
+                        onValueChange = { monogramInitials = it.take(3) },
+                        label = { Text("1 a 3 iniciais") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = monogramHeight,
+                        onValueChange = { monogramHeight = it },
+                        label = { Text("Altura (8 a 50 mm)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        for (style in MonogramStyle.entries) {
+                            TextButton(enabled = !busy, onClick = { monogramStyle = style }) {
+                                Text(
+                                    (if (monogramStyle == style) "● " else "") + style.displayName,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                    Button(
+                        enabled = !busy && monogramInitials.isNotBlank(),
+                        onClick = {
+                            val initials = monogramInitials
+                            val height = monogramHeight.trim().replace(',', '.').toFloatOrNull()
+                            val style = monogramStyle
+                            if (height == null || !height.isFinite() || height !in 8f..50f) {
+                                report("Monograma: altura deve estar entre 8 e 50 mm.", true)
+                            } else {
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            DesktopMatrixService.createMonogram(initials, style, height)
+                                        }
+                                    }
+                                    busy = false
+                                    result.onSuccess {
+                                        document = it
+                                        format = "DST"
+                                        peDesign = false
+                                        scaleText = "1.00"
+                                        angleText = "0"
+                                        xMmText = "0"
+                                        yMmText = "0"
+                                        mirrorX = false
+                                        mirrorY = false
+                                        stitchProgress = 1f
+                                        report("Monograma criado como matriz nova. Original anterior preservado.")
+                                    }.onFailure { report("Monograma não gerado: ${it.message}", true) }
+                                }
+                            }
+                        }
+                    ) { Text("Criar monograma") }
+                    Text(
+                        "Estilos Linear, Clássico e Empilhado. Criação local experimental.",
+                        color = muted, fontSize = 11.sp
+                    )
+
+                    Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         OutlinedTextField(
@@ -459,16 +530,46 @@ private fun DesktopScreen() {
                                 }
                                 busy = false
                                 result.onSuccess {
-                                    libraryFolder = folder.toString()
+                                    libraryFolder = folder.toAbsolutePath().normalize().toString()
                                     libraryEntries = it
-                                    report("Biblioteca local: ${it.size} matriz(es) encontrada(s). Nenhum arquivo foi movido.")
+                                    val persisted = runCatching { librarySelection.remember(folder) }.isSuccess
+                                    report(
+                                        "Biblioteca local: ${it.size} matriz(es). " +
+                                        if (persisted) "Pasta lembrada neste computador." else
+                                            "Pasta listada; não foi possível guardar a preferência."
+                                    )
                                 }.onFailure { report("Erro ao listar pasta: ${it.message}", true) }
                             }
                         }
                     }) { Text("Selecionar pasta do computador") }
-                    libraryFolder?.let {
-                        Text(it, color = muted, fontSize = 11.sp)
-                        Text("${libraryEntries.size} matriz(es) encontrada(s)", color = muted, fontSize = 12.sp)
+                    libraryFolder?.let { path ->
+                        Text("Pasta: $path", color = muted, fontSize = 11.sp)
+                        Text("${libraryEntries.size} matriz(es) nesta sessão", color = muted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(enabled = !busy, onClick = {
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        runCatching { DesktopLocalLibrary.list(Path.of(path)) }
+                                    }
+                                    busy = false
+                                    result.onSuccess {
+                                        libraryEntries = it
+                                        report("Pasta atualizada: ${it.size} matriz(es).")
+                                    }.onFailure { report("Erro ao atualizar pasta: ${it.message}", true) }
+                                }
+                            }) { Text("Atualizar pasta") }
+                            TextButton(enabled = !busy, onClick = {
+                                val cleared = runCatching { librarySelection.forget() }
+                                if (cleared.isSuccess) {
+                                    libraryFolder = null
+                                    libraryEntries = emptyList()
+                                    report("Preferência local da pasta apagada.")
+                                } else {
+                                    report("Não foi possível limpar a preferência: ${cleared.exceptionOrNull()?.message}", true)
+                                }
+                            }) { Text("Esquecer pasta") }
+                        }
                     }
                     for (entry in libraryEntries.take(60)) {
                         TextButton(
