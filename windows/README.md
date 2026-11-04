@@ -9,7 +9,8 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
 - Abertura local de DST/PES/JEF usando os parsers oficiais Android.
 - Prévia de pontadas, cores, dimensões, dados da matriz e sequência visual
   manual. Não é simulação real de velocidade, tensão ou costura.
-- Transformações geométricas (rotação, escala, deslocamento, espelhamento)
+- Transformações geométricas (rotação, escala, deslocamento, espelhamento),
+  inclusive **expansão horizontal e vertical independentes (0,50–2,50)**,
   com restauração do estado carregado e **Desfazer/Refazer**. O histórico é
   apenas da sessão, inclui a restauração do original, invalida o refazer
   ao aplicar uma nova edição e guarda as **últimas oito operações**, sem
