@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -48,6 +49,8 @@ import java.nio.file.Path
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.util.Locale
 import javax.swing.JFileChooser
+import javax.swing.JLabel
+import javax.swing.SwingConstants
 import javax.swing.filechooser.FileNameExtensionFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -97,6 +100,7 @@ private fun DesktopScreen() {
     var nameText by remember { mutableStateOf("") }
     var nameHeightText by remember { mutableStateOf("12") }
     var nameStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
+    var fontPreview by remember { mutableStateOf<DesktopFontPreview?>(null) }
     var monogramInitials by remember { mutableStateOf("") }
     var monogramHeight by remember { mutableStateOf("22") }
     var monogramStyle by remember { mutableStateOf(MonogramStyle.CLASSIC) }
@@ -267,6 +271,60 @@ private fun DesktopScreen() {
                         ))
                     }
                     Spacer(Modifier.height(7.dp))
+                    Text("Fonte externa TTF/OTF — prévia", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Selecionar fonte TTF/OTF para pré-visualização"
+                            fileFilter = FileNameExtensionFilter("Fontes TTF/OTF (*.ttf, *.otf)", "ttf", "otf")
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val selected = chooser.selectedFile.toPath()
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopFontPreviewService.open(selected) }
+                                }
+                                busy = false
+                                result.onSuccess {
+                                    fontPreview = it
+                                    report("Fonte reconhecida: ${it.family}. Somente prévia, sem gerar pontadas.")
+                                }.onFailure {
+                                    fontPreview = null
+                                    report("Fonte não carregada: ${it.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Carregar fonte TTF/OTF para prévia") }
+                    fontPreview?.let { chosen ->
+                        Text("Fonte: ${chosen.family} (${chosen.fileName})", color = muted, fontSize = 11.sp)
+                        SwingPanel(
+                            factory = {
+                                JLabel("Brother Matrizes", SwingConstants.CENTER).apply {
+                                    font = chosen.awtFont.deriveFont(22f)
+                                    isOpaque = true
+                                    background = java.awt.Color(244, 249, 253)
+                                    foreground = java.awt.Color(15, 32, 50)
+                                }
+                            },
+                            update = {
+                                it.font = chosen.awtFont.deriveFont(22f)
+                                it.text = "Brother Matrizes"
+                            },
+                            modifier = Modifier.fillMaxWidth().height(50.dp)
+                        )
+                        if (chosen.missingPreviewCharacters.isNotEmpty()) {
+                            Text(
+                                "Glifos ausentes na amostra: ${chosen.missingPreviewCharacters}",
+                                fontSize = 11.sp, color = Color(0xFFFF9DA9)
+                            )
+                        }
+                    }
+                    Text(
+                        "Prévia visual apenas. A conversão de contornos externos em Satin ainda não foi portada e validada no Windows.",
+                        color = muted, fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Text("Criar novo nome — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = nameText,
