@@ -36,9 +36,15 @@ internal object DesktopLetterProjectBundle {
     private const val SHA256_LENGTH = 32
     private val noFollow = arrayOf(LinkOption.NOFOLLOW_LINKS)
 
-    fun companion(flp: Path): Path = flp.resolveSibling(
-        flp.fileName.toString().removeSuffix(".flp") + COMPANION_EXTENSION
-    )
+    fun companion(flp: Path): Path {
+        val fileName = flp.fileName.toString()
+        val stem = if (fileName.endsWith(".flp", ignoreCase = true)) {
+            fileName.dropLast(4)
+        } else {
+            fileName
+        }
+        return flp.resolveSibling(stem + COMPANION_EXTENSION)
+    }
 
     fun saveNew(
         layout: DesktopLetterLayout,
@@ -105,7 +111,12 @@ internal object DesktopLetterProjectBundle {
         require(sha256(flpBytes).contentEquals(expectedHash)) {
             "As camadas não pertencem a este FLP: SHA-256 divergente."
         }
-        val loaded = DesktopProjectService.open(flp)
+        // Decodifica exatamente os bytes conferidos pelo SHA-256, sem reabrir
+        // o caminho: outra gravação no intervalo não pode trocar o FLP validado.
+        val loadedDesign = DesktopProjectService.decode(flpBytes)
+        val loaded = DesktopMatrixDocument(
+            original = loadedDesign, current = loadedDesign
+        )
         val expected = DesktopLetterComposer.render(layout)
         require(sameDesign(expected.current, loaded.current)) {
             "As pontadas do FLP não correspondem às camadas editáveis."
