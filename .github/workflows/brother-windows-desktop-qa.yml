@@ -120,6 +120,7 @@ jobs:
           $artifactQa = "build/compose/binaries/main/qa"
           Copy-Item -LiteralPath "qa/verify-beta-package.ps1" -Destination $artifactQa -ErrorAction Stop
           Copy-Item -LiteralPath "qa/BETA-FECHADA-01.md" -Destination $artifactQa -ErrorAction Stop
+          Copy-Item -LiteralPath "qa/ROTEIRO-HOMOLOGACAO-FISICA.md" -Destination $artifactQa -ErrorAction Stop
           ./qa/verify-beta-package.ps1 -PackageRoot "build/compose/binaries/main" -ExpectedCommit $env:BROTHER_QA_SOURCE_COMMIT -ExpectedRunId $env:GITHUB_RUN_ID
 
       - name: Armazenar evidencia grafica de QA (sem dados de clientes)
