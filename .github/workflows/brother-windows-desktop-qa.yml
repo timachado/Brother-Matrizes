@@ -89,6 +89,14 @@ jobs:
           }
           Write-Host $result
 
+      # Smoke grafico da janela principal Compose no desktop virtual:
+      # exige janela realmente visivel e captura PNG da tela inicial vazia.
+      # Isto nao substitui homologacao visual em PC fisico.
+      - name: Iniciar e capturar interface Windows real (QA)
+        shell: pwsh
+        timeout-minutes: 3
+        run: ./qa/validate-ui-desktop.ps1
+
       # Executa apenas no runner Windows efemero, nunca num PC de cliente.
       # Instala MSI gerado neste job, roda diagnostico no executavel de
       # Program Files e desinstala pelo ProductCode do proprio pacote.
@@ -104,6 +112,14 @@ jobs:
           ./qa/test-checksum-installers.ps1
           ./qa/checksum-installers.ps1 -Mode Create
           ./qa/checksum-installers.ps1 -Mode Verify
+
+      - name: Armazenar evidencia grafica de QA (sem dados de clientes)
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-ui-smoke-QA-NAO-COMERCIAL
+          path: windows/build/qa/desktop-ui/**
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Armazenar pacotes QA (NAO PUBLICAR)
         uses: actions/upload-artifact@v4
