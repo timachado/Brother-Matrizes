@@ -31,7 +31,9 @@ internal object DesktopThreadColorEditor {
 
     fun palette(design: EmbroideryDesign): List<Int> {
         val usedIndex = design.points.maxOfOrNull { it.colorIndex } ?: 0
-        require(usedIndex >= 0) { "Há um índice de linha inválido." }
+        require(usedIndex in 0 until MAX_EDITABLE_COLORS) {
+            "A matriz informa índice de linha fora do limite seguro de $MAX_EDITABLE_COLORS."
+        }
         val count = maxOf(design.colorCount, design.threadColors.size, usedIndex + 1, 1)
         require(count <= MAX_EDITABLE_COLORS) {
             "Esta matriz tem $count cores; a edição de cores aceita até $MAX_EDITABLE_COLORS."
