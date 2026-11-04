@@ -9,6 +9,9 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryIoParser
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixEditor
+import com.timachado.brothermatrizes.core.embroidery.MonogramGenerator
+import com.timachado.brothermatrizes.core.embroidery.MonogramOptions
+import com.timachado.brothermatrizes.core.embroidery.MonogramStyle
 import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixGenerator
@@ -63,6 +66,39 @@ internal object DesktopMatrixService {
         val design = EmbroideryIntegrity.normalize(generated).getOrThrow().design
         require(design.stitchCount > 0 && design.endFound) {
             "O motor não gerou um nome completo."
+        }
+        return DesktopMatrixDocument(original = design, current = design)
+    }
+
+    /**
+     * Monogramas de 1 a 3 iniciais pelo mesmo MonogramGenerator do Android.
+     * Cria uma matriz nova, em memória, sem modificar qualquer arquivo aberto.
+     */
+    fun createMonogram(
+        initials: String,
+        style: MonogramStyle = MonogramStyle.CLASSIC,
+        heightMm: Float = 22f
+    ): DesktopMatrixDocument {
+        val clean = initials.trim()
+        require(clean.length in 1..3 && clean.all { it.isLetter() }) {
+            "Use de 1 a 3 letras para o monograma."
+        }
+        require(heightMm.isFinite() && heightMm in 8f..50f) {
+            "Altura do monograma deve estar entre 8 e 50 mm."
+        }
+        val generated = MonogramGenerator.generate(
+            MonogramOptions(
+                initials = clean,
+                style = style,
+                heightMm = heightMm,
+                outputFormat = "DST",
+                enforceHoop = false
+            )
+        ).getOrThrow()
+        val design = EmbroideryIntegrity.normalize(generated).getOrThrow().design
+        require(design.stitchCount > 0 && design.endFound &&
+                design.points.size <= 500_000) {
+            "O monograma gerado não passou na validação de integridade."
         }
         return DesktopMatrixDocument(original = design, current = design)
     }
