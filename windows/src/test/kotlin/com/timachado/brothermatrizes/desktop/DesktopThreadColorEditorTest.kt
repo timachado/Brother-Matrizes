@@ -84,6 +84,19 @@ class DesktopThreadColorEditorTest {
     }
 
     @Test
+    fun `recusa indice malicioso que causaria estouro de inteiro`() {
+        val base = name()
+        val malformed = base.current.copy(
+            points = base.current.points.mapIndexed { idx, point ->
+                if (idx == 0) point.copy(colorIndex = Int.MAX_VALUE) else point
+            }
+        )
+        assertFailsWith<IllegalArgumentException> {
+            DesktopThreadColorEditor.palette(malformed)
+        }
+    }
+
+    @Test
     fun `cores persistem no projeto FLP novo e nao substituem arquivo existente`() {
         val base = name()
         val colored = DesktopThreadColorEditor.recolor(base, 0, 0x1A7A4B)
