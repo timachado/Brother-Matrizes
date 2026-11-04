@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import javax.swing.JLabel
 import javax.swing.SwingConstants
 import javax.swing.filechooser.FileNameExtensionFilter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -76,16 +78,33 @@ fun main(args: Array<String>) {
         DesktopRuntimeSmoke.execute(java.nio.file.Path.of(args[1]))
         return
     }
+    if (args.size == 2 && args[0] == "--ui-smoke-test") {
+        launchDesktopApp(java.nio.file.Path.of(args[1]))
+        return
+    }
     require(args.isEmpty()) { "Argumentos não reconhecidos." }
     launchDesktopApp()
 }
 
-private fun launchDesktopApp() = application {
+private fun launchDesktopApp(uiReport: Path? = null) = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes Desktop — QA",
         state = rememberWindowState(width = 1280.dp, height = 820.dp)
     ) {
+        if (uiReport != null) {
+            LaunchedEffect(uiReport) {
+                delay(2500)
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { DesktopUiSmoke.capture(window, uiReport) }
+                }
+                result.onFailure {
+                    System.err.println("BROTHER_WINDOWS_UI_SMOKE_FAILED: ${it.message}")
+                    kotlin.system.exitProcess(1)
+                }
+                exitApplication()
+            }
+        }
         MaterialTheme(
             colorScheme = darkColorScheme(
                 primary = cyan, background = navy, surface = surface, onSurface = Color.White
