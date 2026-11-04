@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +43,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.timachado.brothermatrizes.core.embroidery.EditTransform
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.util.Locale
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -90,6 +92,12 @@ private fun DesktopScreen() {
     var mirrorY by remember { mutableStateOf(false) }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
+    var nameText by remember { mutableStateOf("") }
+    var nameHeightText by remember { mutableStateOf("12") }
+    var nameStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
+    var libraryFolder by remember { mutableStateOf<String?>(null) }
+    var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
+    var stitchProgress by remember { mutableStateOf(1f) }
     val scope = rememberCoroutineScope()
 
     fun report(text: String, error: Boolean = false) {
@@ -127,6 +135,7 @@ private fun DesktopScreen() {
                             busy = false
                             result.onSuccess {
                                 document = it
+                                stitchProgress = 1f
                                 format = it.current.format
                                 scaleText = "1.00"
                                 angleText = "0"
@@ -169,7 +178,33 @@ private fun DesktopScreen() {
                             Text("Nenhuma matriz é enviada à nuvem.", color = muted, fontSize = 12.sp)
                         }
                     } else {
-                        StitchPreview(preview)
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            StitchPreview(preview, stitchProgress, Modifier.weight(1f))
+                            Text(
+                                "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
+                                color = muted,
+                                fontSize = 12.sp
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { stitchProgress = 0f }) {
+                                    Text("Início")
+                                }
+                                Slider(
+                                    value = stitchProgress,
+                                    onValueChange = { stitchProgress = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = {
+                                    stitchProgress = (stitchProgress + 0.1f).coerceAtMost(1f)
+                                }) { Text("+10%") }
+                                TextButton(onClick = { stitchProgress = 1f }) {
+                                    Text("Fim")
+                                }
+                            }
+                        }
                     }
                 }
                 Column(
@@ -196,6 +231,69 @@ private fun DesktopScreen() {
                         ))
                     }
                     Spacer(Modifier.height(7.dp))
+                    Text("Criar novo nome — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = nameText,
+                        onValueChange = { nameText = it.take(24) },
+                        label = { Text("Nome (até 24 caracteres)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = nameHeightText,
+                        onValueChange = { nameHeightText = it },
+                        label = { Text("Altura do nome (4 a 60 mm)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (choice in listOf(TextStitchStyle.RUNNING, TextStitchStyle.SATIN)) {
+                            TextButton(enabled = !busy, onClick = { nameStyle = choice }) {
+                                Text(
+                                    (if (nameStyle == choice) "● " else "") +
+                                        if (choice == TextStitchStyle.RUNNING) "Ponto corrido" else "Satin"
+                                )
+                            }
+                        }
+                    }
+                    Button(enabled = !busy && nameText.isNotBlank(), onClick = {
+                        val clean = nameText
+                        val height = nameHeightText.trim().replace(',', '.').toFloatOrNull()
+                        val style = nameStyle
+                        if (height == null || !height.isFinite() || height !in 4f..60f) {
+                            report("Altura inválida: informe de 4 a 60 mm.", true)
+                        } else {
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.Default) {
+                                    runCatching { DesktopMatrixService.createName(clean, height, style) }
+                                }
+                                busy = false
+                                result.onSuccess {
+                                    document = it
+                                    format = "DST"
+                                    peDesign = false
+                                    scaleText = "1.00"
+                                    angleText = "0"
+                                    xMmText = "0"
+                                    yMmText = "0"
+                                    mirrorX = false
+                                    mirrorY = false
+                                    stitchProgress = 1f
+                                    report("Novo nome gerado. A matriz aberta anteriormente não foi alterada.")
+                                }.onFailure { report("Nome não gerado: ${it.message}", true) }
+                            }
+                        }
+                    }) {
+                        Text("Criar nome como nova matriz")
+                    }
+                    Text(
+                        "Fonte integrada inicial. Importação TTF/OTF, composição por camadas e monogramas ainda não estão disponíveis.",
+                        color = muted,
+                        fontSize = 11.sp
+                    )
+
+                    Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         OutlinedTextField(
@@ -343,6 +441,72 @@ private fun DesktopScreen() {
                         "Cópias exportadas passam por releitura. A compatibilidade real com PE-DESIGN 11 ainda não foi homologada. Não usar em produção.",
                         color = muted, fontSize = 12.sp
                     )
+
+                    Spacer(Modifier.height(12.dp))
+                    Text("Biblioteca local (somente leitura)", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Selecionar pasta de matrizes no computador"
+                            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val folder = chooser.selectedFile.toPath()
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopLocalLibrary.list(folder) }
+                                }
+                                busy = false
+                                result.onSuccess {
+                                    libraryFolder = folder.toString()
+                                    libraryEntries = it
+                                    report("Biblioteca local: ${it.size} matriz(es) encontrada(s). Nenhum arquivo foi movido.")
+                                }.onFailure { report("Erro ao listar pasta: ${it.message}", true) }
+                            }
+                        }
+                    }) { Text("Selecionar pasta do computador") }
+                    libraryFolder?.let {
+                        Text(it, color = muted, fontSize = 11.sp)
+                        Text("${libraryEntries.size} matriz(es) encontrada(s)", color = muted, fontSize = 12.sp)
+                    }
+                    for (entry in libraryEntries.take(60)) {
+                        TextButton(
+                            enabled = !busy,
+                            onClick = {
+                                val file = entry.path
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        runCatching { DesktopMatrixService.openFromFile(file) }
+                                    }
+                                    busy = false
+                                    result.onSuccess {
+                                        document = it
+                                        format = it.current.format
+                                        peDesign = false
+                                        stitchProgress = 1f
+                                        scaleText = "1.00"
+                                        angleText = "0"
+                                        xMmText = "0"
+                                        yMmText = "0"
+                                        mirrorX = false
+                                        mirrorY = false
+                                        report("Matriz aberta da biblioteca local, sem modificações no arquivo de origem.")
+                                    }.onFailure { report("Falha ao abrir da biblioteca: ${it.message}", true) }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("${entry.name}  ·  ${entry.format}", maxLines = 1)
+                        }
+                    }
+                    if (libraryEntries.size > 60) {
+                        Text(
+                            "Exibindo 60 de ${libraryEntries.size} matrizes. Use uma subpasta para visualizar as demais.",
+                            color = muted, fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
@@ -358,13 +522,13 @@ private fun Detail(label: String, value: String) {
 }
 
 @Composable
-private fun StitchPreview(preview: DstPreview) {
-    Canvas(modifier = Modifier.fillMaxSize().padding(26.dp)) {
-        renderPreview(preview)
+private fun StitchPreview(preview: DstPreview, progress: Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.fillMaxSize().padding(18.dp)) {
+        renderPreview(preview, progress)
     }
 }
 
-private fun DrawScope.renderPreview(design: DstPreview) {
+private fun DrawScope.renderPreview(design: DstPreview, progress: Float) {
     val width = (design.bounds.maxX.toLong() - design.bounds.minX.toLong()).coerceAtLeast(1L).toFloat()
     val height = (design.bounds.maxY.toLong() - design.bounds.minY.toLong()).coerceAtLeast(1L).toFloat()
     val usableW = (size.width - 40f).coerceAtLeast(1f)
@@ -381,7 +545,9 @@ private fun DrawScope.renderPreview(design: DstPreview) {
     val stride = maxOf(1, (design.points.size + 199_999) / 200_000)
     var previousX = 0
     var previousY = 0
-    design.points.forEachIndexed { index, p ->
+    val visibleCount = (design.points.size * progress.coerceIn(0f, 1f)).toInt()
+    for (index in 0 until visibleCount) {
+        val p = design.points[index]
         if (p.command == PreviewCommand.STITCH && index % stride == 0) {
             drawLine(
                 color = palette[Math.floorMod(p.colorIndex, palette.size)],
