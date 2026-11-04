@@ -34,8 +34,7 @@ function Get-InstallerRecords {
                 throw "Esperado 1 instalador .$type; encontrados $($installers.Count)."
             }
             $item = $installers[0]
-            $inside = [System.IO.Path]::GetRelativePath($directory, $item.FullName)
-                .Replace([char]92, [char]47)
+            $inside = [System.IO.Path]::GetRelativePath($directory, $item.FullName).Replace([char]92, [char]47)
             if ($inside -match '(^|/)\.\.(/|$)' -or [System.IO.Path]::IsPathRooted($inside)) {
                 throw "Nome de instalador fora da arvore esperada."
             }
