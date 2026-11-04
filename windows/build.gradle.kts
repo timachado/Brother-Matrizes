@@ -92,8 +92,54 @@ val extractOfficialProjectCodec by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(officialProjectDir)
 
+/**
+ * Extrai somente o modelo ImportedFont JVM puro do Android. O armazenamento
+ * ImportedFontStore usa APIs Android e continua totalmente fora do Windows.
+ */
+val officialImportedFontFile = layout.projectDirectory.file(
+    "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontStore.kt"
+)
+val importedFontModelDir = layout.buildDirectory.dir("generated/official-font/kotlin")
+val extractImportedFontModel by tasks.registering {
+    inputs.file(officialImportedFontFile)
+    outputs.dir(importedFontModelDir)
+    doLast {
+        val source = officialImportedFontFile.asFile.readText(Charsets.UTF_8)
+        val startMarker = "data class ImportedFont("
+        val endMarker = "\nobject ImportedFontStore {"
+        val start = source.indexOf(startMarker)
+        val end = source.indexOf(endMarker)
+        check(start > 0 && end > start) {
+            "Modelo de fonte Android mudou; build Desktop bloqueado."
+        }
+        val code = source.substring(start, end)
+        check(!code.contains("Context") && !code.contains("Typeface")) {
+            "Modelo de fonte passou a depender do Android."
+        }
+        val generated = importedFontModelDir.get().file(
+            "com/timachado/brothermatrizes/font/ImportedFont.kt"
+        ).asFile
+        generated.parentFile.mkdirs()
+        generated.writeText(
+            "package com.timachado.brothermatrizes.font\n\n" + code + "\n",
+            Charsets.UTF_8
+        )
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(importedFontModelDir)
+
+val officialSatinDir = layout.buildDirectory.dir("generated/official-satin/kotlin")
+val syncOfficialSatin by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt")
+    }
+    into(officialSatinDir)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(officialSatinDir)
+
 tasks.named("compileKotlin") {
-    dependsOn(syncOfficialCore, extractOfficialProjectCodec)
+    dependsOn(syncOfficialCore, extractOfficialProjectCodec,
+        extractImportedFontModel, syncOfficialSatin)
 }
 
 dependencies {
