@@ -154,6 +154,13 @@ private fun DesktopScreen() {
     var monogramInitials by remember { mutableStateOf("") }
     var monogramHeight by remember { mutableStateOf("22") }
     var monogramStyle by remember { mutableStateOf(MonogramStyle.CLASSIC) }
+    var letterSession by remember { mutableStateOf<DesktopLetterSession?>(null) }
+    var letterPreviewDocument by remember { mutableStateOf<DesktopMatrixDocument?>(null) }
+    var selectedLetterIndex by remember { mutableStateOf(0) }
+    var letterMoveX by remember { mutableStateOf("0") }
+    var letterMoveY by remember { mutableStateOf("0") }
+    var letterScale by remember { mutableStateOf("1.00") }
+    var letterRotation by remember { mutableStateOf("0") }
     val librarySelection = remember { DesktopLibrarySelection() }
     var libraryFolder by remember { mutableStateOf(librarySelection.recall()?.toString()) }
     var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
@@ -649,10 +656,211 @@ private fun DesktopScreen() {
                         Text("Criar nome como nova matriz")
                     }
                     Text(
-                        "Fonte integrada inicial. Importação TTF/OTF, composição por camadas e monogramas ainda não estão disponíveis.",
-                        color = muted,
-                        fontSize = 11.sp
+                        "Nomes integrados e fontes importadas estão disponíveis. Para ajustes " +
+                            "de letras separadas use a composição individual abaixo.",
+                        color = muted, fontSize = 11.sp
                     )
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Objetos individuais — letras novas (QA)",
+                        color = cyan, fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Crie até 10 letras pelo motor Android oficial. Mova, escale e gire " +
+                            "cada uma separadamente. Não separa objetos de DST/PES/JEF existentes.",
+                        color = muted, fontSize = 11.sp
+                    )
+                    Button(enabled = !busy && nameText.isNotBlank(), onClick = {
+                        val height = nameHeightText.trim().replace(',', '.').toFloatOrNull()
+                        val created = runCatching {
+                            DesktopLetterSession.start(
+                                DesktopLetterComposer.start(
+                                    nameText, height ?: Float.NaN, nameStyle
+                                )
+                            )
+                        }
+                        created.onFailure {
+                            report("Composição não iniciada: ${it.message}", true)
+                        }
+                        created.onSuccess { session ->
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.Default) {
+                                    runCatching { DesktopLetterComposer.render(session.current) }
+                                }
+                                busy = false
+                                result.onSuccess { rendered ->
+                                    letterSession = session
+                                    letterPreviewDocument = rendered
+                                    document = rendered
+                                    editTimeline = DesktopEditTimeline.start(rendered)
+                                    selectedLetterIndex = session.current.editableIndices.first()
+                                    letterMoveX = "0"
+                                    letterMoveY = "0"
+                                    letterScale = "1.00"
+                                    letterRotation = "0"
+                                    format = "DST"
+                                    peDesign = false
+                                    stitchProgress = 1f
+                                    report(
+                                        "Composição por letras iniciada. Selecione uma letra e " +
+                                            "ajuste individualmente. Nada foi gravado em disco."
+                                    )
+                                }.onFailure {
+                                    report("Composição recusada: ${it.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Criar composição por letras") }
+                    val activeLetters = if (document === letterPreviewDocument) {
+                        letterSession
+                    } else null
+                    activeLetters?.let { session ->
+                        Text(
+                            "Selecione uma letra para editar:",
+                            color = muted, fontSize = 11.sp
+                        )
+                        session.current.editableIndices.forEach { index ->
+                            val item = session.current.objects[index]
+                            TextButton(enabled = !busy, onClick = {
+                                selectedLetterIndex = index
+                                letterMoveX = item.moveXmm.toString()
+                                letterMoveY = item.moveYmm.toString()
+                                letterScale = item.scale.toString()
+                                letterRotation = item.rotationDegrees.toString()
+                            }) {
+                                Text(
+                                    (if (index == selectedLetterIndex) "● " else "") +
+                                        "Objeto ${index + 1}: ${item.character}",
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            OutlinedTextField(
+                                value = letterMoveX,
+                                onValueChange = { letterMoveX = it },
+                                label = { Text("Mover X (mm)") },
+                                singleLine = true, modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = letterMoveY,
+                                onValueChange = { letterMoveY = it },
+                                label = { Text("Mover Y (mm)") },
+                                singleLine = true, modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            OutlinedTextField(
+                                value = letterScale,
+                                onValueChange = { letterScale = it },
+                                label = { Text("Escala 0,5–2") },
+                                singleLine = true, modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = letterRotation,
+                                onValueChange = { letterRotation = it },
+                                label = { Text("Girar ±180°") },
+                                singleLine = true, modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Button(enabled = !busy, onClick = {
+                            fun parse(text: String): Float =
+                                text.trim().replace(',', '.').toFloatOrNull() ?: Float.NaN
+                            val modified = runCatching {
+                                DesktopLetterComposer.update(
+                                    session.current, selectedLetterIndex,
+                                    parse(letterMoveX), parse(letterMoveY),
+                                    parse(letterScale), parse(letterRotation)
+                                )
+                            }
+                            modified.onFailure {
+                                report("Parâmetros da letra inválidos: ${it.message}", true)
+                            }
+                            modified.onSuccess { next ->
+                                if (next == session.current) {
+                                    report("Esta letra já possui os parâmetros informados.")
+                                } else {
+                                    busy = true
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.Default) {
+                                            runCatching { DesktopLetterComposer.render(next) }
+                                        }
+                                        busy = false
+                                        result.onSuccess { rendered ->
+                                            letterSession = session.record(next)
+                                            letterPreviewDocument = rendered
+                                            document = rendered
+                                            editTimeline = DesktopEditTimeline.start(rendered)
+                                            stitchProgress = 1f
+                                            report(
+                                                "Letra ${selectedLetterIndex + 1} ajustada. " +
+                                                    "Desfazer/Refazer letra disponíveis."
+                                            )
+                                        }.onFailure {
+                                            report("Edição individual bloqueada: ${it.message}", true)
+                                        }
+                                    }
+                                }
+                            }
+                        }) { Text("Aplicar à letra selecionada") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            TextButton(enabled = !busy && session.canUndo, onClick = {
+                                val previous = session.undo()
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        runCatching { DesktopLetterComposer.render(previous.current) }
+                                    }
+                                    busy = false
+                                    result.onSuccess { rendered ->
+                                        letterSession = previous
+                                        letterPreviewDocument = rendered
+                                        document = rendered
+                                        editTimeline = DesktopEditTimeline.start(rendered)
+                                        stitchProgress = 1f
+                                        val item = previous.current.objects[selectedLetterIndex]
+                                        letterMoveX = item.moveXmm.toString()
+                                        letterMoveY = item.moveYmm.toString()
+                                        letterScale = item.scale.toString()
+                                        letterRotation = item.rotationDegrees.toString()
+                                        report("Ajuste individual da letra desfeito.")
+                                    }.onFailure { report("Desfazer letra: ${it.message}", true) }
+                                }
+                            }) { Text("Desfazer letra", fontSize = 11.sp) }
+                            TextButton(enabled = !busy && session.canRedo, onClick = {
+                                val next = session.redo()
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        runCatching { DesktopLetterComposer.render(next.current) }
+                                    }
+                                    busy = false
+                                    result.onSuccess { rendered ->
+                                        letterSession = next
+                                        letterPreviewDocument = rendered
+                                        document = rendered
+                                        editTimeline = DesktopEditTimeline.start(rendered)
+                                        stitchProgress = 1f
+                                        val item = next.current.objects[selectedLetterIndex]
+                                        letterMoveX = item.moveXmm.toString()
+                                        letterMoveY = item.moveYmm.toString()
+                                        letterScale = item.scale.toString()
+                                        letterRotation = item.rotationDegrees.toString()
+                                        report("Ajuste individual da letra refeito.")
+                                    }.onFailure { report("Refazer letra: ${it.message}", true) }
+                                }
+                            }) { Text("Refazer letra", fontSize = 11.sp) }
+                        }
+                        Text(
+                            "A edição individual existe somente nesta sessão. " +
+                                "O FLP e os formatos exportados preservam as pontadas finais, " +
+                                "não os objetos separados; ajustes geométricos gerais encerram " +
+                                "o modo individual.",
+                            color = muted, fontSize = 10.sp
+                        )
+                    }
 
                     Spacer(Modifier.height(8.dp))
                     Text("Monogramas — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
