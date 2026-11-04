@@ -15,6 +15,11 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   apenas da sessão, inclui a restauração do original, invalida o refazer
   ao aplicar uma nova edição e guarda as **últimas oito operações**, sem
   duplicar matrizes enormes em RAM. Projetos FLP salvam somente o estado atual.
+- **Editor de cores RGB por índice de linha (até 64)**, com prévia
+  atualizada, valores hexadecimais, preservação exata dos pontos e suporte
+  a Desfazer/Refazer. Edita só metadados em memória: não modifica densidade,
+  trocas de cor ou arquivo original. DST não conserva paleta completa; requer
+  homologação das cores no formato exportado e na máquina.
 - **Pré-checagem geométrica de bastidores oficiais** na matriz atual:
   considera tamanhos e margens internas do motor Android, distingue encaixe
   direto, possível orientação alternativa e excesso. É apenas orientação visual;
