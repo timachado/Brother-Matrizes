@@ -13,6 +13,7 @@ import com.timachado.brothermatrizes.core.embroidery.EditTransform
  */
 internal sealed interface DesktopEditAction {
     data class Transform(val value: EditTransform) : DesktopEditAction
+    data class RecolorThread(val index: Int, val rgb: Int) : DesktopEditAction
     data object RestoreOriginal : DesktopEditAction
 }
 
@@ -76,6 +77,8 @@ internal data class DesktopEditTimeline private constructor(
     ): DesktopMatrixDocument = when (action) {
         is DesktopEditAction.Transform ->
             DesktopMatrixService.edit(document, action.value)
+        is DesktopEditAction.RecolorThread ->
+            DesktopThreadColorEditor.recolor(document, action.index, action.rgb)
         DesktopEditAction.RestoreOriginal ->
             DesktopMatrixService.reset(document)
     }
