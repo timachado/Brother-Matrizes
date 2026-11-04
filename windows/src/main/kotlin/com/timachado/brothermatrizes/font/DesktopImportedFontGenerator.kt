@@ -18,7 +18,8 @@ internal object DesktopImportedFontGenerator {
         fontFile: Path,
         text: String,
         heightMm: Float,
-        densityMm: Float = 0.4f
+        densityMm: Float = 0.4f,
+        spacingMm: Float = 0f
     ): EmbroideryDesign {
         val clean = text.trim()
         require(clean.isNotEmpty() && clean.length <= 24) { "Nome deve ter até 24 caracteres." }
@@ -27,6 +28,9 @@ internal object DesktopImportedFontGenerator {
         }
         require(densityMm.isFinite() && densityMm in 0.3f..1.2f) {
             "Densidade Satin válida: 0,3 a 1,2 mm."
+        }
+        require(spacingMm.isFinite() && spacingMm in 0f..3f) {
+            "Espaçamento entre glifos válido: 0 a 3 mm."
         }
         val name = fontFile.fileName.toString()
         val imported = ImportedFont(
@@ -39,7 +43,7 @@ internal object DesktopImportedFontGenerator {
         val options = TextMatrixOptions(
             text = clean,
             heightMm = heightMm,
-            spacingMm = 0f,
+            spacingMm = spacingMm,
             style = TextStitchStyle.SATIN,
             satinDensityMm = densityMm,
             outputFormat = "DST",
