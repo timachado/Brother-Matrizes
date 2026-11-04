@@ -90,10 +90,17 @@ fun main(args: Array<String>) {
 }
 
 private fun launchDesktopApp(uiReport: Path? = null) = application {
+    // A janela de 1280x820dp ultrapassava a area util de desktops pequenos.
+    // Limitar ao workspace exclui a barra de tarefas e preserva os controles.
+    val workArea = remember {
+        java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+    }
+    val initialWidth = (workArea.width - 48).coerceAtMost(1280).coerceAtLeast(640)
+    val initialHeight = (workArea.height - 48).coerceAtMost(820).coerceAtLeast(500)
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes Desktop — QA",
-        state = rememberWindowState(width = 1280.dp, height = 820.dp)
+        state = rememberWindowState(width = initialWidth.dp, height = initialHeight.dp)
     ) {
         if (uiReport != null) {
             LaunchedEffect(uiReport) {
