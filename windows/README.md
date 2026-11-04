@@ -88,6 +88,27 @@ O upload dos instaladores só ocorre **depois** das verificações no
 PC físico, que a UI funciona em todos os computadores, que as fontes passaram
 em bordadeira real, ou que o produto foi homologado comercialmente.
 
+## Diagnóstico gráfico no runner Windows
+
+A QA também pode iniciar o **launcher real do app-image sem argumentos de
+negócio**, usando `--ui-smoke-test <relatorio.txt>`. Nesse modo a interface
+Compose Desktop é aberta, verifica-se o título/dimensões da janela,
+visibilidade e diversidade mínima de pixels renderizados; somente então
+grava-se um relatório `BROTHER_WINDOWS_UI_SMOKE_OK` e uma imagem PNG da
+**tela inicial vazia**, sem abrir arquivos ou autenticar contas.
+
+No GitHub Actions, a etapa `Iniciar e capturar interface Windows real (QA)`
+é obrigatória antes da instalação MSI e do upload. Se o desktop virtual do
+runner não suportar captura gráfica, o teste falha explicitamente; não se
+deve interpretar um screenshot ausente como aprovação visual. Quando passar,
+um segundo artefato `brother-windows-ui-smoke-QA-NAO-COMERCIAL` disponibiliza
+screenshot e relatório por sete dias. Esse teste **não inspeciona a qualidade
+visual de cada controle nem simula interação humana**.
+
+Para homologação física, usar o roteiro versionado:
+[`qa/ROTEIRO-HOMOLOGACAO-FISICA.md`](qa/ROTEIRO-HOMOLOGACAO-FISICA.md),
+incluindo PE-DESIGN 11, bordadeira, assinatura e licenciamento.
+
 ## Integridade de pacotes de homologação (SHA-256)
 
 A etapa final do workflow verifica a integridade dos instaladores gerados
