@@ -713,6 +713,61 @@ private fun DesktopScreen() {
                             }
                         }
                     }) { Text("Criar composição por letras") }
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Abrir FLP com camadas de letras (.bmlayers)"
+                            fileFilter = FileNameExtensionFilter(
+                                "Projeto Brother Matrizes com camadas (*.flp)", "flp"
+                            )
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val file = chooser.selectedFile.toPath().toAbsolutePath()
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopLetterProjectBundle.open(file) }
+                                }
+                                busy = false
+                                result.onSuccess { project ->
+                                    document = project.document
+                                    editTimeline = DesktopEditTimeline.start(project.document)
+                                    letterSession = project.session
+                                    letterPreviewDocument = project.document
+                                    selectedLetterIndex =
+                                        project.session.current.editableIndices.first()
+                                    val letter = project.session.current.objects[selectedLetterIndex]
+                                    letterMoveX = letter.moveXmm.toString()
+                                    letterMoveY = letter.moveYmm.toString()
+                                    letterScale = letter.scale.toString()
+                                    letterRotation = letter.rotationDegrees.toString()
+                                    format = "DST"
+                                    peDesign = false
+                                    stitchProgress = 1f
+                                    scaleText = "1.00"
+                                    horizontalScaleText = "1.00"
+                                    verticalScaleText = "1.00"
+                                    angleText = "0"
+                                    xMmText = "0"
+                                    yMmText = "0"
+                                    mirrorX = false
+                                    mirrorY = false
+                                    threadColorSlotText = "1"
+                                    threadColorHexText = "#E6BE70"
+                                    report(
+                                        "FLP e camadas recuperados. Letras reeditáveis nesta sessão. " +
+                                            "O FLP original não foi alterado."
+                                    )
+                                }.onFailure {
+                                    report(
+                                        "Não foi possível recuperar camadas: ${it.message}. " +
+                                            "O FLP comum continua acessível pela abertura normal.",
+                                        true
+                                    )
+                                }
+                            }
+                        }
+                    }) { Text("Abrir FLP + camadas editáveis") }
                     val activeLetters = if (document === letterPreviewDocument) {
                         letterSession
                     } else null
@@ -853,11 +908,58 @@ private fun DesktopScreen() {
                                 }
                             }) { Text("Refazer letra", fontSize = 11.sp) }
                         }
+                        Button(enabled = !busy, onClick = {
+                            val activeDocument = document ?: return@Button
+                            val currentLayout = session.current
+                            val chooser = JFileChooser().apply {
+                                dialogTitle =
+                                    "Salvar novo projeto FLP + arquivo auxiliar de camadas"
+                                selectedFile = java.io.File("letras_windows_qa.flp")
+                                fileFilter = FileNameExtensionFilter(
+                                    "Projeto Brother Matrizes (*.flp)", "flp"
+                                )
+                                isAcceptAllFileFilterUsed = false
+                            }
+                            if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                val requested = chooser.selectedFile.toPath().toAbsolutePath()
+                                val output = if (
+                                    requested.fileName.toString().endsWith(
+                                        ".flp", ignoreCase = true
+                                    )
+                                ) requested else requested.resolveSibling(
+                                    requested.fileName.toString() + ".flp"
+                                )
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            DesktopLetterProjectBundle.saveNew(
+                                                currentLayout, activeDocument, output
+                                            )
+                                        }
+                                    }
+                                    busy = false
+                                    result.onSuccess { pair ->
+                                        report(
+                                            "FLP oficial salvo: ${pair.first.fileName}; " +
+                                                "camadas: ${pair.second.fileName}. " +
+                                                "Mantenha os dois arquivos juntos para reeditar."
+                                        )
+                                    }.onFailure {
+                                        report(
+                                            "Não foi possível salvar camadas: ${it.message}. " +
+                                                "Nenhum arquivo preexistente foi substituído.",
+                                            true
+                                        )
+                                    }
+                                }
+                            }
+                        }) { Text("Salvar novo FLP + camadas") }
                         Text(
-                            "A edição individual existe somente nesta sessão. " +
-                                "O FLP e os formatos exportados preservam as pontadas finais, " +
-                                "não os objetos separados; ajustes geométricos gerais encerram " +
-                                "o modo individual.",
+                            "O FLP oficial permanece compatível com Android. " +
+                                "Para recuperar letras individuais, mantenha o arquivo " +
+                                ".bmlayers junto do FLP. Arquivos importados não são separados. " +
+                                "Desfazer/Refazer continua restrito à sessão.",
                             color = muted, fontSize = 10.sp
                         )
                     }
