@@ -88,6 +88,29 @@ O upload dos instaladores só ocorre **depois** das verificações no
 PC físico, que a UI funciona em todos os computadores, que as fontes passaram
 em bordadeira real, ou que o produto foi homologado comercialmente.
 
+## Beta fechada — piloto técnico interno
+
+O workflow de QA gera um **kit para teste interno controlado**, não uma
+release pública. Dentro do mesmo ZIP dos instaladores estão
+`qa/BETA-FECHADA-01.md` e `qa/verify-beta-package.ps1` com instruções e
+validação **offline** de SHA-256, tamanho dos EXE/MSI, ID do workflow e SHA
+de origem do PR. Este verificador **não instala nem executa** binários.
+
+A QA é atualmente offline, sem login/licenciamento Windows e sem mecanismo
+de revogação; portanto **não deve ser anunciada como beta pública ou enviada
+para clientes**. A primeira etapa é um piloto de laboratório, em PCs de teste
+controlados e com dados sintéticos. Acesso externo depende de controles reais
+de autenticação/licenças, disponibilidade de suporte e aprovação específica.
+
+Nos workflows executados a partir de um pull request, o manifesto inclui
+`github.event.pull_request.head.sha` (commit real do PR), e não
+`github.sha` (commit de merge temporário criado pelo GitHub Actions).
+Assim o testador consegue comparar `sourceCommit` com a revisão autorizada.
+
+Consultar [`qa/BETA-FECHADA-01.md`](qa/BETA-FECHADA-01.md) para os
+critérios de aceitação e registro de incidentes. SHA-256 não substitui
+assinatura digital nem confirmação da origem do ZIP.
+
 ## Diagnóstico gráfico no runner Windows
 
 A QA também pode iniciar o **launcher real do app-image sem argumentos de
