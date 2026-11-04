@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.desktop
 
+import com.timachado.brothermatrizes.core.embroidery.EditTransform
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,6 +31,22 @@ internal object DesktopRuntimeSmoke {
                 "O motor de nomes não produziu uma matriz completa."
             }
 
+            val transform = EditTransform(offsetXUnits = 25, rotationDegrees = 10f)
+            val edited = DesktopMatrixService.edit(document, transform)
+            val history = DesktopEditTimeline.start(document)
+                .record(DesktopEditAction.Transform(transform))
+            val undone = history.undo()
+            check(undone.document.current.points == document.current.points) {
+                "Desfazer não restaurou as pontadas originais."
+            }
+            val redone = undone.timeline.redo()
+            check(redone.document.current.points == edited.current.points) {
+                "Refazer não recompôs a edição anterior."
+            }
+            check(document.current.points == document.original.points) {
+                "Histórico modificou a matriz carregada."
+            }
+
             val converted = DesktopMatrixService.convert(document, "DST")
             check(converted.bytes.size > 512) { "Conversão DST incompleta." }
             val reloadedDst = DesktopMatrixService.open(converted.fileName, converted.bytes)
@@ -55,6 +72,7 @@ internal object DesktopRuntimeSmoke {
                     "DST: validado\n" +
                     "FLP: validado\n" +
                     "Sobrescrita: bloqueada\n" +
+                    "Desfazer/refazer: validado\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
