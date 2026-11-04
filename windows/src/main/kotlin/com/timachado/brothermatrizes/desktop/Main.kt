@@ -141,6 +141,8 @@ private fun DesktopScreen() {
     var yMmText by remember { mutableStateOf("0") }
     var mirrorX by remember { mutableStateOf(false) }
     var mirrorY by remember { mutableStateOf(false) }
+    var threadColorSlotText by remember { mutableStateOf("1") }
+    var threadColorHexText by remember { mutableStateOf("#E6BE70") }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
     var nameText by remember { mutableStateOf("") }
@@ -200,6 +202,8 @@ private fun DesktopScreen() {
                                 stitchProgress = 1f
                                 format = it.current.format
                                 scaleText = "1.00"
+                                threadColorSlotText = "1"
+                                threadColorHexText = "#E6BE70"
                                 horizontalScaleText = "1.00"
                                 verticalScaleText = "1.00"
                                 angleText = "0"
@@ -246,7 +250,10 @@ private fun DesktopScreen() {
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            StitchPreview(preview, stitchProgress, Modifier.weight(1f))
+                            StitchPreview(
+                                preview, stitchProgress,
+                                document?.current?.threadColors.orEmpty(), Modifier.weight(1f)
+                            )
                             Text(
                                 "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
                                 color = muted,
@@ -300,6 +307,8 @@ private fun DesktopScreen() {
                                     peDesign = false
                                     stitchProgress = 1f
                                     scaleText = "1.00"
+                                    threadColorSlotText = "1"
+                                    threadColorHexText = "#E6BE70"
                                     horizontalScaleText = "1.00"
                                     verticalScaleText = "1.00"
                                     angleText = "0"
@@ -359,6 +368,94 @@ private fun DesktopScreen() {
                             Text(
                                 "Usa margens internas oficiais. Orientação alternativa não garante " +
                                     "suporte da bordadeira; confirme bastidor e posição no equipamento.",
+                                color = muted, fontSize = 10.sp
+                            )
+                        }
+                    }
+                    if (doc != null) {
+                        Spacer(Modifier.height(7.dp))
+                        Text("Cores de linha — edição reversível", color = cyan, fontWeight = FontWeight.SemiBold)
+                        val availableColors = remember(doc) {
+                            runCatching { DesktopThreadColorEditor.palette(doc.current) }.getOrNull()
+                        }
+                        if (availableColors == null) {
+                            Text(
+                                "A paleta desta matriz excede o limite seguro da QA (64 linhas).",
+                                color = muted, fontSize = 11.sp
+                            )
+                        } else {
+                            Text(
+                                "${availableColors.size} linha(s). Alterar RGB não modifica pontadas, saltos ou densidade.",
+                                color = muted, fontSize = 11.sp
+                            )
+                            availableColors.take(8).forEachIndexed { index, color ->
+                                Text(
+                                    "Linha ${index + 1}: ${DesktopThreadColorEditor.hex(color)}",
+                                    color = Color(0xFF000000.toInt() or color), fontSize = 11.sp
+                                )
+                            }
+                            if (availableColors.size > 8) {
+                                Text("Mostrando 8 das ${availableColors.size} linhas; use o índice para editar outras.", color = muted, fontSize = 10.sp)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(
+                                    value = threadColorSlotText,
+                                    onValueChange = { threadColorSlotText = it.take(3) },
+                                    label = { Text("Linha (1–${availableColors.size})") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = threadColorHexText,
+                                    onValueChange = { threadColorHexText = it.take(7) },
+                                    label = { Text("RGB #RRGGBB") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(enabled = !busy, onClick = {
+                                    val index = threadColorSlotText.trim().toIntOrNull()?.minus(1)
+                                    if (index == null || index !in availableColors.indices) {
+                                        report("Escolha uma linha de 1 a ${availableColors.size}.", true)
+                                    } else {
+                                        threadColorHexText = DesktopThreadColorEditor.hex(availableColors[index])
+                                    }
+                                }) { Text("Carregar cor atual", fontSize = 11.sp) }
+                                Button(enabled = !busy, onClick = {
+                                    val source = document ?: return@Button
+                                    val index = threadColorSlotText.trim().toIntOrNull()?.minus(1)
+                                    val parsed = runCatching { DesktopThreadColorEditor.parseHex(threadColorHexText) }
+                                    if (index == null || index !in availableColors.indices) {
+                                        report("Escolha uma linha de 1 a ${availableColors.size}.", true)
+                                    } else if (parsed.isFailure) {
+                                        report(parsed.exceptionOrNull()?.message ?: "Cor hexadecimal inválida.", true)
+                                    } else {
+                                        val rgb = parsed.getOrThrow()
+                                        val before = editTimeline ?: DesktopEditTimeline.start(source)
+                                        busy = true
+                                        scope.launch {
+                                            val result = withContext(Dispatchers.Default) {
+                                                runCatching {
+                                                    val changed = DesktopThreadColorEditor.recolor(source, index, rgb)
+                                                    val advanced = if (changed == source) before else
+                                                        before.record(DesktopEditAction.RecolorThread(index, rgb))
+                                                    DesktopHistoryTransition(advanced, changed)
+                                                }
+                                            }
+                                            busy = false
+                                            result.onSuccess { transition ->
+                                                document = transition.document
+                                                editTimeline = transition.timeline
+                                                stitchProgress = 1f
+                                                report("Cor atualizada em memória. Desfazer/Refazer disponível; arquivo original intacto.")
+                                            }.onFailure { report("Edição de cor recusada: ${it.message}", true) }
+                                        }
+                                    }
+                                }) { Text("Aplicar RGB", fontSize = 11.sp) }
+                            }
+                            Text(
+                                "PES/JEF podem guardar cores; DST não é um formato de paleta completa. Valide a saída na máquina.",
                                 color = muted, fontSize = 10.sp
                             )
                         }
@@ -483,6 +580,8 @@ private fun DesktopScreen() {
                                         stitchProgress = 1f
                                         peDesign = false
                                         scaleText = "1.00"
+                                        threadColorSlotText = "1"
+                                        threadColorHexText = "#E6BE70"
                                         horizontalScaleText = "1.00"
                                         verticalScaleText = "1.00"
                                         angleText = "0"
@@ -527,6 +626,8 @@ private fun DesktopScreen() {
                                     format = "DST"
                                     peDesign = false
                                     scaleText = "1.00"
+                                    threadColorSlotText = "1"
+                                    threadColorHexText = "#E6BE70"
                                     horizontalScaleText = "1.00"
                                     verticalScaleText = "1.00"
                                     angleText = "0"
@@ -597,6 +698,8 @@ private fun DesktopScreen() {
                                         format = "DST"
                                         peDesign = false
                                         scaleText = "1.00"
+                                        threadColorSlotText = "1"
+                                        threadColorHexText = "#E6BE70"
                                         horizontalScaleText = "1.00"
                                         verticalScaleText = "1.00"
                                         angleText = "0"
@@ -1003,6 +1106,8 @@ private fun DesktopScreen() {
                                         peDesign = false
                                         stitchProgress = 1f
                                         scaleText = "1.00"
+                                        threadColorSlotText = "1"
+                                        threadColorHexText = "#E6BE70"
                                         horizontalScaleText = "1.00"
                                         verticalScaleText = "1.00"
                                         angleText = "0"
@@ -1047,13 +1152,18 @@ private fun Detail(label: String, value: String) {
 }
 
 @Composable
-private fun StitchPreview(preview: DstPreview, progress: Float, modifier: Modifier = Modifier) {
+private fun StitchPreview(
+    preview: DstPreview, progress: Float, threadColors: List<Int>,
+    modifier: Modifier = Modifier
+) {
     Canvas(modifier = modifier.fillMaxSize().padding(18.dp)) {
-        renderPreview(preview, progress)
+        renderPreview(preview, progress, threadColors)
     }
 }
 
-private fun DrawScope.renderPreview(design: DstPreview, progress: Float) {
+private fun DrawScope.renderPreview(
+    design: DstPreview, progress: Float, threadColors: List<Int>
+) {
     val width = (design.bounds.maxX.toLong() - design.bounds.minX.toLong()).coerceAtLeast(1L).toFloat()
     val height = (design.bounds.maxY.toLong() - design.bounds.minY.toLong()).coerceAtLeast(1L).toFloat()
     val usableW = (size.width - 40f).coerceAtLeast(1f)
@@ -1075,7 +1185,9 @@ private fun DrawScope.renderPreview(design: DstPreview, progress: Float) {
         val p = design.points[index]
         if (p.command == PreviewCommand.STITCH && index % stride == 0) {
             drawLine(
-                color = palette[Math.floorMod(p.colorIndex, palette.size)],
+                color = threadColors.getOrNull(p.colorIndex)?.let {
+                    Color(0xFF000000.toInt() or (it and 0xFFFFFF))
+                } ?: palette[Math.floorMod(p.colorIndex, palette.size)],
                 start = offset(previousX, previousY),
                 end = offset(p.x, p.y),
                 strokeWidth = 1.3f
