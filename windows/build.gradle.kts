@@ -23,6 +23,7 @@ val officialCoreDir = layout.buildDirectory.dir("generated/official-core/kotlin"
 val syncOfficialCore by tasks.registering(Sync::class) {
     from("../app/src/main/java") {
             include("com/timachado/brothermatrizes/core/embroidery/DstParser.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIoParser.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIntegrity.kt")
             include("com/timachado/brothermatrizes/core/embroidery/HoopLayerPositioning.kt")
             include("com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt")
