@@ -67,6 +67,22 @@ internal object DesktopRuntimeSmoke {
                 "Expansão H/V não pôde ser desfeita."
             }
 
+            val recolored = DesktopThreadColorEditor.recolor(document, 0, 0x3366AA)
+            val colorHistory = DesktopEditTimeline.start(document)
+                .record(DesktopEditAction.RecolorThread(0, 0x3366AA))
+            check(recolored.current.threadColors[0] == 0x3366AA &&
+                recolored.current.points == document.current.points) {
+                "Edição de paleta alterou os pontos ou não aplicou RGB."
+            }
+            val colorUndo = colorHistory.undo()
+            check(colorUndo.document.current.threadColors == document.current.threadColors) {
+                "Não foi possível desfazer alteração de cor."
+            }
+            check(colorUndo.timeline.redo().document.current.threadColors ==
+                recolored.current.threadColors) {
+                "Não foi possível refazer alteração de cor."
+            }
+
             val hoops = DesktopHoopAdvisor.analyze(document.current)
             check(hoops.size == 5 && hoops.any { it.status == DesktopHoopFit.DIRECT }) {
                 "A pré-checagem de bastidores oficiais não retornou resultados válidos."
@@ -100,6 +116,7 @@ internal object DesktopRuntimeSmoke {
                     "Desfazer/refazer: validado\n" +
                     "Expansão H/V: validado\n" +
                     "Bastidores: pré-checagem validada\n" +
+                    "Cores de linha: edição reversível validada\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
