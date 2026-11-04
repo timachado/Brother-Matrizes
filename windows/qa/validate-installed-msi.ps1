@@ -130,7 +130,8 @@ try {
         'Expansão H/V: validado',
         'Bastidores: pré-checagem validada',
         'Cores de linha: edição reversível validada',
-        'Letras independentes: edição reversível validada'
+        'Letras independentes: edição reversível validada',
+        'Camadas FLP: associação SHA256 e reabertura validadas'
     )) {
         if (-not $result.Contains($required)) {
             throw "Relatorio do MSI nao inclui evidencia esperada: $required"
