@@ -99,6 +99,8 @@ private fun DesktopScreen() {
     var peDesign by remember { mutableStateOf(false) }
     var nameText by remember { mutableStateOf("") }
     var nameHeightText by remember { mutableStateOf("12") }
+    var satinDensityText by remember { mutableStateOf("0.40") }
+    var glyphSpacingText by remember { mutableStateOf("0.00") }
     var nameStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
     var fontPreview by remember { mutableStateOf<DesktopFontPreview?>(null) }
     var monogramInitials by remember { mutableStateOf("") }
@@ -297,6 +299,8 @@ private fun DesktopScreen() {
                         }
                     }) { Text("Carregar fonte TTF/OTF para prévia") }
                     fontPreview?.let { chosen ->
+                        val sample = nameText.trim().ifBlank { "Brother Matrizes" }
+                        val absent = sample.filter { !chosen.awtFont.canDisplay(it) }.toSet().joinToString("")
                         Text("Fonte: ${chosen.family} (${chosen.fileName})", color = muted, fontSize = 11.sp)
                         SwingPanel(
                             factory = {
@@ -309,13 +313,13 @@ private fun DesktopScreen() {
                             },
                             update = {
                                 it.font = chosen.awtFont.deriveFont(22f)
-                                it.text = "Brother Matrizes"
+                                it.text = sample
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp)
                         )
-                        if (chosen.missingPreviewCharacters.isNotEmpty()) {
+                        if (absent.isNotEmpty()) {
                             Text(
-                                "Glifos ausentes na amostra: ${chosen.missingPreviewCharacters}",
+                                "Glifos ausentes na amostra: $absent",
                                 fontSize = 11.sp, color = Color(0xFFFF9DA9)
                             )
                         }
@@ -340,21 +344,43 @@ private fun DesktopScreen() {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = satinDensityText,
+                            onValueChange = { satinDensityText = it },
+                            label = { Text("Densidade Satin (0,3–1,2 mm)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = glyphSpacingText,
+                            onValueChange = { glyphSpacingText = it },
+                            label = { Text("Entreletras (0–3 mm)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     Button(
                         enabled = !busy && fontPreview != null && nameText.isNotBlank(),
                         onClick = {
                             val file = fontPreview?.sourcePath ?: return@Button
                             val cleanName = nameText.trim()
                             val height = nameHeightText.trim().replace(',', '.').toFloatOrNull()
+                            val density = satinDensityText.trim().replace(',', '.').toFloatOrNull()
+                            val spacing = glyphSpacingText.trim().replace(',', '.').toFloatOrNull()
                             if (height == null || !height.isFinite() || height !in 4f..60f) {
                                 report("Informe altura entre 4 e 60 mm para fonte externa.", true)
+                            } else if (density == null || !density.isFinite() || density !in 0.3f..1.2f) {
+                                report("Densidade Satin inválida: 0,3 a 1,2 mm.", true)
+                            } else if (spacing == null || !spacing.isFinite() || spacing !in 0f..3f) {
+                                report("Entreletras inválido: 0 a 3 mm.", true)
                             } else {
                                 busy = true
                                 scope.launch {
                                     val result = withContext(Dispatchers.Default) {
                                         runCatching {
                                             DesktopMatrixService.createFromImportedFont(
-                                                file, cleanName, height
+                                                file, cleanName, height, density, spacing
                                             )
                                         }
                                     }
