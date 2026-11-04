@@ -22,6 +22,7 @@ $picture = Join-Path $folder 'brother-ui-smoke.png'
 if ((Test-Path -LiteralPath $report) -or (Test-Path -LiteralPath $picture)) {
     throw 'Relatório gráfico já existe: execução não pode sobrescrever resultados anteriores.'
 }
+$env:BROTHER_WINDOWS_QA_UI = '1'
 $launcher = $launchers[0]
 $arguments = '--ui-smoke-test "' + ([System.IO.Path]::GetFullPath($report)) + '"'
 Write-Host 'Executando GUI Compose no runner Windows, sem abrir documentos privados.'
