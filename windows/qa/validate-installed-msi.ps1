@@ -128,7 +128,8 @@ try {
         'Sobrescrita: bloqueada',
         'Desfazer/refazer: validado',
         'Expansão H/V: validado',
-        'Bastidores: pré-checagem validada'
+        'Bastidores: pré-checagem validada',
+        'Cores de linha: edição reversível validada'
     )) {
         if (-not $result.Contains($required)) {
             throw "Relatorio do MSI nao inclui evidencia esperada: $required"
