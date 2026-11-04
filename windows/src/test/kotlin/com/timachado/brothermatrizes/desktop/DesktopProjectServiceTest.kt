@@ -73,6 +73,26 @@ class DesktopProjectServiceTest {
     }
 
     @Test
+    fun `recusa arquivo FLP acima de 32 MiB sem modificar seu conteudo`() {
+        val folder = Files.createTempDirectory("bm-desktop-flp-limit-")
+        val file = folder.resolve("projeto.flp")
+        try {
+            java.io.RandomAccessFile(file.toFile(), "rw").use { handle ->
+                handle.setLength(DesktopProjectService.MAX_PROJECT_BYTES + 1)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                DesktopProjectService.open(file)
+            }
+            assertEquals(
+                DesktopProjectService.MAX_PROJECT_BYTES + 1, Files.size(file)
+            )
+        } finally {
+            Files.deleteIfExists(file)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `rejeita projeto truncado ou extensao invalida`() {
         val folder = Files.createTempDirectory("bm-desktop-invalid-flp-")
         val bad = folder.resolve("dados.flp")
