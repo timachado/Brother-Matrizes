@@ -90,7 +90,8 @@ Esse teste exercita o aplicativo **depois do empacotamento**, não só as classe
 JVM isoladas:
 
 - geração local de nome pela implementação oficial;
-- conversão e releitura DST;
+- conversão e releitura DST, PES e JEF, além da releitura sintética do
+  perfil experimental PES para PE-DESIGN PC (sem validar o PE-DESIGN 11 real);
 - gravação e reabertura FLP, conferindo a preservação dos pontos;
 - tentativa de sobrescrever um FLP já criado, que obrigatoriamente deve falhar;
 - desfazer/refazer de uma transformação, com pontos reconstituídos pelo
