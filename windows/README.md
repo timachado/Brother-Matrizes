@@ -22,8 +22,13 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   oficial; cada objeto é conectado com JUMP e há um único END. O resultado
   passa por `EmbroideryIntegrity`. O modo individual é **somente de sessão**,
   aceita letras latinas/acentos e espaços, não separa glifos importados de
-  DST/PES/JEF e não preserva objetos separados no FLP: salva apenas as
-  pontadas finais. Ajustes globais encerram o modo individual da composição.
+  DST/PES/JEF. O FLP **oficial Android** continua salvando apenas as
+  pontadas finais; opcionalmente é possível salvar, ao lado de um FLP **novo**,
+  um sidecar Windows `.bmlayers` que guarda parâmetros de cada letra,
+  vinculado ao FLP por SHA-256. Ao reabrir o par, a QA recalcula a matriz
+  e exige correspondência integral das pontadas para habilitar os objetos.
+  Se faltar o sidecar, o FLP continua abrindo normalmente, mas sem edição
+  individual. Ajustes globais encerram o modo individual da composição.
   A compatibilidade de costura ainda exige homologação física.
 - **Editor de cores RGB por índice de linha (até 64)**, com prévia
   atualizada, valores hexadecimais, preservação exata dos pontos e suporte
