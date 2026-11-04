@@ -19,6 +19,7 @@ class DesktopRuntimeSmokeTest {
             assertTrue(text.contains("FLP: validado"))
             assertTrue(text.contains("Sobrescrita: bloqueada"))
             assertTrue(text.contains("Desfazer/refazer: validado"))
+            assertTrue(text.contains("Expansão H/V: validado"))
             assertEquals(1L, Files.list(folder).use { it.count() })
             assertFailsWith<IllegalArgumentException> {
                 DesktopRuntimeSmoke.execute(report)
