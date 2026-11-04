@@ -79,6 +79,9 @@ fun main(args: Array<String>) {
         return
     }
     if (args.size == 2 && args[0] == "--ui-smoke-test") {
+        require(System.getenv("BROTHER_WINDOWS_QA_UI") == "1") {
+            "Captura da interface permitida somente em ambiente QA autorizado."
+        }
         launchDesktopApp(java.nio.file.Path.of(args[1]))
         return
     }
