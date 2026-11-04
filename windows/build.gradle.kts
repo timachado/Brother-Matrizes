@@ -24,6 +24,8 @@ val syncOfficialCore by tasks.registering(Sync::class) {
     from("../app/src/main/java") {
             include("com/timachado/brothermatrizes/core/embroidery/DstParser.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIntegrity.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/HoopLayerPositioning.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryModels.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryProfiles.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStats.kt")
@@ -46,8 +48,8 @@ tasks.named("compileKotlin") {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
-    // Mesma versão do conversor comercial Android. Testar compatibilidade JVM no CI.
-    implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-android:0.1.23")
+    // Mesma versão de EmbroideryIO, variante JVM apropriada ao Desktop.
+    implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-jvm:0.1.23")
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
