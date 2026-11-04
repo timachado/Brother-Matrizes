@@ -197,6 +197,9 @@ cadeia de confiança e distribuição comercial seguem pendentes.
 
 - Nenhuma importação ou upload de matrizes, projetos ou fontes à nuvem.
 - Arquivos DST/PES/JEF: limite 8 MiB; FLP: 32 MiB; TTF/OTF: 12 MiB.
+- A importação DST/PES/JEF valida o arquivo como regular sem seguir links
+  simbólicos e lê no máximo 8 MiB + 1 byte para detectar alterações de
+  tamanho entre a checagem inicial e a leitura, recusando excedentes.
 - Pastas listadas sem recursão, sem seguir links simbólicos e com limite de
   500 entradas; interface exibe até 60 por vez.
 - A biblioteca lembra **só o caminho da pasta**; não armazena conteúdo,
