@@ -106,8 +106,21 @@ internal object DesktopLetterProjectBundle {
             Files.size(sidecar) in 1L..MAX_COMPANION_BYTES) {
             "Arquivo de camadas não encontrado ou fora do limite de QA."
         }
-        val flpBytes = Files.readAllBytes(flp)
-        val (layout, expectedHash) = decode(Files.readAllBytes(sidecar))
+        // Os tamanhos podem mudar após a checagem em disco. Limita os bytes
+        // realmente lidos e recusa links também na abertura do arquivo.
+        val flpBytes = Files.newInputStream(flp, LinkOption.NOFOLLOW_LINKS).use { stream ->
+            stream.readNBytes((DesktopProjectService.MAX_PROJECT_BYTES + 1).toInt())
+        }
+        require(flpBytes.isNotEmpty() &&
+            flpBytes.size.toLong() <= DesktopProjectService.MAX_PROJECT_BYTES) {
+            "FLP vazio ou acima do limite durante a leitura."
+        }
+        val sidecarBytes = Files.newInputStream(
+            sidecar, LinkOption.NOFOLLOW_LINKS
+        ).use { stream ->
+            stream.readNBytes((MAX_COMPANION_BYTES + 1).toInt())
+        }
+        val (layout, expectedHash) = decode(sidecarBytes)
         require(sha256(flpBytes).contentEquals(expectedHash)) {
             "As camadas não pertencem a este FLP: SHA-256 divergente."
         }
