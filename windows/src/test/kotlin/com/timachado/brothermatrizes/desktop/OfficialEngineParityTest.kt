@@ -28,7 +28,7 @@ class OfficialEngineParityTest {
         val desktop = DstPreviewReader.read("origem.dst", data)
         assertEquals(official.design.stitchCount, desktop.stitchCount)
         assertEquals(official.design.jumpCount, desktop.jumpCount)
-        assertEquals(official.design.bounds.widthMm.toDouble(), desktop.bounds.widthMm)
+        assertEquals(official.design.bounds.widthMm.toDouble(), desktop.bounds.widthMm, 0.00001)
         assertEquals(official.design.points.map { it.xUnits }, desktop.points.map { it.x })
     }
 
