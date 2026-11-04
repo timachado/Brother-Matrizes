@@ -46,6 +46,9 @@ automatizadas que constarem como aprovadas no GitHub Actions.
 - [ ] Gerar nome com fonte integrada, além de monograma de 1 a 3 iniciais.
 - [ ] Importar fonte TTF/OTF **de uso autorizado**, testar contornos com furos
       (ex.: `O`), cursivas e espaços. Registrar caracteres rejeitados.
+- [ ] Abrir matrizes que cabem e que excedem os bastidores 100×100,
+      130×180 e 200×300 mm; verificar margens, avisos de possível
+      orientação alternativa e ausência de mudança automática de pontos.
 - [ ] Editar escala geral, expansão H/V independente, rotação, deslocamento,
       espelhamento, Desfazer, Refazer e Restaurar original.
 - [ ] Verificar que **Desfazer/Refazer afeta só a sessão atual** e que abrir outro
