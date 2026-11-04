@@ -50,8 +50,15 @@ automatizadas que constarem como aprovadas no GitHub Actions.
       mover somente ela em X/Y, ampliar, girar e testar Desfazer/Refazer.
       Verificar JUMP entre glifos e único END; registrar discrepâncias
       de espaçamento e posicionamento antes de testar em bordadeira.
-- [ ] Salvar composição individual em FLP novo e reabrir: os pontos devem
-      permanecer iguais; os objetos por letra NÃO são reeditáveis após reabrir.
+- [ ] Salvar composição individual com **dois arquivos novos**:
+      `.flp` oficial e `.bmlayers` Windows, fechar e reabrir pelo novo botão.
+      Verificar que cada letra recupera posição, escala e rotação anteriores.
+- [ ] Abrir somente o FLP pelo leitor Android/Windows normal:
+      as pontadas devem permanecer iguais mesmo sem o sidecar.
+- [ ] Alterar uma cópia do FLP ou do arquivo auxiliar e tentar reabrir como
+      camadas: associação SHA-256 deve bloquear a reedição divergente.
+- [ ] Tentar usar nome de destino já existente: os arquivos devem permanecer
+      inalterados.
 - [ ] Gerar nome com fonte integrada, além de monograma de 1 a 3 iniciais.
 - [ ] Importar fonte TTF/OTF **de uso autorizado**, testar contornos com furos
       (ex.: `O`), cursivas e espaços. Registrar caracteres rejeitados.
