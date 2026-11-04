@@ -221,6 +221,36 @@ private fun DesktopScreen() {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Matriz atual", color = cyan, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Abrir projeto editável Brother Matrizes (.flp)"
+                            fileFilter = FileNameExtensionFilter("Projeto Brother Matrizes (*.flp)", "flp")
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val chosen = chooser.selectedFile.toPath()
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopProjectService.open(chosen) }
+                                }
+                                busy = false
+                                result.onSuccess {
+                                    document = it
+                                    format = "DST"
+                                    peDesign = false
+                                    stitchProgress = 1f
+                                    scaleText = "1.00"
+                                    angleText = "0"
+                                    xMmText = "0"
+                                    yMmText = "0"
+                                    mirrorX = false
+                                    mirrorY = false
+                                    report("Projeto FLP Android/Windows carregado. Pontos e propriedades de edição restaurados.")
+                                }.onFailure { report("Projeto FLP inválido: ${it.message}", true) }
+                            }
+                        }
+                    }) { Text("Abrir projeto editável .FLP") }
                     val doc = document
                     if (doc == null) {
                         Text("Nenhum arquivo aberto.", color = muted)
@@ -449,6 +479,39 @@ private fun DesktopScreen() {
                             report("Ajustes descartados. Matriz original restaurada.")
                         }) { Text("Restaurar original") }
                     }
+
+                    Spacer(Modifier.height(6.dp))
+                    Text("Projeto editável Android / Windows", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Button(enabled = document != null && !busy, onClick = {
+                        val loaded = document ?: return@Button
+                        val stem = loaded.current.fileName.substringBeforeLast('.')
+                            .replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                            .take(42).ifBlank { "matriz" }
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Salvar projeto nativo FLP como novo arquivo"
+                            selectedFile = java.io.File("${stem}_windows_qa.flp")
+                            fileFilter = FileNameExtensionFilter("Projeto Brother Matrizes (*.flp)", "flp")
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val requested = chooser.selectedFile.toPath().toAbsolutePath()
+                            val path = if (requested.fileName.toString().endsWith(".flp", ignoreCase = true))
+                                requested else requested.resolveSibling(requested.fileName.toString() + ".flp")
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopProjectService.saveNew(loaded, path) }
+                                }
+                                busy = false
+                                result.onSuccess {
+                                    report("Projeto .FLP salvo sem substituir nenhum arquivo existente: $it")
+                                }.onFailure {
+                                    report("Erro ao salvar FLP: ${it.message}. Original preservado.", true)
+                                }
+                            }
+                        }
+                    }) { Text("Salvar projeto editável .FLP") }
+                    Text("Formato nativo do Android. Nesta QA o projeto salvo contém o estado atual, não um histórico de desfazer.", color = muted, fontSize = 11.sp)
 
                     Spacer(Modifier.height(6.dp))
                     Text("Salvar cópia convertida", color = cyan, fontWeight = FontWeight.SemiBold)
