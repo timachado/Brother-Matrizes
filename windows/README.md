@@ -88,6 +88,40 @@ O upload dos instaladores só ocorre **depois** das verificações no
 PC físico, que a UI funciona em todos os computadores, que as fontes passaram
 em bordadeira real, ou que o produto foi homologado comercialmente.
 
+## Integridade de pacotes de homologação (SHA-256)
+
+A etapa final do workflow verifica a integridade dos instaladores gerados
+**depois** de instalá-los, executar o diagnóstico e desinstalá-los na VM.
+O pacote ZIP de QA passa a incluir:
+
+- `exe/`: instalador EXE de homologação;
+- `msi/`: instalador MSI de homologação;
+- `qa/installer-manifest.json`: nome relativo, tamanho e SHA-256 de cada
+  instalador, SHA do commit e ID da execução GitHub;
+- `qa/SHA256SUMS.txt`: hashes em formato legível para comparação manual.
+
+O workflow exige exatamente um EXE e um MSI, gera o manifesto,
+recalcula os hashes e rejeita divergências. Um teste adicional usa pacotes
+**fictícios** e comprova que a alteração de um byte, sem mudança de tamanho,
+é detectada antes de qualquer upload QA.
+
+**Como verificar após baixar o ZIP pelo GitHub:** extraia o arquivo e,
+no PowerShell Windows, execute na pasta extraída:
+
+```powershell
+Get-ChildItem .\exe -Recurse -File -Filter *.exe | Get-FileHash -Algorithm SHA256
+Get-ChildItem .\msi -Recurse -File -Filter *.msi | Get-FileHash -Algorithm SHA256
+Get-Content .\qa\SHA256SUMS.txt
+```
+
+Compare cada hash retornado com o correspondente no manifesto. A estrutura
+de pastas e os nomes de instaladores devem coincidir. Os checksums servem
+para detectar alterações acidentais ou adulteração dos binários **se o
+manifesto e a origem GitHub forem confiáveis**. Como os checksums seguem
+no mesmo ZIP, eles **não autenticam por si só a origem**. Os instaladores
+são deliberadamente **não assinados** nesta QA; assinatura Authenticode,
+cadeia de confiança e distribuição comercial seguem pendentes.
+
 ## Segurança local
 
 - Nenhuma importação ou upload de matrizes, projetos ou fontes à nuvem.
