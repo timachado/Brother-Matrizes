@@ -1,73 +1,88 @@
-# Brother Matrizes Desktop — Windows QA (NÃO COMERCIAL)
+# Brother Matrizes Desktop — homologação Windows (NÃO COMERCIAL)
 
-Este módulo Windows está isolado do aplicativo Android comercial. Os arquivos oficiais em `app/`, `supabase/` e os pipelines de publicação Android **não são modificados**.
+Este projeto Windows está isolado do Android comercial. O PR não modifica
+`app/`, `supabase/` nem pipelines oficiais de publicação.
 
-## Recursos disponíveis nesta etapa de QA
+## Funcionalidades disponíveis na QA
 
-- Interface Compose Desktop para Windows, empacotada como EXE/MSI por GitHub Actions.
-- Importação local de **DST, PES e JEF**, usando os parsers Kotlin oficiais do Android.
-- Visualização técnica de pontadas, cores, limites, dimensões e contagem.
-- **Sequência visual manual** de comandos (cursor de progresso). Não simula tempo real, tensão, trajetória de máquina ou qualidade de bordado.
-- Ajustes geométricos em memória: escala, rotação, deslocamento e espelhamento, com restauração do original.
-- **Criação de nova matriz de nome** pelo `TextMatrixGenerator` oficial, inicialmente com fontes integradas e estilos ponto corrido ou Satin.\n- **Monogramas de 1 a 3 iniciais** com os estilos Linear, Clássico e Empilhado, usando o `MonogramGenerator` oficial Android e preservando a matriz aberta anteriormente.
-- **Biblioteca local de arquivos existentes**: usuário escolhe explicitamente a pasta; listagem não recursiva DST/PES/JEF, abre matrizes sem movê-las. A pasta é lembrada em preferências locais do Windows para a próxima abertura, mas **não é varrida automaticamente**: exige clique em Atualizar pasta. Há opção Esquecer pasta, sem apagar nenhum arquivo. Não faz upload, indexação geral nem sincronização. Exibe até 60 entradas por vez.
-- Conversão/exportação experimental DST/PES/JEF pelo `MatrixConverter` oficial, com releitura do arquivo gerado antes de gravar.
-- Perfil PES PE-DESIGN PC experimental. **Ainda não comprovado no PE-DESIGN 11 real.**
-- Exportação apenas para arquivo **novo** (`CREATE_NEW`); não substitui arquivos anteriores.
-- Testes automatizados de leitura, edição, conversão, proteção contra sobrescrita, biblioteca local, persistência de seleção, geração de nomes e monogramas.
+- Compose Desktop com instaladores EXE/MSI gerados por runner Windows.
+- Abertura local de DST/PES/JEF usando os parsers oficiais Android.
+- Prévia de pontadas, cores, dimensões, dados da matriz e sequência visual
+  manual. Não é simulação real de velocidade, tensão ou costura.
+- Transformações geométricas (rotação, escala, deslocamento, espelhamento)
+  com restauração do estado carregado.
+- Nomes em fonte integrada (ponto corrido/Satin), pelo `TextMatrixGenerator`.
+- Monogramas Linear, Clássico e Empilhado pelo `MonogramGenerator`.
+- Biblioteca local de uma pasta escolhida explicitamente, com DST/PES/JEF/FLP.
+  A pasta pode ser lembrada e esquecida nas preferências Windows; sua listagem
+  nunca é refeita automaticamente na inicialização.
+- Conversão DST/PES/JEF pelo `MatrixConverter` com verificação de releitura
+  antes da gravação; PE-DESIGN PC é um perfil experimental.
+- **Projetos editáveis .FLP nativos do Android**: abrir um projeto existente
+  e salvar o estado atual como um arquivo novo, usando exatamente o
+  `ProjectCodec` do Android (formato v11).
+- Seleção e **pré-visualização TTF/OTF** no computador, sem instalar fontes.
+  Este recurso apenas verifica o arquivo e exibe uma amostra da fonte.
+  **Ainda não gera pontadas a partir de fontes TTF/OTF externas.**
 
-## Motor Kotlin comum
+## Compatibilidade do projeto .FLP
 
-O build `windows/` compila fontes selecionados diretamente de
-`app/src/main/java/com/timachado/brothermatrizes/core/embroidery/`, usando uma
-cópia de build em `windows/build/generated/official-core/kotlin/` que não altera
-o Android. Inclui `DstParser`, `EmbroideryIoParser`, `MatrixEditor`,
-`TextMatrixGenerator`, `MonogramGenerator`, `MatrixConverter` e dependências. O Windows usa a
-variante JVM de EmbroideryIO; o Android mantém sua dependência própria.
+O arquivo `app/.../core/project/ProjectStore.kt` reúne `ProjectCodec` (Kotlin
+puro) com `ProjectStore` (dependente de `android.content.Context`).
+No build Windows, uma tarefa Gradle extrai **somente o trecho-fonte oficial**
+do codec para `windows/build/generated/official-project/kotlin/`, usando os
+imports JVM compatíveis. O trecho não é reimplementado manualmente; se o
+formato do arquivo mudar, a extração falha explicitamente.
 
-## Limitações e bloqueadores para publicação comercial
+Assim, a QA usa a mesma codificação .FLP v11 do Android, inclusive os
+metadados de pontos, cores, bastidor e nome editável previstos no codec.
 
-**Ainda não há paridade com todas as funções Android.** Pendente:
-editor completo de objetos e letras, fontes TTF/OTF importadas, opções avançadas de monogramas,
-biblioteca inteligente e organização persistente, projetos editáveis/backup,
-simulador de máquina, ferramentas avançadas de digitalização, integração de
-conta, licenças, cotas e planos, notificações, atualização segura, integrações
-específicas do Android com equivalentes Windows quando aplicável.
+**Limitação:** a gravação FLP captura o estado atual; não fornece histórico
+de desfazer nem recria bytes de um arquivo fonte externo que não tenham sido
+persistidos pelo codec Android. Abrir um FLP estabelece um novo estado-base
+para a ação "Restaurar original" dentro da sessão Desktop.
 
-Esta QA não possui autenticação nem libera recursos pagos de uma versão
-comercial. Ela **não pode ser distribuída como produto comercial**, nem usada
-para bordados de clientes sem homologação.
+## Segurança local
 
-## Segurança
+- Nenhuma importação ou upload de matrizes, projetos ou fontes à nuvem.
+- Arquivos DST/PES/JEF: limite 8 MiB; FLP: 32 MiB; TTF/OTF: 12 MiB.
+- Pastas listadas sem recursão, sem seguir links simbólicos e com limite de
+  500 entradas; interface exibe até 60 por vez.
+- A biblioteca lembra **só o caminho da pasta**; não armazena conteúdo,
+  matrizes, senhas ou credenciais nas preferências.
+- Gravação sempre com `CREATE_NEW`, sem sobrescrever arquivos existentes.
+- Projetos FLP passam por codificação/decodificação e conferência de pontos/
+  cores, matrizes convertidas passam por releitura dos parsers oficiais.
+- Fontes externas são validadas por extensão, assinatura e carregamento JVM;
+  a prévia NÃO equivale a autorização de exportação de bordado de fonte.
 
-- Leitura local com tamanho máximo de 8 MiB por matriz e limites de comandos.
-- Biblioteca somente leitura de uma pasta explicitamente escolhida; não percorre
-  subpastas, não segue atalhos simbólicos e limita listagem a 500 matrizes.
-- Abertura, geração e gravação de arquivos são processadas fora da thread da UI.
-- Originais não são regravados; criação/exportação validada e com proteção
-  contra sobrescrita de arquivos preexistentes.
-- Formatos gravados têm validação de releitura. Não substitui verificação com
-  software e hardware de bordado reais.
+## Bloqueadores comerciais
+
+Ainda falta a paridade integral com o Android: editor por objetos e letras,
+importação TTF/OTF com conversão segura de contornos em pontadas e ensaios
+Satin, biblioteca avançada, backup completo, simulador de máquina, outros
+recursos aprovados, autenticação/licenciamento/cotas/planos, atualizações
+protegidas e integrações Windows equivalentes.
+
+Os geradores Android de fonte externa usam `android.graphics` e
+`AndroidSkiaOutlineExtractor`, **incompatíveis diretamente com Desktop JVM**.
+Por isso a UI atual só pré-visualiza a fonte; não finge que gerou Satin.
+
+Antes de publicar: regressão Android e Windows, prova com PE-DESIGN 11 e
+máquina de bordado, instalação em computador Windows real, revisão de
+segurança, assinatura do pacote e aprovação comercial separada.
 
 ## Compilação
 
-Dentro de `windows/`, com JDK 17 e Gradle 8.14:
+No diretório `windows/`, usando JDK 17 e Gradle 8.14:
 
 ```shell
 gradle test compileKotlin
 gradle packageExe packageMsi
 ```
 
-O workflow `.github/workflows/brother-windows-desktop-qa.yml` roda em
-`windows-latest` e guarda o instalador **QA** em artefatos de duração limitada.
-Nenhuma publicação automática de release comercial.
+Workflow `.github/workflows/brother-windows-desktop-qa.yml`:
+testes e empacotamento com retenção curta dos artefatos **QA**, sem publicar
+release comercial.
 
-## Critérios mínimos antes de produção
-
-1. Matriz de paridade funcional com a versão Android aprovada.
-2. CI do Windows e regressão Android aprovados.
-3. Homologação PES no **PE-DESIGN 11** e prova de abertura/edição real.
-4. Instalação, abertura e segurança verificadas num computador Windows.
-5. Pacotes assinados e release comercial autorizado separadamente.
-
-O PR da expansão deve continuar em **rascunho** até essas etapas.
+**Não mesclar nem publicar este PR enquanto estiver em rascunho.**
