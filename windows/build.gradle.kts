@@ -32,6 +32,7 @@ val syncOfficialCore by tasks.registering(Sync::class) {
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStats.kt")
             include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStressPolicy.kt")
             include("com/timachado/brothermatrizes/core/embroidery/MachineFinishing.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/MonogramGenerator.kt")
             include("com/timachado/brothermatrizes/core/embroidery/MatrixConverter.kt")
             include("com/timachado/brothermatrizes/core/embroidery/MatrixEditor.kt")
             include("com/timachado/brothermatrizes/core/embroidery/PesHoopPositionMetadata.kt")
