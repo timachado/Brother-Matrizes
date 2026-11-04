@@ -15,6 +15,16 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   apenas da sessão, inclui a restauração do original, invalida o refazer
   ao aplicar uma nova edição e guarda as **últimas oito operações**, sem
   duplicar matrizes enormes em RAM. Projetos FLP salvam somente o estado atual.
+- **Composição de até 10 letras novas como objetos independentes (QA)**:
+  permite selecionar uma letra, mover em X/Y, escalar e girar individualmente
+  com histórico de parâmetros Desfazer/Refazer. Os glifos são gerados pelo
+  `TextMatrixGenerator` do Android e transformados pelo `MatrixEditor`
+  oficial; cada objeto é conectado com JUMP e há um único END. O resultado
+  passa por `EmbroideryIntegrity`. O modo individual é **somente de sessão**,
+  aceita letras latinas/acentos e espaços, não separa glifos importados de
+  DST/PES/JEF e não preserva objetos separados no FLP: salva apenas as
+  pontadas finais. Ajustes globais encerram o modo individual da composição.
+  A compatibilidade de costura ainda exige homologação física.
 - **Editor de cores RGB por índice de linha (até 64)**, com prévia
   atualizada, valores hexadecimais, preservação exata dos pontos e suporte
   a Desfazer/Refazer. Edita só metadados em memória: não modifica densidade,
