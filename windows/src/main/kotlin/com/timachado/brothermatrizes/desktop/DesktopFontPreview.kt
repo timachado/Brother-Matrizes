@@ -9,8 +9,8 @@ import java.util.Locale
 
 /**
  * Carrega TTF/OTF SOMENTE para inspeção e pré-visualização local no Windows.
- * NÃO é gerador de pontos. O motor Satin Android usa AndroidSkiaOutlineExtractor
- * e exige uma implementação Desktop de contornos antes de poder exportar bordado.
+ * Esta classe apenas valida e pré-visualiza fontes. A conversão experimental
+ * é separada e deve passar pelo motor Satin e pelo guarda de legibilidade.
  *
  * Não instala fontes, copia arquivos ou compartilha dados com a nuvem.
  */
@@ -19,7 +19,8 @@ internal data class DesktopFontPreview(
     val family: String,
     val postScriptName: String,
     val awtFont: Font,
-    val missingPreviewCharacters: String
+    val missingPreviewCharacters: String,
+    val sourcePath: Path
 )
 
 internal object DesktopFontPreviewService {
@@ -59,6 +60,7 @@ internal object DesktopFontPreviewService {
         val postScript = font.getPSName().take(120)
         require(family.isNotBlank()) { "A fonte não possui nome válido." }
         val missing = sample.filter { !font.canDisplay(it) }.toSet().joinToString("")
-        return DesktopFontPreview(name, family, postScript, font, missing)
+        return DesktopFontPreview(name, family, postScript, font, missing,
+            file.toAbsolutePath().normalize())
     }
 }
