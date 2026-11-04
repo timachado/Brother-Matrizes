@@ -45,6 +45,15 @@ internal object DesktopUiSmoke {
         check(bounds.width >= 600 && bounds.height >= 450) {
             "Janela aberta com dimensões insuficientes."
         }
+        val workArea = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+        val visible = bounds.intersection(workArea)
+        val visibleArea = visible.width.coerceAtLeast(0).toLong() *
+            visible.height.coerceAtLeast(0).toLong()
+        val totalArea = bounds.width.toLong() * bounds.height.toLong()
+        check(totalArea > 0L && visibleArea.toDouble() / totalArea >= 0.97) {
+            "Janela parcialmente fora da área útil do monitor: ${bounds.width}x${bounds.height} " +
+                "em workspace ${workArea.width}x${workArea.height}."
+        }
 
         // A captura prova que o app desenhou na superfície do runner.
         // Diferença entre pixels não equivale a aprovação estética ou de UX.
