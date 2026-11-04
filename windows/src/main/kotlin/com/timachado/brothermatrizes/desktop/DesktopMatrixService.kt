@@ -19,6 +19,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.font.DesktopImportedFontGenerator
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.Locale
@@ -149,11 +150,23 @@ internal object DesktopMatrixService {
     }
 
     fun openFromFile(file: Path): DesktopMatrixDocument {
-        require(Files.isRegularFile(file)) { "Selecione um arquivo de matriz válido." }
+        // Não seguir links para matrizes fora da pasta selecionada. A abertura
+        // também usa NOFOLLOW_LINKS para bloquear troca por link entre checagens.
+        require(Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            "Selecione um arquivo de matriz regular, sem atalhos simbólicos."
+        }
         require(Files.size(file) in 1..MAX_INPUT_BYTES) {
             "O arquivo ultrapassa o limite desta versão de homologação (8 MiB)."
         }
-        return open(file.fileName.toString(), Files.readAllBytes(file))
+        // O tamanho pode mudar após Files.size: limitar a LEITURA efetiva
+        // evita alocação ilimitada se outro processo substituir o conteúdo.
+        val bytes = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS).use { stream ->
+            stream.readNBytes(MAX_INPUT_BYTES.toInt() + 1)
+        }
+        require(bytes.isNotEmpty() && bytes.size.toLong() <= MAX_INPUT_BYTES) {
+            "O arquivo está vazio ou excedeu o limite de segurança durante a leitura."
+        }
+        return open(file.fileName.toString(), bytes)
     }
 
     fun open(fileName: String, bytes: ByteArray): DesktopMatrixDocument {
