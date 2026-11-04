@@ -123,6 +123,46 @@ class DesktopMatrixServiceTest {
     }
 
     @Test
+    fun `importacao em disco bloqueia arquivos acima de 8 MiB`() {
+        val folder = Files.createTempDirectory("bm-windows-input-limit-")
+        val large = folder.resolve("grande.dst")
+        try {
+            java.io.RandomAccessFile(large.toFile(), "rw").use {
+                it.setLength(DesktopMatrixService.MAX_INPUT_BYTES + 1)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                DesktopMatrixService.openFromFile(large)
+            }
+            assertEquals(DesktopMatrixService.MAX_INPUT_BYTES + 1, Files.size(large))
+        } finally {
+            Files.deleteIfExists(large)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
+    fun `importacao nao segue atalho simbolico para matriz externa`() {
+        val folder = Files.createTempDirectory("bm-windows-input-link-")
+        val source = folder.resolve("source.dst")
+        val alias = folder.resolve("alias.dst")
+        try {
+            Files.write(source, fixture("DST"))
+            val creation = runCatching { Files.createSymbolicLink(alias, source) }
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                creation.isSuccess, "SO não autoriza criar link simbólico no teste"
+            )
+            assertFailsWith<IllegalArgumentException> {
+                DesktopMatrixService.openFromFile(alias)
+            }
+            assertTrue(Files.size(source) > 512L)
+        } finally {
+            Files.deleteIfExists(alias)
+            Files.deleteIfExists(source)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `recusa dados gigantes e extensao incompatível`() {
         assertFailsWith<IllegalArgumentException> {
             DesktopMatrixService.open("invalido.png", byteArrayOf(1, 2, 3))
