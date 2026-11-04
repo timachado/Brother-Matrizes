@@ -642,7 +642,10 @@ private fun DesktopScreen() {
                                 busy = true
                                 scope.launch {
                                     val result = withContext(Dispatchers.IO) {
-                                        runCatching { DesktopMatrixService.openFromFile(file) }
+                                        runCatching {
+                                            if (entry.format == "FLP") DesktopProjectService.open(file)
+                                            else DesktopMatrixService.openFromFile(file)
+                                        }
                                     }
                                     busy = false
                                     result.onSuccess {
@@ -656,7 +659,7 @@ private fun DesktopScreen() {
                                         yMmText = "0"
                                         mirrorX = false
                                         mirrorY = false
-                                        report("Matriz aberta da biblioteca local, sem modificações no arquivo de origem.")
+                                        report("Matriz ou projeto da biblioteca aberto localmente, sem modificar o arquivo de origem.")
                                     }.onFailure { report("Falha ao abrir da biblioteca: ${it.message}", true) }
                                 }
                             },
