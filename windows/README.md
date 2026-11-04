@@ -207,6 +207,9 @@ cadeia de confiança e distribuição comercial seguem pendentes.
 - Gravação sempre com `CREATE_NEW`, sem sobrescrever arquivos existentes.
 - Projetos FLP passam por codificação/decodificação e conferência de pontos/
   cores, matrizes convertidas passam por releitura dos parsers oficiais.
+- A leitura de FLP e de arquivos auxiliares `.bmlayers` usa limite efetivo
+  de 32 MiB e 4096 bytes, respectivamente, e impede seguir links simbólicos
+  também durante a abertura. Não altera o codec FLP Android.
 - Fontes externas são validadas por extensão, assinatura e carregamento JVM.
   A criação Satin usa a fonte selecionada por ação explícita e só cria a matriz
   após o motor e o teste de silhueta aprovarem. Não usar em produção,
