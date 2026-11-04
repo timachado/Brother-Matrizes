@@ -66,7 +66,21 @@ private val palette = listOf(
     Color(0xFF73D6AE), Color(0xFFC3AAFF), Color(0xFFE4E9F0)
 )
 
-fun main() = application {
+/**
+ * CLI restrita a diagnóstico local: usada exclusivamente para confirmar que
+ * o aplicativo EMPACOTADO carrega seus módulos oficiais no runner Windows.
+ * Não dispensa homologação visual/instalação física do software.
+ */
+fun main(args: Array<String>) {
+    if (args.size == 2 && args[0] == "--smoke-test") {
+        DesktopRuntimeSmoke.execute(java.nio.file.Path.of(args[1]))
+        return
+    }
+    require(args.isEmpty()) { "Argumentos não reconhecidos." }
+    launchDesktopApp()
+}
+
+private fun launchDesktopApp() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes Desktop — QA",
