@@ -85,6 +85,25 @@ internal object DesktopRuntimeSmoke {
                 "Histórico de letras não recuperou os ajustes."
             }
 
+            val layeredFlp = temporary.resolve("camadas.flp")
+            val savedLayers = DesktopLetterProjectBundle.saveNew(
+                displaced, isolated, layeredFlp
+            )
+            val reopenedLayers = DesktopLetterProjectBundle.open(savedLayers.first)
+            check(reopenedLayers.session.current == displaced &&
+                reopenedLayers.document.current.points == isolated.current.points) {
+                "Camadas auxiliares não foram restauradas junto ao FLP v11."
+            }
+            check(runCatching {
+                DesktopLetterProjectBundle.saveNew(displaced, isolated, layeredFlp)
+            }.isFailure) {
+                "Arquivos de camadas existentes poderiam ser substituídos."
+            }
+            check(DesktopProjectService.open(layeredFlp).current.points ==
+                isolated.current.points) {
+                "O FLP deixou de ser compatível com o codec Android."
+            }
+
             val recolored = DesktopThreadColorEditor.recolor(document, 0, 0x3366AA)
             val colorHistory = DesktopEditTimeline.start(document)
                 .record(DesktopEditAction.RecolorThread(0, 0x3366AA))
@@ -136,6 +155,7 @@ internal object DesktopRuntimeSmoke {
                     "Bastidores: pré-checagem validada\n" +
                     "Cores de linha: edição reversível validada\n" +
                     "Letras independentes: edição reversível validada\n" +
+                    "Camadas FLP: associação SHA256 e reabertura validadas\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
@@ -143,6 +163,8 @@ internal object DesktopRuntimeSmoke {
         } finally {
             // A pasta só contém o FLP temporário que este teste criou.
             Files.deleteIfExists(temporary.resolve("diagnostico.flp"))
+            Files.deleteIfExists(temporary.resolve("camadas.flp"))
+            Files.deleteIfExists(temporary.resolve("camadas.bmlayers"))
             Files.deleteIfExists(temporary)
         }
     }
