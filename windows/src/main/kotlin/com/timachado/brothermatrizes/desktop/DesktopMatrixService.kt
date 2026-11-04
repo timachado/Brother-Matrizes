@@ -11,6 +11,9 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.MatrixEditor
 import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixGenerator
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -31,6 +34,38 @@ internal object DesktopMatrixService {
     const val MAX_INPUT_BYTES: Long = 8L * 1024 * 1024
     private const val MAX_OUTPUT_BYTES: Int = 32 * 1024 * 1024
     val inputFormats: Set<String> = setOf("DST", "PES", "JEF")
+
+    /**
+     * Gera um NOVO projeto usando exatamente o motor TextMatrixGenerator do Android.
+     * Não substitui o arquivo aberto; a UI pede uma ação explícita de criação.
+     * Esta primeira UI usa fontes integradas (não fontes TTF/OTF importadas).
+     */
+    fun createName(
+        text: String,
+        heightMm: Float,
+        style: TextStitchStyle = TextStitchStyle.RUNNING
+    ): DesktopMatrixDocument {
+        val clean = text.trim()
+        require(clean.isNotEmpty() && clean.length <= 24) {
+            "Digite de 1 a 24 caracteres para o nome."
+        }
+        require(heightMm.isFinite() && heightMm in 4f..60f) {
+            "Altura do nome deve estar entre 4 e 60 mm."
+        }
+        val generated = TextMatrixGenerator.generate(
+            TextMatrixOptions(
+                text = clean,
+                heightMm = heightMm,
+                style = style,
+                outputFormat = "DST"
+            )
+        ).getOrThrow()
+        val design = EmbroideryIntegrity.normalize(generated).getOrThrow().design
+        require(design.stitchCount > 0 && design.endFound) {
+            "O motor não gerou um nome completo."
+        }
+        return DesktopMatrixDocument(original = design, current = design)
+    }
 
     fun openFromFile(file: Path): DesktopMatrixDocument {
         require(Files.isRegularFile(file)) { "Selecione um arquivo de matriz válido." }
