@@ -125,7 +125,8 @@ try {
         'BROTHER_WINDOWS_QA_SMOKE_OK',
         'DST: validado',
         'FLP: validado',
-        'Sobrescrita: bloqueada'
+        'Sobrescrita: bloqueada',
+        'Desfazer/refazer: validado'
     )) {
         if (-not $result.Contains($required)) {
             throw "Relatorio do MSI nao inclui evidencia esperada: $required"
