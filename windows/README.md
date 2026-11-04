@@ -51,6 +51,26 @@ de desfazer nem recria bytes de um arquivo fonte externo que não tenham sido
 persistidos pelo codec Android. Abrir um FLP estabelece um novo estado-base
 para a ação "Restaurar original" dentro da sessão Desktop.
 
+## Verificação do launcher Windows empacotado
+
+O CI da QA também cria um **app-image** com o runtime Java embarcado e
+executa o `BrotherMatrizesDesktop.exe` desse pacote, sem abrir a interface,
+com o argumento restrito `--smoke-test` e um caminho temporário de relatório.
+Esse teste exercita o aplicativo **depois do empacotamento**, não só as classes
+JVM isoladas:
+
+- geração local de nome pela implementação oficial;
+- conversão e releitura DST;
+- gravação e reabertura FLP, conferindo a preservação dos pontos;
+- tentativa de sobrescrever um FLP já criado, que obrigatoriamente deve falhar;
+- escrita do marcador `BROTHER_WINDOWS_QA_SMOKE_OK` somente após todos
+  os controles passarem, com arquivos de teste apagados ao final.
+
+O upload dos instaladores só ocorre **depois** de o launcher ser executado
+sem erros no **runner virtual Windows**. Isso **não significa** que o instalador
+MSI/EXE foi instalado, que a UI funciona em todos os PCs, que as fontes
+passaram em bordadeira real, ou que o produto foi homologado comercialmente.
+
 ## Segurança local
 
 - Nenhuma importação ou upload de matrizes, projetos ou fontes à nuvem.
@@ -94,7 +114,7 @@ No diretório `windows/`, usando JDK 17 e Gradle 8.14:
 
 ```shell
 gradle test compileKotlin
-gradle packageExe packageMsi
+gradle createDistributable packageExe packageMsi
 ```
 
 Workflow `.github/workflows/brother-windows-desktop-qa.yml`:
