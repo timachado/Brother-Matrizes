@@ -54,6 +54,26 @@ class DesktopLetterProjectBundleTest {
     }
 
     @Test
+    fun `extensao FLP maiuscula preserva nome base do sidecar e reabre camadas`() {
+        val folder = Files.createTempDirectory("bm-layer-bundle-uppercase-")
+        val flp = folder.resolve("Nome.FLP")
+        val sidecar = folder.resolve("Nome.bmlayers")
+        val params = layout()
+        val doc = DesktopLetterComposer.render(params)
+        try {
+            assertEquals(sidecar, DesktopLetterProjectBundle.companion(flp))
+            val saved = DesktopLetterProjectBundle.saveNew(params, doc, flp)
+            assertEquals(sidecar, saved.second)
+            assertEquals(params, DesktopLetterProjectBundle.open(flp).session.current)
+            assertEquals(doc.current.points, DesktopProjectService.open(flp).current.points)
+        } finally {
+            Files.deleteIfExists(sidecar)
+            Files.deleteIfExists(flp)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `recusa sobrescrita de FLP ou sidecar existente sem apagar dados`() {
         val folder = Files.createTempDirectory("bm-layer-bundle-noswap-")
         val flp = folder.resolve("projeto.flp")
