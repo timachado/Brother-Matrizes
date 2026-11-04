@@ -10,7 +10,10 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
 - Prévia de pontadas, cores, dimensões, dados da matriz e sequência visual
   manual. Não é simulação real de velocidade, tensão ou costura.
 - Transformações geométricas (rotação, escala, deslocamento, espelhamento)
-  com restauração do estado carregado.
+  com restauração do estado carregado e **Desfazer/Refazer**. O histórico é
+  apenas da sessão, inclui a restauração do original, invalida o refazer
+  ao aplicar uma nova edição e guarda as **últimas oito operações**, sem
+  duplicar matrizes enormes em RAM. Projetos FLP salvam somente o estado atual.
 - Nomes em fonte integrada (ponto corrido/Satin), pelo `TextMatrixGenerator`.
 - Monogramas Linear, Clássico e Empilhado pelo `MonogramGenerator`.
 - Biblioteca local de uma pasta escolhida explicitamente, com DST/PES/JEF/FLP.
@@ -63,6 +66,8 @@ JVM isoladas:
 - conversão e releitura DST;
 - gravação e reabertura FLP, conferindo a preservação dos pontos;
 - tentativa de sobrescrever um FLP já criado, que obrigatoriamente deve falhar;
+- desfazer/refazer de uma transformação, com pontos reconstituídos pelo
+  motor Android e sem alterar o original;
 - escrita do marcador `BROTHER_WINDOWS_QA_SMOKE_OK` somente após todos
   os controles passarem, com arquivos de teste apagados ao final.
 
