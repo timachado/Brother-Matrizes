@@ -72,6 +72,57 @@ class DesktopMatrixServiceTest {
     }
 
     @Test
+    fun `exportacao em disco DST PES JEF e PES PC preserva origem e bloqueia sobrescrita`() {
+        val folder = Files.createTempDirectory("bm-windows-formats-qa-")
+        val source = folder.resolve("origem.dst")
+        val originalBytes = fixture("DST")
+        try {
+            Files.write(source, originalBytes)
+            val document = DesktopMatrixService.openFromFile(source)
+            val originalPoints = document.current.points.toList()
+            val scenarios = listOf(
+                Triple("DST", false, "saida_dst.dst"),
+                Triple("PES", false, "saida_pes.pes"),
+                Triple("JEF", false, "saida_jef.jef"),
+                Triple("PES", true, "saida_pc_experimental.pes")
+            )
+            for ((format, pcProfile, name) in scenarios) {
+                val destination = folder.resolve(name)
+                val saved = DesktopMatrixService.saveNew(
+                    document, format, destination, pesPcProfile = pcProfile
+                )
+                assertEquals(destination, saved)
+                val exported = Files.readAllBytes(destination)
+                assertTrue(exported.isNotEmpty(), "Exportação vazia: $name")
+                val reopened = DesktopMatrixService.openFromFile(destination)
+                assertTrue(reopened.current.endFound, "END ausente: $name")
+                assertTrue(reopened.current.stitchCount > 0, "Sem costura: $name")
+                assertTrue(reopened.current.bounds.widthMm > 0f, "Largura inválida: $name")
+                assertTrue(reopened.current.bounds.heightMm > 0f, "Altura inválida: $name")
+                assertFailsWith<FileAlreadyExistsException> {
+                    DesktopMatrixService.saveNew(
+                        document, format, destination, pesPcProfile = pcProfile
+                    )
+                }
+                assertTrue(exported.contentEquals(Files.readAllBytes(destination)),
+                    "Arquivo de saída sobrescrito: $name")
+                assertTrue(originalBytes.contentEquals(Files.readAllBytes(source)),
+                    "Arquivo de origem modificado: $name")
+                assertEquals(originalPoints, document.current.points,
+                    "Matriz em memória modificada: $name")
+            }
+        } finally {
+            for (name in listOf(
+                "saida_dst.dst", "saida_pes.pes", "saida_jef.jef",
+                "saida_pc_experimental.pes", "origem.dst"
+            )) {
+                Files.deleteIfExists(folder.resolve(name))
+            }
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `recusa dados gigantes e extensao incompatível`() {
         assertFailsWith<IllegalArgumentException> {
             DesktopMatrixService.open("invalido.png", byteArrayOf(1, 2, 3))
