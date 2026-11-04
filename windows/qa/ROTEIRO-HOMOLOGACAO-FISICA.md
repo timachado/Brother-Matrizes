@@ -39,6 +39,9 @@ automatizadas que constarem como aprovadas no GitHub Actions.
 
 ## 3. Arquivos, edição e integridade
 
+- [ ] Em uma pasta autorizada com mais de 80 matrizes sintéticas, testar
+      busca por nome com letras maiúsculas/minúsculas, filtros DST/PES/JEF/FLP,
+      páginas anteriores/próximas e abertura de um arquivo após o 60º item.
 - [ ] Abrir três matrizes sintéticas de teste: DST, PES e JEF.
 - [ ] Comparar prévia, número aproximado de pontos, salto, cor e dimensões com
       uma ferramenta confiável. Registrar divergências sem corrigir o original.
