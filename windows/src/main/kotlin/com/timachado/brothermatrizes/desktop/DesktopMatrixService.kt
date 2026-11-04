@@ -112,7 +112,9 @@ internal object DesktopMatrixService {
     fun createFromImportedFont(
         fontPath: Path,
         text: String,
-        heightMm: Float
+        heightMm: Float,
+        densityMm: Float = 0.4f,
+        spacingMm: Float = 0f
     ): DesktopMatrixDocument {
         val clean = text.trim()
         require(clean.isNotEmpty() && clean.length <= 24) {
@@ -121,6 +123,12 @@ internal object DesktopMatrixService {
         require(heightMm.isFinite() && heightMm in 4f..60f) {
             "Altura deve estar entre 4 e 60 mm."
         }
+        require(densityMm.isFinite() && densityMm in 0.3f..1.2f) {
+            "Densidade Satin: 0,3 a 1,2 mm."
+        }
+        require(spacingMm.isFinite() && spacingMm in 0f..3f) {
+            "Espaçamento: 0 a 3 mm."
+        }
         val font = DesktopFontPreviewService.open(fontPath, clean)
         require(font.missingPreviewCharacters.isEmpty()) {
             "A fonte não possui os caracteres: ${font.missingPreviewCharacters}"
@@ -128,7 +136,9 @@ internal object DesktopMatrixService {
         val generated = DesktopImportedFontGenerator.generate(
             fontFile = font.sourcePath,
             text = clean,
-            heightMm = heightMm
+            heightMm = heightMm,
+            densityMm = densityMm,
+            spacingMm = spacingMm
         )
         val normalized = EmbroideryIntegrity.normalize(generated).getOrThrow().design
         require(normalized.stitchCount > 0 && normalized.endFound &&
