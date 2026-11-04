@@ -323,6 +323,42 @@ private fun DesktopScreen() {
                             Locale.forLanguageTag("pt-BR"),
                             d.bounds.widthMm, d.bounds.heightMm
                         ))
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            "Bastidores — pré-checagem",
+                            color = cyan, fontWeight = FontWeight.SemiBold
+                        )
+                        val hoopAssessments = remember(doc) {
+                            runCatching { DesktopHoopAdvisor.analyze(doc.current) }.getOrNull()
+                        }
+                        if (hoopAssessments == null) {
+                            Text(
+                                "Não foi possível calcular o enquadramento desta matriz.",
+                                color = Color(0xFFFF9DA9), fontSize = 11.sp
+                            )
+                        } else {
+                            hoopAssessments.forEach { item ->
+                                val status = when (item.status) {
+                                    DesktopHoopFit.DIRECT -> "Dentro da margem"
+                                    DesktopHoopFit.ALTERNATE_ORIENTATION -> "Verificar orientação 90°"
+                                    DesktopHoopFit.EXCEEDS -> "Excede a margem"
+                                }
+                                val statusColor = when (item.status) {
+                                    DesktopHoopFit.DIRECT -> cyan
+                                    DesktopHoopFit.ALTERNATE_ORIENTATION -> Color(0xFFF3BB60)
+                                    DesktopHoopFit.EXCEEDS -> muted
+                                }
+                                Text(
+                                    "${item.hoop.displayName} · $status",
+                                    color = statusColor, fontSize = 11.sp
+                                )
+                            }
+                            Text(
+                                "Usa margens internas oficiais. Orientação alternativa não garante " +
+                                    "suporte da bordadeira; confirme bastidor e posição no equipamento.",
+                                color = muted, fontSize = 10.sp
+                            )
+                        }
                     }
                     Spacer(Modifier.height(7.dp))
                     Text("Fonte externa TTF/OTF — Satin experimental", color = cyan, fontWeight = FontWeight.SemiBold)
