@@ -67,6 +67,24 @@ internal object DesktopRuntimeSmoke {
                 "Expansão H/V não pôde ser desfeita."
             }
 
+            val layout = DesktopLetterComposer.start(
+                "AB", 12f,
+                com.timachado.brothermatrizes.core.embroidery.TextStitchStyle.RUNNING
+            )
+            val displaced = DesktopLetterComposer.update(
+                layout, 1, 5f, 2f, 1.2f, 15f
+            )
+            val isolated = DesktopLetterComposer.render(displaced)
+            val letterHistory = DesktopLetterSession.start(layout).record(displaced)
+            check(isolated.current.stitchCount > 0 && isolated.current.endFound &&
+                isolated.current.points != DesktopLetterComposer.render(layout).current.points) {
+                "Composição independente de letras não produziu edição segura."
+            }
+            check(letterHistory.undo().current == layout &&
+                letterHistory.undo().redo().current == displaced) {
+                "Histórico de letras não recuperou os ajustes."
+            }
+
             val recolored = DesktopThreadColorEditor.recolor(document, 0, 0x3366AA)
             val colorHistory = DesktopEditTimeline.start(document)
                 .record(DesktopEditAction.RecolorThread(0, 0x3366AA))
@@ -117,6 +135,7 @@ internal object DesktopRuntimeSmoke {
                     "Expansão H/V: validado\n" +
                     "Bastidores: pré-checagem validada\n" +
                     "Cores de linha: edição reversível validada\n" +
+                    "Letras independentes: edição reversível validada\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
