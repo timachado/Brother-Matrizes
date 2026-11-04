@@ -60,7 +60,7 @@ internal object DesktopLetterComposer {
         }
         return DesktopLetterLayout(
             text = clean, heightMm = heightMm, style = style,
-            objects = clean.map(::DesktopLetterObject)
+            objects = clean.map { DesktopLetterObject(it) }
         )
     }
 
