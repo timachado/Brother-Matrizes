@@ -54,7 +54,12 @@ internal object DesktopProjectService {
         require(Files.size(file) in 1..MAX_PROJECT_BYTES) {
             "Projeto acima do limite de segurança de 32 MiB."
         }
-        val loaded = decode(Files.readAllBytes(file))
+        // Leitura efetivamente limitada: o arquivo pode crescer depois de
+        // Files.size(). NOFOLLOW_LINKS também bloqueia troca por atalho.
+        val bytes = Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS).use { stream ->
+            stream.readNBytes((MAX_PROJECT_BYTES + 1).toInt())
+        }
+        val loaded = decode(bytes)
         return DesktopMatrixDocument(original = loaded, current = loaded)
     }
 
