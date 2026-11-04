@@ -28,7 +28,7 @@ function Get-InstalledBrotherMsi {
     @(
         foreach ($path in $registryPaths) {
             Get-ItemProperty -Path $path -ErrorAction SilentlyContinue |
-                Where-Object { $_.DisplayName -ceq $packageName }
+                Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -ieq $packageName }
         }
     )
 }
