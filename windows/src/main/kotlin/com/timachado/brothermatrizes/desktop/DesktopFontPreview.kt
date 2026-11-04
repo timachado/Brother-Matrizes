@@ -45,9 +45,9 @@ internal object DesktopFontPreviewService {
         require(bytes.size >= 12 && bytes.size.toLong() <= MAX_FONT_BYTES) {
             "Arquivo de fonte inválido."
         }
-        val magic = (bytes[0].toInt() and 255 shl 24) or
-            (bytes[1].toInt() and 255 shl 16) or
-            (bytes[2].toInt() and 255 shl 8) or (bytes[3].toInt() and 255)
+        val magic = ((bytes[0].toInt() and 0xFF) shl 24) or
+            ((bytes[1].toInt() and 0xFF) shl 16) or
+            ((bytes[2].toInt() and 0xFF) shl 8) or (bytes[3].toInt() and 0xFF)
         require(magic == MAGIC_TTF || magic == MAGIC_OTF || magic == MAGIC_TRUE) {
             "A assinatura binária não corresponde a uma fonte TTF/OTF."
         }
@@ -56,7 +56,7 @@ internal object DesktopFontPreviewService {
             Font.createFont(Font.TRUETYPE_FONT, it)
         }
         val family = font.getFamily(Locale.forLanguageTag("pt-BR")).take(120)
-        val postScript = font.psName.take(120)
+        val postScript = font.getPSName().take(120)
         require(family.isNotBlank()) { "A fonte não possui nome válido." }
         val missing = sample.filter { !font.canDisplay(it) }.distinct().joinToString("")
         return DesktopFontPreview(name, family, postScript, font, missing)
