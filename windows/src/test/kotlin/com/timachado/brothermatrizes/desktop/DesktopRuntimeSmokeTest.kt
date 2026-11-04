@@ -16,6 +16,8 @@ class DesktopRuntimeSmokeTest {
             val text = Files.readString(report)
             assertTrue(text.startsWith(DesktopRuntimeSmoke.SUCCESS_MARKER))
             assertTrue(text.contains("DST: validado"))
+            assertTrue(text.contains("PES/JEF: conversão e releitura sintética validadas"))
+            assertTrue(text.contains("PES PE-DESIGN: perfil experimental relido"))
             assertTrue(text.contains("FLP: validado"))
             assertTrue(text.contains("Sobrescrita: bloqueada"))
             assertTrue(text.contains("Desfazer/refazer: validado"))
