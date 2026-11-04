@@ -28,6 +28,11 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   cobertura visual também possui adaptação Java2D. Há limites de complexidade
   e a geração falha fechada quando a silhueta não passa na verificação.
   **Não representa compatibilidade industrial comprovada; só QA.**
+- A prévia da fonte externa acompanha o nome digitado; densidade Satin
+  ajustável entre 0,3 e 1,2 mm e espaçamento entre letras entre 0 e 3 mm.
+  A alteração atua somente sobre uma **nova matriz**. Fontes cursivas podem
+  depender de ligaduras e, se a verificação de silhueta falhar, a geração
+  é bloqueada.
 
 ## Compatibilidade do projeto .FLP
 
@@ -73,8 +78,10 @@ protegidas e integrações Windows equivalentes.
 O gerador Android usa `android.graphics`; a portabilidade não é direta.
 A versão Desktop mantém o motor Satin Kotlin original, mas adapta os
 contornos e a verificação de silhueta para Java2D, com testes de geração
-controlados. Diferenças entre shaping, ligaduras, curva e rasterização
-Windows/Android **ainda exigem comparação com fontes reais e costura real**.
+controlados. Há regressões automatizadas para palavras completas, possíveis
+ligaduras, contraformas (letra "O") e múltiplas fontes locais do Windows.
+Diferenças entre shaping, ligaduras, curva e rasterização Windows/Android
+**ainda exigem comparação visual especializada e costura real**.
 Nenhuma fonte importada é instalada automaticamente.
 
 Antes de publicar: regressão Android e Windows, prova com PE-DESIGN 11 e
