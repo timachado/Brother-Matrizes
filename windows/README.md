@@ -22,8 +22,12 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   e salvar o estado atual como um arquivo novo, usando exatamente o
   `ProjectCodec` do Android (formato v11).
 - Seleção e **pré-visualização TTF/OTF** no computador, sem instalar fontes.
-  Este recurso apenas verifica o arquivo e exibe uma amostra da fonte.
-  **Ainda não gera pontadas a partir de fontes TTF/OTF externas.**
+- **Geração Satin TTF/OTF experimental:** contornos obtidos por um adaptador
+  Windows/Java2D, conectados ao **mesmo `CleanRoomSatinEngine.kt` oficial
+  do Android**, compilado diretamente do código-fonte Android. A guarda de
+  cobertura visual também possui adaptação Java2D. Há limites de complexidade
+  e a geração falha fechada quando a silhueta não passa na verificação.
+  **Não representa compatibilidade industrial comprovada; só QA.**
 
 ## Compatibilidade do projeto .FLP
 
@@ -53,20 +57,25 @@ para a ação "Restaurar original" dentro da sessão Desktop.
 - Gravação sempre com `CREATE_NEW`, sem sobrescrever arquivos existentes.
 - Projetos FLP passam por codificação/decodificação e conferência de pontos/
   cores, matrizes convertidas passam por releitura dos parsers oficiais.
-- Fontes externas são validadas por extensão, assinatura e carregamento JVM;
-  a prévia NÃO equivale a autorização de exportação de bordado de fonte.
+- Fontes externas são validadas por extensão, assinatura e carregamento JVM.
+  A criação Satin usa a fonte selecionada por ação explícita e só cria a matriz
+  após o motor e o teste de silhueta aprovarem. Não usar em produção,
+  bordados para clientes ou máquina real sem homologação física.
 
 ## Bloqueadores comerciais
 
 Ainda falta a paridade integral com o Android: editor por objetos e letras,
-importação TTF/OTF com conversão segura de contornos em pontadas e ensaios
-Satin, biblioteca avançada, backup completo, simulador de máquina, outros
+conversão TTF/OTF com ensaios físicos de Satin e equivalência geométrica
+Android/Windows, biblioteca avançada, backup completo, simulador de máquina, outros
 recursos aprovados, autenticação/licenciamento/cotas/planos, atualizações
 protegidas e integrações Windows equivalentes.
 
-Os geradores Android de fonte externa usam `android.graphics` e
-`AndroidSkiaOutlineExtractor`, **incompatíveis diretamente com Desktop JVM**.
-Por isso a UI atual só pré-visualiza a fonte; não finge que gerou Satin.
+O gerador Android usa `android.graphics`; a portabilidade não é direta.
+A versão Desktop mantém o motor Satin Kotlin original, mas adapta os
+contornos e a verificação de silhueta para Java2D, com testes de geração
+controlados. Diferenças entre shaping, ligaduras, curva e rasterização
+Windows/Android **ainda exigem comparação com fontes reais e costura real**.
+Nenhuma fonte importada é instalada automaticamente.
 
 Antes de publicar: regressão Android e Windows, prova com PE-DESIGN 11 e
 máquina de bordado, instalação em computador Windows real, revisão de
