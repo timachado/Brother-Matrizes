@@ -39,6 +39,7 @@ import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
@@ -1522,7 +1523,7 @@ private fun StitchPreview(
     } else {
         Modifier
     }
-    Canvas(modifier = modifier.fillMaxSize().then(dragModifier).padding(18.dp)) {
+    Canvas(modifier = modifier.fillMaxSize().then(dragModifier).clipToBounds().padding(18.dp)) {
         renderPreview(preview, progress, threadColors, zoom, pan)
     }
 }
@@ -1531,6 +1532,7 @@ private fun DrawScope.renderPreview(
     design: DstPreview, progress: Float, threadColors: List<Int>,
     zoom: Float, pan: Offset
 ) {
+    if (size.width <= 0f || size.height <= 0f) return
     val viewport = DesktopPreviewNavigation.viewport(
         design.bounds, size.width, size.height, zoom, pan
     )
