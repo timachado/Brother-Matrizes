@@ -126,7 +126,8 @@ try {
         'DST: validado',
         'FLP: validado',
         'Sobrescrita: bloqueada',
-        'Desfazer/refazer: validado'
+        'Desfazer/refazer: validado',
+        'Expansão H/V: validado'
     )) {
         if (-not $result.Contains($required)) {
             throw "Relatorio do MSI nao inclui evidencia esperada: $required"
