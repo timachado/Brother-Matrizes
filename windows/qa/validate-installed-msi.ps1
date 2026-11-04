@@ -78,8 +78,11 @@ try {
         throw "ProductCode de desinstalacao nao e GUID MSI valido."
     }
 
+    # InstallLocation e opcional em registros MSI; StrictMode nao deve
+    # interromper a localizacao quando o instalador nao publica esse campo.
+    $registeredPath = [string]($entry | Select-Object -ExpandProperty InstallLocation -ErrorAction SilentlyContinue)
     $candidateFolders = @(
-        $entry.InstallLocation,
+        $registeredPath,
         (Join-Path $env:ProgramFiles $packageName),
         (Join-Path $env:LOCALAPPDATA $packageName),
         (Join-Path (Join-Path $env:LOCALAPPDATA 'Programs') $packageName)
