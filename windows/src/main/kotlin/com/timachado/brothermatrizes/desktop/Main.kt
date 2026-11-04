@@ -250,9 +250,14 @@ private fun DesktopScreen() {
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            val previewThreadColors = remember(document) {
+                                document?.current?.let { current ->
+                                    runCatching { DesktopThreadColorEditor.palette(current) }
+                                        .getOrElse { current.threadColors }
+                                }.orEmpty()
+                            }
                             StitchPreview(
-                                preview, stitchProgress,
-                                document?.current?.threadColors.orEmpty(), Modifier.weight(1f)
+                                preview, stitchProgress, previewThreadColors, Modifier.weight(1f)
                             )
                             Text(
                                 "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
