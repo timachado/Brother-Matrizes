@@ -132,6 +132,27 @@ internal object DesktopRuntimeSmoke {
                 "A releitura da matriz DST falhou."
             }
 
+            // Garante que os conversores rodam no launcher EMPACOTADO.
+            // PE-DESIGN 11 real e bordadeira permanecem NÃO homologados.
+            for (format in listOf("PES", "JEF")) {
+                val result = DesktopMatrixService.convert(document, format)
+                val reopened = DesktopMatrixService.open(result.fileName, result.bytes)
+                check(result.bytes.isNotEmpty() &&
+                    reopened.current.stitchCount > 0 && reopened.current.endFound) {
+                    "O pacote Windows não conseguiu converter/reler $format."
+                }
+            }
+            val peDesignResult = DesktopMatrixService.convert(
+                document, "PES", pesPcProfile = true
+            )
+            val reopenedPeDesign = DesktopMatrixService.open(
+                peDesignResult.fileName, peDesignResult.bytes
+            )
+            check(reopenedPeDesign.current.stitchCount > 0 &&
+                reopenedPeDesign.current.endFound) {
+                "O perfil PES experimental PE-DESIGN não pôde ser relido."
+            }
+
             val savedFlp = temporary.resolve("diagnostico.flp")
             DesktopProjectService.saveNew(document, savedFlp)
             val restoredFlp = DesktopProjectService.open(savedFlp)
@@ -148,6 +169,8 @@ internal object DesktopRuntimeSmoke {
                 reportPath,
                 "$SUCCESS_MARKER\n" +
                     "DST: validado\n" +
+                    "PES/JEF: conversão e releitura sintética validadas\n" +
+                    "PES PE-DESIGN: perfil experimental relido (sem homologação externa)\n" +
                     "FLP: validado\n" +
                     "Sobrescrita: bloqueada\n" +
                     "Desfazer/refazer: validado\n" +
