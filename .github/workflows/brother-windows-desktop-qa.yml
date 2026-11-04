@@ -44,9 +44,50 @@ jobs:
         shell: pwsh
         run: gradle --no-daemon --stacktrace test compileKotlin
 
-      - name: Gerar instaladores de homologacao Windows
+      - name: Gerar app-image e instaladores de homologacao Windows
         shell: pwsh
-        run: gradle --no-daemon --stacktrace packageExe packageMsi
+        run: gradle --no-daemon --stacktrace createDistributable packageExe packageMsi
+
+      # Testa a inicializacao real do LAUNCHER empacotado na VM Windows.
+      # Nao simula instalacao fisica ou uso grafico; somente confirma runtime
+      # Java incluido + motores DST/FLP + recusa de sobrescrita.
+      - name: Validar launcher empacotado no Windows (smoke offline)
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $ErrorActionPreference = "Stop"
+          $folder = "build/compose/binaries/main/app"
+          if (!(Test-Path $folder)) {
+            throw "App-image nao foi criado: $folder"
+          }
+          $launchers = @(Get-ChildItem -Path $folder -Recurse -File -Filter "BrotherMatrizesDesktop.exe")
+          if ($launchers.Count -ne 1) {
+            throw "Esperado exatamente 1 launcher no app-image; encontrados: $($launchers.Count)"
+          }
+          $launcher = $launchers[0]
+          $report = Join-Path $env:RUNNER_TEMP "brother-windows-qa-smoke.txt"
+          if (Test-Path $report) { Remove-Item -LiteralPath $report -Force }
+          Write-Host "Testando launcher QA em runner Windows: $($launcher.FullName)"
+          $args = '--smoke-test "' + $report + '"'
+          $process = Start-Process -FilePath $launcher.FullName -ArgumentList $args -WorkingDirectory $launcher.DirectoryName -PassThru
+          try {
+            Wait-Process -Id $process.Id -Timeout 90 -ErrorAction Stop
+          } catch {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Launcher nao finalizou o diagnostico em 90 segundos."
+          }
+          $process.Refresh()
+          if ($process.ExitCode -ne 0) {
+            throw "Launcher retornou codigo de erro: $($process.ExitCode)"
+          }
+          if (!(Test-Path $report)) {
+            throw "Launcher nao produziu relatorio; runtime Java empacotado nao validado."
+          }
+          $result = Get-Content -LiteralPath $report -Raw -Encoding UTF8
+          if (!$result.StartsWith("BROTHER_WINDOWS_QA_SMOKE_OK")) {
+            throw "Relatorio de diagnostico invalido."
+          }
+          Write-Host $result
 
       - name: Armazenar pacotes QA (NAO PUBLICAR)
         uses: actions/upload-artifact@v4
