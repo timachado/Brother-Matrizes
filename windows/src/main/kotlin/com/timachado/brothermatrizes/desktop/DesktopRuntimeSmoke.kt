@@ -47,6 +47,26 @@ internal object DesktopRuntimeSmoke {
                 "Histórico modificou a matriz carregada."
             }
 
+            val expanded = DesktopTransformInput.parse(
+                scale = "1,00",
+                horizontal = "1,50",
+                vertical = "0,75",
+                angle = "0",
+                moveX = "0",
+                moveY = "0"
+            )
+            val expandedDocument = DesktopMatrixService.edit(document, expanded)
+            check(expandedDocument.current.stitchCount > 0 &&
+                expandedDocument.current.endFound &&
+                expandedDocument.current.points != document.current.points) {
+                "Expansão independente H/V não gerou uma matriz válida."
+            }
+            val reversedExpansion = DesktopEditTimeline.start(document)
+                .record(DesktopEditAction.Transform(expanded)).undo()
+            check(reversedExpansion.document.current.points == document.current.points) {
+                "Expansão H/V não pôde ser desfeita."
+            }
+
             val converted = DesktopMatrixService.convert(document, "DST")
             check(converted.bytes.size > 512) { "Conversão DST incompleta." }
             val reloadedDst = DesktopMatrixService.open(converted.fileName, converted.bytes)
@@ -73,6 +93,7 @@ internal object DesktopRuntimeSmoke {
                     "FLP: validado\n" +
                     "Sobrescrita: bloqueada\n" +
                     "Desfazer/refazer: validado\n" +
+                    "Expansão H/V: validado\n" +
                     "Modo: offline / somente QA\n",
                 StandardCharsets.UTF_8,
                 java.nio.file.StandardOpenOption.CREATE_NEW
