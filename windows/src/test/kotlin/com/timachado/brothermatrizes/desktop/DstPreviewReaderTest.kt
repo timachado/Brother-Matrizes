@@ -11,12 +11,13 @@ class DstPreviewReaderTest {
     @Test
     fun `le arquivo basico sem modificar bytes`() {
         val bytes = header + byteArrayOf(
+            0x00, 0x00, 0x03,             // STITCH: X 0
             0x01, 0x00, 0x03,             // STITCH: X +1
             0x00, 0x00, 0xF3.toByte()    // END
         )
         val snapshot = bytes.copyOf()
         val doc = DstPreviewReader.read("exemplo.DST", bytes)
-        assertEquals(1, doc.stitchCount)
+        assertEquals(2, doc.stitchCount)
         assertEquals(1, doc.bounds.maxX)
         assertEquals(0.1, doc.bounds.widthMm)
         assertEquals(PreviewCommand.END, doc.points.last().command)
