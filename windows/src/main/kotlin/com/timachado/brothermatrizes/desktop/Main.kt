@@ -155,6 +155,9 @@ private fun DesktopScreen() {
     val librarySelection = remember { DesktopLibrarySelection() }
     var libraryFolder by remember { mutableStateOf(librarySelection.recall()?.toString()) }
     var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
+    var librarySearch by remember { mutableStateOf("") }
+    var libraryFilter by remember { mutableStateOf("TODOS") }
+    var libraryPage by remember { mutableStateOf(0) }
     var stitchProgress by remember { mutableStateOf(1f) }
     val scope = rememberCoroutineScope()
 
@@ -893,6 +896,9 @@ private fun DesktopScreen() {
                                 result.onSuccess {
                                     libraryFolder = folder.toAbsolutePath().normalize().toString()
                                     libraryEntries = it
+                                    librarySearch = ""
+                                    libraryFilter = "TODOS"
+                                    libraryPage = 0
                                     val persisted = runCatching { librarySelection.remember(folder) }.isSuccess
                                     report(
                                         "Biblioteca local: ${it.size} matriz(es). " +
@@ -916,6 +922,7 @@ private fun DesktopScreen() {
                                     busy = false
                                     result.onSuccess {
                                         libraryEntries = it
+                                        libraryPage = 0
                                         report("Pasta atualizada: ${it.size} matriz(es).")
                                     }.onFailure { report("Erro ao atualizar pasta: ${it.message}", true) }
                                 }
@@ -925,6 +932,9 @@ private fun DesktopScreen() {
                                 if (cleared.isSuccess) {
                                     libraryFolder = null
                                     libraryEntries = emptyList()
+                                    librarySearch = ""
+                                    libraryFilter = "TODOS"
+                                    libraryPage = 0
                                     report("Preferência local da pasta apagada.")
                                 } else {
                                     report("Não foi possível limpar a preferência: ${cleared.exceptionOrNull()?.message}", true)
@@ -932,7 +942,47 @@ private fun DesktopScreen() {
                             }) { Text("Esquecer pasta") }
                         }
                     }
-                    for (entry in libraryEntries.take(60)) {
+                    val libraryView = remember(
+                        libraryEntries, librarySearch, libraryFilter, libraryPage
+                    ) {
+                        DesktopLibraryBrowser.page(
+                            libraryEntries, librarySearch, libraryFilter, libraryPage
+                        )
+                    }
+                    if (libraryFolder != null) {
+                        OutlinedTextField(
+                            value = librarySearch,
+                            onValueChange = { librarySearch = it.take(80); libraryPage = 0 },
+                            label = { Text("Buscar matriz pelo nome") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text("Filtrar formato", color = muted, fontSize = 11.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            for (type in listOf("TODOS", "DST", "PES")) {
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { libraryFilter = type; libraryPage = 0 }
+                                ) { Text(if (libraryFilter == type) "✓ $type" else type, fontSize = 11.sp) }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            for (type in listOf("JEF", "FLP")) {
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { libraryFilter = type; libraryPage = 0 }
+                                ) { Text(if (libraryFilter == type) "✓ $type" else type, fontSize = 11.sp) }
+                            }
+                        }
+                        Text(
+                            "${libraryView.matching} resultado(s)" +
+                                if (libraryView.totalPages > 0)
+                                    " · página ${libraryView.currentPage + 1}/${libraryView.totalPages}"
+                                else "",
+                            color = muted, fontSize = 11.sp
+                        )
+                    }
+                    for (entry in libraryView.items) {
                         TextButton(
                             enabled = !busy,
                             onClick = {
@@ -969,11 +1019,18 @@ private fun DesktopScreen() {
                             Text("${entry.name}  ·  ${entry.format}", maxLines = 1)
                         }
                     }
-                    if (libraryEntries.size > 60) {
-                        Text(
-                            "Exibindo 60 de ${libraryEntries.size} matrizes. Use uma subpasta para visualizar as demais.",
-                            color = muted, fontSize = 11.sp
-                        )
+                    if (libraryFolder != null && libraryView.totalPages > 1) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                enabled = !busy && libraryView.currentPage > 0,
+                                onClick = { libraryPage = libraryView.currentPage - 1 }
+                            ) { Text("Anterior") }
+                            TextButton(
+                                enabled = !busy &&
+                                    libraryView.currentPage + 1 < libraryView.totalPages,
+                                onClick = { libraryPage = libraryView.currentPage + 1 }
+                            ) { Text("Próxima") }
+                        }
                     }
                 }
             }
