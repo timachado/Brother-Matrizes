@@ -597,15 +597,20 @@ private fun DesktopScreen() {
                                     mirrorHorizontal = mirrorX,
                                     mirrorVertical = mirrorY
                                 )
+                                val before = editTimeline ?: DesktopEditTimeline.start(loaded)
                                 busy = true
                                 scope.launch {
                                     val result = withContext(Dispatchers.Default) {
-                                        runCatching { DesktopMatrixService.edit(loaded, transform) }
+                                        runCatching {
+                                            val changed = DesktopMatrixService.edit(loaded, transform)
+                                            val advanced = before.record(DesktopEditAction.Transform(transform))
+                                            DesktopHistoryTransition(advanced, changed)
+                                        }
                                     }
                                     busy = false
-                                    result.onSuccess {
-                                        editTimeline = editTimeline?.record(DesktopEditAction.Transform(transform))
-                                        document = it
+                                    result.onSuccess { transition ->
+                                        editTimeline = transition.timeline
+                                        document = transition.document
                                         stitchProgress = 1f
                                         report("Ajuste aplicado. Desfazer e refazer estão disponíveis nesta sessão.")
                                     }.onFailure {
@@ -617,10 +622,24 @@ private fun DesktopScreen() {
                         TextButton(enabled = document != null && !busy, onClick = {
                             val loaded = document ?: return@TextButton
                             if (loaded.current != loaded.original) {
-                                editTimeline = editTimeline?.record(DesktopEditAction.RestoreOriginal)
-                                document = DesktopMatrixService.reset(loaded)
-                                stitchProgress = 1f
-                                report("Original restaurado. A operação pode ser desfeita nesta sessão.")
+                                val before = editTimeline ?: DesktopEditTimeline.start(loaded)
+                                busy = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            val restored = DesktopMatrixService.reset(loaded)
+                                            val advanced = before.record(DesktopEditAction.RestoreOriginal)
+                                            DesktopHistoryTransition(advanced, restored)
+                                        }
+                                    }
+                                    busy = false
+                                    result.onSuccess { transition ->
+                                        editTimeline = transition.timeline
+                                        document = transition.document
+                                        stitchProgress = 1f
+                                        report("Original restaurado. A operação pode ser desfeita nesta sessão.")
+                                    }.onFailure { report("Restauração recusada: ${it.message}", true) }
+                                }
                             } else {
                                 report("A matriz já está no estado original.")
                             }
