@@ -42,9 +42,11 @@ internal object DesktopLocalLibrary {
                 }
                 val fileName = path.fileName.toString()
                 val extension = fileName.substringAfterLast('.', "").uppercase(Locale.ROOT)
-                if (extension !in DesktopMatrixService.inputFormats) continue
+                if (extension !in DesktopMatrixService.inputFormats && extension != "FLP") continue
                 val length = Files.size(path)
-                if (length <= 0L || length > DesktopMatrixService.MAX_INPUT_BYTES) continue
+                val limit = if (extension == "FLP") DesktopProjectService.MAX_PROJECT_BYTES
+                    else DesktopMatrixService.MAX_INPUT_BYTES
+                if (length <= 0L || length > limit) continue
                 entries += LocalMatrixEntry(
                     path = path.toAbsolutePath().normalize(),
                     name = fileName,
