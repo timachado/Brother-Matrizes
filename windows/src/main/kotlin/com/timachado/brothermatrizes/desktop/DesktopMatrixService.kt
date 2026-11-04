@@ -17,6 +17,7 @@ import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixGenerator
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
+import com.timachado.brothermatrizes.font.DesktopImportedFontGenerator
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -101,6 +102,40 @@ internal object DesktopMatrixService {
             "O monograma gerado não passou na validação de integridade."
         }
         return DesktopMatrixDocument(original = design, current = design)
+    }
+
+    /**
+     * Geração EXPERIMENTAL de pontadas Satin a partir de fonte externa.
+     * O motor gera pontos reais e passa pelo controle de silhueta. Falha sem
+     * exportar se o resultado não atingir os limiares de qualidade da QA.
+     */
+    fun createFromImportedFont(
+        fontPath: Path,
+        text: String,
+        heightMm: Float
+    ): DesktopMatrixDocument {
+        val clean = text.trim()
+        require(clean.isNotEmpty() && clean.length <= 24) {
+            "Digite de 1 a 24 caracteres."
+        }
+        require(heightMm.isFinite() && heightMm in 4f..60f) {
+            "Altura deve estar entre 4 e 60 mm."
+        }
+        val font = DesktopFontPreviewService.open(fontPath, clean)
+        require(font.missingPreviewCharacters.isEmpty()) {
+            "A fonte não possui os caracteres: ${font.missingPreviewCharacters}"
+        }
+        val generated = DesktopImportedFontGenerator.generate(
+            fontFile = font.sourcePath,
+            text = clean,
+            heightMm = heightMm
+        )
+        val normalized = EmbroideryIntegrity.normalize(generated).getOrThrow().design
+        require(normalized.stitchCount > 0 && normalized.endFound &&
+            normalized.points.size <= 500_000) {
+            "Fonte externa gerou matriz excessivamente complexa ou incompleta."
+        }
+        return DesktopMatrixDocument(original = normalized, current = normalized)
     }
 
     fun openFromFile(file: Path): DesktopMatrixDocument {
