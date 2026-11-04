@@ -15,6 +15,10 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
   apenas da sessão, inclui a restauração do original, invalida o refazer
   ao aplicar uma nova edição e guarda as **últimas oito operações**, sem
   duplicar matrizes enormes em RAM. Projetos FLP salvam somente o estado atual.
+- **Pré-checagem geométrica de bastidores oficiais** na matriz atual:
+  considera tamanhos e margens internas do motor Android, distingue encaixe
+  direto, possível orientação alternativa e excesso. É apenas orientação visual;
+  não modifica os pontos nem garante suporte mecânico da bordadeira.
 - Nomes em fonte integrada (ponto corrido/Satin), pelo `TextMatrixGenerator`.
 - Monogramas Linear, Clássico e Empilhado pelo `MonogramGenerator`.
 - Biblioteca local de uma pasta escolhida explicitamente, com DST/PES/JEF/FLP.
