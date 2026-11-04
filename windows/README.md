@@ -7,12 +7,12 @@ Este é um **novo projeto Windows isolado** do Android comercial. Não altera ar
 - Janela desktop com identidade Brother Matrizes e ferramentas de importação via seletor de arquivos Windows.
 - Abertura **somente de DST** com verificação de tamanho, comandos, END e limites.
 - Pré-visualização de pontadas e métricas da matriz (somente leitura).
-- Testes do leitor DST e empacotamento de instalador EXE/MSI em runner Windows.
+- Motor Kotlin oficial do Android reutilizado no build Desktop, sem copiar versões divergentes para o repositório (leitura DST, modelos, edição, geração de nomes e conversor).\n- Testes cruzados do leitor DST, editor, nomes e conversão PES/DST e empacotamento de instalador EXE/MSI em runner Windows.
 - Nenhum upload das matrizes para serviços remotos.
 
-**Esta QA não equivale à versão Android completa.** Ela não oferece ainda editor completo, PES, JEF, conversor, criação de nome, monogramas, biblioteca, login, assinaturas, backup, notificações, exportação ou PE-DESIGN. A execução do empacotamento não significa que os recursos estejam concluídos nem que um instalador tenha sido validado em um computador real.
+**Esta QA não equivale à versão Android completa.** Ela não oferece ainda editor completo na interface, abertura PES/JEF, interface de conversão, tela de criação de nome, monogramas, biblioteca, login, assinaturas, backup, notificações, exportação ou PE-DESIGN. A execução do empacotamento não significa que os recursos estejam concluídos nem que um instalador tenha sido validado em um computador real.
 
-## Contrato de paridade obrigatório antes do lançamento comercial
+## Motor Kotlin comum (em integração)\n\nO build da pasta `windows/` inclui uma lista **explícita** de arquivos Kotlin oficiais do diretório Android `app/src/main/java/com/timachado/brothermatrizes/core/embroidery/`. O Gradle copia esses fontes para `windows/build/generated/official-core/kotlin/` apenas durante a compilação do Desktop. Nenhum arquivo do Android é alterado.\n\nOs componentes compilados (incluindo `DstParser`, `MatrixEditor`, `TextMatrixGenerator` e `MatrixConverter`) ainda **não estão integralmente conectados às telas**: a interface continua somente leitura. O Android usa o mesmo código-fonte original, eliminando divergência de implementação nesta parte do núcleo. A dependência `EmbroideryIO` usa a variante JVM para Windows e a variante Android continua inalterada no aplicativo.\n\nOs testes automatizados de PES verificam geração e assinatura do cabeçalho, **não** garantem compatibilidade com o PE-DESIGN 11 instalado no Windows.\n\n## Contrato de paridade obrigatório antes do lançamento comercial
 
 A implementação Windows deve preservar:
 - todos os recursos Android efetivamente aprovados;
