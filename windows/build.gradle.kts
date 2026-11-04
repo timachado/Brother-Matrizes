@@ -43,8 +43,57 @@ val syncOfficialCore by tasks.registering(Sync::class) {
     into(officialCoreDir)
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(officialCoreDir)
+
+/**
+ * ProjectCodec oficial está no mesmo arquivo Android que ProjectStore, o qual
+ * depende de Context e File privados da plataforma. Extrair somente a região
+ * Kotlin/JVM pura, sem modificar nem duplicar manualmente a codificação v11.
+ * Falha fechada caso a estrutura do arquivo oficial seja alterada.
+ */
+val officialProjectFile = layout.projectDirectory.file(
+    "../app/src/main/java/com/timachado/brothermatrizes/core/project/ProjectStore.kt"
+)
+val officialProjectDir = layout.buildDirectory.dir("generated/official-project/kotlin")
+val extractOfficialProjectCodec by tasks.registering {
+    inputs.file(officialProjectFile)
+    outputs.dir(officialProjectDir)
+    doLast {
+        val original = officialProjectFile.asFile.readText(Charsets.UTF_8)
+        val beginMarker = "data class SavedProjectSummary("
+        val endMarker = "\nobject ProjectStore {"
+        val begin = original.indexOf(beginMarker)
+        val end = original.indexOf(endMarker)
+        check(begin > 0 && end > begin) {
+            "Estrutura do ProjectCodec Android mudou; extração Windows bloqueada."
+        }
+        check(original.indexOf(beginMarker, begin + beginMarker.length) == -1 &&
+            original.indexOf(endMarker, end + endMarker.length) == -1) {
+            "Marcadores duplicados no ProjectStore Android."
+        }
+        val imports = original.lineSequence().filter {
+            it.startsWith("import ") &&
+                !it.startsWith("import android.") &&
+                !it.contains("core.storage.AtomicFileWriter")
+        }.joinToString("\n")
+        val codec = original.substring(begin, end)
+        check(!codec.contains("Context") && !codec.contains("AtomicFileWriter")) {
+            "ProjectCodec passou a depender de APIs Android."
+        }
+        val target = officialProjectDir.get().file(
+            "com/timachado/brothermatrizes/core/project/ProjectCodec.kt"
+        ).asFile
+        target.parentFile.mkdirs()
+        target.writeText(
+            "package com.timachado.brothermatrizes.core.project\n\n" +
+                imports + "\n\n" + codec + "\n",
+            Charsets.UTF_8
+        )
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(officialProjectDir)
+
 tasks.named("compileKotlin") {
-    dependsOn(syncOfficialCore)
+    dependsOn(syncOfficialCore, extractOfficialProjectCodec)
 }
 
 dependencies {
