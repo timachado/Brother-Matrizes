@@ -27,9 +27,12 @@ automatizadas que constarem como aprovadas no GitHub Actions.
       inesperados nem reinicialização forçada.
 - [ ] Iniciar pelo atalho e verificar o título `Brother Matrizes Desktop — QA`.
 - [ ] Confirmar que a tela inicial aparece sem erro e sem login presumido.
+- [ ] Conferir se a janela inicial se adapta à área útil do monitor,
+      **sem ultrapassar barra de tarefas e bordas do desktop**, especialmente
+      em resoluções menores (ex.: 1024×768 e 1366×768).
 - [ ] Conferir se o painel de pré-visualização e os controles laterais ficam
-      acessíveis em resolução mínima razoável (ex.: 1366×768) e escalas
-      100%/125%/150%. Registrar cortes/rolagens no painel.
+      acessíveis em 100%/125%/150% de escala. Registrar cortes,
+      rolagens, botões inacessíveis ou campos parcialmente escondidos.
 - [ ] Verificar mensagens de erro legíveis e sem travamentos da interface.
 - [ ] Fechar, reabrir, reiniciar o computador de teste e abrir novamente.
 - [ ] Desinstalar pelo Windows e verificar a remoção do aplicativo/atalhos.
