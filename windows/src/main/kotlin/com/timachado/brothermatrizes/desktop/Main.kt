@@ -280,12 +280,22 @@ private fun DesktopScreen() {
                                         (previewPan.y + delta.y).coerceIn(-2000f, 2000f)
                                     )
                                 },
-                                onWheel = { wheel ->
+                                onWheel = { wheel, cursor, canvasSize ->
                                     val updated = DesktopPreviewNavigation.zoomForWheel(
                                         previewZoom, wheel
                                     )
-                                    previewZoom = updated
-                                    if (updated == 1f) previewPan = Offset.Zero
+                                    if (updated != previewZoom) {
+                                        previewPan = if (updated == 1f) {
+                                            Offset.Zero
+                                        } else {
+                                            DesktopPreviewNavigation.panForZoomAt(
+                                                previewZoom, updated, previewPan, cursor,
+                                                canvasSize.width.toFloat(),
+                                                canvasSize.height.toFloat()
+                                            )
+                                        }
+                                        previewZoom = updated
+                                    }
                                 },
                                 modifier = Modifier.weight(1f)
                             )
@@ -311,7 +321,7 @@ private fun DesktopScreen() {
                                 ) { Text("Zoom +") }
                             }
                             if (previewZoom > 1f) {
-                                Text("Arraste para mover. Use a roda do mouse para ajustar o zoom.",
+                                Text("Arraste para mover; a roda amplia no ponto do cursor.",
                                     fontSize = 11.sp, color = muted)
                             }
                             Text(
@@ -1518,7 +1528,7 @@ private fun Detail(label: String, value: String) {
 private fun StitchPreview(
     preview: DstPreview, progress: Float, threadColors: List<Int>,
     zoom: Float, pan: Offset, onPan: (Offset) -> Unit,
-    onWheel: (Float) -> Unit,
+    onWheel: (Float, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latestOnPan by rememberUpdatedState(onPan)
@@ -1542,7 +1552,7 @@ private fun StitchPreview(
                     if (change != null && !change.isConsumed) {
                         val wheelY = change.scrollDelta.y
                         if (wheelY.isFinite() && wheelY != 0f) {
-                            latestOnWheel(wheelY)
+                            latestOnWheel(wheelY, change.position, size)
                             change.consume()
                         }
                     }
