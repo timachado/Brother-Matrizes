@@ -4,6 +4,13 @@
 `app/build.gradle.kts` (versionName 1.11.8, versionCode 195)
 e APK comercial assinado fornecido pelo proprietário em 05/11/2026.
 SHA-256 do APK recebido: `3c51947aaf5337df517b3328686103adb2ae5cf8c1f1f2b9bfd9a95ee8193a90`.
+A seção `META-INF/version-control-info.textproto` do APK identifica o commit
+**`7540a056c564b75a94ca47b99217f4e5b5afa091`**, confirmado no GitHub
+como `release(v1.11.8): PUBLICAR_V1_11_8_APROVADO_PELO_PROPRIETARIO`.
+Os arquivos `MainActivity.kt` e `app/build.gradle.kts` dessa revisão foram
+comparados por SHA com os mesmos arquivos na branch Windows e **coincidem**.
+Essa revisão deve servir como baseline funcional de referência.
+
 
 **Objetivo aprovado:** aplicativo Windows **completo** e adaptado para mouse,
 teclado, monitor e arquivos locais, com todas as funções do mobile. **Não**
