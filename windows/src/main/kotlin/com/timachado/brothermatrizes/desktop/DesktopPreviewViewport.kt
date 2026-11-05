@@ -22,6 +22,17 @@ internal data class DesktopPreviewViewport(
 internal object DesktopPreviewNavigation {
     const val MAX_ZOOM = 8f
 
+    /** Um evento de rolagem altera só a ampliação visual, sem tocar nos pontos. */
+    fun zoomForWheel(currentZoom: Float, wheelY: Float): Float {
+        require(currentZoom.isFinite() && currentZoom in 1f..MAX_ZOOM) {
+            "Ampliação atual inválida."
+        }
+        require(wheelY.isFinite()) { "Rolagem de mouse inválida." }
+        if (wheelY == 0f) return currentZoom
+        val multiplier = if (wheelY < 0f) 1.25f else 0.8f
+        return (currentZoom * multiplier).coerceIn(1f, MAX_ZOOM)
+    }
+
     fun viewport(
         bounds: PreviewBounds,
         canvasWidth: Float,
