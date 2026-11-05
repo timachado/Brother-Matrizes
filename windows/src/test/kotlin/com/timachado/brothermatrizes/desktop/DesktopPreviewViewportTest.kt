@@ -67,6 +67,53 @@ class DesktopPreviewViewportTest {
     }
 
     @Test
+    fun `zoom pela roda preserva ponto de bordado sob o cursor`() {
+        val original = DesktopPreviewNavigation.viewport(
+            bounds, 200f, 200f, 1f, Offset.Zero
+        )
+        val cursor = original.screenPoint(80, 20)
+        val nextZoom = DesktopPreviewNavigation.zoomForWheel(1f, -1f)
+        val newPan = DesktopPreviewNavigation.panForZoomAt(
+            1f, nextZoom, Offset.Zero, cursor, 200f, 200f
+        )
+        val enlarged = DesktopPreviewNavigation.viewport(
+            bounds, 200f, 200f, nextZoom, newPan
+        )
+        assertEquals(cursor.x, enlarged.screenPoint(80, 20).x, 0.0001f)
+        assertEquals(cursor.y, enlarged.screenPoint(80, 20).y, 0.0001f)
+        assertEquals(PreviewBounds(0, 0, 100, 100), bounds)
+
+        val zoomAgain = DesktopPreviewNavigation.zoomForWheel(nextZoom, -1f)
+        val panAgain = DesktopPreviewNavigation.panForZoomAt(
+            nextZoom, zoomAgain, newPan, cursor, 200f, 200f
+        )
+        val second = DesktopPreviewNavigation.viewport(
+            bounds, 200f, 200f, zoomAgain, panAgain
+        )
+        assertEquals(cursor.x, second.screenPoint(80, 20).x, 0.0001f)
+        assertEquals(cursor.y, second.screenPoint(80, 20).y, 0.0001f)
+    }
+
+    @Test
+    fun `pan do zoom rejeita valores invalidos`() {
+        assertFailsWith<IllegalArgumentException> {
+            DesktopPreviewNavigation.panForZoomAt(
+                1f, Float.NaN, Offset.Zero, Offset.Zero, 200f, 200f
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopPreviewNavigation.panForZoomAt(
+                1f, 2f, Offset.Zero, Offset(Float.NaN, 0f), 200f, 200f
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopPreviewNavigation.panForZoomAt(
+                1f, 2f, Offset.Zero, Offset.Zero, 0f, 200f
+            )
+        }
+    }
+
+    @Test
     fun `recusa zoom e medidas invalidas`() {
         for (badZoom in listOf(0f, 0.5f, 9f, Float.NaN, Float.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> {
