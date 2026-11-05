@@ -497,6 +497,77 @@ private fun DesktopScreen(
         }
     }
 
+    // Confirma o arrasto de uma letra através do gerador e das verificações
+    // do motor oficial. O original em disco não é alterado; cada gesto gera
+    // uma única revisão de parâmetros na sessão de letras.
+    fun moveSingleLetter(
+        index: Int, delta: Offset, dimensions: androidx.compose.ui.unit.IntSize
+    ) {
+        val session = letterSession ?: return
+        val active = letterPreviewDocument ?: return
+        val pv = preview ?: return
+        if (busy || document !== active ||
+            workspace !in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT) ||
+            index !in session.current.editableIndices ||
+            letterRegions.none { it.index == index }) return
+        val changed = runCatching {
+            DesktopLetterDrag.move(
+                layout = session.current,
+                index = index,
+                bounds = pv.bounds,
+                canvasWidth = dimensions.width.toFloat(),
+                canvasHeight = dimensions.height.toFloat(),
+                zoom = previewZoom, deltaPx = delta
+            )
+        }
+        changed.onFailure {
+            report("Movimento da letra recusado: ${it.message}", true)
+        }
+        val updatedLayout = changed.getOrNull() ?: return
+        if (updatedLayout == session.current) return
+        busy = true
+        scope.launch {
+            val rendered = withContext(Dispatchers.Default) {
+                runCatching { DesktopLetterComposer.renderDetailed(updatedLayout) }
+            }
+            busy = false
+            rendered.onSuccess { next ->
+                // Não registrar o gesto se outra sessão substituiu a matriz.
+                if (document !== active || letterSession !== session) return@onSuccess
+                val nextSession = session.record(updatedLayout)
+                letterSession = nextSession
+                letterPreviewDocument = next.document
+                document = next.document
+                editTimeline = DesktopEditTimeline.start(next.document)
+                letterRegions = next.regions
+                selectedLetterIndex = index
+                val item = updatedLayout.objects[index]
+                letterMoveX = item.moveXmm.toString()
+                letterMoveY = item.moveYmm.toString()
+                letterScale = item.scale.toString()
+                letterRotation = item.rotationDegrees.toString()
+                stitchProgress = 1f
+                report(
+                    "Letra ${index + 1} movida para X=${item.moveXmm} mm, " +
+                        "Y=${item.moveYmm} mm. Desfazer letra disponível."
+                )
+            }.onFailure {
+                report("Edição da letra bloqueada: ${it.message}", true)
+            }
+        }
+    }
+
+    fun beginSingleLetterDrag(index: Int) {
+        val layout = letterSession?.current ?: return
+        if (busy || index !in layout.editableIndices) return
+        selectedLetterIndex = index
+        val item = layout.objects[index]
+        letterMoveX = item.moveXmm.toString()
+        letterMoveY = item.moveYmm.toString()
+        letterScale = item.scale.toString()
+        letterRotation = item.rotationDegrees.toString()
+    }
+
     fun selectLetterInPreview(
         point: Offset, dimensions: androidx.compose.ui.unit.IntSize
     ) {
@@ -640,6 +711,13 @@ private fun DesktopScreen(
                                     workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT) &&
                                     letterRegions.isNotEmpty(),
                                 onLetterSelection = ::selectLetterInPreview,
+                                allowLetterDrag = !busy &&
+                                    document === letterPreviewDocument &&
+                                    workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT) &&
+                                    letterRegions.isNotEmpty(),
+                                letterRegions = letterRegions,
+                                onLetterDragStarted = ::beginSingleLetterDrag,
+                                onLetterDragCompleted = ::moveSingleLetter,
                                 moveWholeDesign = workspace == DesktopWorkspace.EDIT &&
                                     moveWholeDesign && document != null && !busy &&
                                     (letterSession == null || document !== letterPreviewDocument),
@@ -695,7 +773,7 @@ private fun DesktopScreen(
                             Text(
                                 if (document === letterPreviewDocument &&
                                     workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT))
-                                    "Clique em uma letra para selecioná-la; ajuste suas propriedades em Criar nome."
+                                    "Clique para selecionar e arraste a letra para movê-la; ajuste escala e rotação em Criar nome."
                                 else if (workspace == DesktopWorkspace.EDIT && moveWholeDesign &&
                                     (letterSession == null || document !== letterPreviewDocument))
                                     "Modo mover: arraste a matriz inteira para alterar sua posição (mm)."
@@ -2247,6 +2325,10 @@ private fun StitchPreview(
     selectedLetterRegion: DesktopLetterRegion?,
     allowLetterSelection: Boolean,
     onLetterSelection: (Offset, androidx.compose.ui.unit.IntSize) -> Unit,
+    allowLetterDrag: Boolean,
+    letterRegions: List<DesktopLetterRegion>,
+    onLetterDragStarted: (Int) -> Unit,
+    onLetterDragCompleted: (Int, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     moveWholeDesign: Boolean,
     onMoveCompleted: (Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     onMoveCancelled: (Offset) -> Unit,
@@ -2256,10 +2338,66 @@ private fun StitchPreview(
     val latestOnWheel by rememberUpdatedState(onWheel)
     val latestOnEditorShortcut by rememberUpdatedState(onEditorShortcut)
     val latestOnLetterSelection by rememberUpdatedState(onLetterSelection)
+    val latestLetterRegions by rememberUpdatedState(letterRegions)
+    val latestOnLetterDragStarted by rememberUpdatedState(onLetterDragStarted)
+    val latestOnLetterDragCompleted by rememberUpdatedState(onLetterDragCompleted)
+    var draggingLetterIndex by remember { mutableStateOf<Int?>(null) }
+    var draggingLetterOffset by remember { mutableStateOf(Offset.Zero) }
     val latestOnMoveCompleted by rememberUpdatedState(onMoveCompleted)
     val latestOnMoveCancelled by rememberUpdatedState(onMoveCancelled)
     val focusRequester = remember { FocusRequester() }
-    val dragModifier = if (moveWholeDesign) {
+    val dragModifier = if (allowLetterDrag) {
+        Modifier.pointerInput(allowLetterDrag, preview, zoom, pan) {
+            var total = Offset.Zero
+            var target: Int? = null
+            detectDragGestures(
+                onDragStart = { start ->
+                    total = Offset.Zero
+                    target = runCatching {
+                        DesktopLetterPicker.pick(
+                            designBounds = preview.bounds,
+                            regions = latestLetterRegions,
+                            width = size.width.toFloat(),
+                            height = size.height.toFloat(),
+                            zoom = zoom,
+                            pan = pan,
+                            cursor = start
+                        )
+                    }.getOrNull()
+                    draggingLetterIndex = target
+                    draggingLetterOffset = Offset.Zero
+                    target?.let { latestOnLetterDragStarted(it) }
+                },
+                onDragEnd = {
+                    val selected = target
+                    val completed = total
+                    target = null
+                    draggingLetterIndex = null
+                    draggingLetterOffset = Offset.Zero
+                    total = Offset.Zero
+                    if (selected != null && completed != Offset.Zero) {
+                        latestOnLetterDragCompleted(selected, completed, size)
+                    }
+                },
+                onDragCancel = {
+                    target = null
+                    total = Offset.Zero
+                    draggingLetterIndex = null
+                    draggingLetterOffset = Offset.Zero
+                }
+            ) { change, dragAmount ->
+                change.consume()
+                total += dragAmount
+                if (target != null) {
+                    // A moldura acompanha o gesto; as pontadas são
+                    // recalculadas somente ao soltar o mouse.
+                    draggingLetterOffset = total
+                } else if (zoom > 1f) {
+                    latestOnPan(dragAmount)
+                }
+            }
+        }
+    } else if (moveWholeDesign) {
         Modifier.pointerInput(moveWholeDesign, zoom) {
             var accumulated = Offset.Zero
             detectDragGestures(
@@ -2347,13 +2485,19 @@ private fun StitchPreview(
             .padding(18.dp).then(dragModifier).then(wheelModifier)
             .then(keyboardModifier).then(tapModifier)
     ) {
-        renderPreview(preview, progress, threadColors, zoom, pan, selectedLetterRegion)
+        renderPreview(
+            preview, progress, threadColors, zoom, pan,
+            selectedLetterRegion,
+            if (draggingLetterIndex == selectedLetterRegion?.index)
+                draggingLetterOffset else Offset.Zero
+        )
     }
 }
 
 private fun DrawScope.renderPreview(
     design: DstPreview, progress: Float, threadColors: List<Int>,
-    zoom: Float, pan: Offset, selectedRegion: DesktopLetterRegion?
+    zoom: Float, pan: Offset, selectedRegion: DesktopLetterRegion?,
+    dragOutlineOffset: Offset
 ) {
     if (size.width <= 0f || size.height <= 0f) return
     val viewport = DesktopPreviewNavigation.viewport(
@@ -2385,7 +2529,10 @@ private fun DrawScope.renderPreview(
         val b = viewport.screenPoint(box.maxX, box.maxY)
         drawRect(
             color = DesktopBrandColors.gold,
-            topLeft = Offset(minOf(a.x, b.x), minOf(a.y, b.y)),
+            topLeft = Offset(
+                minOf(a.x, b.x) + dragOutlineOffset.x,
+                minOf(a.y, b.y) + dragOutlineOffset.y
+            ),
             size = Size(
                 (maxOf(a.x, b.x) - minOf(a.x, b.x)).coerceAtLeast(1f),
                 (maxOf(a.y, b.y) - minOf(a.y, b.y)).coerceAtLeast(1f)

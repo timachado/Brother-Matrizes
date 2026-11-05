@@ -39,7 +39,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
-| `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas, controles e seleção por mouse em composição com camadas verificadas (QA) |
+| `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas, seleção e arrasto individual pelo mouse em composição com camadas verificadas (QA) |
 | `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer, atalhos de teclado e arrasto da matriz inteira em memória (QA) |
 
 **Nenhuma rota está declarada 100% paritária.** Recursos de Android não
@@ -204,3 +204,20 @@ seleção destaca o objeto e respeita pan e zoom.
 Não afirma extração de objetos ou letras de arquivos DST/PES/JEF
 achatados. Seleção por mouse ainda exige teste interativo físico; o
 sistema não substitui a versão comercial Android.
+
+## Arrasto independente de letras (QA)
+
+Em uma composição local de letras com camadas `.bmlayers` verificadas,
+a prévia permite **clicar e arrastar somente uma letra**, nos módulos
+Criar nome e Editor. A moldura de seleção acompanha o ponteiro; ao
+soltar o mouse, a posição em pixels é convertida em deslocamento de
+0,1 mm pelo `DesktopPreviewNavigation.viewport`. O
+`DesktopLetterComposer.update` valida o limite de até ±100 mm por
+letra; a renderização completa é refeita pelo motor compartilhado com
+Android e uma única revisão é registrada no `DesktopLetterSession`
+(Desfazer letra/Refazer letra). O arquivo original não é regravado.
+
+Em fundo vazio, o arrasto continua sendo navegação visual quando
+o zoom é maior que 1x. O zoom pela roda permanece independente.
+Não permite manipulação individual de objetos extraídos de DST/PES/JEF
+achatados. Não é homologação de compatibilidade comercial.
