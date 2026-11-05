@@ -162,11 +162,13 @@ jobs:
 
 
       - name: Armazenar evidencia grafica de QA (sem dados de clientes)
+        # Em falhas de zoom, arquivar o PNG antes/depois para diagnosticar.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brother-windows-ui-smoke-QA-NAO-COMERCIAL
           path: windows/build/qa/desktop-ui/**
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Armazenar pacotes QA (NAO PUBLICAR)
