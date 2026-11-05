@@ -70,6 +70,25 @@ class DesktopLibraryBrowserTest {
     }
 
     @Test
+    fun `filtro favoritos combina com nome e nao acessa arquivo`() {
+        val entries = listOf(
+            entry("uma.dst"),
+            entry("flores.pes", "PES"),
+            entry("flores.jef", "JEF")
+        )
+        val selected = setOf(entries[0].path, entries[2].path)
+        val matching = DesktopLibraryBrowser.page(
+            entries, "flores", "FAVORITOS", 0, selected
+        )
+        assertEquals(1, matching.matching)
+        assertEquals("flores.jef", matching.items.single().name)
+        val noMatches = DesktopLibraryBrowser.page(
+            entries, "", "FAVORITOS", 0
+        )
+        assertTrue(noMatches.items.isEmpty())
+    }
+
+    @Test
     fun `rejeita filtro e pagina invalidos`() {
         assertFailsWith<IllegalArgumentException> {
             DesktopLibraryBrowser.page(emptyList(), "", "EXE", 0)
