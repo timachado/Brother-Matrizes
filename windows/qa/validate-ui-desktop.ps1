@@ -53,6 +53,12 @@ try {
     }
     $process.Refresh()
     if ($process.ExitCode -ne 0) {
+        # O launcher Windows é javaw e não entrega stderr ao GitHub Actions.
+        # Ler a medição persistida antes de reportar a falha para a QA.
+        if (Test-Path -LiteralPath $report -PathType Leaf) {
+            Write-Warning ('Diagnóstico gráfico reprovado:' +
+                [Environment]::NewLine + (Get-Content -LiteralPath $report -Raw -Encoding UTF8))
+        }
         throw "Aplicativo não concluiu diagnóstico gráfico (exit code $($process.ExitCode))."
     }
     if (!(Test-Path -LiteralPath $report -PathType Leaf) -or
