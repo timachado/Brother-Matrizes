@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.desktop
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+
+internal enum class DesktopWorkspace(val label: String) {
+    HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
+    MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
+    LIBRARY("Biblioteca")
+}
 
 private val cyan = Color(0xFF4EDAFF)
 private val navy = Color(0xFF0A1625)
@@ -161,6 +168,9 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
     // A versão normal continua iniciando vazia. Somente o diagnóstico
     // autorizado injeta "QA", gerado localmente pelo motor oficial.
     var document by remember { mutableStateOf(initialDocument) }
+    var workspace by remember { mutableStateOf(
+        if (initialDocument == null) DesktopWorkspace.HOME else DesktopWorkspace.VIEWER
+    ) }
     var editTimeline by remember { mutableStateOf<DesktopEditTimeline?>(null) }
     val preview = remember(document) { document?.let(DesktopMatrixService::preview) }
     var message by remember { mutableStateOf("Versão Windows de homologação: sem acesso à conta ou arquivos em nuvem.") }
@@ -205,6 +215,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
     var previewZoom by remember(document?.original) { mutableStateOf(1f) }
     var previewPan by remember(document?.original) { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
+    val detailScroll = rememberScrollState()
+    LaunchedEffect(workspace) { detailScroll.scrollTo(0) }
 
     fun report(text: String, error: Boolean = false) {
         message = text
@@ -265,6 +277,26 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
             }
 
             Spacer(Modifier.height(10.dp))
+            // Navegação ampla para desktop, baseada nas rotas reais do Android.
+            // Não exibe como prontas as rotas ainda não portadas.
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                DesktopWorkspace.entries.forEach { target ->
+                    TextButton(
+                        enabled = !busy,
+                        onClick = { workspace = target }
+                    ) {
+                        Text(
+                            if (workspace == target) "● ${target.label}" else target.label,
+                            color = if (workspace == target) cyan else muted,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
                 message,
                 color = if (isError) Color(0xFFFF9DA9) else muted,
@@ -384,10 +416,33 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                 Column(
                     modifier = Modifier.width(330.dp).fillMaxHeight()
                         .background(surface, RoundedCornerShape(18.dp))
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(detailScroll)
                         .padding(17.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (workspace == DesktopWorkspace.HOME) {
+                        Text("Início", color = cyan, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Brother Matrizes para Windows — preparação da versão integral 1.11.8.",
+                            color = muted, fontSize = 12.sp)
+                        Text("Escolha um módulo para continuar com as ferramentas já integradas.",
+                            color = muted, fontSize = 12.sp)
+                        for (target in listOf(
+                            DesktopWorkspace.NAME, DesktopWorkspace.MONOGRAM,
+                            DesktopWorkspace.VIEWER, DesktopWorkspace.EDIT,
+                            DesktopWorkspace.FONT, DesktopWorkspace.LIBRARY
+                        )) {
+                            Button(enabled = !busy, onClick = { workspace = target },
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text(target.label)
+                            }
+                        }
+                        Text("Conta, comunidade, desenhos, transferência e fluxos completos " +
+                            "de simulação ainda exigem implementação específica no Windows.",
+                            color = muted, fontSize = 11.sp)
+                        Text("Esta QA não substitui a versão Android comercial.",
+                            color = muted, fontSize = 11.sp)
+                    }
+                    if (workspace == DesktopWorkspace.VIEWER) {
                     Text("Matriz atual", color = cyan, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
@@ -563,6 +618,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                             )
                         }
                     }
+                    }
+                    if (workspace == DesktopWorkspace.FONT) {
                     Spacer(Modifier.height(7.dp))
                     Text("Fonte externa TTF/OTF — Satin experimental", color = cyan, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
@@ -619,6 +676,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         "Contornos Java2D + motor Satin oficial. Geração ainda experimental: não usar em produção ou máquinas de clientes.",
                         color = muted, fontSize = 11.sp
                     )
+                    }
+                    if (workspace == DesktopWorkspace.NAME) {
                     Spacer(Modifier.height(8.dp))
                     Text("Criar novo nome — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
@@ -1055,6 +1114,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         )
                     }
 
+                    }
+                    if (workspace == DesktopWorkspace.MONOGRAM) {
                     Spacer(Modifier.height(8.dp))
                     Text("Monogramas — motor oficial", color = cyan, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
@@ -1125,6 +1186,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         color = muted, fontSize = 11.sp
                     )
 
+                    }
+                    if (workspace == DesktopWorkspace.EDIT) {
                     Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1386,6 +1449,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         color = muted, fontSize = 12.sp
                     )
 
+                    }
+                    if (workspace == DesktopWorkspace.LIBRARY) {
                     Spacer(Modifier.height(12.dp))
                     Text("Biblioteca local (somente leitura)", color = cyan, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
@@ -1609,6 +1674,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                             ) { Text("Próxima") }
                         }
                     }
+                    } // Fim da seção Biblioteca.
                 }
             }
         }
