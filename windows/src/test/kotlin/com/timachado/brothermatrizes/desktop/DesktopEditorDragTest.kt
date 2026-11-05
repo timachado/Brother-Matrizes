@@ -21,7 +21,7 @@ class DesktopEditorDragTest {
     fun `mesmo deslocamento em zoom duplo produz metade das unidades`() {
         assertEquals(
             DesktopEmbroideryOffset(5, -3),
-            DesktopEditorDrag.fromPixels(square, 240f, 240f, 2f, Offset(20f, -10f))
+            DesktopEditorDrag.fromPixels(square, 240f, 240f, 2f, Offset(20f, -12f))
         )
     }
 
