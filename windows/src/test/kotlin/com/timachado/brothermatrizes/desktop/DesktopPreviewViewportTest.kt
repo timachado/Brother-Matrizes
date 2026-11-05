@@ -46,6 +46,27 @@ class DesktopPreviewViewportTest {
     }
 
     @Test
+    fun `roda do mouse amplia reduz e respeita limites sem alterar matriz`() {
+        assertEquals(1.25f, DesktopPreviewNavigation.zoomForWheel(1f, -1f))
+        assertEquals(1f, DesktopPreviewNavigation.zoomForWheel(1.25f, 1f))
+        assertEquals(8f, DesktopPreviewNavigation.zoomForWheel(8f, -1f))
+        assertEquals(1f, DesktopPreviewNavigation.zoomForWheel(1f, 1f))
+        assertEquals(2f, DesktopPreviewNavigation.zoomForWheel(2f, 0f))
+        val zoom = DesktopPreviewNavigation.zoomForWheel(2f, -1f)
+        val viewport = DesktopPreviewNavigation.viewport(
+            bounds, 200f, 200f, zoom, Offset.Zero
+        )
+        assertEquals(Offset(100f, 100f), viewport.screenPoint(50, 50))
+        assertEquals(PreviewBounds(0, 0, 100, 100), bounds)
+        assertFailsWith<IllegalArgumentException> {
+            DesktopPreviewNavigation.zoomForWheel(2f, Float.NaN)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopPreviewNavigation.zoomForWheel(9f, -1f)
+        }
+    }
+
+    @Test
     fun `recusa zoom e medidas invalidas`() {
         for (badZoom in listOf(0f, 0.5f, 9f, Float.NaN, Float.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> {
