@@ -33,6 +33,39 @@ internal object DesktopPreviewNavigation {
         return (currentZoom * multiplier).coerceIn(1f, MAX_ZOOM)
     }
 
+    /**
+     * Mantém o mesmo ponto da matriz sob o cursor durante o zoom.
+     * O centro do canvas é a origem visual; nenhum ponto do bordado muda.
+     */
+    fun panForZoomAt(
+        currentZoom: Float,
+        nextZoom: Float,
+        pan: Offset,
+        cursor: Offset,
+        canvasWidth: Float,
+        canvasHeight: Float
+    ): Offset {
+        require(currentZoom.isFinite() && currentZoom in 1f..MAX_ZOOM &&
+            nextZoom.isFinite() && nextZoom in 1f..MAX_ZOOM) {
+            "Níveis de zoom inválidos."
+        }
+        require(canvasWidth.isFinite() && canvasHeight.isFinite() &&
+            canvasWidth > 0f && canvasHeight > 0f) {
+            "Área de prévia inválida."
+        }
+        require(pan.x.isFinite() && pan.y.isFinite() &&
+            cursor.x.isFinite() && cursor.y.isFinite()) {
+            "Posições de zoom inválidas."
+        }
+        val factor = nextZoom / currentZoom
+        val nextX = (cursor.x - canvasWidth / 2f) * (1f - factor) + pan.x * factor
+        val nextY = (cursor.y - canvasHeight / 2f) * (1f - factor) + pan.y * factor
+        require(nextX.isFinite() && nextY.isFinite()) {
+            "Deslocamento de zoom fora do intervalo permitido."
+        }
+        return Offset(nextX, nextY)
+    }
+
     fun viewport(
         bounds: PreviewBounds,
         canvasWidth: Float,
