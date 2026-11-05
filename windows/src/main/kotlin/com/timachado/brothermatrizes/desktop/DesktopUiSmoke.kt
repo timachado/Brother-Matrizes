@@ -139,12 +139,8 @@ internal object DesktopUiSmoke {
 
         val afterImage = robot.createScreenCapture(bounds)
         val after = syntheticStitchBounds(afterImage)
-            ?: error("Prévia sem pontadas depois de girar a roda do mouse.")
-        check(after.width.toFloat() >= before.width * 1.10f &&
-            after.height.toFloat() >= before.height * 1.10f) {
-            "Roda não ampliou a matriz: " +
-                "${before.width}x${before.height} -> ${after.width}x${after.height}."
-        }
+        // Persistir evidência de falha também, antes de lançar uma exceção:
+        // javaw.exe não expõe o stderr no runner Windows.
         val afterPath = report.resolveSibling(
             report.fileName.toString().removeSuffix(".txt") + "-zoom.png"
         )
@@ -155,12 +151,22 @@ internal object DesktopUiSmoke {
                 "Não foi possível escrever evidência do zoom."
             }
         }
+        val measured = "${before.width}x${before.height} -> " +
+            "${after?.width ?: 0}x${after?.height ?: 0}"
+        val success = after != null &&
+            after.width.toFloat() >= before.width * 1.10f &&
+            after.height.toFloat() >= before.height * 1.10f
         Files.writeString(
             report,
-            "Zoom: ${before.width}x${before.height} -> " +
-                "${after.width}x${after.height}\n" +
-                "Captura ampliada: ${afterPath.fileName}\n" +
-                "BROTHER_WINDOWS_UI_WHEEL_ZOOM_OK\n",
+            "Roda de mouse: $measured\n" +
+                "Captura depois: ${afterPath.fileName}\n" +
+                "Resultado: ${if (success) "APROVADO" else "FALHOU"}\n",
+            StandardCharsets.UTF_8, StandardOpenOption.APPEND
+        )
+        check(success) { "Roda não ampliou a matriz: $measured" }
+        Files.writeString(
+            report,
+            "BROTHER_WINDOWS_UI_WHEEL_ZOOM_OK\n",
             StandardCharsets.UTF_8, StandardOpenOption.APPEND
         )
         return afterPath
