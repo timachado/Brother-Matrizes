@@ -175,7 +175,11 @@ screenshot e relatório por sete dias. Uma segunda etapa obrigatória inicia
 o mesmo launcher com `--ui-synthetic-smoke-test`, injeta exclusivamente uma
 matriz `QA` gerada pelo motor oficial e exige uma captura PNG diferente da
 tela vazia. As duas capturas e relatórios são arquivados juntos. O teste
-verifica renderização básica com matriz, **sem comprovar zoom por mouse,
+verifica renderização básica com matriz, e exige pelo menos 80 pixels
+com a cor dourada esperada na região de desenho da amostra sintética.
+Esse limiar foi conferido contra capturas reais da QA #171, em que a janela
+vazia não exibe esses pixels e a prévia sintética possui centenas deles.
+É um smoke direcionado ao desenho, **sem comprovar zoom por mouse,
 precisão visual da costura, PE-DESIGN 11 ou interação humana**.
 
 Para homologação física, usar o roteiro versionado:
