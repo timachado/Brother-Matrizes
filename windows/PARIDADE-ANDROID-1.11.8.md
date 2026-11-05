@@ -28,7 +28,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
-| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
+| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre com mouse, largura, estilo, bastidor e geração pelo motor vetorial oficial Android; importação SVG e paridade total pendentes |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
@@ -221,3 +221,24 @@ Em fundo vazio, o arrasto continua sendo navegação visual quando
 o zoom é maior que 1x. O zoom pela roda permanece independente.
 Não permite manipulação individual de objetos extraídos de DST/PES/JEF
 achatados. Não é homologação de compatibilidade comercial.
+
+## Desenhar livre — primeira etapa Windows QA
+
+A navegação agora inclui **Desenhar**, com canvas para traços usando mouse,
+**Desfazer traço** e **Limpar**. Largura, estilo de ponto (corrido/Satin) e
+bastidor podem ser escolhidos antes de **Gerar nova matriz de bordado**.
+O serviço valida de 1 a 40 traços, até 300 coordenadas por traço e até
+6.000 coordenadas em total, limites dimensionais e geometria finita.
+Somente após os controles a versão Windows chama o
+`VectorMatrixGenerator` real do Android, compilado dos mesmos fontes,
+com `MachineFinishing`, `HoopValidator` e
+`EmbroideryIntegrity`. O resultado é uma **nova** matriz em memória,
+com integridade e enquadramento verificados; salvar/exportar continua
+sendo ação explícita nas áreas existentes, sem modificar arquivos
+anteriores.
+
+**Ainda faltam:** importar SVG, cores da paleta completa, prévia dinâmica
+das pontadas na tela Desenhar, persistência de traços como objetos,
+histórico de desenho independente e equivalência visual integral.
+A opção Satin requer validação de bordadeira real. Não distribuir
+comercialmente antes de CI e homologação.

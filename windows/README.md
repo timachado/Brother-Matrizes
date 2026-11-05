@@ -375,3 +375,14 @@ Clique na prévia dentro de **Editor** para ativar `Ctrl+Z` (desfazer),
 prévia, evitando capturar atalhos de edição de campos de texto.
 Desfazer/Refazer usam o mesmo histórico reversível dos botões e não
 gravam dados. O canvas ainda exige homologação interativa em PC físico.
+
+## Desenho livre no Windows (QA)
+
+Nova área **Desenhar** com canvas para mouse, desfazer o último traço e
+limpar. Geração de uma matriz nova via **VectorMatrixGenerator oficial do
+Android**, compartilhado em tempo de compilação com o módulo Windows.
+A largura, o estilo (ponto corrido/Satin) e o bastidor são selecionáveis.
+Os limites de pontos, geometria e bastidor são verificados antes de
+aceitar a matriz. Nenhum arquivo do usuário é sobrescrito. Esta primeira
+etapa ainda não inclui importação SVG nem paridade completa com a tela
+Android. Testes físicos de costura permanecem obrigatórios.

@@ -56,6 +56,7 @@ val syncOfficialCore by tasks.registering(Sync::class) {
             include("com/timachado/brothermatrizes/core/embroidery/SatinGenerator.kt")
             include("com/timachado/brothermatrizes/core/embroidery/SpecialStitchProcessor.kt")
             include("com/timachado/brothermatrizes/core/embroidery/TextMatrixGenerator.kt")
+            include("com/timachado/brothermatrizes/core/embroidery/VectorMatrixGenerator.kt")
     }
     into(officialCoreDir)
 }

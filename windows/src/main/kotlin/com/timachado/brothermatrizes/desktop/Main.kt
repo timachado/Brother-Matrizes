@@ -65,6 +65,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.timachado.brothermatrizes.core.embroidery.EditTransform
 import com.timachado.brothermatrizes.core.embroidery.MonogramStyle
+import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.VectorPoint
 import java.nio.file.Path
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.util.Locale
@@ -81,7 +83,7 @@ import kotlin.math.roundToInt
 
 internal enum class DesktopWorkspace(val label: String) {
     HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
-    MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
+    DRAW("Desenhar"), MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
     LIBRARY("Biblioteca")
 }
 
@@ -207,6 +209,10 @@ private fun DesktopScreen(
     var threadColorHexText by remember { mutableStateOf("#E6BE70") }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
+    var drawingStrokes by remember { mutableStateOf<List<List<VectorPoint>>>(emptyList()) }
+    var drawingWidthText by remember { mutableStateOf("60") }
+    var drawingStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
+    var drawingHoop by remember { mutableStateOf(HoopProfile.H100X100) }
     var nameText by remember { mutableStateOf("") }
     var nameHeightText by remember { mutableStateOf("12") }
     var satinDensityText by remember { mutableStateOf("0.40") }
@@ -662,7 +668,16 @@ private fun DesktopScreen(
                         .background(surface, RoundedCornerShape(18.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (workspace == DesktopWorkspace.HOME) {
+                    if (workspace == DesktopWorkspace.DRAW) {
+                        DesktopDrawingCanvas(
+                            strokes = drawingStrokes,
+                            enabled = !busy &&
+                                drawingStrokes.size < DesktopDrawingService.MAX_STROKES,
+                            onStrokeCommitted = { newStroke ->
+                                drawingStrokes = drawingStrokes + listOf(newStroke)
+                            }
+                        )
+                    } else if (workspace == DesktopWorkspace.HOME) {
                         DesktopHomeLanding(
                             enabled = !busy,
                             onCreateName = { workspace = DesktopWorkspace.NAME },
@@ -897,6 +912,107 @@ private fun DesktopScreen(
                             color = muted, fontSize = 11.sp)
                         Text("Esta QA não substitui a versão Android comercial.",
                             color = muted, fontSize = 11.sp)
+                    }
+                    if (workspace == DesktopWorkspace.DRAW) {
+                        Text("Desenhar — QA", color = cyan, fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Desenhe livremente na área à esquerda. " +
+                                "Ao gerar, o motor vetorial oficial Android " +
+                                "converte os traços em pontos reais de bordado.",
+                            color = muted, fontSize = 11.sp
+                        )
+                        Text(
+                            "${drawingStrokes.size}/${DesktopDrawingService.MAX_STROKES} traços. " +
+                                "Não sobrescreve arquivos.",
+                            color = muted, fontSize = 11.sp
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(
+                                enabled = !busy && drawingStrokes.isNotEmpty(),
+                                onClick = { drawingStrokes = drawingStrokes.dropLast(1) }
+                            ) { Text("Desfazer traço") }
+                            TextButton(
+                                enabled = !busy && drawingStrokes.isNotEmpty(),
+                                onClick = { drawingStrokes = emptyList() }
+                            ) { Text("Limpar") }
+                        }
+                        OutlinedTextField(
+                            value = drawingWidthText,
+                            onValueChange = { drawingWidthText = it.take(8) },
+                            label = { Text("Largura (mm)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text("Tipo de ponto", color = muted, fontSize = 12.sp)
+                        for (style in listOf(TextStitchStyle.RUNNING, TextStitchStyle.SATIN)) {
+                            TextButton(enabled = !busy, onClick = { drawingStyle = style }) {
+                                Text(
+                                    (if (drawingStyle == style) "● " else "") +
+                                        if (style == TextStitchStyle.RUNNING)
+                                            "Ponto corrido" else "Satin"
+                                )
+                            }
+                        }
+                        Text("Bastidor de teste", color = muted, fontSize = 12.sp)
+                        HoopProfile.entries.forEach { hoop ->
+                            TextButton(enabled = !busy, onClick = { drawingHoop = hoop }) {
+                                Text(
+                                    (if (drawingHoop == hoop) "● " else "") +
+                                        hoop.displayName
+                                )
+                            }
+                        }
+                        Button(
+                            enabled = !busy && drawingStrokes.isNotEmpty(),
+                            onClick = {
+                                val width = drawingWidthText.trim()
+                                    .replace(',', '.').toFloatOrNull() ?: Float.NaN
+                                val input = drawingStrokes
+                                val style = drawingStyle
+                                val hoop = drawingHoop
+                                busy = true
+                                scope.launch {
+                                    val made = withContext(Dispatchers.Default) {
+                                        runCatching {
+                                            DesktopDrawingService.generate(
+                                                strokes = input,
+                                                widthMm = width,
+                                                style = style,
+                                                hoop = hoop
+                                            )
+                                        }
+                                    }
+                                    busy = false
+                                    made.onSuccess { created ->
+                                        document = created
+                                        editTimeline = DesktopEditTimeline.start(created)
+                                        letterSession = null
+                                        letterPreviewDocument = null
+                                        stitchProgress = 1f
+                                        format = "DST"
+                                        peDesign = false
+                                        workspace = DesktopWorkspace.VIEWER
+                                        report(
+                                            "Desenho convertido em nova matriz DST pelo " +
+                                                "motor Android. Originais preservados; " +
+                                                "valide na máquina antes de bordar."
+                                        )
+                                    }.onFailure {
+                                        report("Desenho não gerado: ${it.message}", true)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
+                        }
+                        Text(
+                            "QA: desenho livre e geração local. Importação SVG, " +
+                                "histórico de traços completo e paridade da tela " +
+                                "Android ainda pendentes.",
+                            color = muted, fontSize = 11.sp
+                        )
                     }
                     if (workspace == DesktopWorkspace.VIEWER) {
                     Text("Matriz atual", color = cyan, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
