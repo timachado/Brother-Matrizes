@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$packageName = "BrotherMatrizesDesktop"
+$packageName = "Brother Matrizes"
 $msiFolder = Join-Path $PSScriptRoot "..\build\compose\binaries\main\msi"
 $packages = @(Get-ChildItem -LiteralPath $msiFolder -Filter "*.msi" -File)
 if ($packages.Count -ne 1) {
