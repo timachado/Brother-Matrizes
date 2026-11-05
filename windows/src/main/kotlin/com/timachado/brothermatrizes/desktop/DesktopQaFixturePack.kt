@@ -84,22 +84,22 @@ internal object DesktopQaFixturePack {
             val instructions = register(directory.resolve(INSTRUCTIONS))
             Files.writeString(
                 instructions,
-                "BROTHER MATRIZES WINDOWS - AMOSTRAS SINTETICAS DE QA\\n" +
-                    "Todos os desenhos foram gerados pelo motor oficial a partir de QA e AB.\\n" +
-                    "Amostras para teste controlado, sem dados de clientes.\\n" +
-                    "O PES PC e EXPERIMENTAL; abertura no PE-DESIGN 11 NAO homologada.\\n" +
-                    "Nao distribuir a clientes e nao bordar sem operador autorizado.\\n" +
-                    "Mantenha QA_LETRAS_CAMADAS.flp e .bmlayers juntos.\\n" +
-                    "Confirme SHA256SUMS.txt antes de usar os arquivos.\\n",
+                "BROTHER MATRIZES WINDOWS - AMOSTRAS SINTETICAS DE QA\n" +
+                    "Todos os desenhos foram gerados pelo motor oficial a partir de QA e AB.\n" +
+                    "Amostras para teste controlado, sem dados de clientes.\n" +
+                    "O PES PC e EXPERIMENTAL; abertura no PE-DESIGN 11 NAO homologada.\n" +
+                    "Nao distribuir a clientes e nao bordar sem operador autorizado.\n" +
+                    "Mantenha QA_LETRAS_CAMADAS.flp e .bmlayers juntos.\n" +
+                    "Confirme SHA256SUMS.txt antes de usar os arquivos.\n",
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW
             )
-            val sums = matrixNames.plus(INSTRUCTIONS).joinToString("\\n") { fileName ->
+            val sums = matrixNames.plus(INSTRUCTIONS).joinToString("\n") { fileName ->
                 val bytes = Files.readAllBytes(directory.resolve(fileName))
                 val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
                 digest.joinToString("") { "%02x".format(it.toInt() and 0xFF) } +
                     "  " + fileName
-            } + "\\n"
+            } + "\n"
             Files.writeString(
                 register(directory.resolve(CHECKSUMS)), sums,
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW
