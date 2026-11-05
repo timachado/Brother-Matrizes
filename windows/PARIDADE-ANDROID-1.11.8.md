@@ -25,12 +25,12 @@ Windows esteja completo nem comercialmente homologado.
 
 | Rota Android 1.11.8 | Requisito Windows completo | Situação Windows |
 | --- | --- | --- |
-| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — novo Início com navegação por 7 áreas; recentes e tela mobile ainda pendentes |
+| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — navegação por 7 áreas e recentes locais retomáveis; apresentação integral da tela mobile ainda pendente |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
 | `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
-| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais e FLP, sem gestão completa |
+| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP e recentes; favoritos, enviados e backups ainda pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP local seletivo para DST/PES/JEF em desenvolvimento |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
@@ -62,6 +62,21 @@ e outros fluxos ainda não portados não são oferecidos como botões
 funcionais nem descritos como concluídos. Criar uma aba não comprova
 paridade: continuam necessários portadores de serviços, persistência e
 testes funcionais por recurso.
+
+## Retomada de arquivos recentes (QA)
+
+A área **Início** agora mostra até seis recentes, com armazenamento
+limitado a 12 caminhos locais previamente escolhidos pela pessoa nos
+fluxos de abrir DST/PES/JEF, abrir FLP ou selecionar arquivos da biblioteca.
+A reabertura só acontece após clique; o app não lê o conteúdo desses
+arquivos na inicialização, não procura arquivos em outras pastas e não
+envia matrizes ou caminhos para a rede. Arquivos ausentes ou não
+permitidos deixam de aparecer, e **Limpar arquivos recentes** apaga
+a preferência local no Windows.
+
+A lista é mantida somente no perfil do usuário da máquina, sem
+sincronização com a biblioteca comercial do Android. Não representa ainda
+a paridade de favoritos, backups, projetos enviados ou biblioteca remota.
 
 ## Critérios para a primeira versão comercial Windows
 
