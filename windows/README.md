@@ -171,8 +171,12 @@ No GitHub Actions, a etapa `Iniciar e capturar interface Windows real (QA)`
 runner não suportar captura gráfica, o teste falha explicitamente; não se
 deve interpretar um screenshot ausente como aprovação visual. Quando passar,
 um segundo artefato `brother-windows-ui-smoke-QA-NAO-COMERCIAL` disponibiliza
-screenshot e relatório por sete dias. Esse teste **não inspeciona a qualidade
-visual de cada controle nem simula interação humana**.
+screenshot e relatório por sete dias. Uma segunda etapa obrigatória inicia
+o mesmo launcher com `--ui-synthetic-smoke-test`, injeta exclusivamente uma
+matriz `QA` gerada pelo motor oficial e exige uma captura PNG diferente da
+tela vazia. As duas capturas e relatórios são arquivados juntos. O teste
+verifica renderização básica com matriz, **sem comprovar zoom por mouse,
+precisão visual da costura, PE-DESIGN 11 ou interação humana**.
 
 Para homologação física, usar o roteiro versionado:
 [`qa/ROTEIRO-HOMOLOGACAO-FISICA.md`](qa/ROTEIRO-HOMOLOGACAO-FISICA.md),
