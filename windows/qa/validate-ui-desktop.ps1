@@ -1,5 +1,7 @@
 # Validação gráfica da tela inicial Windows Compose no runner efêmero.
 # A captura só contém a tela inicial vazia de QA, sem dados de clientes.
+[CmdletBinding()]
+param([switch]$SyntheticPreview)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -17,14 +19,16 @@ if (-not [Environment]::UserInteractive) {
 
 $folder = Join-Path $PSScriptRoot '..\build\qa\desktop-ui'
 [System.IO.Directory]::CreateDirectory($folder) | Out-Null
-$report = Join-Path $folder 'brother-ui-smoke.txt'
-$picture = Join-Path $folder 'brother-ui-smoke.png'
+$stem = if ($SyntheticPreview) { 'brother-ui-synthetic-smoke' } else { 'brother-ui-smoke' }
+$report = Join-Path $folder ($stem + '.txt')
+$picture = Join-Path $folder ($stem + '.png')
 if ((Test-Path -LiteralPath $report) -or (Test-Path -LiteralPath $picture)) {
     throw 'Relatório gráfico já existe: execução não pode sobrescrever resultados anteriores.'
 }
 $env:BROTHER_WINDOWS_QA_UI = '1'
 $launcher = $launchers[0]
-$arguments = '--ui-smoke-test "' + ([System.IO.Path]::GetFullPath($report)) + '"'
+$command = if ($SyntheticPreview) { '--ui-synthetic-smoke-test' } else { '--ui-smoke-test' }
+$arguments = $command + ' "' + ([System.IO.Path]::GetFullPath($report)) + '"'
 Write-Host 'Executando GUI Compose no runner Windows, sem abrir documentos privados.'
 $process = Start-Process -FilePath $launcher.FullName -WorkingDirectory $launcher.DirectoryName -ArgumentList $arguments -PassThru
 try {
@@ -49,6 +53,23 @@ try {
         $bytes[0] -ne 137 -or $bytes[1] -ne 80 -or
         $bytes[2] -ne 78 -or $bytes[3] -ne 71) {
         throw 'Captura PNG inválida ou vazia.'
+    }
+    if ($SyntheticPreview) {
+        if (!$contents.Contains('BROTHER_WINDOWS_SYNTHETIC_UI_OK')) {
+            throw 'A captura não confirmou a matriz sintética de QA.'
+        }
+        # A tela com matriz deve ser visualmente diferente da janela vazia,
+        # sem depender de arquivos de clientes nem de inspeção humana no CI.
+        $emptyPicture = Join-Path $folder 'brother-ui-smoke.png'
+        if (!(Test-Path -LiteralPath $emptyPicture -PathType Leaf)) {
+            throw 'Captura da interface vazia necessária para comparação.'
+        }
+        $emptySha = (Get-FileHash -LiteralPath $emptyPicture -Algorithm SHA256).Hash
+        $syntheticSha = (Get-FileHash -LiteralPath $picture -Algorithm SHA256).Hash
+        if ($emptySha -ceq $syntheticSha) {
+            throw 'A janela com matriz sintética é idêntica à janela vazia.'
+        }
+        Write-Host 'BROTHER_WINDOWS_UI_SYNTHETIC_PREVIEW_VERIFIED'
     }
     Write-Host $contents
     Write-Host 'BROTHER_WINDOWS_UI_SCREENSHOT_VERIFIED'
