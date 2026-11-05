@@ -51,7 +51,7 @@ foreach ($kind in @('exe', 'msi')) {
     }
     $record = $matches[0]
     $relative = [string]$record.relativePath
-    if ($relative -cnotmatch ('^' + $kind + '/[a-zA-Z0-9][a-zA-Z0-9_. -]*\.' + $kind + ' -or
+    if ($relative -cnotmatch ('^' + $kind + '/[A-Za-z0-9][A-Za-z0-9_. -]*\.' + $kind + '$') -or
         $relative.Contains('..') -or $relative.Contains('\')) {
         throw "Caminho do instalador $kind rejeitado (fora da estrutura autorizada)."
     }
