@@ -211,6 +211,34 @@ try {
     } finally {
         Remove-Item Env:BROTHER_WINDOWS_QA_UI -ErrorAction SilentlyContinue
     }
+
+    # Confirma que a abertura NORMAL (sem argumento de diagnóstico) funciona.
+    # O CI verifica uma janela real, não apenas um marcador de smoke mode.
+    $interactive = Start-Process -FilePath $app -WorkingDirectory (Split-Path $app -Parent) -PassThru
+    try {
+        $seenWindow = $false
+        for ($attempt = 0; $attempt -lt 120; $attempt++) {
+            $interactive.Refresh()
+            if ($interactive.HasExited) {
+                throw "Aplicativo encerrou antes de mostrar a janela normal."
+            }
+            if ($interactive.MainWindowHandle -ne [IntPtr]::Zero -and
+                $interactive.MainWindowTitle.Contains("Brother Matrizes Desktop")) {
+                $seenWindow = $true
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        if (-not $seenWindow) {
+            throw "Aplicativo instalado nao mostrou a janela normal em 30 segundos."
+        }
+        Write-Host "BROTHER_WINDOWS_MSI_NORMAL_LAUNCH_OK"
+    } finally {
+        $interactive.Refresh()
+        if (-not $interactive.HasExited) {
+            Stop-Process -Id $interactive.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
 } finally {
     if ($installedByThisJob) {
         if ($null -eq $productCode) {
