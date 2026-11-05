@@ -42,6 +42,13 @@ automatizadas que constarem como aprovadas no GitHub Actions.
 - [ ] Conferir se o painel de pré-visualização e os controles laterais ficam
       acessíveis em 100%/125%/150% de escala. Registrar cortes,
       rolagens, botões inacessíveis ou campos parcialmente escondidos.
+- [ ] Conferir no artefato de evidência QA as duas capturas: interface
+      vazia e interface com matriz sintética `QA` (não são testes manuais).
+- [ ] Com uma matriz sintética aberta no PC, testar zoom 1×, 2×, 4× e 8×,
+      roda do mouse ancorada no cursor, deslocamento com arraste e botão
+      Ajustar. Verificar que a prévia não invade outros painéis.
+- [ ] Confirmar que apenas navegar pela prévia não altera pontos,
+      dimensões, histórico de edições nem o hash do arquivo original.
 - [ ] Verificar mensagens de erro legíveis e sem travamentos da interface.
 - [ ] Fechar, reabrir, reiniciar o computador de teste e abrir novamente.
 - [ ] Desinstalar pelo Windows e verificar a remoção do aplicativo/atalhos.
