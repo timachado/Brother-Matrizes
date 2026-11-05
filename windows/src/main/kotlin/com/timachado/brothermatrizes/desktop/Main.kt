@@ -204,6 +204,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
     var letterMoveY by remember { mutableStateOf("0") }
     var letterScale by remember { mutableStateOf("1.00") }
     var letterRotation by remember { mutableStateOf("0") }
+    val recentFiles = remember { DesktopRecentFiles() }
+    var recentPaths by remember { mutableStateOf(recentFiles.list()) }
     val librarySelection = remember { DesktopLibrarySelection() }
     var libraryFolder by remember { mutableStateOf(librarySelection.recall()?.toString()) }
     var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
@@ -221,6 +223,55 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
     fun report(text: String, error: Boolean = false) {
         message = text
         isError = error
+    }
+
+    fun recordRecent(path: Path) {
+        // O histórico é opcional. A abertura local continua funcional se
+        // a preferência do Windows estiver indisponível ou bloqueada.
+        runCatching {
+            recentFiles.record(path)
+            recentPaths = recentFiles.list()
+        }
+    }
+
+    fun openRecent(path: Path) {
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (path.fileName.toString().endsWith(".flp", ignoreCase = true)) {
+                        DesktopProjectService.open(path)
+                    } else {
+                        DesktopMatrixService.openFromFile(path)
+                    }
+                }
+            }
+            busy = false
+            result.onSuccess { loaded ->
+                document = loaded
+                editTimeline = DesktopEditTimeline.start(loaded)
+                letterSession = null
+                letterPreviewDocument = null
+                stitchProgress = 1f
+                format = loaded.current.format
+                peDesign = false
+                scaleText = "1.00"
+                horizontalScaleText = "1.00"
+                verticalScaleText = "1.00"
+                angleText = "0"
+                xMmText = "0"
+                yMmText = "0"
+                mirrorX = false
+                mirrorY = false
+                threadColorSlotText = "1"
+                threadColorHexText = "#E6BE70"
+                recordRecent(path)
+                workspace = DesktopWorkspace.VIEWER
+                report("Arquivo recente aberto localmente; original preservado.")
+            }.onFailure {
+                report("Recente não pôde ser aberto: ${it.message}", true)
+            }
+        }
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = navy) {
@@ -267,6 +318,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                 mirrorX = false
                                 mirrorY = false
                                 peDesign = false
+                                recordRecent(file)
                                 report("Matriz ${it.current.format} aberta localmente. O arquivo original não será modificado.")
                             }.onFailure {
                                 report("Falha ao abrir: ${it.message ?: "arquivo inválido"}.", true)
@@ -439,6 +491,39 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         Text("Conta, comunidade, desenhos, transferência e fluxos completos " +
                             "de simulação ainda exigem implementação específica no Windows.",
                             color = muted, fontSize = 11.sp)
+                        Text("Recentes neste computador", color = cyan,
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        if (recentPaths.isEmpty()) {
+                            Text("Nenhum projeto aberto recentemente.",
+                                color = muted, fontSize = 11.sp)
+                        }
+                        recentPaths.take(6).forEach { recent ->
+                            TextButton(
+                                enabled = !busy,
+                                onClick = { openRecent(recent) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(recent.fileName.toString(), maxLines = 1)
+                            }
+                        }
+                        if (recentPaths.isNotEmpty()) {
+                            TextButton(
+                                enabled = !busy,
+                                onClick = {
+                                    runCatching { recentFiles.clear() }
+                                        .onSuccess {
+                                            recentPaths = emptyList()
+                                            report("Histórico local de recentes apagado.")
+                                        }
+                                        .onFailure { report(
+                                            "Não foi possível apagar recentes: ${it.message}", true
+                                        ) }
+                                }
+                            ) { Text("Limpar arquivos recentes") }
+                        }
+                        Text("Recentes guardam somente caminhos selecionados neste PC. " +
+                            "Arquivos não são abertos automaticamente nem enviados à nuvem.",
+                            color = muted, fontSize = 11.sp)
                         Text("Esta QA não substitui a versão Android comercial.",
                             color = muted, fontSize = 11.sp)
                     }
@@ -474,6 +559,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                     yMmText = "0"
                                     mirrorX = false
                                     mirrorY = false
+                                    recordRecent(chosen)
                                     report("Projeto FLP Android/Windows carregado. Pontos e propriedades de edição restaurados.")
                                 }.onFailure { report("Projeto FLP inválido: ${it.message}", true) }
                             }
@@ -1652,6 +1738,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                         yMmText = "0"
                                         mirrorX = false
                                         mirrorY = false
+                                        recordRecent(file)
                                         report("Matriz ou projeto da biblioteca aberto localmente, sem modificar o arquivo de origem.")
                                     }.onFailure { report("Falha ao abrir da biblioteca: ${it.message}", true) }
                                 }
