@@ -83,9 +83,8 @@ for ($i = 0; $i -lt 2; $i++) {
     }
 }
 
-# Pacotes novos incluem amostras sintéticas para a etapa física. Quando
-# presentes, verificar integralmente a lista, arquivos e conteúdo SHA256.
-# Versões QA antigas, sem fixtures, continuam verificáveis sem falsa aprovação.
+# Pacotes novos incluem amostras sintéticas para homologação física.
+# Quando presentes, exigem arquivos exatos, sem links, com SHA256 íntegro.
 $fixturesDir = Join-Path $PackageRoot 'qa\fixtures'
 if (Test-Path -LiteralPath $fixturesDir) {
     if (!(Test-Path -LiteralPath $fixturesDir -PathType Container)) {
@@ -111,11 +110,7 @@ if (Test-Path -LiteralPath $fixturesDir) {
     }
     for ($i = 0; $i -lt $expectedFixtureNames.Count; $i++) {
         $line = $fixtureLines[$i]
-        if ($line -cnotmatch '^([0-9a-f]{64})  ([a-zA-Z0-9_.-]+)
-Write-Host 'BROTHER_WINDOWS_BETA_PACKAGE_SHA256_OK'
-Write-Host 'Integridade local verificada. Isto NÃO autentica o autor nem assina o EXE/MSI.'
-Write-Host 'Não instale se a origem GitHub e o commit não forem confiáveis.'
-) {
+        if ($line -cnotmatch '^([0-9a-f]{64})  ([a-zA-Z0-9_.-]+)$') {
             throw 'Registro de amostra sintética inválido.'
         }
         $digest = $Matches[1]
