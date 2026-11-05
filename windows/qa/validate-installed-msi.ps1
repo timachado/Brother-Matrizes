@@ -212,25 +212,39 @@ try {
         Remove-Item Env:BROTHER_WINDOWS_QA_UI -ErrorAction SilentlyContinue
     }
 
-    # Confirma que a abertura NORMAL (sem argumento de diagnóstico) funciona.
-    # O CI verifica uma janela real, não apenas um marcador de smoke mode.
+    # Confirma abertura NORMAL sem flags no launcher instalado. Consultar
+    # User32 evita falso negativo da propriedade .MainWindowHandle no wrapper.
+    Add-Type -Path (Join-Path $PSScriptRoot 'BrotherWindowProbe.cs') -ErrorAction Stop
     $interactive = Start-Process -FilePath $app -WorkingDirectory (Split-Path $app -Parent) -PassThru
     try {
         $seenWindow = $false
+        $ownerId = 0
         for ($attempt = 0; $attempt -lt 120; $attempt++) {
             $interactive.Refresh()
             if ($interactive.HasExited) {
                 throw "Aplicativo encerrou antes de mostrar a janela normal."
             }
-            if ($interactive.MainWindowHandle -ne [IntPtr]::Zero -and
-                $interactive.MainWindowTitle.Contains("Brother Matrizes Desktop")) {
+            $ownerId = [BrotherWindowProbe]::FindVisibleWindowOwner("Brother Matrizes Desktop")
+            if ($ownerId -gt 0) {
+                $owner = Get-Process -Id $ownerId -ErrorAction SilentlyContinue
+                $ownerPath = [string]($owner | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue)
+                $installedFolder = ([System.IO.Path]::GetFullPath(
+                    (Split-Path $app -Parent)).TrimEnd('\') + '\')
+                if ([string]::IsNullOrWhiteSpace($ownerPath) -or
+                    !([System.IO.Path]::GetFullPath($ownerPath).StartsWith(
+                        $installedFolder, [StringComparison]::OrdinalIgnoreCase))) {
+                    throw "Janela detectada fora da instalacao QA esperada (PID $ownerId)."
+                }
                 $seenWindow = $true
+                Write-Host "Janela visivel encontrada pelo Windows: PID $ownerId."
                 break
             }
             Start-Sleep -Milliseconds 250
         }
         if (-not $seenWindow) {
-            throw "Aplicativo instalado nao mostrou a janela normal em 30 segundos."
+            $interactive.Refresh()
+            Write-Host "Launcher normal PID=$($interactive.Id), Handle=$($interactive.MainWindowHandle), Title=$($interactive.MainWindowTitle)"
+            throw "Aplicativo instalado nao mostrou janela visivel em 30 segundos."
         }
         Write-Host "BROTHER_WINDOWS_MSI_NORMAL_LAUNCH_OK"
     } finally {
