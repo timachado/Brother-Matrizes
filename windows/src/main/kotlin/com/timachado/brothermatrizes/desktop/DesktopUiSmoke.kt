@@ -69,6 +69,19 @@ internal object DesktopUiSmoke {
         check(colors.size >= 6) {
             "Captura praticamente uniforme: interface não renderizada ou sem desktop gráfico."
         }
+
+        // Nesta QA a amostra sintética "QA" usa o fio dourado padrão
+        // #E6BE70 do gerador oficial. Detectar pontadas na região esquerda
+        // impede falso positivo baseado somente nos rótulos do painel.
+        val stitchPixels = if (syntheticPreview) {
+            countSyntheticStitchPixels(screenshot)
+        } else 0
+        if (syntheticPreview) {
+            check(stitchPixels >= 80) {
+                "A prévia sintética não apresentou pontadas douradas visíveis: " +
+                    "$stitchPixels pixels detectados."
+            }
+        }
         val screenshotPath = report.resolveSibling(
             report.fileName.toString().removeSuffix(".txt") + ".png"
         )
@@ -85,6 +98,7 @@ internal object DesktopUiSmoke {
                 "Interface: visível no runner Windows\n" +
                 "Dimensões: ${bounds.width}x${bounds.height}\n" +
                 "Cores distintas amostradas: ${colors.size}\n" +
+                (if (syntheticPreview) "Pontadas sintéticas detectadas: $stitchPixels pixels\n" else "") +
                 "Captura: ${screenshotPath.fileName}\n" +
                 "Modo: " + (if (syntheticPreview)
                     "QA com matriz sintética local\n"
@@ -95,5 +109,33 @@ internal object DesktopUiSmoke {
             StandardOpenOption.WRITE
         )
         return screenshotPath
+    }
+
+    /**
+     * Concentra a busca no canvas (lado esquerdo, faixa central).
+     * O RGB é um critério de smoke para a amostra oficial "QA";
+     * não avalia qualidade de costura nem cores de matrizes externas.
+     */
+    internal fun countSyntheticStitchPixels(image: BufferedImage): Int {
+        require(image.width > 0 && image.height > 0) { "Captura inválida." }
+        val minX = (image.width * 0.06f).toInt()
+        val maxX = (image.width * 0.60f).toInt()
+        val minY = (image.height * 0.28f).toInt()
+        val maxY = (image.height * 0.76f).toInt()
+        var hits = 0
+        for (y in minY until maxY) {
+            for (x in minX until maxX) {
+                val rgb = image.getRGB(x, y)
+                val red = (rgb ushr 16) and 0xFF
+                val green = (rgb ushr 8) and 0xFF
+                val blue = rgb and 0xFF
+                if (red in 185..255 && green in 140..220 &&
+                    blue in 65..155 && red >= green + 15 &&
+                    green >= blue + 25) {
+                    hits++
+                }
+            }
+        }
+        return hits
     }
 }
