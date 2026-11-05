@@ -25,7 +25,7 @@ Windows esteja completo nem comercialmente homologado.
 
 | Rota Android 1.11.8 | Requisito Windows completo | Situação Windows |
 | --- | --- | --- |
-| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Pendente** — há somente painel técnico |
+| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — novo Início com navegação por 7 áreas; recentes e tela mobile ainda pendentes |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
 | `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
@@ -48,6 +48,20 @@ permissões, WorkManager, Firebase/FCM, serviços de login) precisam de
 adaptadores específicos com equivalência funcional e testes, nunca cópia
 irrefletida. As políticas de assinatura, conta e importação devem continuar
 seguras e consistentes entre plataformas.
+
+## Navegação Desktop — primeira etapa implementada
+
+A interface de homologação passou a separar as funções já existentes
+em sete áreas: **Início, Visualizar, Criar nome, Monogramas, Fontes,
+Editor e Biblioteca**. A prévia técnica permanece visível à esquerda,
+enquanto as ferramentas de cada área ocupam o painel lateral; as seções
+não usadas deixam de ficar empilhadas em uma única rolagem.
+
+Os módulos Android **Desenhar, Conta, Comunidade, Telegram, Transferir**
+e outros fluxos ainda não portados não são oferecidos como botões
+funcionais nem descritos como concluídos. Criar uma aba não comprova
+paridade: continuam necessários portadores de serviços, persistência e
+testes funcionais por recurso.
 
 ## Critérios para a primeira versão comercial Windows
 
