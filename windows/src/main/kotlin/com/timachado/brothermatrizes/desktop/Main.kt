@@ -1670,6 +1670,22 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                     report("Backup não corresponde à seleção.", true)
                                     return@launch
                                 }
+                                if (document != null) {
+                                    val confirmation = JOptionPane.showConfirmDialog(
+                                        null,
+                                        "Recuperar o backup substituirá o projeto aberto nesta sessão. " +
+                                            "Salve eventuais alterações não gravadas antes de continuar. " +
+                                            "Deseja prosseguir?",
+                                        "Brother Matrizes — confirmar recuperação",
+                                        JOptionPane.YES_NO_OPTION,
+                                        JOptionPane.WARNING_MESSAGE
+                                    )
+                                    if (confirmation != JOptionPane.YES_OPTION) {
+                                        busy = false
+                                        report("Recuperação cancelada. Projeto atual mantido.")
+                                        return@launch
+                                    }
+                                }
                                 val restored = withContext(Dispatchers.IO) {
                                     runCatching { DesktopBackupService.restore(target) }
                                 }
@@ -1705,7 +1721,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                     threadColorHexText = "#E6BE70"
                                     workspace = DesktopWorkspace.VIEWER
                                     report("Cópia FLP restaurada em memória. " +
-                                        "Arquivos em disco e projeto anterior permanecem intactos.")
+                                        "Os arquivos originais em disco não foram modificados.")
                                 }.onFailure {
                                     report("Recuperação recusada: ${it.message}", true)
                                 }
