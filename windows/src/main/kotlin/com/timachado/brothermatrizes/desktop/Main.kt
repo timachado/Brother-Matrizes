@@ -55,6 +55,7 @@ import java.nio.file.Path
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.util.Locale
 import javax.swing.JFileChooser
+import javax.swing.JOptionPane
 import javax.swing.JLabel
 import javax.swing.SwingConstants
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -1387,6 +1388,72 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
 
                     Spacer(Modifier.height(12.dp))
                     Text("Biblioteca local (somente leitura)", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Importar matriz de pacote ZIP (QA)"
+                            fileFilter = FileNameExtensionFilter("Pacote ZIP (*.zip)", "zip")
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val zipPath = chooser.selectedFile.toPath()
+                            busy = true
+                            scope.launch {
+                                val inventory = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopArchiveImporter.inspect(zipPath) }
+                                }
+                                val entries = inventory.getOrElse { error ->
+                                    busy = false
+                                    report("ZIP recusado: ${error.message}", true)
+                                    return@launch
+                                }
+                                if (entries.isEmpty()) {
+                                    busy = false
+                                    report("Nenhuma matriz DST, PES ou JEF válida no ZIP.", true)
+                                    return@launch
+                                }
+                                val choice = JOptionPane.showInputDialog(
+                                    null,
+                                    "Selecione a matriz a abrir; o ZIP não será modificado.",
+                                    "Brother Matrizes — importar ZIP",
+                                    JOptionPane.PLAIN_MESSAGE,
+                                    null,
+                                    entries.toTypedArray(),
+                                    entries.first()
+                                ) as? DesktopArchiveMatrix
+                                if (choice == null) {
+                                    busy = false
+                                    report("Importação cancelada. Nenhum arquivo alterado.")
+                                    return@launch
+                                }
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopArchiveImporter.openMatrix(zipPath, choice) }
+                                }
+                                busy = false
+                                result.onSuccess { loaded ->
+                                    document = loaded
+                                    editTimeline = DesktopEditTimeline.start(loaded)
+                                    letterSession = null
+                                    letterPreviewDocument = null
+                                    stitchProgress = 1f
+                                    format = loaded.current.format
+                                    peDesign = false
+                                    scaleText = "1.00"
+                                    horizontalScaleText = "1.00"
+                                    verticalScaleText = "1.00"
+                                    threadColorSlotText = "1"
+                                    threadColorHexText = "#E6BE70"
+                                    angleText = "0"
+                                    xMmText = "0"
+                                    yMmText = "0"
+                                    mirrorX = false
+                                    mirrorY = false
+                                    report("Matriz ${loaded.current.format} importada do ZIP em memória. Pacote preservado.")
+                                }.onFailure { error ->
+                                    report("Não foi possível abrir matriz do ZIP: ${error.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Importar matriz de ZIP (sem extrair pastas)") }
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
                             dialogTitle = "Selecionar pasta de matrizes no computador"
