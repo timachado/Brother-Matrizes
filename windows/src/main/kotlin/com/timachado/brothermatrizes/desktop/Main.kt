@@ -347,10 +347,15 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                     }
                                 ) { Text("Zoom +") }
                             }
-                            if (previewZoom > 1f) {
-                                Text("Arraste para mover; a roda amplia no ponto do cursor.",
-                                    fontSize = 11.sp, color = muted)
-                            }
+                            // Manter uma linha de ajuda em 1x e em zoom ampliado
+                            // evita redimensionar o Canvas após o gesto da roda.
+                            Text(
+                                if (previewZoom > 1f)
+                                    "Arraste para mover; a roda amplia no ponto do cursor."
+                                else
+                                    "Use a roda do mouse ou Zoom + para ampliar.",
+                                fontSize = 11.sp, color = muted
+                            )
                             Text(
                                 "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
                                 color = muted,
