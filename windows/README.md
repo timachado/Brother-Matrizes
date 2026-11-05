@@ -13,6 +13,28 @@ oficial, armazenado no repositório como Base64 e restaurado no diretório
 usa o grupo **T.I. Machado**; a Área de Trabalho recebe um atalho
 **Brother Matrizes**. Isso não altera o ícone nem o pacote Android.
 
+## Versão portátil (sem instalador) — QA restrita
+
+O workflow agora gera também `Brother-Matrizes-Windows-Portable-0.1.0-QA.zip`
+com a pasta completa `Brother Matrizes/` (`Brother Matrizes.exe`,
+`app/` e `runtime/`), além de `LEIA-ME-PORTATIL.txt`. É uma
+versão **portátil**, não um instalador: depois de extrair o ZIP inteiro,
+basta abrir `Brother Matrizes/Brother Matrizes.exe`. O EXE sozinho
+não funciona sem as subpastas de bibliotecas e runtime.
+
+A QA extrai o ZIP em outra pasta e testa o launcher e a interface
+gráfica a partir dali, sem instalar nem criar atalhos. O artefato
+privado do GitHub Actions chama-se
+`brother-windows-portable-QA-NAO-COMERCIAL`, com hash SHA-256
+em `SHA256SUMS.txt`. **Esta versão não possui licenciamento
+comercial, assinatura digital ou homologação física** e não deve
+ser publicada publicamente até essas etapas serem concluídas.
+
+Para hospedar esse arquivo no WordPress, a hospedagem precisa
+aceitar seu tamanho e extensão. Sem conexão administrativa válida
+com o WordPress da T.I. Machado, a criação do link público não
+pode ser considerada executada.
+
 ## Instalação no PC — atalhos e inicialização
 
 A QA anterior (#184) gerava EXE/MSI sem a opção explícita para criar
