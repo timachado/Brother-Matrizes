@@ -1,5 +1,10 @@
 # Brother Matrizes Desktop — homologação Windows (NÃO COMERCIAL)
 
+> **Meta oficial de produto:** replicar o Android comercial 1.11.8
+> integralmente, com interface expandida para Windows. A QA atual
+> NÃO É O APP COMPLETO. Auditoria por 16 rotas e critérios de lançamento:
+> [PARIDADE-ANDROID-1.11.8.md](PARIDADE-ANDROID-1.11.8.md).
+
 Este projeto Windows está isolado do Android comercial. O PR não modifica
 `app/`, `supabase/` nem pipelines oficiais de publicação.
 
@@ -79,6 +84,11 @@ autorizados devem utilizar esse kit, de acordo com
 
 - Compose Desktop com instaladores EXE/MSI gerados por runner Windows.
 - Abertura local de DST/PES/JEF usando os parsers oficiais Android.
+- **Importação seletiva de ZIP local (QA):** lista entradas DST/PES/JEF,
+  exige seleção explícita, não extrai caminhos nem escreve arquivos do ZIP
+  no disco e usa o parser oficial. Limites de 128 MB/300 entradas/256 MB
+  descompactados; cada matriz aceita fica sujeita ao limite de 8 MiB.
+  Importação RAR/RAR5/7Z, fontes e paridade do importador mobile ainda pendentes.
 - Prévia de pontadas, cores, dimensões, dados da matriz e sequência visual
   manual. Não é simulação real de velocidade, tensão ou costura.
 - Navegação da prévia no PC: ajustar à janela, zoom de 1x a 8x,
