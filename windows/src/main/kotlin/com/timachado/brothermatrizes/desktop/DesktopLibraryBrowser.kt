@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.desktop
 
+import java.nio.file.Path
 import java.util.Locale
 
 /**
@@ -15,19 +16,24 @@ internal data class DesktopLibraryPage(
 
 internal object DesktopLibraryBrowser {
     const val PAGE_SIZE: Int = 40
-    val filters: List<String> = listOf("TODOS", "DST", "PES", "JEF", "FLP")
+    val filters: List<String> = listOf("TODOS", "DST", "PES", "JEF", "FLP", "FAVORITOS")
 
     fun page(
         entries: List<LocalMatrixEntry>,
         query: String,
         format: String,
-        page: Int
+        page: Int,
+        favorites: Set<Path> = emptySet()
     ): DesktopLibraryPage {
         require(format in filters) { "Filtro de arquivo não reconhecido." }
         require(page >= 0) { "Página inválida." }
         val search = query.trim().take(80).lowercase(Locale.ROOT)
         val matches = entries.filter { entry ->
-            (format == "TODOS" || entry.format == format) &&
+            (when (format) {
+                "TODOS" -> true
+                "FAVORITOS" -> entry.path in favorites
+                else -> entry.format == format
+            }) &&
                 (search.isEmpty() || entry.name.lowercase(Locale.ROOT).contains(search))
         }
         val count = matches.size
