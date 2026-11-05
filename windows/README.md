@@ -10,9 +10,10 @@ Este projeto Windows está isolado do Android comercial. O PR não modifica
 - Prévia de pontadas, cores, dimensões, dados da matriz e sequência visual
   manual. Não é simulação real de velocidade, tensão ou costura.
 - Navegação da prévia no PC: ajustar à janela, zoom de 1x a 8x,
-  ampliar/reduzir pela roda do mouse e arrastar quando ampliada. Trata-se
-  apenas de visualização: não altera pontadas, dimensões, histórico de
-  edição ou arquivos.
+  ampliar/reduzir pela roda do mouse mantendo o ponto sob o cursor
+  (ao retornar a 1x, centraliza a imagem) e arrastar quando ampliada.
+  Trata-se apenas de visualização: não altera pontadas, dimensões,
+  histórico de edição ou arquivos.
 - Transformações geométricas (rotação, escala, deslocamento, espelhamento),
   inclusive **expansão horizontal e vertical independentes (0,50–2,50)**,
   com restauração do estado carregado e **Desfazer/Refazer**. O histórico é
