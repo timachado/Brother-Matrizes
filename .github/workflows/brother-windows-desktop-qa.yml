@@ -60,7 +60,7 @@ jobs:
           if (!(Test-Path $folder)) {
             throw "App-image nao foi criado: $folder"
           }
-          $launchers = @(Get-ChildItem -Path $folder -Recurse -File -Filter "BrotherMatrizesDesktop.exe")
+          $launchers = @(Get-ChildItem -Path $folder -Recurse -File -Filter "Brother Matrizes.exe")
           if ($launchers.Count -ne 1) {
             throw "Esperado exatamente 1 launcher no app-image; encontrados: $($launchers.Count)"
           }
@@ -138,7 +138,7 @@ jobs:
           # Gera amostras inteiramente sintéticas no launcher empacotado.
           # Nao confundir com homologacao no PE-DESIGN 11 ou bordadeira real.
           $appDir = "build/compose/binaries/main/app"
-          $launchers = @(Get-ChildItem -LiteralPath $appDir -Recurse -File -Filter "BrotherMatrizesDesktop.exe")
+          $launchers = @(Get-ChildItem -LiteralPath $appDir -Recurse -File -Filter "Brother Matrizes.exe")
           if ($launchers.Count -ne 1) {
             throw "Esperado um launcher QA; encontrados: $($launchers.Count)"
           }
