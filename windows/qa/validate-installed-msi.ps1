@@ -139,6 +139,78 @@ try {
     }
     Write-Host "BROTHER_WINDOWS_MSI_INSTALLED_SMOKE_OK"
     Write-Host "Instalacao MSI e launcher empacotado validados em runner virtual."
+
+    # Verifica a causa do relato em um runner descartavel:
+    # um MSI nao esta aprovado se nao houver atalhos funcionais.
+    function Find-BrotherShortcut {
+        param([string[]]$Roots)
+        @(
+            foreach ($root in ($Roots | Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_) -and
+                (Test-Path -LiteralPath $_ -PathType Container)
+            } | Select-Object -Unique)) {
+                Get-ChildItem -LiteralPath $root -Filter "$packageName.lnk" -Recurse -File -ErrorAction Stop |
+                    Select-Object -ExpandProperty FullName
+            }
+        )
+    }
+    $startRoots = @(
+        [Environment]::GetFolderPath('CommonPrograms'),
+        [Environment]::GetFolderPath('Programs')
+    )
+    $desktopRoots = @(
+        [Environment]::GetFolderPath('CommonDesktopDirectory'),
+        [Environment]::GetFolderPath('DesktopDirectory')
+    )
+    $startLinks = @(Find-BrotherShortcut -Roots $startRoots)
+    $desktopLinks = @(Find-BrotherShortcut -Roots $desktopRoots)
+    if ($startLinks.Count -lt 1 -or $desktopLinks.Count -lt 1) {
+        throw "MSI sem atalhos: menu Iniciar=$($startLinks.Count), Area de Trabalho=$($desktopLinks.Count)."
+    }
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($shortcut in ($startLinks + $desktopLinks)) {
+        $target = [string]$shell.CreateShortcut($shortcut).TargetPath
+        if ([string]::IsNullOrWhiteSpace($target) -or
+            !(Test-Path -LiteralPath $target -PathType Leaf) -or
+            !([System.IO.Path]::GetFullPath($target) -ieq
+                [System.IO.Path]::GetFullPath($app))) {
+            throw "Atalho nao aponta ao executavel instalado: $shortcut."
+        }
+    }
+    Write-Host "BROTHER_WINDOWS_MSI_START_DESKTOP_SHORTCUTS_OK"
+
+    # Abre a janela Compose do MSI realmente instalado, com tela vazia.
+    # Nao toca dados do usuario nem depende do editor de matrizes.
+    $uiReport = Join-Path $logRoot "brother-windows-installed-msi-ui.txt"
+    $uiPicture = Join-Path $logRoot "brother-windows-installed-msi-ui.png"
+    if ((Test-Path -LiteralPath $uiReport) -or
+        (Test-Path -LiteralPath $uiPicture)) {
+        throw "Evidencia grafica do MSI ja existe; nao sobrescrever."
+    }
+    $env:BROTHER_WINDOWS_QA_UI = '1'
+    try {
+        $uiArgs = '--ui-smoke-test "' + $uiReport + '"'
+        $uiProcess = Start-Process -FilePath $app -ArgumentList $uiArgs -WorkingDirectory (Split-Path $app -Parent) -PassThru
+        if (-not $uiProcess.WaitForExit(90000)) {
+            Stop-Process -Id $uiProcess.Id -Force -ErrorAction SilentlyContinue
+            throw "Interface do MSI instalado nao abriu em 90 segundos."
+        }
+        $uiProcess.Refresh()
+        if ($uiProcess.ExitCode -ne 0) {
+            throw "Aplicativo instalado nao iniciou a interface (codigo $($uiProcess.ExitCode))."
+        }
+        if (!(Test-Path -LiteralPath $uiPicture -PathType Leaf) -or
+            !(Test-Path -LiteralPath $uiReport -PathType Leaf)) {
+            throw "Aplicativo instalado nao gerou evidencia da janela."
+        }
+        $uiText = Get-Content -LiteralPath $uiReport -Encoding UTF8 -Raw
+        if (!$uiText.StartsWith('BROTHER_WINDOWS_UI_SMOKE_OK')) {
+            throw "Relatorio da interface instalada nao foi aprovado."
+        }
+        Write-Host "BROTHER_WINDOWS_MSI_INSTALLED_GUI_OK"
+    } finally {
+        Remove-Item Env:BROTHER_WINDOWS_QA_UI -ErrorAction SilentlyContinue
+    }
 } finally {
     if ($installedByThisJob) {
         if ($null -eq $productCode) {
