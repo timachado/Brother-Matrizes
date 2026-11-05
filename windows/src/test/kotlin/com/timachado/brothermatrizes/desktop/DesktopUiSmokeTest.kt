@@ -1,10 +1,34 @@
 package com.timachado.brothermatrizes.desktop
 
 import java.awt.image.BufferedImage
+import java.awt.Rectangle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class DesktopUiSmokeTest {
+    @Test
+    fun `limites de pontadas ignoram rótulos e regiões fora do canvas`() {
+        val image = BufferedImage(500, 300, BufferedImage.TYPE_INT_RGB)
+        for (y in 0 until image.height) {
+            for (x in 0 until image.width) {
+                image.setRGB(x, y, 0x14273B)
+            }
+        }
+        assertNull(DesktopUiSmoke.syntheticStitchBounds(image))
+        image.setRGB(420, 100, 0xE6BE70)
+        assertNull(DesktopUiSmoke.syntheticStitchBounds(image))
+        for (y in 90..140) {
+            for (x in 100..180) {
+                image.setRGB(x, y, 0xE6BE70)
+            }
+        }
+        assertEquals(
+            Rectangle(100, 90, 81, 51),
+            DesktopUiSmoke.syntheticStitchBounds(image)
+        )
+    }
+
     @Test
     fun `smoke gráfico detecta pontos dourados somente na região da prévia`() {
         val image = BufferedImage(500, 300, BufferedImage.TYPE_INT_RGB)
