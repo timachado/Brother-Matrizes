@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clipToBounds
@@ -279,10 +280,17 @@ private fun DesktopScreen() {
                                         (previewPan.y + delta.y).coerceIn(-2000f, 2000f)
                                     )
                                 },
+                                onWheel = { wheel ->
+                                    val updated = DesktopPreviewNavigation.zoomForWheel(
+                                        previewZoom, wheel
+                                    )
+                                    previewZoom = updated
+                                    if (updated == 1f) previewPan = Offset.Zero
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Prévia: ${previewZoom.toInt()}x", color = muted, fontSize = 11.sp)
+                                Text("Prévia: ${"%.2f".format(Locale.forLanguageTag("pt-BR"), previewZoom)}x", color = muted, fontSize = 11.sp)
                                 TextButton(
                                     enabled = previewZoom > 1f,
                                     onClick = {
@@ -303,7 +311,7 @@ private fun DesktopScreen() {
                                 ) { Text("Zoom +") }
                             }
                             if (previewZoom > 1f) {
-                                Text("Arraste com o mouse para mover a prévia ampliada.",
+                                Text("Arraste para mover. Use a roda do mouse para ajustar o zoom.",
                                     fontSize = 11.sp, color = muted)
                             }
                             Text(
@@ -1510,9 +1518,11 @@ private fun Detail(label: String, value: String) {
 private fun StitchPreview(
     preview: DstPreview, progress: Float, threadColors: List<Int>,
     zoom: Float, pan: Offset, onPan: (Offset) -> Unit,
+    onWheel: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latestOnPan by rememberUpdatedState(onPan)
+    val latestOnWheel by rememberUpdatedState(onWheel)
     val dragModifier = if (zoom > 1f) {
         Modifier.pointerInput(zoom) {
             detectDragGestures { change, dragAmount ->
@@ -1523,7 +1533,27 @@ private fun StitchPreview(
     } else {
         Modifier
     }
-    Canvas(modifier = modifier.fillMaxSize().then(dragModifier).clipToBounds().padding(18.dp)) {
+    val wheelModifier = Modifier.pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent()
+                if (event.type == PointerEventType.Scroll) {
+                    val change = event.changes.firstOrNull()
+                    if (change != null && !change.isConsumed) {
+                        val wheelY = change.scrollDelta.y
+                        if (wheelY.isFinite() && wheelY != 0f) {
+                            latestOnWheel(wheelY)
+                            change.consume()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Canvas(
+        modifier = modifier.fillMaxSize().clipToBounds()
+            .padding(18.dp).then(dragModifier).then(wheelModifier)
+    ) {
         renderPreview(preview, progress, threadColors, zoom, pan)
     }
 }
