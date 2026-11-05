@@ -37,7 +37,7 @@ internal object DesktopQaFixturePack {
         Files.createDirectory(directory)
         val created = mutableListOf<Path>()
         fun register(path: Path): Path {
-            created += path
+            created.add(path)
             return path
         }
         try {
