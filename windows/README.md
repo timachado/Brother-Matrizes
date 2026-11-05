@@ -3,6 +3,32 @@
 Este projeto Windows está isolado do Android comercial. O PR não modifica
 `app/`, `supabase/` nem pipelines oficiais de publicação.
 
+## Instalação no PC — atalhos e inicialização
+
+A QA anterior (#184) gerava EXE/MSI sem a opção explícita para criar
+atalhos do aplicativo. Isso pode deixar o instalador visível sem um
+atalho para **executar** o Brother Matrizes. A correção define
+`windows.menu = true`, `menuGroup = "T.I. Machado"` e
+`shortcut = true` no `build.gradle.kts`.
+
+O CI desta revisão deve verificar **após instalar o MSI**:
+- atalho no menu Iniciar e na Área de Trabalho, apontando para o
+  `BrotherMatrizesDesktop.exe` realmente instalado;
+- abertura real da interface Compose a partir desse executável;
+- limpeza pela desinstalação MSI.
+
+Essa validação automatizada **não comprova o comportamento do instalador
+EXE em todos os PCs**. Em um equipamento autorizado de homologação, se a
+versão antiga QA 0.1.0 já estiver instalada, desinstalá-la pelas
+Configurações do Windows antes de instalar a revisão corrigida. Não
+executar EXE e MSI de instalação simultaneamente e não desabilitar
+SmartScreen, antivírus ou controles de segurança para prosseguir.
+
+Se a janela não abrir mesmo pelo atalho, registrar a edição do Windows,
+versão/arquitetura, caminho da instalação, mensagem exibida e se o processo
+fica ativo no Gerenciador de Tarefas. A ausência do atalho e uma falha de
+inicialização são diagnósticos diferentes.
+
 ## Amostras sintéticas para homologação física
 
 O workflow Windows QA gera, via launcher empacotado, a subpasta
