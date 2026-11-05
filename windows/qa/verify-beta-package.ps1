@@ -83,6 +83,68 @@ for ($i = 0; $i -lt 2; $i++) {
     }
 }
 
+# Pacotes novos incluem amostras sintéticas para a etapa física. Quando
+# presentes, verificar integralmente a lista, arquivos e conteúdo SHA256.
+# Versões QA antigas, sem fixtures, continuam verificáveis sem falsa aprovação.
+$fixturesDir = Join-Path $PackageRoot 'qa\fixtures'
+if (Test-Path -LiteralPath $fixturesDir) {
+    if (!(Test-Path -LiteralPath $fixturesDir -PathType Container)) {
+        throw 'Pasta de amostras QA inválida.'
+    }
+    $expectedFixtureNames = @(
+        'QA_NOME_DST.dst',
+        'QA_NOME_PES_MAQUINA.pes',
+        'QA_NOME_PES_PE_DESIGN_PC_EXPERIMENTAL.pes',
+        'QA_NOME_JEF.jef',
+        'QA_PROJETO_ANDROID.flp',
+        'QA_LETRAS_CAMADAS.flp',
+        'QA_LETRAS_CAMADAS.bmlayers',
+        'LEIA-ME-QA.txt'
+    )
+    $fixtureSumFile = Join-Path $fixturesDir 'SHA256SUMS.txt'
+    if (!(Test-Path -LiteralPath $fixtureSumFile -PathType Leaf)) {
+        throw 'Checksum das matrizes sintéticas ausente.'
+    }
+    $fixtureLines = @(Get-Content -LiteralPath $fixtureSumFile -Encoding UTF8)
+    if ($fixtureLines.Count -ne $expectedFixtureNames.Count) {
+        throw 'Quantidade incorreta de checksums nas matrizes sintéticas.'
+    }
+    for ($i = 0; $i -lt $expectedFixtureNames.Count; $i++) {
+        $line = $fixtureLines[$i]
+        if ($line -cnotmatch '^([0-9a-f]{64})  ([a-zA-Z0-9_.-]+)
+Write-Host 'BROTHER_WINDOWS_BETA_PACKAGE_SHA256_OK'
+Write-Host 'Integridade local verificada. Isto NÃO autentica o autor nem assina o EXE/MSI.'
+Write-Host 'Não instale se a origem GitHub e o commit não forem confiáveis.'
+) {
+            throw 'Registro de amostra sintética inválido.'
+        }
+        $digest = $Matches[1]
+        $filename = $Matches[2]
+        if ($filename -cne $expectedFixtureNames[$i]) {
+            throw 'Arquivo de amostra sintética inesperado ou fora de ordem.'
+        }
+        $sample = Join-Path $fixturesDir $filename
+        if (!(Test-Path -LiteralPath $sample -PathType Leaf)) {
+            throw "Matriz sintética ausente: $filename"
+        }
+        $info = Get-Item -LiteralPath $sample
+        if (($info.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Amostra sintética é link simbólico: $filename"
+        }
+        $actual = (Get-FileHash -LiteralPath $sample -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -cne $digest) {
+            throw "Integridade SHA256 inválida para a amostra $filename"
+        }
+    }
+    $present = @(Get-ChildItem -LiteralPath $fixturesDir -Force)
+    if ($present.Count -ne ($expectedFixtureNames.Count + 1)) {
+        throw 'Pasta de amostras QA contém arquivos inesperados.'
+    }
+    Write-Host 'BROTHER_WINDOWS_SYNTHETIC_FIXTURES_SHA256_OK'
+} else {
+    Write-Host 'Pacote QA sem matrizes sintéticas; verificação limitada aos instaladores.'
+}
+
 Write-Host "Origem declarada: commit $commit / workflow $runId"
 Write-Host 'BROTHER_WINDOWS_BETA_PACKAGE_SHA256_OK'
 Write-Host 'Integridade local verificada. Isto NÃO autentica o autor nem assina o EXE/MSI.'
