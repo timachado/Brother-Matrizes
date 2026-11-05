@@ -121,7 +121,6 @@ jobs:
           Copy-Item -LiteralPath "qa/verify-beta-package.ps1" -Destination $artifactQa -ErrorAction Stop
           Copy-Item -LiteralPath "qa/BETA-FECHADA-01.md" -Destination $artifactQa -ErrorAction Stop
           Copy-Item -LiteralPath "qa/ROTEIRO-HOMOLOGACAO-FISICA.md" -Destination $artifactQa -ErrorAction Stop
-          ./qa/verify-beta-package.ps1 -PackageRoot "build/compose/binaries/main" -ExpectedCommit $env:BROTHER_QA_SOURCE_COMMIT -ExpectedRunId $env:GITHUB_RUN_ID
           # Gera amostras ARTIFICIAIS com o launcher desta compilação.
           # Integra os exemplos ao ZIP QA; não comprova PE-DESIGN 11 físico.
           $image = "build/compose/binaries/main/app"
@@ -180,6 +179,9 @@ jobs:
             throw "Kit de QA contém arquivos inesperados; encontrados: $($fixtures.Count)"
           }
           Write-Host "BROTHER_WINDOWS_SYNTHETIC_FIXTURES_SHA256_OK"
+          # Exercita o MESMO verificador distribuído ao avaliador, já com
+          # as amostras e seus checksums presentes no pacote QA.
+          ./qa/verify-beta-package.ps1 -PackageRoot "build/compose/binaries/main" -ExpectedCommit $env:BROTHER_QA_SOURCE_COMMIT -ExpectedRunId $env:GITHUB_RUN_ID
 
 
       - name: Armazenar evidencia grafica de QA (sem dados de clientes)
