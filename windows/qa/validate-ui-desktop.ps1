@@ -1,7 +1,7 @@
-# Validação gráfica da tela inicial Windows Compose no runner efêmero.
-# A captura só contém a tela inicial vazia de QA, sem dados de clientes.
+# Validação gráfica da interface Compose no runner Windows efêmero.
+# Os diagnósticos usam tela vazia ou matriz sintética, sem dados de clientes.
 [CmdletBinding()]
-param([switch]$SyntheticPreview)
+param([switch]$SyntheticPreview, [switch]$WheelZoom)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -19,7 +19,16 @@ if (-not [Environment]::UserInteractive) {
 
 $folder = Join-Path $PSScriptRoot '..\build\qa\desktop-ui'
 [System.IO.Directory]::CreateDirectory($folder) | Out-Null
-$stem = if ($SyntheticPreview) { 'brother-ui-synthetic-smoke' } else { 'brother-ui-smoke' }
+if ($SyntheticPreview -and $WheelZoom) {
+    throw 'Escolha apenas um modo de diagnóstico de interface.'
+}
+$stem = if ($WheelZoom) {
+    'brother-ui-wheel-smoke'
+} elseif ($SyntheticPreview) {
+    'brother-ui-synthetic-smoke'
+} else {
+    'brother-ui-smoke'
+}
 $report = Join-Path $folder ($stem + '.txt')
 $picture = Join-Path $folder ($stem + '.png')
 if ((Test-Path -LiteralPath $report) -or (Test-Path -LiteralPath $picture)) {
@@ -27,7 +36,13 @@ if ((Test-Path -LiteralPath $report) -or (Test-Path -LiteralPath $picture)) {
 }
 $env:BROTHER_WINDOWS_QA_UI = '1'
 $launcher = $launchers[0]
-$command = if ($SyntheticPreview) { '--ui-synthetic-smoke-test' } else { '--ui-smoke-test' }
+$command = if ($WheelZoom) {
+    '--ui-wheel-smoke-test'
+} elseif ($SyntheticPreview) {
+    '--ui-synthetic-smoke-test'
+} else {
+    '--ui-smoke-test'
+}
 $arguments = $command + ' "' + ([System.IO.Path]::GetFullPath($report)) + '"'
 Write-Host 'Executando GUI Compose no runner Windows, sem abrir documentos privados.'
 $process = Start-Process -FilePath $launcher.FullName -WorkingDirectory $launcher.DirectoryName -ArgumentList $arguments -PassThru
@@ -54,7 +69,7 @@ try {
         $bytes[2] -ne 78 -or $bytes[3] -ne 71) {
         throw 'Captura PNG inválida ou vazia.'
     }
-    if ($SyntheticPreview) {
+    if ($SyntheticPreview -or $WheelZoom) {
         if (!$contents.Contains('BROTHER_WINDOWS_SYNTHETIC_UI_OK')) {
             throw 'A captura não confirmou a matriz sintética de QA.'
         }
@@ -70,6 +85,22 @@ try {
             throw 'A janela com matriz sintética é idêntica à janela vazia.'
         }
         Write-Host 'BROTHER_WINDOWS_UI_SYNTHETIC_PREVIEW_VERIFIED'
+    }
+    if ($WheelZoom) {
+        if (!$contents.Contains('BROTHER_WINDOWS_UI_WHEEL_ZOOM_OK')) {
+            throw 'A roda do mouse não ampliou a matriz sintética na interface.'
+        }
+        $zoomPicture = Join-Path $folder ($stem + '-zoom.png')
+        if (!(Test-Path -LiteralPath $zoomPicture -PathType Leaf)) {
+            throw 'Captura ampliada ausente.'
+        }
+        $zoomBytes = [System.IO.File]::ReadAllBytes($zoomPicture)
+        if ($zoomBytes.Length -lt 4000 -or
+            $zoomBytes[0] -ne 137 -or $zoomBytes[1] -ne 80 -or
+            $zoomBytes[2] -ne 78 -or $zoomBytes[3] -ne 71) {
+            throw 'Captura ampliada inválida ou vazia.'
+        }
+        Write-Host 'BROTHER_WINDOWS_UI_MOUSE_WHEEL_VERIFIED'
     }
     Write-Host $contents
     Write-Host 'BROTHER_WINDOWS_UI_SCREENSHOT_VERIFIED'
