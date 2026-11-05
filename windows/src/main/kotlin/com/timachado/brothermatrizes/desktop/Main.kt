@@ -26,7 +26,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,10 +71,11 @@ internal enum class DesktopWorkspace(val label: String) {
     LIBRARY("Biblioteca")
 }
 
-private val cyan = Color(0xFF4EDAFF)
-private val navy = Color(0xFF0A1625)
-private val surface = Color(0xFF14273B)
-private val muted = Color(0xFFACBDCD)
+// Valores oficiais Fio* do tema Android 1.11.8, compartilhados por contrato de QA.
+private val cyan: Color get() = DesktopBrandColors.gold
+private val navy: Color get() = DesktopBrandColors.background
+private val surface: Color get() = DesktopBrandColors.surface
+private val muted: Color get() = DesktopBrandColors.muted
 private val palette = listOf(
     Color(0xFF45D9FD), Color(0xFFF3BB60), Color(0xFFFC6C8A),
     Color(0xFF73D6AE), Color(0xFFC3AAFF), Color(0xFFE4E9F0)
@@ -153,18 +153,23 @@ private fun launchDesktopApp(
                 exitApplication()
             }
         }
-        MaterialTheme(
-            colorScheme = darkColorScheme(
-                primary = cyan, background = navy, surface = surface, onSurface = Color.White
+        var darkTheme by remember { mutableStateOf(true) }
+        BrotherDesktopTheme(darkTheme = darkTheme) {
+            DesktopScreen(
+                initialDocument = syntheticDocument,
+                darkTheme = darkTheme,
+                onToggleTheme = { darkTheme = !darkTheme }
             )
-        ) {
-            DesktopScreen(initialDocument = syntheticDocument)
         }
     }
 }
 
 @Composable
-private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
+private fun DesktopScreen(
+    initialDocument: DesktopMatrixDocument? = null,
+    darkTheme: Boolean = true,
+    onToggleTheme: () -> Unit = {}
+) {
     // A versão normal continua iniciando vazia. Somente o diagnóstico
     // autorizado injeta "QA", gerado localmente pelo motor oficial.
     var document by remember { mutableStateOf(initialDocument) }
@@ -296,10 +301,21 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("BROTHER MATRIZES", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("T.I. Machado  •  Windows Desktop  •  QA não comercial",
-                        color = cyan, fontSize = 13.sp)
+                    Text("Brother", fontSize = 26.sp,
+                        color = DesktopBrandColors.gold, fontWeight = FontWeight.Bold)
+                    Text("Matrizes", fontSize = 17.sp,
+                        color = DesktopBrandColors.goldSoft, fontWeight = FontWeight.SemiBold)
+                    Text("T.I. Machado • Windows • QA não comercial",
+                        color = muted, fontSize = 11.sp)
                 }
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(
+                        enabled = !busy,
+                        onClick = onToggleTheme
+                    ) {
+                        Text(if (darkTheme) "Modo claro" else "Modo escuro",
+                            fontSize = 11.sp)
+                    }
                 Button(enabled = !busy, onClick = {
                     val chooser = JFileChooser().apply {
                         dialogTitle = "Abrir matriz de bordado (DST, PES ou JEF)"
@@ -340,6 +356,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         }
                     }
                 }) { Text(if (busy) "Processando..." else "Abrir DST / PES / JEF") }
+                }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -365,7 +382,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
             Spacer(Modifier.height(8.dp))
             Text(
                 message,
-                color = if (isError) Color(0xFFFF9DA9) else muted,
+                color = if (isError) DesktopBrandColors.danger else muted,
                 fontSize = 13.sp
             )
             Spacer(Modifier.height(14.dp))
@@ -643,7 +660,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         if (hoopAssessments == null) {
                             Text(
                                 "Não foi possível calcular o enquadramento desta matriz.",
-                                color = Color(0xFFFF9DA9), fontSize = 11.sp
+                                color = DesktopBrandColors.danger, fontSize = 11.sp
                             )
                         } else {
                             hoopAssessments.forEach { item ->
@@ -807,7 +824,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         if (absent.isNotEmpty()) {
                             Text(
                                 "Glifos ausentes na amostra: $absent",
-                                fontSize = 11.sp, color = Color(0xFFFF9DA9)
+                                fontSize = 11.sp, color = DesktopBrandColors.danger
                             )
                         }
                     }
@@ -1978,7 +1995,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
 private fun Detail(label: String, value: String) {
     Column {
         Text(label, color = muted, fontSize = 11.sp)
-        Text(value, color = Color.White, fontSize = 14.sp)
+        Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
     }
 }
 

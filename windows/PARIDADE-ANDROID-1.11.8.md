@@ -49,6 +49,22 @@ adaptadores específicos com equivalência funcional e testes, nunca cópia
 irrefletida. As políticas de assinatura, conta e importação devem continuar
 seguras e consistentes entre plataformas.
 
+## Identidade visual Android 1.11.8 no Windows (QA)
+
+O Windows utiliza agora as cores exatas `Fio*` do Android
+(`BrotherMatrizesTheme.kt`): fundos, superfícies, texto, dourado,
+dourado suave e erros, nos **modos escuro e claro**. Os esquemas
+Material 3, formas arredondadas e tipografia também partem da versão
+Android, em um tema Desktop isolado. O cabeçalho exibe a marca
+**Brother / Matrizes**, e o usuário pode alternar escuro/claro na
+sessão. A escolha ainda não persiste após fechar o aplicativo.
+
+Esta etapa implementa **identidade cromática**; não significa que as
+16 telas, a distribuição de controles e os recursos específicos
+do Android já tenham paridade visual ou funcional. O símbolo oficial
+do aplicativo permanece no ICO do executável; a renderização do
+mesmo recurso gráfico dentro de todas as telas ainda será auditada.
+
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
