@@ -206,6 +206,8 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
     var letterRotation by remember { mutableStateOf("0") }
     val recentFiles = remember { DesktopRecentFiles() }
     var recentPaths by remember { mutableStateOf(recentFiles.list()) }
+    val favoriteFiles = remember { DesktopFavorites() }
+    var favoritePaths by remember { mutableStateOf(favoriteFiles.list()) }
     val librarySelection = remember { DesktopLibrarySelection() }
     var libraryFolder by remember { mutableStateOf(librarySelection.recall()?.toString()) }
     var libraryEntries by remember { mutableStateOf<List<LocalMatrixEntry>>(emptyList()) }
@@ -232,6 +234,18 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
             recentFiles.record(path)
             recentPaths = recentFiles.list()
         }
+    }
+
+    fun toggleFavorite(path: Path) {
+        runCatching { favoriteFiles.toggle(path) }
+            .onSuccess { added ->
+                favoritePaths = favoriteFiles.list()
+                libraryPage = 0
+                report(if (added) "Adicionado aos favoritos locais." else
+                    "Removido dos favoritos locais.")
+            }.onFailure {
+                report("Favorito não atualizado: ${it.message}", true)
+            }
     }
 
     fun openRecent(path: Path) {
@@ -490,6 +504,45 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         }
                         Text("Conta, comunidade, desenhos, transferência e fluxos completos " +
                             "de simulação ainda exigem implementação específica no Windows.",
+                            color = muted, fontSize = 11.sp)
+                        Text("Favoritos neste computador", color = cyan,
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        if (favoritePaths.isEmpty()) {
+                            Text("Marque uma matriz como favorita na Biblioteca.",
+                                color = muted, fontSize = 11.sp)
+                        }
+                        favoritePaths.take(8).forEach { favorite ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { openRecent(favorite) },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(favorite.fileName.toString(), maxLines = 1)
+                                }
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { toggleFavorite(favorite) }
+                                ) { Text("★", fontSize = 18.sp) }
+                            }
+                        }
+                        if (favoritePaths.isNotEmpty()) {
+                            TextButton(enabled = !busy, onClick = {
+                                runCatching { favoriteFiles.clear() }
+                                    .onSuccess {
+                                        favoritePaths = emptyList()
+                                        libraryPage = 0
+                                        report("Favoritos locais apagados.")
+                                    }
+                                    .onFailure {
+                                        report("Falha ao limpar favoritos: ${it.message}", true)
+                                    }
+                            }) { Text("Limpar favoritos") }
+                        }
+                        Text("Favoritos guardam apenas caminhos locais, sem alterar os arquivos.",
                             color = muted, fontSize = 11.sp)
                         Text("Recentes neste computador", color = cyan,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -1669,10 +1722,11 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         }
                     }
                     val libraryView = remember(
-                        libraryEntries, librarySearch, libraryFilter, libraryPage
+                        libraryEntries, librarySearch, libraryFilter, libraryPage, favoritePaths
                     ) {
                         DesktopLibraryBrowser.page(
-                            libraryEntries, librarySearch, libraryFilter, libraryPage
+                            libraryEntries, librarySearch, libraryFilter, libraryPage,
+                            favoritePaths.toSet()
                         )
                     }
                     if (libraryFolder != null) {
@@ -1693,7 +1747,7 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                             }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            for (type in listOf("JEF", "FLP")) {
+                            for (type in listOf("JEF", "FLP", "FAVORITOS")) {
                                 TextButton(
                                     enabled = !busy,
                                     onClick = { libraryFilter = type; libraryPage = 0 }
@@ -1709,6 +1763,10 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                         )
                     }
                     for (entry in libraryView.items) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                         TextButton(
                             enabled = !busy,
                             onClick = {
@@ -1743,9 +1801,19 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                                     }.onFailure { report("Falha ao abrir da biblioteca: ${it.message}", true) }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
                         ) {
                             Text("${entry.name}  ·  ${entry.format}", maxLines = 1)
+                        }
+                        TextButton(
+                            enabled = !busy,
+                            onClick = { toggleFavorite(entry.path) }
+                        ) {
+                            Text(
+                                if (entry.path in favoritePaths) "★" else "☆",
+                                fontSize = 18.sp
+                            )
+                        }
                         }
                     }
                     if (libraryFolder != null && libraryView.totalPages > 1) {
