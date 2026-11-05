@@ -88,6 +88,31 @@ IMPORTANTE: use somente em um computador de testes autorizado.
     if (!$text.StartsWith('BROTHER_WINDOWS_QA_SMOKE_OK')) {
         throw 'Relatorio do launcher portatil invalido.'
     }
+    # Prova que a interface gráfica também abre a partir do ZIP extraído
+    # (sem registro no sistema e sem MSI/EXE de instalação).
+    $uiReport = Join-Path $env:RUNNER_TEMP 'brother-portable-ui-smoke.txt'
+    if (Test-Path -LiteralPath $uiReport) {
+        throw 'Relatorio grafico portatil preexistente.'
+    }
+    $env:BROTHER_WINDOWS_QA_UI = '1'
+    try {
+        $uiArgs = '--ui-smoke-test "' + $uiReport + '"'
+        $ui = Start-Process -FilePath $exe -ArgumentList $uiArgs -WorkingDirectory (Split-Path $exe -Parent) -PassThru
+        if (-not $ui.WaitForExit(90000)) {
+            Stop-Process -Id $ui.Id -Force -ErrorAction SilentlyContinue
+            throw 'Interface portatil nao apareceu em 90 segundos.'
+        }
+        $ui.Refresh()
+        if ($ui.ExitCode -ne 0 -or !(Test-Path -LiteralPath $uiReport -PathType Leaf)) {
+            throw "Falha de interface na versao portatil (codigo $($ui.ExitCode))."
+        }
+        if (!(Get-Content -LiteralPath $uiReport -Raw -Encoding UTF8).StartsWith('BROTHER_WINDOWS_UI_SMOKE_OK')) {
+            throw 'Interface do ZIP portatil nao passou no smoke grafico.'
+        }
+    } finally {
+        Remove-Item Env:BROTHER_WINDOWS_QA_UI -ErrorAction SilentlyContinue
+    }
+    Write-Host 'BROTHER_WINDOWS_PORTABLE_GUI_OK'
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $destination 'SHA256SUMS.txt') -Value (
         $hash + '  ' + (Split-Path $archive -Leaf)
