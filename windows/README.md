@@ -3,6 +3,20 @@
 Este projeto Windows está isolado do Android comercial. O PR não modifica
 `app/`, `supabase/` nem pipelines oficiais de publicação.
 
+## Amostras sintéticas para homologação física
+
+O workflow Windows QA gera, via launcher empacotado, a subpasta
+`qa/fixtures/` do artefato de instaladores. Contém DST, PES padrão Brother,
+PES com perfil PC **experimental**, JEF, FLP oficial Android e um par
+FLP + `.bmlayers` de letras independentes. Usa apenas nomes sintéticos
+`QA` e `AB`, sem dados de clientes. O arquivo `SHA256SUMS.txt` da subpasta
+é conferido pelo CI, mas **não é assinatura digital** e não autentica a origem.
+
+Essas amostras tornam os testes físicos reproduzíveis; a aprovação do CI não
+garante aceitação no PE-DESIGN 11 nem costura em bordadeira. Somente avaliadores
+autorizados devem utilizar esse kit, de acordo com
+`qa/ROTEIRO-HOMOLOGACAO-FISICA.md`.
+
 ## Funcionalidades disponíveis na QA
 
 - Compose Desktop com instaladores EXE/MSI gerados por runner Windows.
