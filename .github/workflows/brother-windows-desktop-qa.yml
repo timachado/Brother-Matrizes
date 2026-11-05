@@ -121,12 +121,12 @@ jobs:
           Copy-Item -LiteralPath "qa/verify-beta-package.ps1" -Destination $artifactQa -ErrorAction Stop
           Copy-Item -LiteralPath "qa/BETA-FECHADA-01.md" -Destination $artifactQa -ErrorAction Stop
           Copy-Item -LiteralPath "qa/ROTEIRO-HOMOLOGACAO-FISICA.md" -Destination $artifactQa -ErrorAction Stop
-          # Gera amostras ARTIFICIAIS com o launcher desta compilação.
-          # Integra os exemplos ao ZIP QA; não comprova PE-DESIGN 11 físico.
-          $image = "build/compose/binaries/main/app"
-          $launchers = @(Get-ChildItem -LiteralPath $image -Recurse -File -Filter "BrotherMatrizesDesktop.exe")
+          # Gera amostras inteiramente sintéticas no launcher empacotado.
+          # Nao confundir com homologacao no PE-DESIGN 11 ou bordadeira real.
+          $appDir = "build/compose/binaries/main/app"
+          $launchers = @(Get-ChildItem -LiteralPath $appDir -Recurse -File -Filter "BrotherMatrizesDesktop.exe")
           if ($launchers.Count -ne 1) {
-            throw "Launcher de amostras QA ausente ou duplicado."
+            throw "Esperado um launcher QA; encontrados: $($launchers.Count)"
           }
           $output = Join-Path (Get-Location).Path "build/compose/binaries/main/qa/fixtures"
           $env:BROTHER_WINDOWS_QA_FIXTURES = '1'
@@ -134,53 +134,16 @@ jobs:
             $arguments = '--export-qa-fixtures "' + $output + '"'
             $process = Start-Process -FilePath $launchers[0].FullName -WorkingDirectory $launchers[0].DirectoryName -ArgumentList $arguments -Wait -PassThru
             if ($process.ExitCode -ne 0) {
-              throw "Geração de matrizes sintéticas falhou no launcher: $($process.ExitCode)"
+              throw "Falha ao gerar amostras QA: $($process.ExitCode)"
             }
           } finally {
             Remove-Item Env:BROTHER_WINDOWS_QA_FIXTURES -ErrorAction SilentlyContinue
           }
-          $checksums = @(Get-Content -LiteralPath (Join-Path $output "SHA256SUMS.txt") -Encoding UTF8)
-          if ($checksums.Count -ne 8) { throw "Kit QA deveria conter exatamente 8 hashes." }
-          foreach ($line in $checksums) {
-            if ($line -cnotmatch '^([0-9a-f]{64})  ([a-zA-Z0-9_.-]+)
-
-      - name: Armazenar evidencia grafica de QA (sem dados de clientes)
-        uses: actions/upload-artifact@v4
-        with:
-          name: brother-windows-ui-smoke-QA-NAO-COMERCIAL
-          path: windows/build/qa/desktop-ui/**
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Armazenar pacotes QA (NAO PUBLICAR)
-        uses: actions/upload-artifact@v4
-        with:
-          name: brother-windows-installer-QA-NAO-COMERCIAL
-          path: |
-            windows/build/compose/binaries/main/exe/**
-            windows/build/compose/binaries/main/msi/**
-            windows/build/compose/binaries/main/qa/**
-          if-no-files-found: error
-          retention-days: 7
-) {
-              throw "Linha de SHA256 de amostra inválida."
-            }
-            $expected = $Matches[1]
-            $name = $Matches[2]
-            $file = Join-Path $output $name
-            if (!(Test-Path -LiteralPath $file -PathType Leaf)) {
-              throw "Amostra QA ausente: $name"
-            }
-            $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -cne $expected) { throw "SHA256 inválido para amostra $name" }
+          $checkFile = Join-Path $output "SHA256SUMS.txt"
+          if (!(Test-Path -LiteralPath $checkFile -PathType Leaf)) {
+            throw "Amostras QA sem SHA256SUMS.txt"
           }
-          $fixtures = @(Get-ChildItem -LiteralPath $output -File)
-          if ($fixtures.Count -ne 9) {
-            throw "Kit de QA contém arquivos inesperados; encontrados: $($fixtures.Count)"
-          }
-          Write-Host "BROTHER_WINDOWS_SYNTHETIC_FIXTURES_SHA256_OK"
-          # Exercita o MESMO verificador distribuído ao avaliador, já com
-          # as amostras e seus checksums presentes no pacote QA.
+          # Confere instaladores E amostras com o mesmo script que vai ao PC.
           ./qa/verify-beta-package.ps1 -PackageRoot "build/compose/binaries/main" -ExpectedCommit $env:BROTHER_QA_SOURCE_COMMIT -ExpectedRunId $env:GITHUB_RUN_ID
 
 
