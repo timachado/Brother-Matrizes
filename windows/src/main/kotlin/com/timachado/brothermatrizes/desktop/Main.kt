@@ -91,13 +91,14 @@ fun main(args: Array<String>) {
         return
     }
     if (args.size == 2 &&
-        args[0] in setOf("--ui-smoke-test", "--ui-synthetic-smoke-test")) {
+        args[0] in setOf("--ui-smoke-test", "--ui-synthetic-smoke-test", "--ui-wheel-smoke-test")) {
         require(System.getenv("BROTHER_WINDOWS_QA_UI") == "1") {
             "Captura da interface permitida somente em ambiente QA autorizado."
         }
         launchDesktopApp(
             java.nio.file.Path.of(args[1]),
-            syntheticUi = args[0] == "--ui-synthetic-smoke-test"
+            syntheticUi = args[0] != "--ui-smoke-test",
+            wheelUi = args[0] == "--ui-wheel-smoke-test"
         )
         return
     }
@@ -107,7 +108,8 @@ fun main(args: Array<String>) {
 
 private fun launchDesktopApp(
     uiReport: Path? = null,
-    syntheticUi: Boolean = false
+    syntheticUi: Boolean = false,
+    wheelUi: Boolean = false
 ) = application {
     // A janela de 1280x820dp ultrapassava a area util de desktops pequenos.
     // Limitar ao workspace exclui a barra de tarefas e preserva os controles.
@@ -125,11 +127,15 @@ private fun launchDesktopApp(
             if (syntheticUi) DesktopMatrixService.createName("QA", 12f) else null
         }
         if (uiReport != null) {
-            LaunchedEffect(uiReport, syntheticUi) {
+            LaunchedEffect(uiReport, syntheticUi, wheelUi) {
                 delay(2500)
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
-                        DesktopUiSmoke.capture(window, uiReport, syntheticUi)
+                        if (wheelUi) {
+                            DesktopUiSmoke.captureWheelZoom(window, uiReport)
+                        } else {
+                            DesktopUiSmoke.capture(window, uiReport, syntheticUi)
+                        }
                     }
                 }
                 result.onFailure {
