@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $appImage = Join-Path $PSScriptRoot '..\build\compose\binaries\main\app'
-$launchers = @(Get-ChildItem -LiteralPath $appImage -File -Recurse -Filter 'BrotherMatrizesDesktop.exe')
+$launchers = @(Get-ChildItem -LiteralPath $appImage -File -Recurse -Filter 'Brother Matrizes.exe')
 if ($launchers.Count -ne 1) {
     throw "Esperado um launcher EXE no app-image; encontrados $($launchers.Count)."
 }
