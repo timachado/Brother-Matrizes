@@ -2341,13 +2341,14 @@ private fun StitchPreview(
     val latestLetterRegions by rememberUpdatedState(letterRegions)
     val latestOnLetterDragStarted by rememberUpdatedState(onLetterDragStarted)
     val latestOnLetterDragCompleted by rememberUpdatedState(onLetterDragCompleted)
+    val latestPreviewPan by rememberUpdatedState(pan)
     var draggingLetterIndex by remember { mutableStateOf<Int?>(null) }
     var draggingLetterOffset by remember { mutableStateOf(Offset.Zero) }
     val latestOnMoveCompleted by rememberUpdatedState(onMoveCompleted)
     val latestOnMoveCancelled by rememberUpdatedState(onMoveCancelled)
     val focusRequester = remember { FocusRequester() }
     val dragModifier = if (allowLetterDrag) {
-        Modifier.pointerInput(allowLetterDrag, preview, zoom, pan) {
+        Modifier.pointerInput(allowLetterDrag, preview, zoom) {
             var total = Offset.Zero
             var target: Int? = null
             detectDragGestures(
@@ -2360,7 +2361,7 @@ private fun StitchPreview(
                             width = size.width.toFloat(),
                             height = size.height.toFloat(),
                             zoom = zoom,
-                            pan = pan,
+                            pan = latestPreviewPan,
                             cursor = start
                         )
                     }.getOrNull()
