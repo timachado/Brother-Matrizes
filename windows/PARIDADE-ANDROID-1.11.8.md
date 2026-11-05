@@ -30,7 +30,7 @@ Windows esteja completo nem comercialmente homologado.
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
 | `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
-| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes e favoritos locais; enviados, backups e biblioteca remota pendentes |
+| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP local seletivo para DST/PES/JEF em desenvolvimento |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
@@ -125,3 +125,9 @@ Não anunciar `Windows completo`, `lançamento comercial`, `100% Android`
 ou `PE-DESIGN 11 validado` enquanto as respectivas verificações faltarem.
 O PR #225 permanece draft, sem merge ou distribuição pública, até o
 cumprimento dos critérios. O ZIP QA não substitui o aplicativo pretendido.
+
+## Backup FLP local no Windows (QA, sem nuvem)
+
+A Biblioteca oferece **Criar backup do projeto atual (FLP)** e **Recuperar backup da pasta escolhida**. A pessoa escolhe explicitamente a pasta; o app não indexa o disco ou acessa serviços remotos. Cada backup é gravado com nome novo `Brother-Matrizes-Backup-<UTC>-<id>.flp`, pelo **ProjectCodec v11 oficial do Android** e com proteção contra sobrescrita. Ao restaurar, abre somente em memória e mantém os arquivos existentes intactos.
+
+Quando o projeto corresponde às letras reeditáveis criadas no Windows, grava também o `.bmlayers` vinculado por SHA-256 e o exige íntegro para recuperar os objetos. Sem sidecar, o FLP comum continua legível; a cópia não conserva o histórico Desfazer/Refazer. Esta função NÃO equivale ao backup de conta, biblioteca em nuvem ou sincronização mobile. Requer QA CI e homologação física antes da distribuição.

@@ -151,6 +151,19 @@ autorizados devem utilizar esse kit, de acordo com
   depender de ligaduras e, se a verificação de silhueta falhar, a geração
   é bloqueada.
 
+## Backup e recuperação local de projetos FLP (QA)
+
+Na área **Biblioteca**, a pessoa pode escolher uma pasta e criar um novo
+`Brother-Matrizes-Backup-...flp` a partir da matriz aberta, usando o
+`ProjectCodec` oficial do Android. Os arquivos já existentes nunca são
+sobrescritos. Se houver camadas de letras Windows ainda compatíveis com o
+documento, o backup preserva também o par `.bmlayers`. O restaurador
+lista apenas backups da pasta explicitamente escolhida, verifica conteúdo
+e associação das camadas (quando presentes) e recupera o projeto apenas
+em memória. Arquivos fonte, projetos do Android e dados da conta não
+são modificados. Não é backup em nuvem, não preserva histórico de edição
+da sessão e não substitui a homologação Windows.
+
 ## Compatibilidade do projeto .FLP
 
 O arquivo `app/.../core/project/ProjectStore.kt` reúne `ProjectCodec` (Kotlin

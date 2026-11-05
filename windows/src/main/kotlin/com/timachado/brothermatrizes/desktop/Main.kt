@@ -1591,6 +1591,128 @@ private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
                     }
                     if (workspace == DesktopWorkspace.LIBRARY) {
                     Spacer(Modifier.height(12.dp))
+
+                    Text("Backup e recuperação local (QA)", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Salva uma cópia nova no formato FLP Android em pasta escolhida. " +
+                            "Não envia dados à nuvem e não substitui arquivos existentes.",
+                        color = muted, fontSize = 11.sp
+                    )
+                    Button(enabled = !busy && document != null, onClick = {
+                        val snapshot = document ?: return@Button
+                        val editableLayers = if (document === letterPreviewDocument) {
+                            letterSession?.current
+                        } else null
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Escolher pasta para novo backup FLP"
+                            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val folder = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+                            busy = true
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        DesktopBackupService.create(snapshot, folder, editableLayers)
+                                    }
+                                }
+                                busy = false
+                                result.onSuccess { saved ->
+                                    report("Backup local criado: ${saved.fileName}. " +
+                                        "Preserve também o .bmlayers, quando houver.")
+                                }.onFailure {
+                                    report("Backup não criado: ${it.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Criar backup do projeto atual (FLP)") }
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Escolher pasta de backups Brother Matrizes"
+                            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val folder = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+                            busy = true
+                            scope.launch {
+                                val listed = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopBackupService.list(folder) }
+                                }
+                                val options = listed.getOrElse {
+                                    busy = false
+                                    report("Não foi possível listar backups: ${it.message}", true)
+                                    return@launch
+                                }
+                                if (options.isEmpty()) {
+                                    busy = false
+                                    report("Nenhum backup Brother Matrizes FLP nesta pasta.")
+                                    return@launch
+                                }
+                                val chosen = JOptionPane.showInputDialog(
+                                    null,
+                                    "Selecione a cópia FLP a recuperar (arquivo original intacto).",
+                                    "Brother Matrizes — restaurar backup",
+                                    JOptionPane.PLAIN_MESSAGE,
+                                    null,
+                                    options.map { it.fileName.toString() }.toTypedArray(),
+                                    options.first().fileName.toString()
+                                ) as? String
+                                if (chosen == null) {
+                                    busy = false
+                                    report("Recuperação cancelada. Nenhum arquivo alterado.")
+                                    return@launch
+                                }
+                                val target = options.firstOrNull { it.fileName.toString() == chosen }
+                                if (target == null) {
+                                    busy = false
+                                    report("Backup não corresponde à seleção.", true)
+                                    return@launch
+                                }
+                                val restored = withContext(Dispatchers.IO) {
+                                    runCatching { DesktopBackupService.restore(target) }
+                                }
+                                busy = false
+                                restored.onSuccess { backup ->
+                                    document = backup.document
+                                    editTimeline = DesktopEditTimeline.start(backup.document)
+                                    letterSession = backup.letterSession
+                                    letterPreviewDocument = if (backup.letterSession != null) {
+                                        backup.document
+                                    } else null
+                                    if (backup.letterSession != null) {
+                                        val index = backup.letterSession.current.editableIndices.first()
+                                        selectedLetterIndex = index
+                                        val letter = backup.letterSession.current.objects[index]
+                                        letterMoveX = letter.moveXmm.toString()
+                                        letterMoveY = letter.moveYmm.toString()
+                                        letterScale = letter.scale.toString()
+                                        letterRotation = letter.rotationDegrees.toString()
+                                    }
+                                    format = backup.document.current.format
+                                    peDesign = false
+                                    stitchProgress = 1f
+                                    scaleText = "1.00"
+                                    horizontalScaleText = "1.00"
+                                    verticalScaleText = "1.00"
+                                    angleText = "0"
+                                    xMmText = "0"
+                                    yMmText = "0"
+                                    mirrorX = false
+                                    mirrorY = false
+                                    threadColorSlotText = "1"
+                                    threadColorHexText = "#E6BE70"
+                                    workspace = DesktopWorkspace.VIEWER
+                                    report("Cópia FLP restaurada em memória. " +
+                                        "Arquivos em disco e projeto anterior permanecem intactos.")
+                                }.onFailure {
+                                    report("Recuperação recusada: ${it.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Recuperar backup da pasta escolhida") }
+                    Spacer(Modifier.height(8.dp))
                     Text("Biblioteca local (somente leitura)", color = cyan, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
