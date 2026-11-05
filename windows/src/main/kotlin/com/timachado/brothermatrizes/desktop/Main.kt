@@ -90,18 +90,25 @@ fun main(args: Array<String>) {
         DesktopQaFixturePack.generateNew(java.nio.file.Path.of(args[1]))
         return
     }
-    if (args.size == 2 && args[0] == "--ui-smoke-test") {
+    if (args.size == 2 &&
+        args[0] in setOf("--ui-smoke-test", "--ui-synthetic-smoke-test")) {
         require(System.getenv("BROTHER_WINDOWS_QA_UI") == "1") {
             "Captura da interface permitida somente em ambiente QA autorizado."
         }
-        launchDesktopApp(java.nio.file.Path.of(args[1]))
+        launchDesktopApp(
+            java.nio.file.Path.of(args[1]),
+            syntheticUi = args[0] == "--ui-synthetic-smoke-test"
+        )
         return
     }
     require(args.isEmpty()) { "Argumentos não reconhecidos." }
     launchDesktopApp()
 }
 
-private fun launchDesktopApp(uiReport: Path? = null) = application {
+private fun launchDesktopApp(
+    uiReport: Path? = null,
+    syntheticUi: Boolean = false
+) = application {
     // A janela de 1280x820dp ultrapassava a area util de desktops pequenos.
     // Limitar ao workspace exclui a barra de tarefas e preserva os controles.
     val workArea = remember {
@@ -114,11 +121,16 @@ private fun launchDesktopApp(uiReport: Path? = null) = application {
         title = "Brother Matrizes Desktop — QA",
         state = rememberWindowState(width = initialWidth.dp, height = initialHeight.dp)
     ) {
+        val syntheticDocument = remember(syntheticUi) {
+            if (syntheticUi) DesktopMatrixService.createName("QA", 12f) else null
+        }
         if (uiReport != null) {
-            LaunchedEffect(uiReport) {
+            LaunchedEffect(uiReport, syntheticUi) {
                 delay(2500)
                 val result = withContext(Dispatchers.IO) {
-                    runCatching { DesktopUiSmoke.capture(window, uiReport) }
+                    runCatching {
+                        DesktopUiSmoke.capture(window, uiReport, syntheticUi)
+                    }
                 }
                 result.onFailure {
                     System.err.println("BROTHER_WINDOWS_UI_SMOKE_FAILED: ${it.message}")
@@ -132,14 +144,16 @@ private fun launchDesktopApp(uiReport: Path? = null) = application {
                 primary = cyan, background = navy, surface = surface, onSurface = Color.White
             )
         ) {
-            DesktopScreen()
+            DesktopScreen(initialDocument = syntheticDocument)
         }
     }
 }
 
 @Composable
-private fun DesktopScreen() {
-    var document by remember { mutableStateOf<DesktopMatrixDocument?>(null) }
+private fun DesktopScreen(initialDocument: DesktopMatrixDocument? = null) {
+    // A versão normal continua iniciando vazia. Somente o diagnóstico
+    // autorizado injeta "QA", gerado localmente pelo motor oficial.
+    var document by remember { mutableStateOf(initialDocument) }
     var editTimeline by remember { mutableStateOf<DesktopEditTimeline?>(null) }
     val preview = remember(document) { document?.let(DesktopMatrixService::preview) }
     var message by remember { mutableStateOf("Versão Windows de homologação: sem acesso à conta ou arquivos em nuvem.") }
