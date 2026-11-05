@@ -179,8 +179,16 @@ verifica renderização básica com matriz, e exige pelo menos 80 pixels
 com a cor dourada esperada na região de desenho da amostra sintética.
 Esse limiar foi conferido contra capturas reais da QA #171, em que a janela
 vazia não exibe esses pixels e a prévia sintética possui centenas deles.
-É um smoke direcionado ao desenho, **sem comprovar zoom por mouse,
-precisão visual da costura, PE-DESIGN 11 ou interação humana**.
+É um smoke direcionado ao desenho, sem validar a qualidade de costura.
+
+Uma terceira etapa usa `--ui-wheel-smoke-test` e envia uma rolagem
+de mouse pelo `java.awt.Robot` para a prévia da matriz sintética.
+O CI exige que a largura e a altura visíveis do bordado cresçam pelo
+menos 10%, registra o antes/depois em PNG e produz o marcador
+`BROTHER_WINDOWS_UI_WHEEL_ZOOM_OK`. Esse é um teste automatizado
+de um gesto real no desktop virtual, **não substitui a verificação física
+de mouse, DPI, desempenho ou acessibilidade**, nem comprova precisão
+de costura ou compatibilidade com PE-DESIGN 11.
 
 Para homologação física, usar o roteiro versionado:
 [`qa/ROTEIRO-HOMOLOGACAO-FISICA.md`](qa/ROTEIRO-HOMOLOGACAO-FISICA.md),
