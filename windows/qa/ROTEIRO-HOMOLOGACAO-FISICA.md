@@ -20,6 +20,15 @@ automatizadas que constarem como aprovadas no GitHub Actions.
       Authenticode comercial**. Nunca orientar desativar antivírus/SmartScreen.
 - [ ] Criar pasta isolada para matrizes artificiais, exportações e logs, sem
       credenciais, matrizes privadas ou projetos comerciais.
+- [ ] Abrir a subpasta `qa/fixtures/` do ZIP QA: contém amostras sintéticas
+      `QA_NOME_DST.dst`, `QA_NOME_PES_MAQUINA.pes`,
+      `QA_NOME_PES_PE_DESIGN_PC_EXPERIMENTAL.pes`, `QA_NOME_JEF.jef`,
+      `QA_PROJETO_ANDROID.flp` e `QA_LETRAS_CAMADAS.flp` +
+      `QA_LETRAS_CAMADAS.bmlayers`.
+- [ ] Verificar o `qa/fixtures/SHA256SUMS.txt` com `Get-FileHash -Algorithm
+      SHA256` em cada arquivo listado. Esses checksums protegem somente
+      integridade local: não substituem assinatura digital nem autenticação.
+      **Jamais usar amostras da QA para bordado comercial.**
 
 ## 2. Instalação e abertura da interface
 
