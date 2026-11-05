@@ -1,4 +1,6 @@
 import org.gradle.api.tasks.Sync
+import java.security.MessageDigest
+import java.util.Base64
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -6,6 +8,21 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.20"
     id("org.jetbrains.compose") version "1.9.3"
 }
+
+// O ICO oficial é versionado como Base64 para manter o binário íntegro
+// no fluxo de edição do repositório. A compilação restaura o arquivo
+// somente no diretório build/, sem alterar o código Android.
+val officialIconBase64 = file("icons/Brother-Matrizes.ico.b64")
+val officialIconBytes = Base64.getMimeDecoder().decode(officialIconBase64.readText())
+val officialIconSha256 = MessageDigest.getInstance("SHA-256")
+    .digest(officialIconBytes)
+    .joinToString("") { "%02x".format(it) }
+check(officialIconSha256 == "95d6112188cfa2a04662240986cebde69246c02f43bcabf196d494a91a7b61e8") {
+    "Ícone oficial Brother Matrizes inválido ou modificado."
+}
+val officialWindowsIcon = layout.buildDirectory.file("generated/icons/Brother-Matrizes.ico").get().asFile
+officialWindowsIcon.parentFile.mkdirs()
+officialWindowsIcon.writeBytes(officialIconBytes)
 
 group = "com.timachado.brothermatrizes"
 version = "0.1.0-qa"
@@ -175,7 +192,7 @@ compose.desktop {
                 menuGroup = "T.I. Machado"
                 shortcut = true
                 // Ícone oficial enviado pelo proprietário da marca.
-                iconFile.set(project.file("icons/Brother-Matrizes.ico"))
+                iconFile.set(officialWindowsIcon)
             }
         }
     }
