@@ -111,6 +111,93 @@ internal object DesktopUiSmoke {
         return screenshotPath
     }
 
+
+    /**
+     * E2E de evento de mouse real no runner: um passo de roda amplia a
+     * geometria visível da matriz sintética. Não simula bordadeira nem
+     * inspeciona matrizes privadas.
+     */
+    fun captureWheelZoom(window: Window, report: Path): Path {
+        val beforePath = capture(window, report, syntheticPreview = true)
+        val beforeImage = ImageIO.read(beforePath.toFile())
+            ?: error("A prévia inicial não pôde ser lida.")
+        val before = syntheticStitchBounds(beforeImage)
+            ?: error("A prévia sintética inicial não contém pontadas.")
+
+        val frame = window as? java.awt.Frame
+            ?: error("Janela Compose indisponível para o teste da roda.")
+        val bounds = frame.bounds
+        val robot = Robot(frame.graphicsConfiguration.device)
+        val mouseX = bounds.x + (bounds.width * 0.34f).toInt()
+        val mouseY = bounds.y + (bounds.height * 0.50f).toInt()
+        robot.mouseMove(mouseX, mouseY)
+        robot.delay(250)
+        // Movimento real de mouse no Windows virtual, não chamada direta à
+        // função de cálculo. Compose recebe o PointerEventType.Scroll.
+        robot.mouseWheel(-1)
+        robot.delay(1000)
+
+        val afterImage = robot.createScreenCapture(bounds)
+        val after = syntheticStitchBounds(afterImage)
+            ?: error("Prévia sem pontadas depois de girar a roda do mouse.")
+        check(after.width.toFloat() >= before.width * 1.10f &&
+            after.height.toFloat() >= before.height * 1.10f) {
+            "Roda não ampliou a matriz: " +
+                "${before.width}x${before.height} -> ${after.width}x${after.height}."
+        }
+        val afterPath = report.resolveSibling(
+            report.fileName.toString().removeSuffix(".txt") + "-zoom.png"
+        )
+        require(!Files.exists(afterPath)) { "Evidência de zoom já existe." }
+        Files.newOutputStream(afterPath, StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.WRITE).use { output ->
+            check(ImageIO.write(afterImage, "png", output)) {
+                "Não foi possível escrever evidência do zoom."
+            }
+        }
+        Files.writeString(
+            report,
+            "Zoom: ${before.width}x${before.height} -> " +
+                "${after.width}x${after.height}\n" +
+                "Captura ampliada: ${afterPath.fileName}\n" +
+                "BROTHER_WINDOWS_UI_WHEEL_ZOOM_OK\n",
+            StandardCharsets.UTF_8, StandardOpenOption.APPEND
+        )
+        return afterPath
+    }
+
+    /** Limites visíveis das pontadas sintéticas no painel de prévia. */
+    internal fun syntheticStitchBounds(image: BufferedImage): Rectangle? {
+        require(image.width > 0 && image.height > 0) { "Captura inválida." }
+        val minScanX = (image.width * 0.06f).toInt()
+        val maxScanX = (image.width * 0.60f).toInt()
+        val minScanY = (image.height * 0.28f).toInt()
+        val maxScanY = (image.height * 0.76f).toInt()
+        var left = Int.MAX_VALUE
+        var top = Int.MAX_VALUE
+        var right = -1
+        var bottom = -1
+        for (y in minScanY until maxScanY) {
+            for (x in minScanX until maxScanX) {
+                val rgb = image.getRGB(x, y)
+                val red = (rgb ushr 16) and 0xFF
+                val green = (rgb ushr 8) and 0xFF
+                val blue = rgb and 0xFF
+                if (red in 185..255 && green in 140..220 &&
+                    blue in 65..155 && red >= green + 15 &&
+                    green >= blue + 25) {
+                    if (x < left) left = x
+                    if (x > right) right = x
+                    if (y < top) top = y
+                    if (y > bottom) bottom = y
+                }
+            }
+        }
+        return if (right < 0) null else Rectangle(
+            left, top, right - left + 1, bottom - top + 1
+        )
+    }
+
     /**
      * Concentra a busca no canvas (lado esquerdo, faixa central).
      * O RGB é um critério de smoke para a amostra oficial "QA";
