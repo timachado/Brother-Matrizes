@@ -162,7 +162,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
-            packageName = "BrotherMatrizesDesktop"
+            packageName = "Brother Matrizes"
             packageVersion = "0.1.0"
             description = "Brother Matrizes - prévia de homologação Windows"
             vendor = "T.I. Machado"
@@ -174,6 +174,8 @@ compose.desktop {
                 menu = true
                 menuGroup = "T.I. Machado"
                 shortcut = true
+                // Ícone oficial enviado pelo proprietário da marca.
+                iconFile.set(project.file("icons/Brother-Matrizes.ico"))
             }
         }
     }
