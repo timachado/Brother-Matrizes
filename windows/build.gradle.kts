@@ -17,7 +17,7 @@ val officialIconBytes = Base64.getMimeDecoder().decode(officialIconBase64.readTe
 val officialIconSha256 = MessageDigest.getInstance("SHA-256")
     .digest(officialIconBytes)
     .joinToString("") { "%02x".format(it) }
-check(officialIconSha256 == "95d6112188cfa2a04662240986cebde69246c02f43bcabf196d494a91a7b61e8") {
+check(officialIconSha256 == "327cd90fbbf272e560163e8c968a251629f89ad1d19512e29b00dccd820c5cd0") {
     "Ícone oficial Brother Matrizes inválido ou modificado."
 }
 val officialWindowsIcon = layout.buildDirectory.file("generated/icons/Brother-Matrizes.ico").get().asFile
