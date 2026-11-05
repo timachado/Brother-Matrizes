@@ -39,13 +39,8 @@ if ((Test-Path -LiteralPath $staging) -or
 try {
     $application = Join-Path $staging 'Brother Matrizes'
     New-Item -ItemType Directory -Path $application -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $sourceFolder '*') -Destination $application -Recurse -Force -ErrorAction Stop
-    # Copy-Item -LiteralPath nao expande '*'; copiar somente itens conhecidos.
-    $copied = @(Get-ChildItem -LiteralPath $application -Force)
-    if ($copied.Count -eq 0) {
-        foreach ($item in @(Get-ChildItem -LiteralPath $sourceFolder -Force)) {
-            Copy-Item -LiteralPath $item.FullName -Destination $application -Recurse -Force -ErrorAction Stop
-        }
+    foreach ($item in @(Get-ChildItem -LiteralPath $sourceFolder -Force)) {
+        Copy-Item -LiteralPath $item.FullName -Destination $application -Recurse -Force -ErrorAction Stop
     }
     $readme = Join-Path $staging 'LEIA-ME-PORTATIL.txt'
     [System.IO.File]::WriteAllText($readme, @'
