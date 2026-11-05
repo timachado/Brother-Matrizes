@@ -25,7 +25,7 @@ Windows esteja completo nem comercialmente homologado.
 
 | Rota Android 1.11.8 | Requisito Windows completo | Situação Windows |
 | --- | --- | --- |
-| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — navegação por 7 áreas e recentes locais retomáveis; apresentação integral da tela mobile ainda pendente |
+| `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
 | `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
@@ -147,3 +147,15 @@ cumprimento dos critérios. O ZIP QA não substitui o aplicativo pretendido.
 A Biblioteca oferece **Criar backup do projeto atual (FLP)** e **Recuperar backup da pasta escolhida**. A pessoa escolhe explicitamente a pasta; o app não indexa o disco ou acessa serviços remotos. Cada backup é gravado com nome novo `Brother-Matrizes-Backup-<UTC>-<id>.flp`, pelo **ProjectCodec v11 oficial do Android** e com proteção contra sobrescrita. Ao restaurar, abre somente em memória e mantém os arquivos existentes intactos.
 
 Quando o projeto corresponde às letras reeditáveis criadas no Windows, grava também o `.bmlayers` vinculado por SHA-256 e o exige íntegro para recuperar os objetos. Sem sidecar, o FLP comum continua legível; a cópia não conserva o histórico Desfazer/Refazer. Esta função NÃO equivale ao backup de conta, biblioteca em nuvem ou sincronização mobile. Requer QA CI e homologação física antes da distribuição.
+
+## Home Desktop alinhada à Home Android (QA)
+
+A área central do Início exibe a marca **Brother Matrizes**, slogan
+oficial, cartão destacado **Criar nome**, botão **Abrir matriz**, e
+atalhos para fontes, monogramas, editor e biblioteca. O fluxo de
+abertura DST/PES/JEF é o mesmo do botão superior, usando os parsers
+oficiais, sem duplicação de lógica ou sobrescrita de arquivos. A
+barra lateral mantém recentes e favoritos, em vez de duplicar os
+botões principais. Não são apresentados como utilizáveis os serviços
+de Conta, Comunidade, Transferência e Desenho ainda pendentes.
+A adaptação não afirma paridade integral da Home ou das 16 rotas.

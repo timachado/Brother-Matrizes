@@ -293,30 +293,9 @@ private fun DesktopScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = navy) {
-        Column(modifier = Modifier.fillMaxSize().padding(22.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("Brother", fontSize = 26.sp,
-                        color = DesktopBrandColors.gold, fontWeight = FontWeight.Bold)
-                    Text("Matrizes", fontSize = 17.sp,
-                        color = DesktopBrandColors.goldSoft, fontWeight = FontWeight.SemiBold)
-                    Text("T.I. Machado • Windows • QA não comercial",
-                        color = muted, fontSize = 11.sp)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(
-                        enabled = !busy,
-                        onClick = onToggleTheme
-                    ) {
-                        Text(if (darkTheme) "Modo claro" else "Modo escuro",
-                            fontSize = 11.sp)
-                    }
-                Button(enabled = !busy, onClick = {
+    // Fluxo único de abertura, compartilhado pelo cabeçalho e pela Home Desktop.
+    // Preserva o mesmo parser do Android e não modifica o arquivo selecionado.
+    fun chooseMatrixFile() {
                     val chooser = JFileChooser().apply {
                         dialogTitle = "Abrir matriz de bordado (DST, PES ou JEF)"
                         fileFilter = FileNameExtensionFilter(
@@ -349,13 +328,43 @@ private fun DesktopScreen(
                                 mirrorY = false
                                 peDesign = false
                                 recordRecent(file)
+                                letterSession = null
+                                letterPreviewDocument = null
+                                workspace = DesktopWorkspace.VIEWER
                                 report("Matriz ${it.current.format} aberta localmente. O arquivo original não será modificado.")
                             }.onFailure {
                                 report("Falha ao abrir: ${it.message ?: "arquivo inválido"}.", true)
                             }
                         }
                     }
-                }) { Text(if (busy) "Processando..." else "Abrir DST / PES / JEF") }
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = navy) {
+        Column(modifier = Modifier.fillMaxSize().padding(22.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Brother", fontSize = 26.sp,
+                        color = DesktopBrandColors.gold, fontWeight = FontWeight.Bold)
+                    Text("Matrizes", fontSize = 17.sp,
+                        color = DesktopBrandColors.goldSoft, fontWeight = FontWeight.SemiBold)
+                    Text("T.I. Machado • Windows • QA não comercial",
+                        color = muted, fontSize = 11.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(
+                        enabled = !busy,
+                        onClick = onToggleTheme
+                    ) {
+                        Text(if (darkTheme) "Modo claro" else "Modo escuro",
+                            fontSize = 11.sp)
+                    }
+                Button(enabled = !busy, onClick = { chooseMatrixFile() }) {
+                    Text(if (busy) "Processando..." else "Abrir DST / PES / JEF")
+                }
                 }
             }
 
@@ -396,7 +405,17 @@ private fun DesktopScreen(
                         .background(surface, RoundedCornerShape(18.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (preview == null) {
+                    if (workspace == DesktopWorkspace.HOME) {
+                        DesktopHomeLanding(
+                            enabled = !busy,
+                            onCreateName = { workspace = DesktopWorkspace.NAME },
+                            onOpenMatrix = { chooseMatrixFile() },
+                            onFonts = { workspace = DesktopWorkspace.FONT },
+                            onMonogram = { workspace = DesktopWorkspace.MONOGRAM },
+                            onEditor = { workspace = DesktopWorkspace.EDIT },
+                            onLibrary = { workspace = DesktopWorkspace.LIBRARY }
+                        )
+                    } else if (preview == null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Visualização técnica de bordado", fontSize = 21.sp)
                             Spacer(Modifier.height(12.dp))
@@ -507,18 +526,8 @@ private fun DesktopScreen(
                         Text("Início", color = cyan, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Text("Brother Matrizes para Windows — preparação da versão integral 1.11.8.",
                             color = muted, fontSize = 12.sp)
-                        Text("Escolha um módulo para continuar com as ferramentas já integradas.",
+                        Text("Ferramentas principais e atalhos estão na área central.",
                             color = muted, fontSize = 12.sp)
-                        for (target in listOf(
-                            DesktopWorkspace.NAME, DesktopWorkspace.MONOGRAM,
-                            DesktopWorkspace.VIEWER, DesktopWorkspace.EDIT,
-                            DesktopWorkspace.FONT, DesktopWorkspace.LIBRARY
-                        )) {
-                            Button(enabled = !busy, onClick = { workspace = target },
-                                modifier = Modifier.fillMaxWidth()) {
-                                Text(target.label)
-                            }
-                        }
                         Text("Conta, comunidade, desenhos, transferência e fluxos completos " +
                             "de simulação ainda exigem implementação específica no Windows.",
                             color = muted, fontSize = 11.sp)
