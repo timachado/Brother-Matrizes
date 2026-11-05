@@ -177,6 +177,37 @@ try {
             throw "Atalho nao aponta ao executavel instalado: $shortcut."
         }
     }
+    # A presença do atalho não basta: o launcher deve conter o ícone BM.
+    # Verifica pixels dourados na representação de 32px extraída do EXE.
+    Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+    $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($app)
+    if ($null -eq $icon) {
+        throw "Executavel instalado sem icone associado."
+    }
+    try {
+        $iconBitmap = $icon.ToBitmap()
+        try {
+            $goldPixels = 0
+            for ($y = 0; $y -lt $iconBitmap.Height; $y++) {
+                for ($x = 0; $x -lt $iconBitmap.Width; $x++) {
+                    $pixel = $iconBitmap.GetPixel($x, $y)
+                    if ($pixel.R -ge 140 -and $pixel.G -ge 85 -and
+                        $pixel.B -le 160 -and $pixel.R -gt ($pixel.B + 35)) {
+                        $goldPixels++
+                    }
+                }
+            }
+            if ($goldPixels -lt 20) {
+                throw "Icone BM dourado nao detectado no executavel: $goldPixels pixels."
+            }
+        } finally {
+            $iconBitmap.Dispose()
+        }
+    } finally {
+        $icon.Dispose()
+    }
+    Write-Host "BROTHER_WINDOWS_MSI_OFFICIAL_ICON_OK"
+
     Write-Host "BROTHER_WINDOWS_MSI_START_DESKTOP_SHORTCUTS_OK"
 
     # Abre a janela Compose do MSI realmente instalado, com tela vazia.
