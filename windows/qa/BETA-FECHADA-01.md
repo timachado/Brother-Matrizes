@@ -14,9 +14,11 @@ publicamente. Os instaladores QA **não são assinados digitalmente**.
   aprovado desse PR**, nunca presumidos pelos nomes do EXE.
 - Artefato GitHub Actions privado: `brother-windows-installer-QA-NAO-COMERCIAL`
   (retenção usual 7 dias). Um link antigo pode expirar.
-- O ZIP contém `exe/`, `msi/`, `qa/installer-manifest.json` e
-  `qa/SHA256SUMS.txt`. Quando este documento e o script de verificação forem
-  incluídos no pacote por CI, serão exibidos também em `qa/`.
+- O ZIP gerado pelo workflow atual deve conter `exe/`, `msi/`,
+  `qa/installer-manifest.json`, `qa/SHA256SUMS.txt` e o kit sintético
+  `qa/fixtures/` com seus próprios checksums. Contém ainda o verificador
+  `qa/verify-beta-package.ps1` e os documentos de homologação. O kit só
+  está confirmado quando o workflow específico do commit passar.
 - O campo `sourceCommit` dos novos manifestos deve apontar para **o SHA de
   origem do PR** e `workflowRunId` para o run que produziu os binários.
   GitHub Actions usa outro SHA para o commit temporário de merge no PR; não
@@ -42,6 +44,12 @@ publicamente. Os instaladores QA **não são assinados digitalmente**.
    **Não desabilite SmartScreen, antivírus, políticas de execução ou UAC.**
    Se houver bloqueio de reputação de arquivo não assinado, registrar o
    bloqueio e não prosseguir sem autorização e ambiente gerenciado.
+   O verificador confirma também os oito arquivos listados em
+   `qa/fixtures/SHA256SUMS.txt`, se presentes. Para o candidato desta
+   versão, exigir a mensagem `BROTHER_WINDOWS_SYNTHETIC_FIXTURES_SHA256_OK`.
+   Se ela não aparecer, o kit de testes não está confirmado; não iniciar
+   homologação de formatos com arquivos ausentes.
+
 5. Escolher **um** instalador (de preferência MSI) por PC. Não instalar EXE e
    MSI simultaneamente. Evitar privilégios elevados além dos estritamente
    solicitados pelo Windows.
