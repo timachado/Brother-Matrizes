@@ -39,7 +39,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
-| `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas e controles limitados |
+| `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas, controles e seleção por mouse em composição com camadas verificadas (QA) |
 | `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer, atalhos de teclado e arrasto da matriz inteira em memória (QA) |
 
 **Nenhuma rota está declarada 100% paritária.** Recursos de Android não
@@ -187,3 +187,20 @@ dessincronizar as camadas `.bmlayers`: ali usam-se os controles
 individuais de Criar nome. O arrasto **não representa seleção nem
 movimentação de objetos importados individualmente**. Requer CI e
 homologação interativa no Windows antes da distribuição comercial.
+
+## Seleção individual de letras com mouse (QA)
+
+Projetos gerados como **composição individual de letras** ou reabertos
+com arquivo auxiliar `.bmlayers` válido podem selecionar uma letra
+clicando sobre seus limites reais na prévia das áreas Criar nome/Editor.
+Cada caixa de seleção é obtida da mesma geração de glifos com
+`MatrixEditor` oficial e só fica ativa após comprovação de que as
+pontadas regeneradas são exatamente iguais ao documento carregado.
+No Editor, o botão **Editar propriedades da letra** leva aos controles
+existentes de movimento, escala e rotação por objeto em Criar nome.
+Clique apenas seleciona: não grava em disco nem altera a matriz. A
+seleção destaca o objeto e respeita pan e zoom.
+
+Não afirma extração de objetos ou letras de arquivos DST/PES/JEF
+achatados. Seleção por mouse ainda exige teste interativo físico; o
+sistema não substitui a versão comercial Android.

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +52,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -216,6 +219,23 @@ private fun DesktopScreen(
     var letterSession by remember { mutableStateOf<DesktopLetterSession?>(null) }
     var letterPreviewDocument by remember { mutableStateOf<DesktopMatrixDocument?>(null) }
     var selectedLetterIndex by remember { mutableStateOf(0) }
+    var letterRegions by remember { mutableStateOf<List<DesktopLetterRegion>>(emptyList()) }
+    // Computação de limites fora da thread da UI; seleção habilitada só após
+    // confirmar correspondência EXATA com as pontadas do documento atual.
+    LaunchedEffect(letterSession, letterPreviewDocument, document) {
+        letterRegions = emptyList()
+        val layout = letterSession?.current
+        val active = letterPreviewDocument
+        if (layout != null && active != null && document === active) {
+            val measured = withContext(Dispatchers.Default) {
+                runCatching { DesktopLetterComposer.renderDetailed(layout) }
+            }.getOrNull()
+            if (measured != null &&
+                measured.document.current.points == active.current.points) {
+                letterRegions = measured.regions
+            }
+        }
+    }
     var letterMoveX by remember { mutableStateOf("0") }
     var letterMoveY by remember { mutableStateOf("0") }
     var letterScale by remember { mutableStateOf("1.00") }
@@ -477,6 +497,34 @@ private fun DesktopScreen(
         }
     }
 
+    fun selectLetterInPreview(
+        point: Offset, dimensions: androidx.compose.ui.unit.IntSize
+    ) {
+        val layout = letterSession?.current ?: return
+        val activeDocument = letterPreviewDocument ?: return
+        val currentPreview = preview ?: return
+        if (busy || document !== activeDocument || letterRegions.isEmpty()) return
+        val chosen = runCatching {
+            DesktopLetterPicker.pick(
+                designBounds = currentPreview.bounds,
+                regions = letterRegions,
+                width = dimensions.width.toFloat(),
+                height = dimensions.height.toFloat(),
+                zoom = previewZoom,
+                pan = previewPan,
+                cursor = point
+            )
+        }.getOrNull() ?: return
+        if (chosen !in layout.editableIndices) return
+        selectedLetterIndex = chosen
+        val obj = layout.objects[chosen]
+        letterMoveX = obj.moveXmm.toString()
+        letterMoveY = obj.moveYmm.toString()
+        letterScale = obj.scale.toString()
+        letterRotation = obj.rotationDegrees.toString()
+        report("Objeto ${chosen + 1} (${obj.character}) selecionado pelo mouse.")
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = navy) {
         Column(modifier = Modifier.fillMaxSize().padding(22.dp)) {
             Row(
@@ -582,6 +630,16 @@ private fun DesktopScreen(
                                 },
                                 keyboardEnabled = workspace == DesktopWorkspace.EDIT,
                                 onEditorShortcut = ::editorShortcut,
+                                selectedLetterRegion = if (
+                                    document === letterPreviewDocument &&
+                                    workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT)
+                                ) letterRegions.firstOrNull { it.index == selectedLetterIndex }
+                                    else null,
+                                allowLetterSelection = !busy &&
+                                    document === letterPreviewDocument &&
+                                    workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT) &&
+                                    letterRegions.isNotEmpty(),
+                                onLetterSelection = ::selectLetterInPreview,
                                 moveWholeDesign = workspace == DesktopWorkspace.EDIT &&
                                     moveWholeDesign && document != null && !busy &&
                                     (letterSession == null || document !== letterPreviewDocument),
@@ -635,7 +693,10 @@ private fun DesktopScreen(
                             // Manter uma linha de ajuda em 1x e em zoom ampliado
                             // evita redimensionar o Canvas após o gesto da roda.
                             Text(
-                                if (workspace == DesktopWorkspace.EDIT && moveWholeDesign &&
+                                if (document === letterPreviewDocument &&
+                                    workspace in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT))
+                                    "Clique em uma letra para selecioná-la; ajuste suas propriedades em Criar nome."
+                                else if (workspace == DesktopWorkspace.EDIT && moveWholeDesign &&
                                     (letterSession == null || document !== letterPreviewDocument))
                                     "Modo mover: arraste a matriz inteira para alterar sua posição (mm)."
                                 else if (previewZoom > 1f)
@@ -1508,6 +1569,19 @@ private fun DesktopScreen(
                     if (workspace == DesktopWorkspace.EDIT) {
                     Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
+                    if (document === letterPreviewDocument && letterSession != null) {
+                        val active = letterSession?.current
+                        val obj = active?.objects?.getOrNull(selectedLetterIndex)
+                        if (obj != null) {
+                            Text(
+                                "Letra selecionada: ${selectedLetterIndex + 1} — ${obj.character}",
+                                color = DesktopBrandColors.goldSoft, fontSize = 12.sp
+                            )
+                            TextButton(enabled = !busy, onClick = {
+                                workspace = DesktopWorkspace.NAME
+                            }) { Text("Editar propriedades da letra") }
+                        }
+                    }
                     val editableLetterDocument =
                         letterSession != null && document === letterPreviewDocument
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2170,6 +2244,9 @@ private fun StitchPreview(
     onWheel: (Float, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     keyboardEnabled: Boolean,
     onEditorShortcut: (DesktopEditorShortcut) -> Unit,
+    selectedLetterRegion: DesktopLetterRegion?,
+    allowLetterSelection: Boolean,
+    onLetterSelection: (Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     moveWholeDesign: Boolean,
     onMoveCompleted: (Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     onMoveCancelled: (Offset) -> Unit,
@@ -2178,6 +2255,7 @@ private fun StitchPreview(
     val latestOnPan by rememberUpdatedState(onPan)
     val latestOnWheel by rememberUpdatedState(onWheel)
     val latestOnEditorShortcut by rememberUpdatedState(onEditorShortcut)
+    val latestOnLetterSelection by rememberUpdatedState(onLetterSelection)
     val latestOnMoveCompleted by rememberUpdatedState(onMoveCompleted)
     val latestOnMoveCancelled by rememberUpdatedState(onMoveCancelled)
     val focusRequester = remember { FocusRequester() }
@@ -2252,21 +2330,30 @@ private fun StitchPreview(
                     } else false
                 }
             }
-            .clickable { focusRequester.requestFocus() }
             .focusable()
+    } else Modifier
+    val tapModifier = if (keyboardEnabled || allowLetterSelection) {
+        Modifier.pointerInput(keyboardEnabled, allowLetterSelection) {
+            detectTapGestures(onTap = { cursor ->
+                if (keyboardEnabled) focusRequester.requestFocus()
+                if (allowLetterSelection) {
+                    latestOnLetterSelection(cursor, size)
+                }
+            })
+        }
     } else Modifier
     Canvas(
         modifier = modifier.fillMaxSize().clipToBounds()
             .padding(18.dp).then(dragModifier).then(wheelModifier)
-            .then(keyboardModifier)
+            .then(keyboardModifier).then(tapModifier)
     ) {
-        renderPreview(preview, progress, threadColors, zoom, pan)
+        renderPreview(preview, progress, threadColors, zoom, pan, selectedLetterRegion)
     }
 }
 
 private fun DrawScope.renderPreview(
     design: DstPreview, progress: Float, threadColors: List<Int>,
-    zoom: Float, pan: Offset
+    zoom: Float, pan: Offset, selectedRegion: DesktopLetterRegion?
 ) {
     if (size.width <= 0f || size.height <= 0f) return
     val viewport = DesktopPreviewNavigation.viewport(
@@ -2291,5 +2378,19 @@ private fun DrawScope.renderPreview(
         }
         previousX = p.x
         previousY = p.y
+    }
+    if (selectedRegion != null) {
+        val box = selectedRegion.bounds
+        val a = viewport.screenPoint(box.minX, box.minY)
+        val b = viewport.screenPoint(box.maxX, box.maxY)
+        drawRect(
+            color = DesktopBrandColors.gold,
+            topLeft = Offset(minOf(a.x, b.x), minOf(a.y, b.y)),
+            size = Size(
+                (maxOf(a.x, b.x) - minOf(a.x, b.x)).coerceAtLeast(1f),
+                (maxOf(a.y, b.y) - minOf(a.y, b.y)).coerceAtLeast(1f)
+            ),
+            style = Stroke(width = 2f)
+        )
     }
 }

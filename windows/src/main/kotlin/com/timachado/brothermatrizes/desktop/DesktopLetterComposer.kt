@@ -40,6 +40,17 @@ internal data class DesktopLetterLayout(
         objects.indices.filter { objects[it].character != ' ' }
 }
 
+/** Geometria individual preservada durante geração, sem modificar as pontadas. */
+internal data class DesktopLetterRegion(
+    val index: Int,
+    val bounds: PreviewBounds
+)
+
+internal data class DesktopLetterRender(
+    val document: DesktopMatrixDocument,
+    val regions: List<DesktopLetterRegion>
+)
+
 internal object DesktopLetterComposer {
     const val MAX_CHARACTERS = 10
     const val MAX_POINTS = 200_000
@@ -95,8 +106,12 @@ internal object DesktopLetterComposer {
         )
     }
 
-    /** Combina pontadas num documento NOVO, com um só END e JUMPs de ligação. */
-    fun render(layout: DesktopLetterLayout): DesktopMatrixDocument {
+    /** Mantém a assinatura anterior para usuários do motor e persistência FLP. */
+    fun render(layout: DesktopLetterLayout): DesktopMatrixDocument =
+        renderDetailed(layout).document
+
+    /** Além da matriz, devolve limites exatos dos glifos para seleção na prévia. */
+    fun renderDetailed(layout: DesktopLetterLayout): DesktopLetterRender {
         require(layout.objects.size == layout.text.length &&
             layout.objects.map { it.character }.joinToString("") == layout.text) {
             "Composição de letras inválida."
@@ -106,6 +121,7 @@ internal object DesktopLetterComposer {
         require(validated.objects.size == layout.objects.size) { "Composição inconsistente." }
 
         val points = ArrayList<EmbroideryPoint>()
+        val regions = ArrayList<DesktopLetterRegion>()
         var cursorMm = 0f
         var previous: EmbroideryDesign? = null
         for ((index, obj) in layout.objects.withIndex()) {
@@ -139,6 +155,15 @@ internal object DesktopLetterComposer {
             )
             val letterPoints = transformed.points.filter { it.command != StitchCommand.END }
             require(letterPoints.isNotEmpty()) { "Letra sem comandos de bordado." }
+            regions += DesktopLetterRegion(
+                index = index,
+                bounds = PreviewBounds(
+                    transformed.bounds.minXUnits,
+                    transformed.bounds.minYUnits,
+                    transformed.bounds.maxXUnits,
+                    transformed.bounds.maxYUnits
+                )
+            )
             // Garante um deslocamento sem costura entre letras independentes.
             val first = letterPoints.first()
             points += EmbroideryPoint(first.xUnits, first.yUnits, StitchCommand.JUMP, 0)
@@ -168,7 +193,10 @@ internal object DesktopLetterComposer {
             design.bounds.widthMm <= MAX_SPAN_MM && design.bounds.heightMm <= MAX_SPAN_MM) {
             "Composição fora do limite dimensional de QA (300 mm)."
         }
-        return DesktopMatrixDocument(original = design, current = design)
+        return DesktopLetterRender(
+            document = DesktopMatrixDocument(original = design, current = design),
+            regions = regions
+        )
     }
 }
 
