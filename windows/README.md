@@ -366,3 +366,12 @@ testes e empacotamento com retenção curta dos artefatos **QA**, sem publicar
 release comercial.
 
 **Não mesclar nem publicar este PR enquanto estiver em rascunho.**
+
+## Atalhos do canvas no Editor Windows (QA)
+
+Clique na prévia dentro de **Editor** para ativar `Ctrl+Z` (desfazer),
+`Ctrl+Y` ou `Ctrl+Shift+Z` (refazer), `Ctrl+0` (ajustar),
+`Ctrl++` (ampliar) e `Ctrl+-` (reduzir). O foco fica restrito à
+prévia, evitando capturar atalhos de edição de campos de texto.
+Desfazer/Refazer usam o mesmo histórico reversível dos botões e não
+gravam dados. O canvas ainda exige homologação interativa em PC físico.

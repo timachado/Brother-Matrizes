@@ -40,7 +40,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
 | `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas e controles limitados |
-| `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores e Desfazer/Refazer |
+| `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer e atalhos de teclado focados no canvas (QA) |
 
 **Nenhuma rota está declarada 100% paritária.** Recursos de Android não
 compatíveis diretamente com Windows (Intents, Storage Access Framework,
@@ -159,3 +159,16 @@ barra lateral mantém recentes e favoritos, em vez de duplicar os
 botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
+
+## Atalhos de teclado do editor (QA)
+
+Apenas no módulo **Editor**, um clique na área de prévia permite usar
+`Ctrl+Z` para Desfazer, `Ctrl+Y` ou `Ctrl+Shift+Z` para Refazer,
+`Ctrl+0` para ajustar a ampliação, `Ctrl++` para ampliar e
+`Ctrl+-` para reduzir. Os atalhos utilizam o mesmo
+`DesktopEditTimeline` dos botões e nunca gravam arquivos em disco.
+A verificação de teclas fica isolada no `DesktopEditorKeymap`, com
+testes unitários. Quando o foco permanece em caixas de texto, as
+teclas não são capturadas pelo canvas, preservando o fluxo de digitação.
+A edição direta de objetos importados e a paridade total do editor
+continuam pendentes. A interface requer homologação física.

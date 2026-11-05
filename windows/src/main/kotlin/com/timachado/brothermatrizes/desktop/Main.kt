@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes.desktop
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -35,6 +37,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -339,6 +350,64 @@ private fun DesktopScreen(
                     }
     }
 
+    // Atalhos do canvas reutilizam as mesmas ações dos botões: nenhum
+    // atalho grava arquivos, altera o Android ou opera sobre TextFields.
+    fun requestUndo() {
+        val current = editTimeline ?: return
+        if (busy || !current.canUndo) return
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching { current.undo() }
+            }
+            busy = false
+            result.onSuccess { transition ->
+                editTimeline = transition.timeline
+                document = transition.document
+                stitchProgress = 1f
+                report("Último ajuste desfeito; arquivos no disco preservados.")
+            }.onFailure { report("Não foi possível desfazer: ${it.message}", true) }
+        }
+    }
+
+    fun requestRedo() {
+        val current = editTimeline ?: return
+        if (busy || !current.canRedo) return
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching { current.redo() }
+            }
+            busy = false
+            result.onSuccess { transition ->
+                editTimeline = transition.timeline
+                document = transition.document
+                stitchProgress = 1f
+                report("Ajuste refeito pelo motor oficial; arquivo original intacto.")
+            }.onFailure { report("Não foi possível refazer: ${it.message}", true) }
+        }
+    }
+
+    fun editorShortcut(action: DesktopEditorShortcut) {
+        if (busy || workspace != DesktopWorkspace.EDIT) return
+        when (action) {
+            DesktopEditorShortcut.UNDO -> requestUndo()
+            DesktopEditorShortcut.REDO -> requestRedo()
+            DesktopEditorShortcut.FIT -> {
+                previewZoom = 1f
+                previewPan = Offset.Zero
+            }
+            DesktopEditorShortcut.ZOOM_IN -> {
+                previewZoom = (previewZoom * 1.25f)
+                    .coerceAtMost(DesktopPreviewNavigation.MAX_ZOOM)
+            }
+            DesktopEditorShortcut.ZOOM_OUT -> {
+                previewZoom = (previewZoom / 1.25f).coerceAtLeast(1f)
+                if (previewZoom == 1f) previewPan = Offset.Zero
+            }
+        }
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = navy) {
         Column(modifier = Modifier.fillMaxSize().padding(22.dp)) {
             Row(
@@ -442,6 +511,8 @@ private fun DesktopScreen(
                                         (previewPan.y + delta.y).coerceIn(-2000f, 2000f)
                                     )
                                 },
+                                keyboardEnabled = workspace == DesktopWorkspace.EDIT,
+                                onEditorShortcut = ::editorShortcut,
                                 onWheel = { wheel, cursor, canvasSize ->
                                     val updated = DesktopPreviewNavigation.zoomForWheel(
                                         previewZoom, wheel
@@ -1355,6 +1426,12 @@ private fun DesktopScreen(
                     if (workspace == DesktopWorkspace.EDIT) {
                     Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Clique na prévia para ativar atalhos: Ctrl+Z desfazer, " +
+                            "Ctrl+Y / Ctrl+Shift+Z refazer, Ctrl+0 ajustar, " +
+                            "Ctrl++ ampliar e Ctrl+- reduzir.",
+                        fontSize = 11.sp, color = muted
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         OutlinedTextField(
                             value = scaleText,
@@ -1480,38 +1557,14 @@ private fun DesktopScreen(
                         }) { Text("Restaurar original") }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(enabled = !busy && editTimeline?.canUndo == true, onClick = {
-                            val current = editTimeline ?: return@TextButton
-                            busy = true
-                            scope.launch {
-                                val result = withContext(Dispatchers.Default) {
-                                    runCatching { current.undo() }
-                                }
-                                busy = false
-                                result.onSuccess { transition ->
-                                    editTimeline = transition.timeline
-                                    document = transition.document
-                                    stitchProgress = 1f
-                                    report("Último ajuste desfeito. Original e arquivos em disco preservados.")
-                                }.onFailure { report("Não foi possível desfazer: ${it.message}", true) }
-                            }
-                        }) { Text("Desfazer") }
-                        TextButton(enabled = !busy && editTimeline?.canRedo == true, onClick = {
-                            val current = editTimeline ?: return@TextButton
-                            busy = true
-                            scope.launch {
-                                val result = withContext(Dispatchers.Default) {
-                                    runCatching { current.redo() }
-                                }
-                                busy = false
-                                result.onSuccess { transition ->
-                                    editTimeline = transition.timeline
-                                    document = transition.document
-                                    stitchProgress = 1f
-                                    report("Ajuste refeito com o motor oficial. Nada foi gravado em disco.")
-                                }.onFailure { report("Não foi possível refazer: ${it.message}", true) }
-                            }
-                        }) { Text("Refazer") }
+                        TextButton(
+                            enabled = !busy && editTimeline?.canUndo == true,
+                            onClick = { requestUndo() }
+                        ) { Text("Desfazer") }
+                        TextButton(
+                            enabled = !busy && editTimeline?.canRedo == true,
+                            onClick = { requestRedo() }
+                        ) { Text("Refazer") }
                         Text(
                             "${editTimeline?.position ?: 0}/${editTimeline?.total ?: 0} · até 8 ações",
                             fontSize = 10.sp, color = muted
@@ -2013,10 +2066,14 @@ private fun StitchPreview(
     preview: DstPreview, progress: Float, threadColors: List<Int>,
     zoom: Float, pan: Offset, onPan: (Offset) -> Unit,
     onWheel: (Float, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
+    keyboardEnabled: Boolean,
+    onEditorShortcut: (DesktopEditorShortcut) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latestOnPan by rememberUpdatedState(onPan)
     val latestOnWheel by rememberUpdatedState(onWheel)
+    val latestOnEditorShortcut by rememberUpdatedState(onEditorShortcut)
+    val focusRequester = remember { FocusRequester() }
     val dragModifier = if (zoom > 1f) {
         Modifier.pointerInput(zoom) {
             detectDragGestures { change, dragAmount ->
@@ -2044,9 +2101,35 @@ private fun StitchPreview(
             }
         }
     }
+    // Somente o canvas no módulo Editor recebe os atalhos. TextFields,
+    // menus e demais controles preservam sua própria edição de teclado.
+    // O smoke da roda, executado no módulo Visualizar, permanece independente.
+    val keyboardModifier = if (keyboardEnabled) {
+        Modifier
+            .focusRequester(focusRequester)
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    val shortcut = DesktopEditorKeymap.resolve(
+                        key = event.key,
+                        control = event.isCtrlPressed,
+                        shift = event.isShiftPressed,
+                        alt = event.isAltPressed
+                    )
+                    if (shortcut != null) {
+                        latestOnEditorShortcut(shortcut)
+                        true
+                    } else false
+                }
+            }
+            .clickable { focusRequester.requestFocus() }
+            .focusable()
+    } else Modifier
     Canvas(
         modifier = modifier.fillMaxSize().clipToBounds()
             .padding(18.dp).then(dragModifier).then(wheelModifier)
+            .then(keyboardModifier)
     ) {
         renderPreview(preview, progress, threadColors, zoom, pan)
     }
