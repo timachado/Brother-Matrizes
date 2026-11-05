@@ -104,6 +104,13 @@ jobs:
         timeout-minutes: 3
         run: ./qa/validate-ui-desktop.ps1 -SyntheticPreview
 
+      # Terceiro smoke: roda do mouse real sobre o canvas com matriz QA,
+      # exige aumento geométrico visível e captura antes/depois.
+      - name: Validar zoom real pela roda do mouse na interface (QA)
+        shell: pwsh
+        timeout-minutes: 3
+        run: ./qa/validate-ui-desktop.ps1 -WheelZoom
+
       # Executa apenas no runner Windows efemero, nunca num PC de cliente.
       # Instala MSI gerado neste job, roda diagnostico no executavel de
       # Program Files e desinstala pelo ProductCode do proprio pacote.
