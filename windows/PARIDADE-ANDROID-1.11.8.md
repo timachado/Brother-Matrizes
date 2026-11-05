@@ -30,7 +30,7 @@ Windows esteja completo nem comercialmente homologado.
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
 | `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Pendente** |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
-| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP e recentes; favoritos, enviados e backups ainda pendentes |
+| `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes e favoritos locais; enviados, backups e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP local seletivo para DST/PES/JEF em desenvolvimento |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
@@ -77,6 +77,21 @@ a preferência local no Windows.
 A lista é mantida somente no perfil do usuário da máquina, sem
 sincronização com a biblioteca comercial do Android. Não representa ainda
 a paridade de favoritos, backups, projetos enviados ou biblioteca remota.
+
+## Favoritos locais da biblioteca (QA)
+
+A tela **Biblioteca** permite marcar e desmarcar arquivos DST, PES, JEF
+e FLP previamente selecionados. O filtro **FAVORITOS** combina com a
+pesquisa por nome dentro da pasta já autorizada, sem indexar outras
+pastas ou acessar a rede. Em **Início**, os favoritos persistidos podem
+ser reabertos explicitamente com um clique. **Limpar favoritos** apaga
+somente referências guardadas no perfil do Windows, jamais os arquivos.
+
+São armazenados até 16 caminhos válidos (sem conteúdo de matriz,
+credenciais ou chaves); arquivos removidos ou que excedam os limites
+de importação deixam de aparecer. Essa solução NÃO sincroniza
+favoritos da conta Android nem substitui o fluxo completo de projetos,
+backups e compartilhamentos do aplicativo mobile.
 
 ## Critérios para a primeira versão comercial Windows
 
