@@ -153,9 +153,11 @@ internal object DesktopUiSmoke {
         }
         val measured = "${before.width}x${before.height} -> " +
             "${after?.width ?: 0}x${after?.height ?: 0}"
-        val success = after != null &&
-            after.width.toFloat() >= before.width * 1.10f &&
-            after.height.toFloat() >= before.height * 1.10f
+        // Em janelas compactas, a ampliação pode ser cortada no eixo Y
+        // pela área visível. O CI anterior mediu 204x203 -> 296x211:
+        // zoom real de +45% na largura, mas altura recortada (+4%).
+        // Exigir crescimento dos DOIS eixos reprova um zoom válido.
+        val success = after != null && visiblyZoomed(before, after)
         Files.writeString(
             report,
             "Roda de mouse: $measured\n" +
@@ -170,6 +172,20 @@ internal object DesktopUiSmoke {
             StandardCharsets.UTF_8, StandardOpenOption.APPEND
         )
         return afterPath
+    }
+
+    /**
+     * Confirma expansão inequívoca em pelo menos um eixo, sem redução
+     * expressiva no outro. Aceita clipping do canvas na tela física/runner.
+     * Não aceita translação pura ou flutuação de poucos pixels.
+     */
+    internal fun visiblyZoomed(before: Rectangle, after: Rectangle): Boolean {
+        if (before.width <= 0 || before.height <= 0 ||
+            after.width <= 0 || after.height <= 0) return false
+        val widthRatio = after.width.toFloat() / before.width
+        val heightRatio = after.height.toFloat() / before.height
+        return widthRatio >= 0.95f && heightRatio >= 0.95f &&
+            (widthRatio >= 1.10f || heightRatio >= 1.10f)
     }
 
     /** Limites visíveis das pontadas sintéticas no painel de prévia. */

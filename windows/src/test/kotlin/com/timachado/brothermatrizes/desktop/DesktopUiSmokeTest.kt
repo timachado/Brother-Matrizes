@@ -5,6 +5,8 @@ import java.awt.Rectangle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 
 class DesktopUiSmokeTest {
     @Test
@@ -26,6 +28,30 @@ class DesktopUiSmokeTest {
         assertEquals(
             Rectangle(100, 90, 81, 51),
             DesktopUiSmoke.syntheticStitchBounds(image)
+        )
+    }
+
+    @Test
+    fun `zoom real em janela baixa pode cortar altura sem invalidar ampliacao`() {
+        assertTrue(
+            DesktopUiSmoke.visiblyZoomed(
+                Rectangle(0, 0, 204, 203), Rectangle(0, 0, 296, 211)
+            )
+        )
+        assertFalse(
+            DesktopUiSmoke.visiblyZoomed(
+                Rectangle(0, 0, 204, 203), Rectangle(12, 7, 204, 203)
+            )
+        )
+        assertFalse(
+            DesktopUiSmoke.visiblyZoomed(
+                Rectangle(0, 0, 204, 203), Rectangle(0, 0, 211, 206)
+            )
+        )
+        assertFalse(
+            DesktopUiSmoke.visiblyZoomed(
+                Rectangle(0, 0, 204, 203), Rectangle(0, 0, 300, 125)
+            )
         )
     }
 
