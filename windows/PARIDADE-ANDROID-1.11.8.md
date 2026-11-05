@@ -40,7 +40,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
 | `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas e controles limitados |
-| `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer e atalhos de teclado focados no canvas (QA) |
+| `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer, atalhos de teclado e arrasto da matriz inteira em memória (QA) |
 
 **Nenhuma rota está declarada 100% paritária.** Recursos de Android não
 compatíveis diretamente com Windows (Intents, Storage Access Framework,
@@ -172,3 +172,18 @@ testes unitários. Quando o foco permanece em caixas de texto, as
 teclas não são capturadas pelo canvas, preservando o fluxo de digitação.
 A edição direta de objetos importados e a paridade total do editor
 continuam pendentes. A interface requer homologação física.
+
+## Mover matriz inteira com mouse (QA)
+
+Na aba Editor, uma opção explícita ativa o arrasto da **matriz completa**.
+O movimento ocorre visualmente no canvas durante o gesto. Ao soltar,
+a distância em pixels é convertida para décimos de milímetro conforme
+a escala e zoom atuais, validada em até 200 mm por eixo e aplicada pelo
+`DesktopMatrixService.edit` usando o mesmo `MatrixEditor` do Android.
+O histórico recebe uma única transformação reversível. Em caso de
+erro/gesto cancelado, a posição visual retorna, sem gravar arquivo.
+Não permite arrasto global em sessão com letras editáveis para evitar
+dessincronizar as camadas `.bmlayers`: ali usam-se os controles
+individuais de Criar nome. O arrasto **não representa seleção nem
+movimentação de objetos importados individualmente**. Requer CI e
+homologação interativa no Windows antes da distribuição comercial.

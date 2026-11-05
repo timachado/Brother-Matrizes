@@ -234,6 +234,7 @@ private fun DesktopScreen(
     // Navegação da prévia é visual e reinicia ao abrir um projeto diferente.
     var previewZoom by remember(document?.original) { mutableStateOf(1f) }
     var previewPan by remember(document?.original) { mutableStateOf(Offset.Zero) }
+    var moveWholeDesign by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val detailScroll = rememberScrollState()
     LaunchedEffect(workspace) { detailScroll.scrollTo(0) }
@@ -388,6 +389,74 @@ private fun DesktopScreen(
         }
     }
 
+    // Arrastar no modo mover altera apenas o projeto atual em MEMÓRIA.
+    // A distância em pixels é convertida para unidades de bordado via
+    // a escala vigente, sem copiar pontos ou sobrescrever arquivos.
+    fun completeMatrixDrag(delta: Offset, canvasSize: androidx.compose.ui.unit.IntSize) {
+        fun rollbackVisual() {
+            previewPan = Offset(
+                previewPan.x - delta.x, previewPan.y - delta.y
+            )
+        }
+        val loaded = document
+        val beforePreview = preview
+        if (busy || workspace != DesktopWorkspace.EDIT || loaded == null ||
+            beforePreview == null || !moveWholeDesign ||
+            (letterSession != null && loaded === letterPreviewDocument)) {
+            rollbackVisual()
+            return
+        }
+        val parsed = runCatching {
+            DesktopEditorDrag.fromPixels(
+                bounds = beforePreview.bounds,
+                canvasWidth = canvasSize.width.toFloat(),
+                canvasHeight = canvasSize.height.toFloat(),
+                zoom = previewZoom,
+                delta = delta
+            )
+        }
+        parsed.onFailure { error ->
+            rollbackVisual()
+            report("Não foi possível mover: ${error.message}", true)
+        }
+        val position = parsed.getOrNull() ?: return
+        if (position.xUnits == 0 && position.yUnits == 0) {
+            rollbackVisual()
+            return
+        }
+        val adjustment = EditTransform(
+            offsetXUnits = position.xUnits,
+            offsetYUnits = position.yUnits
+        )
+        val before = editTimeline ?: DesktopEditTimeline.start(loaded)
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    val updated = DesktopMatrixService.edit(loaded, adjustment)
+                    DesktopHistoryTransition(
+                        timeline = before.record(DesktopEditAction.Transform(adjustment)),
+                        document = updated
+                    )
+                }
+            }
+            busy = false
+            result.onSuccess { transition ->
+                document = transition.document
+                editTimeline = transition.timeline
+                stitchProgress = 1f
+                report(
+                    "Matriz movida: X ${position.xUnits / 10f} mm, " +
+                        "Y ${position.yUnits / 10f} mm. " +
+                        "Desfazer disponível; original preservado."
+                )
+            }.onFailure { error ->
+                rollbackVisual()
+                report("Movimento recusado pelo motor: ${error.message}", true)
+            }
+        }
+    }
+
     fun editorShortcut(action: DesktopEditorShortcut) {
         if (busy || workspace != DesktopWorkspace.EDIT) return
         when (action) {
@@ -513,6 +582,16 @@ private fun DesktopScreen(
                                 },
                                 keyboardEnabled = workspace == DesktopWorkspace.EDIT,
                                 onEditorShortcut = ::editorShortcut,
+                                moveWholeDesign = workspace == DesktopWorkspace.EDIT &&
+                                    moveWholeDesign && document != null && !busy &&
+                                    (letterSession == null || document !== letterPreviewDocument),
+                                onMoveCompleted = ::completeMatrixDrag,
+                                onMoveCancelled = { delta ->
+                                    previewPan = Offset(
+                                        previewPan.x - delta.x,
+                                        previewPan.y - delta.y
+                                    )
+                                },
                                 onWheel = { wheel, cursor, canvasSize ->
                                     val updated = DesktopPreviewNavigation.zoomForWheel(
                                         previewZoom, wheel
@@ -556,8 +635,11 @@ private fun DesktopScreen(
                             // Manter uma linha de ajuda em 1x e em zoom ampliado
                             // evita redimensionar o Canvas após o gesto da roda.
                             Text(
-                                if (previewZoom > 1f)
-                                    "Arraste para mover; a roda amplia no ponto do cursor."
+                                if (workspace == DesktopWorkspace.EDIT && moveWholeDesign &&
+                                    (letterSession == null || document !== letterPreviewDocument))
+                                    "Modo mover: arraste a matriz inteira para alterar sua posição (mm)."
+                                else if (previewZoom > 1f)
+                                    "Arraste para navegar pela prévia; a roda amplia no cursor."
                                 else
                                     "Use a roda do mouse ou Zoom + para ampliar.",
                                 fontSize = 11.sp, color = muted
@@ -1426,6 +1508,26 @@ private fun DesktopScreen(
                     if (workspace == DesktopWorkspace.EDIT) {
                     Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
+                    val editableLetterDocument =
+                        letterSession != null && document === letterPreviewDocument
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = moveWholeDesign && !editableLetterDocument,
+                            onCheckedChange = { moveWholeDesign = it },
+                            enabled = document != null && !busy && !editableLetterDocument
+                        )
+                        Text("Mover matriz inteira arrastando no canvas", fontSize = 11.sp)
+                    }
+                    Text(
+                        if (editableLetterDocument)
+                            "Para preservar as camadas, mova as letras pelos controles individuais " +
+                                "em Criar nome. Movimento da matriz inteira indisponível neste modo."
+                        else
+                            "Com esta opção ligada, arrastar edita a posição em milímetros " +
+                                "e entra no histórico Desfazer/Refazer. " +
+                                "Desligada, a prévia pode ser deslocada apenas visualmente com zoom.",
+                        fontSize = 11.sp, color = muted
+                    )
                     Text(
                         "Clique na prévia para ativar atalhos: Ctrl+Z desfazer, " +
                             "Ctrl+Y / Ctrl+Shift+Z refazer, Ctrl+0 ajustar, " +
@@ -2068,13 +2170,40 @@ private fun StitchPreview(
     onWheel: (Float, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
     keyboardEnabled: Boolean,
     onEditorShortcut: (DesktopEditorShortcut) -> Unit,
+    moveWholeDesign: Boolean,
+    onMoveCompleted: (Offset, androidx.compose.ui.unit.IntSize) -> Unit,
+    onMoveCancelled: (Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val latestOnPan by rememberUpdatedState(onPan)
     val latestOnWheel by rememberUpdatedState(onWheel)
     val latestOnEditorShortcut by rememberUpdatedState(onEditorShortcut)
+    val latestOnMoveCompleted by rememberUpdatedState(onMoveCompleted)
+    val latestOnMoveCancelled by rememberUpdatedState(onMoveCancelled)
     val focusRequester = remember { FocusRequester() }
-    val dragModifier = if (zoom > 1f) {
+    val dragModifier = if (moveWholeDesign) {
+        Modifier.pointerInput(moveWholeDesign, zoom) {
+            var accumulated = Offset.Zero
+            detectDragGestures(
+                onDragStart = { accumulated = Offset.Zero },
+                onDragEnd = {
+                    val completed = accumulated
+                    accumulated = Offset.Zero
+                    if (completed != Offset.Zero) {
+                        latestOnMoveCompleted(completed, size)
+                    }
+                },
+                onDragCancel = {
+                    latestOnMoveCancelled(accumulated)
+                    accumulated = Offset.Zero
+                }
+            ) { change, dragAmount ->
+                change.consume()
+                accumulated += dragAmount
+                latestOnPan(dragAmount)
+            }
+        }
+    } else if (zoom > 1f) {
         Modifier.pointerInput(zoom) {
             detectDragGestures { change, dragAmount ->
                 change.consume()
