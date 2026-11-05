@@ -167,6 +167,14 @@ compose.desktop {
             description = "Brother Matrizes - prévia de homologação Windows"
             vendor = "T.I. Machado"
             copyright = "Copyright 2026 T.I. Machado"
+
+            // jpackage NÃO cria atalhos por padrão. Sem estes controles o
+            // instalador EXE/MSI aparece, mas o usuário não encontra o app.
+            windows {
+                menu = true
+                menuGroup = "T.I. Machado"
+                shortcut = true
+            }
         }
     }
 }
