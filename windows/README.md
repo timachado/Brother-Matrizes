@@ -3,6 +3,16 @@
 Este projeto Windows está isolado do Android comercial. O PR não modifica
 `app/`, `supabase/` nem pipelines oficiais de publicação.
 
+## Identidade do instalador Windows
+
+A partir desta revisão, o nome do aplicativo, do executável e dos atalhos
+do Windows é **Brother Matrizes**, com o ícone BM dourado e azul-marinho
+fornecido pelo proprietário da marca. O arquivo ICO é derivado da imagem
+oficial, armazenado no repositório como Base64 e restaurado no diretório
+`build/` com validação SHA-256 antes do empacotamento. O menu Iniciar
+usa o grupo **T.I. Machado**; a Área de Trabalho recebe um atalho
+**Brother Matrizes**. Isso não altera o ícone nem o pacote Android.
+
 ## Instalação no PC — atalhos e inicialização
 
 A QA anterior (#184) gerava EXE/MSI sem a opção explícita para criar
@@ -13,7 +23,7 @@ atalho para **executar** o Brother Matrizes. A correção define
 
 O CI desta revisão deve verificar **após instalar o MSI**:
 - atalho no menu Iniciar e na Área de Trabalho, apontando para o
-  `BrotherMatrizesDesktop.exe` realmente instalado;
+  `Brother Matrizes.exe` realmente instalado;
 - abertura real da interface Compose a partir desse executável;
 - limpeza pela desinstalação MSI.
 
@@ -129,7 +139,7 @@ para a ação "Restaurar original" dentro da sessão Desktop.
 ## Verificação do launcher Windows empacotado
 
 O CI da QA também cria um **app-image** com o runtime Java embarcado e
-executa o `BrotherMatrizesDesktop.exe` desse pacote, sem abrir a interface,
+executa o `Brother Matrizes.exe` desse pacote, sem abrir a interface,
 com o argumento restrito `--smoke-test` e um caminho temporário de relatório.
 Esse teste exercita o aplicativo **depois do empacotamento**, não só as classes
 JVM isoladas:
