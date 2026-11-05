@@ -15,15 +15,15 @@ import javax.imageio.ImageIO
  * Testa a abertura real da interface Compose no desktop do runner Windows.
  * Usado exclusivamente pelo argumento --ui-smoke-test.
  *
- * Captura SOMENTE a janela inicial vazia: sem abrir arquivos de clientes,
- * conectar contas, iniciar sessões ou interagir com serviços remotos.
+ * Captura a janela inicial vazia ou uma matriz SINTÉTICA de QA, sem abrir
+ * arquivos de clientes, conectar contas ou acessar serviços remotos.
  * Não substitui inspeção visual manual nem teste em PC físico.
  */
 internal object DesktopUiSmoke {
     const val SUCCESS_MARKER = "BROTHER_WINDOWS_UI_SMOKE_OK"
     private const val EXPECTED_TITLE = "Brother Matrizes Desktop"
 
-    fun capture(window: Window, report: Path): Path {
+    fun capture(window: Window, report: Path, syntheticPreview: Boolean = false): Path {
         require(report.isAbsolute && report.fileName.toString().endsWith(".txt", ignoreCase = true)) {
             "Relatório de QA deve ter caminho absoluto e extensão .txt."
         }
@@ -86,7 +86,10 @@ internal object DesktopUiSmoke {
                 "Dimensões: ${bounds.width}x${bounds.height}\n" +
                 "Cores distintas amostradas: ${colors.size}\n" +
                 "Captura: ${screenshotPath.fileName}\n" +
-                "Modo: QA sem autenticação e sem arquivos do usuário\n",
+                "Modo: " + (if (syntheticPreview)
+                    "QA com matriz sintética local\n"
+                    else "QA sem autenticação e sem arquivos do usuário\n") +
+                    (if (syntheticPreview) "BROTHER_WINDOWS_SYNTHETIC_UI_OK\n" else ""),
             StandardCharsets.UTF_8,
             StandardOpenOption.CREATE_NEW,
             StandardOpenOption.WRITE
