@@ -97,6 +97,13 @@ jobs:
         timeout-minutes: 3
         run: ./qa/validate-ui-desktop.ps1
 
+      # Segundo smoke gráfico: abre com matriz QA sintética e exige PNG
+      # diferente da tela vazia. Não simula clique, PE-DESIGN ou bordadeira.
+      - name: Renderizar matriz sintetica na interface Windows (QA)
+        shell: pwsh
+        timeout-minutes: 3
+        run: ./qa/validate-ui-desktop.ps1 -SyntheticPreview
+
       # Executa apenas no runner Windows efemero, nunca num PC de cliente.
       # Instala MSI gerado neste job, roda diagnostico no executavel de
       # Program Files e desinstala pelo ProductCode do proprio pacote.
