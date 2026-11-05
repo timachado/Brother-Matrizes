@@ -111,6 +111,13 @@ jobs:
         timeout-minutes: 3
         run: ./qa/validate-ui-desktop.ps1 -WheelZoom
 
+      # ZIP com app-image + Java runtime, SEM instalador. Extrai para
+      # pasta temporaria no Windows e confirma abertura de motor e GUI.
+      - name: Criar e testar Brother Matrizes portatil sem instalador (QA)
+        shell: pwsh
+        timeout-minutes: 9
+        run: ./qa/package-portable.ps1
+
       # Executa apenas no runner Windows efemero, nunca num PC de cliente.
       # Instala MSI gerado neste job, roda diagnostico no executavel de
       # Program Files e desinstala pelo ProductCode do proprio pacote.
@@ -169,6 +176,14 @@ jobs:
           name: brother-windows-ui-smoke-QA-NAO-COMERCIAL
           path: windows/build/qa/desktop-ui/**
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Armazenar ZIP portatil Windows (QA, NAO PUBLICAR)
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-portable-QA-NAO-COMERCIAL
+          path: windows/build/qa/portable/**
+          if-no-files-found: error
           retention-days: 7
 
       - name: Armazenar pacotes QA (NAO PUBLICAR)
