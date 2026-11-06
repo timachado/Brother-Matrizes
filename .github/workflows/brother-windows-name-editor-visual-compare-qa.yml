@@ -1,0 +1,66 @@
+name: Brother Matrizes - comparacao visual Editor Android x Windows (QA)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/qa/compare_name_editor_screens.py"
+      - ".github/workflows/brother-windows-name-editor-visual-compare-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare-name-editor:
+    name: Comparar screenshots reais do Editor sem liberar EXE
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar processador de imagens para QA
+        run: python -m pip install "Pillow==11.3.0"
+      - name: Obter golden Android e captura Windows reais
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qa-inputs/android qa-inputs/windows
+          # Run Android: golden do Editor aprovado; Home independente falhou.
+          gh run download 42281075067 -R "$GITHUB_REPOSITORY" \
+            -n brother-windows-fiel-REFERENCIA-ANDROID-NAME-EDITOR-1118 \
+            -D qa-inputs/android
+          # Run Windows: compilação e quatro capturas aprovadas.
+          gh run download 42281075255 -R "$GITHUB_REPOSITORY" \
+            -n brother-windows-fiel-HOME-RENDER-QA \
+            -D qa-inputs/windows
+          test -s qa-inputs/android/android-original-name-editor-1118.png
+          test -s qa-inputs/windows/name-editor-windows-original-port.png
+          echo "BROTHER_EDITOR_FONTE_ANDROID_E_WINDOWS_PRESENTES"
+      - name: Produzir painéis de inspeção e métricas sem falso selo de paridade
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python windows-fiel/qa/compare_name_editor_screens.py \
+            --android qa-inputs/android/android-original-name-editor-1118.png \
+            --windows qa-inputs/windows/name-editor-windows-original-port.png \
+            --output build/qa-visual-name-editor
+          test -s build/qa-visual-name-editor/editor-nomes-tela-completa.png
+          test -s build/qa-visual-name-editor/editor-nomes-primeira-dobra.png
+          test -s build/qa-visual-name-editor/metricas-e-limites.json
+          test -s build/qa-visual-name-editor/LEIA-ME-QA.md
+          echo "BROTHER_NAME_EDITOR_COMPARE_ARTIFACT_READY"
+      - name: Publicar revisão visual (não distribuir aplicativo)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-editor-visual-ANDROID-WINDOWS-REVISAO-QA
+          path: build/qa-visual-name-editor/
+          if-no-files-found: warn
+          retention-days: 14
