@@ -56,5 +56,23 @@ jobs:
             if (!(Test-Path (Join-Path $res $asset))) { throw "Asset Android nao gerado: $asset" }
           }
           "BROTHER_WINDOWS_FIEL_HOME_COMPILE_OK"
+      - name: Capturar Home real do novo port Compose no runner Windows
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-home-qa" --no-daemon --stacktrace
+          $photo = "windows-fiel/build/qa/home-windows-original-port.png"
+          if (!(Test-Path $photo)) { throw "Captura Windows ausente" }
+          if ((Get-Item $photo).Length -lt 10000) {
+            throw "Captura Windows muito pequena"
+          }
+          "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_VERIFIED"
+      - name: Disponibilizar captura para comparação com Home Android
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-fiel-HOME-RENDER-QA
+          path: windows-fiel/build/qa/home-windows-original-port.png
+          if-no-files-found: warn
+          retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home
       # Windows e Android não forem comparadas e aprovadas pelo proprietário.
