@@ -108,15 +108,15 @@ fun main(args: Array<String>) {
             require(wordStitches.count { it.command == StitchCommand.STITCH } > 60) {
                 "Maria não produziu pontadas Satin suficientes no Windows."
             }
-            val mariaRows = mutableListOf("STITCHES\\t" + wordStitches.size)
+            val mariaRows = mutableListOf("STITCHES\t" + wordStitches.size)
             wordStitches.forEachIndexed { i, point ->
-                mariaRows += "P\\t" + i + "\\t" + point.xUnits +
-                    "\\t" + point.yUnits + "\\t" + point.command.name +
-                    "\\t" + point.colorIndex
+                mariaRows += "P\t" + i + "\t" + point.xUnits +
+                    "\t" + point.yUnits + "\t" + point.command.name +
+                    "\t" + point.colorIndex
             }
             Files.writeString(
                 output.resolveSibling("bm-parity-windows-kernel-maria.tsv"),
-                mariaRows.joinToString("\\n", postfix = "\\n")
+                mariaRows.joinToString("\n", postfix = "\n")
             )
         }
         if (text == "O") {

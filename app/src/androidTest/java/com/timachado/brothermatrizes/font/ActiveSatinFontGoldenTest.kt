@@ -186,14 +186,14 @@ class ActiveSatinFontGoldenTest {
         }
         assertTrue("Maria precisa gerar pontadas reais no kernel ativo.",
             mariaStitches.count { it.command == StitchCommand.STITCH } > 60)
-        val mariaRows = mutableListOf("STITCHES\\t" + mariaStitches.size)
+        val mariaRows = mutableListOf("STITCHES\t" + mariaStitches.size)
         mariaStitches.forEachIndexed { i, point ->
-            mariaRows += "P\\t" + i + "\\t" + point.xUnits +
-                "\\t" + point.yUnits + "\\t" + point.command.name +
-                "\\t" + point.colorIndex
+            mariaRows += "P\t" + i + "\t" + point.xUnits +
+                "\t" + point.yUnits + "\t" + point.command.name +
+                "\t" + point.colorIndex
         }
         File(context.filesDir, "bm-parity-android-kernel-maria.tsv")
-            .writeText(mariaRows.joinToString("\\n", postfix = "\\n"), Charsets.UTF_8)
+            .writeText(mariaRows.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
 
         val result = CleanRoomSatinEngine.generate(
             font = font,
