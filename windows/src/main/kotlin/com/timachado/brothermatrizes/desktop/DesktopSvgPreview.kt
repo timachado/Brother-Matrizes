@@ -31,6 +31,7 @@ internal fun DesktopSvgPreview(
     artwork: VectorArtwork,
     threadRgb: Int,
     selectedPathIndex: Int?,
+    selectedNodeIndex: Int,
     enabled: Boolean,
     onSelect: (Int) -> Unit,
     onMove: (Int, Offset, IntSize) -> Unit
@@ -150,6 +151,19 @@ internal fun DesktopSvgPreview(
                         ),
                         style = Stroke(width = 1.5f)
                     )
+                }
+                // Nós reais destacados para orientar a edição numérica no painel.
+                // Marcadores só existem no canvas; nunca geram pontos do bordado.
+                if (index == selectedPathIndex) {
+                    path.points.forEachIndexed { nodeIndex, node ->
+                        val selected = nodeIndex == selectedNodeIndex
+                        drawCircle(
+                            color = if (selected) DesktopBrandColors.gold
+                                else DesktopBrandColors.goldSoft.copy(alpha = 0.7f),
+                            radius = if (selected) 5.5f else 2.5f,
+                            center = point(node.x, node.y)
+                        )
+                    }
                 }
             }
         }
