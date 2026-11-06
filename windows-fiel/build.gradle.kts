@@ -73,6 +73,19 @@ val copyAndroidHome by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedHome)
 
+// Tema inteiro compilado diretamente do Android original: sem reimplementação
+// de cores, tipografia, esquemas light/dark ou cantos arredondados.
+val generatedTheme = layout.buildDirectory.dir("generated/android-theme/kotlin")
+val copyAndroidTheme by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include(
+            "com/timachado/brothermatrizes/ui/theme/BrotherMatrizesTheme.kt"
+        )
+    }
+    into(generatedTheme)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedTheme)
+
 /**
  * Tipos e geradores do Android são compilados DIRETAMENTE da fonte oficial,
  * sem reescrita de algoritmos de pontadas. Mesmo contrato de modelo do APK.
@@ -179,7 +192,9 @@ val prepareOriginalAssets by tasks.registering {
 sourceSets.getByName("main").resources.srcDir(generatedRes)
 
 tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
-tasks.named("compileKotlin") { dependsOn(copyAndroidHome, copyOfficialCore) }
+tasks.named("compileKotlin") {
+    dependsOn(copyAndroidHome, copyAndroidTheme, copyOfficialCore)
+}
 
 dependencies {
     implementation(compose.desktop.currentOs)
