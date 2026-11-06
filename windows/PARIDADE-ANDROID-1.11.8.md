@@ -35,7 +35,7 @@ Windows esteja completo nem comercialmente homologado.
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos DST/PES/JEF e TTF/OTF individual com consentimento, sem senha ou importação em lote; paridade total pendente |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Pendente** |
-| `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Pendente** — exportação de arquivo não é transferência |
+| `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Parcial** — validação oficial de formato/bastidor e arquivo novo escolhido para USB/pasta com SHA-256; Wi-Fi, envio direto e testes na máquina pendentes |
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
@@ -68,14 +68,14 @@ mesmo recurso gráfico dentro de todas as telas ainda será auditada.
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
-em oito áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
-Editor e Biblioteca**. A prévia técnica permanece visível à esquerda,
+em nove áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
+Editor, Biblioteca e Transferir**. A prévia técnica permanece visível à esquerda,
 enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
 
-Os módulos Android **Conta, Comunidade, Telegram, Transferir**
-e outros fluxos ainda não portados não são oferecidos como botões
-funcionais nem descritos como concluídos. Criar uma aba não comprova
+Os módulos Android **Conta, Comunidade e Telegram** continuam pendentes.
+A nova área Transferir prepara um arquivo escolhido pelo usuário, sem
+protocolo direto USB/Wi-Fi ou detecção de equipamentos. Criar uma aba não comprova
 paridade: continuam necessários portadores de serviços, persistência e
 testes funcionais por recurso.
 
@@ -384,3 +384,24 @@ intactas. Não há instalação automática, persistência de fontes da
 conta Android, senhas de pacotes, importação em lote ou fluxo comercial
 de cobrança. RAR/RAR5 precisa de testes com amostras válidas; não é
 considerado homologado industrialmente.
+
+## Transferir para pendrive: preparação segura de arquivo (QA)
+
+A área Transferir utiliza `MachineTransferValidator` do **core Android
+1.11.8**, sincronizado somente para a compilação Windows, para validar
+PES/DST/JEF, dimensões, avisos DST/cores e área útil dos bastidores,
+incluindo orientação alternativa quando aplicável. O usuário recebe
+avisos e deve confirmá-los antes da operação. A primeira opção exibida
+é PES, preferencial para Brother.
+
+A seleção manual do destino pelo Windows permite escolher uma pasta
+em pendrive ou em disco local. A gravação usa `CREATE_NEW` (nunca
+sobrescreve arquivo), converte e relê a matriz pelo motor oficial e
+**reconfere SHA-256 após ler o arquivo gravado**, emitindo nome/tamanho/hash
+para diagnóstico. Uma falha tenta remover somente a nova cópia; não
+modifica a matriz nem o arquivo anterior.
+
+Esta é uma **cópia local preparada**, não controle físico de bordadeira,
+envio Wi-Fi, comunicação USB direta, detecção automática de mídia
+removível, prova de compatibilidade de firmware ou autenticação
+comercial. Testes com operador e máquina física são obrigatórios.

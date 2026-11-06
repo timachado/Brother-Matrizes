@@ -140,3 +140,24 @@ ou salvamento; comportamento de bordado não comprovado; falta de homologação
 de licenças/autenticação, assinatura de código ou distribuição; risco de
 segurança sem avaliação. Não fazer merge/publicação comercial com campos
 críticos marcados como `NÃO EXECUTADO`.
+
+## 7. Preparação para pendrive — validação MANUAL PENDENTE
+
+- [ ] Usar uma mídia USB de testes sem arquivos importantes; não utilizar
+      projetos ou matrizes de clientes.
+- [ ] Abrir matriz sintética e acessar a nova área Transferir.
+- [ ] Conferir recomendação de bastidor e formato PES; selecionar um
+      bastidor insuficiente e confirmar bloqueio.
+- [ ] Escolher DST e conferir avisos de cores. Cancelar a confirmação e
+      verificar que nenhum arquivo foi gravado.
+- [ ] Selecionar o pendrive pelo seletor do Windows e criar novo PES.
+      Confirmar conteúdo, tamanho e SHA-256 informados.
+- [ ] Repetir o destino existente: a segunda gravação deve ser recusada
+      e o arquivo original deve manter o hash.
+- [ ] Ejetar pelo mecanismo oficial do Windows. O aplicativo não ejeta
+      nem controla o dispositivo.
+- [ ] Com operador habilitado e bordadeira de testes, importar a cópia
+      pelo menu oficial da máquina e verificar formato, bastidor, cor,
+      pontos, orientação e eventuais requisitos de pastas.
+- [ ] Registrar modelo, firmware e resultados. **Não** classificar este
+      fluxo como envio direto USB/Wi-Fi nem como versão comercial.

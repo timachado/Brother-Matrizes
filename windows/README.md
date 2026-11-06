@@ -467,3 +467,17 @@ no Windows e não há sobrescrita de arquivos. A fonte passa pela
 validação Java2D já usada no preview local e, após ser salva,
 pode ser usada para gerar nome Satin em QA. Não há importação
 em lote, senhas ou integração com licenciamento Android.
+
+## Transferir para pendrive (Windows QA)
+
+Há uma nona área **Transferir**, acessível na barra e pela Home.
+Depois de abrir uma matriz, escolha PES/DST/JEF e o bastidor; a
+validação é a mesma rotina Kotlin do Android oficial. Se houver avisos
+de cores ou compatibilidade, confirme-os antes de continuar. O
+destino é escolhido no seletor Windows, podendo ser uma pasta de
+pendrive já conectado. A cópia é sempre **um arquivo novo**;
+o programa relê e compara SHA-256 após a gravação.
+
+Não há descoberta de máquinas, protocolo Wi-Fi, montagem/ejeção
+automática ou garantia de leitura pela bordadeira. A etapa ainda
+depende da homologação física, assinatura de código e licenciamento.
