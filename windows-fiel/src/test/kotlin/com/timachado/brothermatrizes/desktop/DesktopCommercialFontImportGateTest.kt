@@ -4,9 +4,16 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopCommercialFontImpor
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFontLibrary
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -57,6 +64,80 @@ class DesktopCommercialFontImportGateTest {
             Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
         ).firstOrNull { Files.isRegularFile(it) }
             ?: error("Nenhuma fonte TTF de teste disponível no runner.")
+    }
+
+    @Test
+    fun `importacoes simultaneas em gates distintos nao duplicam reserva nem cota`() = runBlocking {
+        val folder = Files.createTempDirectory("bm-gate-concurrent-")
+        val destination = folder.resolve("fonts")
+        val activeReservations = AtomicInteger(0)
+        val maxConcurrentReservations = AtomicInteger(0)
+        val reservationSequence = AtomicInteger(0)
+        val finalizations = ConcurrentLinkedQueue<Boolean>()
+        val source = fontFixture()
+
+        val fake = object : DesktopFontUsageGateway {
+            override suspend fun reserveFont(accessToken: String): String {
+                check(accessToken == "token-from-verified-session")
+                val active = activeReservations.incrementAndGet()
+                maxConcurrentReservations.accumulateAndGet(active) { previous, current ->
+                    maxOf(previous, current)
+                }
+                try {
+                    // Com dois gates sem exclusao mutua, as reservas se sobrepoem.
+                    delay(60)
+                } finally {
+                    activeReservations.decrementAndGet()
+                }
+                val number = reservationSequence.incrementAndGet()
+                return "usage_12345678-1234-1234-1234-" +
+                    number.toString(16).padStart(12, '0')
+            }
+
+            override suspend fun finalizeFont(
+                accessToken: String,
+                requestKey: String,
+                success: Boolean
+            ) {
+                check(accessToken == "token-from-verified-session")
+                check(requestKey.startsWith("usage_"))
+                finalizations.add(success)
+            }
+        }
+        try {
+            // Instancias independentes compartilham o mesmo armazenamento.
+            val firstGate = DesktopCommercialFontImportGate(
+                DesktopImportedFontLibrary(destination), verifiedSession, fake
+            )
+            val secondGate = DesktopCommercialFontImportGate(
+                DesktopImportedFontLibrary(destination), verifiedSession, fake
+            )
+            val imports = withTimeout(20_000) {
+                listOf(
+                    async(Dispatchers.Default) {
+                        firstGate.importFont(source, "Primeira fonte.ttf")
+                    },
+                    async(Dispatchers.Default) {
+                        secondGate.importFont(source, "Segunda fonte.ttf")
+                    }
+                ).awaitAll()
+            }
+            assertEquals(imports[0].id, imports[1].id)
+            assertEquals(1, maxConcurrentReservations.get())
+            assertEquals(2, reservationSequence.get())
+            assertEquals(listOf(true, false), finalizations.toList())
+            assertEquals(1, DesktopImportedFontLibrary(destination).list().size)
+            assertContentEquals(
+                Files.readAllBytes(source),
+                Files.readAllBytes(Path.of(imports.first().absolutePath))
+            )
+        } finally {
+            if (Files.isDirectory(destination)) {
+                Files.list(destination).use { it.forEach(Files::deleteIfExists) }
+                Files.deleteIfExists(destination)
+            }
+            Files.deleteIfExists(folder)
+        }
     }
 
     @Test
