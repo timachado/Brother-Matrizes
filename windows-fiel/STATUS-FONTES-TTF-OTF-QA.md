@@ -237,6 +237,41 @@ com a fonte oficial.
   esse experimento testado. O teste de fonte Android e Windows
   continua sendo o portão para equivalência da costura.
 
+## Correção de arquitetura: motor Satin ATIVO do Android 1.11.8
+
+**Constatação no código oficial**:
+`ImportedFontMatrixGenerator.generateWithReferenceSatin` usa
+`CleanRoomSatinEngine.generate` quando
+`options.style == TextStitchStyle.SATIN` e
+`options.specialStitchMode == null`. É **este** o caminho normal
+de fontes externas Satin comerciais. Os experimentos anteriores de
+`buildStrokeFlowSatinText` e `buildReferenceSatinText`, extraídos
+de `ImportedFontMatrixGenerator`, **NÃO** demonstram equivalência da
+rota comercial ativa. Esta correção substitui as interpretações
+anteriores sobre qual é o motor principal.
+
+O Gradle `copyAndroidActiveSatin` copia o arquivo original completo
+`font/CleanRoomSatinEngine.kt` byte a byte para compilar no
+Windows, sem editar sua matemática de pontadas. O teste
+`CleanRoomActiveSatinPortTest` compara os bytes e exercita o
+`Stitcher` original com trilhos sintéticos, verificando
+alternância, tamanho e underlay.
+
+O motor depende também de `AndroidSkiaOutlineExtractor` (extração
+OpenType de contornos, kerning, shaping e rotações) e de
+`ImportedFontCoverageGuard` (verificação de precisão/cobertura
+da silhueta). Na porta Windows, **os dois adaptadores falham
+explicitamente** com `UnsupportedOperationException`, de forma
+que nenhuma matriz importada seja emitida antes da homologação.
+Isto mantém os controles de segurança do Android, sem aprovar
+cobertura fictícia.
+
+Para liberar TTF/OTF comercialmente, falta portar e comparar esses
+dois adaptadores, validar os resultados com os mesmos bytes da
+fonte e preservar conta, cotas, UI e testes em PC/bordadeira real.
+Os módulos stroke-flow anteriores permanecem laboratório
+separado; não devem ser confundidos com o motor ativo.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
