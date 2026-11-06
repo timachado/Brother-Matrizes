@@ -108,6 +108,20 @@ fun main(args: Array<String>) {
             require(stitches.count { it.command == StitchCommand.STITCH } > 20) {
                 "O motor Satin ativo não produziu pontadas Windows."
             }
+            val realCoverage = runCatching {
+                DesktopCoverageGuardProbe.check(
+                    geometry.contoursByGlyph, stitches
+                )
+            }.fold(
+                onSuccess = {
+                    "PASS\t" + it.precision + "\t" + it.coverage
+                },
+                onFailure = { "BLOCKED" }
+            )
+            Files.writeString(
+                output.resolveSibling("bm-parity-windows-coverage-real-o.tsv"),
+                realCoverage + "\n"
+            )
             val stitchRows = mutableListOf("STITCHES\t" + stitches.size)
             stitches.forEachIndexed { i, point ->
                 stitchRows += "P\t" + i + "\t" + point.xUnits +
