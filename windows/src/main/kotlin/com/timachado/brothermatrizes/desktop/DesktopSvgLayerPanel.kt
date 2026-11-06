@@ -130,6 +130,16 @@ internal fun DesktopSvgLayerPanel(
                     onClick = { onTransform(DesktopSvgObjectAction.ROTATE_RIGHT) }
                 ) { Text("Girar +15°", fontSize = 11.sp) }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.MIRROR_HORIZONTAL) }
+                ) { Text("Espelhar H", fontSize = 11.sp) }
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.MIRROR_VERTICAL) }
+                ) { Text("Espelhar V", fontSize = 11.sp) }
+            }
         }
         Text(
             "Unidade SVG não significa 1 mm na bordadeira. " +
