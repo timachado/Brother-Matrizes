@@ -36,6 +36,14 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
+import com.timachado.brothermatrizes.CreateNameScreen
+import com.timachado.brothermatrizes.EmbroideryDisplayMode
+import com.timachado.brothermatrizes.SimulatorScreen
+import com.timachado.brothermatrizes.ViewerScreen
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
@@ -45,11 +53,16 @@ import com.timachado.brothermatrizes.ui.theme.FioNavigationMuted
 import com.timachado.brothermatrizes.ui.theme.FioNavigationSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.Toolkit
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
+import javax.swing.JFileChooser
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
@@ -164,9 +177,16 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR }
+
 @Composable
 private fun FielHomeHost() {
     var area by remember { mutableStateOf(HomeArea.HOME) }
+    var detail by remember { mutableStateOf(ActiveDetail.NONE) }
+    var activeDesign by remember { mutableStateOf<EmbroideryDesign?>(null) }
+    var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
+    var hoop by remember { mutableStateOf(HoopProfile.H100X100) }
+    var showConnections by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun informNotPorted(feature: String) {
@@ -178,10 +198,67 @@ private fun FielHomeHost() {
         }
     }
 
+    fun openCreate() {
+        area = HomeArea.CREATE
+        detail = ActiveDetail.NONE
+    }
+
+    fun openDesign(
+        design: EmbroideryDesign, mode: EmbroideryDisplayMode,
+        destination: ActiveDetail
+    ) {
+        activeDesign = design
+        displayMode = mode
+        hoop = design.hoopProfile ?: HoopProfile.H100X100
+        area = HomeArea.CREATE
+        detail = destination
+    }
+
+    fun exportDesign(targetFormat: String, peDesign: Boolean = false) {
+        val design = activeDesign ?: return
+        scope.launch {
+            val generated = withContext(Dispatchers.Default) {
+                MatrixConverter.convert(
+                    design, targetFormat,
+                    pesExportProfile = if (peDesign)
+                        PesExportProfile.PE_DESIGN_PC
+                    else PesExportProfile.BROTHER_MACHINE
+                )
+            }
+            generated.fold(onSuccess = { converted ->
+                // Usuário escolhe o caminho; CREATE_NEW protege o original.
+                val selected = JFileChooser().apply {
+                    dialogTitle = "Salvar matriz Brother Matrizes"
+                    selectedFile = File(converted.fileName)
+                }
+                if (selected.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                    runCatching {
+                        val file = selected.selectedFile.toPath().toAbsolutePath().normalize()
+                        require(file.fileName.toString().lowercase().endsWith(
+                            "." + targetFormat.lowercase()
+                        )) { "Extensão do arquivo deve ser .$targetFormat." }
+                        Files.write(file, converted.bytes, StandardOpenOption.CREATE_NEW)
+                    }.onSuccess {
+                        snackbar.showSnackbar("Matriz salva como novo arquivo.")
+                    }.onFailure {
+                        snackbar.showSnackbar(
+                            "Falha ao salvar a matriz: ${it.message}"
+                        )
+                    }
+                }
+            }, onFailure = {
+                snackbar.showSnackbar(
+                    "Conversão ${targetFormat.uppercase()} recusada: ${it.message}"
+                )
+            })
+        }
+    }
+
     Scaffold(
         containerColor = FioBackground,
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
+            if (detail == ActiveDetail.NONE) {
             // Mesmas cinco abas, sequência, formato e tokens da MainActivity
             // Android 1.11.8; não usar barra lateral da versão rejeitada.
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -205,7 +282,10 @@ private fun FielHomeHost() {
                 HomeArea.entries.forEach { target ->
                     NavigationBarItem(
                         selected = area == target,
-                        onClick = { area = target },
+                        onClick = {
+                            if (target == HomeArea.CREATE) openCreate()
+                            else { area = target; detail = ActiveDetail.NONE }
+                        },
                         icon = {
                             Icon(
                                 painter = desktopPainterResource(target.drawable),
@@ -218,6 +298,7 @@ private fun FielHomeHost() {
                 }
               }
             }
+            }
         }
     ) { padding ->
         // Uma grade Android de duas colunas ocupando 1000dp produz
@@ -225,16 +306,62 @@ private fun FielHomeHost() {
         // host Windows, preservando 100% do HomeScreen Android original.
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
           Box(Modifier.widthIn(max = 700.dp).fillMaxWidth().fillMaxHeight()) {
-            if (area == HomeArea.HOME) {
+            if (detail == ActiveDetail.VIEWER && activeDesign != null) {
+                val design = checkNotNull(activeDesign)
+                ViewerScreen(
+                    design = design,
+                    displayMode = displayMode,
+                    onDisplayModeChange = { displayMode = it },
+                    referenceHoop = hoop,
+                    onReferenceHoopChange = { hoop = it },
+                    showConnections = showConnections,
+                    onShowConnectionsChange = { showConnections = it },
+                    onBack = { detail = ActiveDetail.NONE },
+                    onOpen = { informNotPorted("Abrir matriz") },
+                    onSimulate = { detail = ActiveDetail.SIMULATOR },
+                    onEdit = { informNotPorted("Editor") },
+                    onEditName = { informNotPorted("Editar nome") },
+                    onConvert = { informNotPorted("Converter") },
+                    onTransfer = { informNotPorted("Enviar") },
+                    onSaveProject = { informNotPorted("Salvar projeto FLP") },
+                    onSaveCopy = { exportDesign(MatrixConverter.preferredBrotherFormat) },
+                    onShare = { informNotPorted("Compartilhar") },
+                    onSavePeDesign = { exportDesign("PES", peDesign = true) },
+                    onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
+                    onPositionChange = { activeDesign = it }
+                )
+            } else if (detail == ActiveDetail.SIMULATOR && activeDesign != null) {
+                val design = checkNotNull(activeDesign)
+                SimulatorScreen(
+                    design = design,
+                    displayMode = displayMode,
+                    referenceHoop = hoop,
+                    showConnections = showConnections,
+                    onBack = { detail = ActiveDetail.VIEWER }
+                )
+            } else if (area == HomeArea.CREATE) {
+                CreateNameScreen(
+                    onBack = { area = HomeArea.HOME },
+                    onCreate = { design, mode ->
+                        openDesign(design, mode, ActiveDetail.VIEWER)
+                    },
+                    onSimulate = { design, mode ->
+                        openDesign(design, mode, ActiveDetail.SIMULATOR)
+                    }
+                )
+            } else if (area == HomeArea.HOME) {
                 // Fonte original HomeScreen.kt do Android, não uma recriação.
                 HomeScreen(
                     recent = null,
-                    onCreateName = { informNotPorted("Criar nome") },
+                    onCreateName = { openCreate() },
                     onFonts = { area = HomeArea.FONTS },
                     onTransfer = { informNotPorted("Enviar") },
                     onOpen = { informNotPorted("Abrir matriz") },
                     onRecent = { informNotPorted("Recente") },
-                    onSimulate = { informNotPorted("Simulador") },
+                    onSimulate = {
+                        if (activeDesign != null) detail = ActiveDetail.SIMULATOR
+                        else informNotPorted("Crie ou abra uma matriz primeiro")
+                    },
                     onEdit = { informNotPorted("Editor") },
                     onConvert = { informNotPorted("Converter") },
                     onClearRecent = { informNotPorted("Recentes") },
