@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -95,7 +96,21 @@ class BrotherCreateNameScreenshotTest {
         }
         composeRule.onNodeWithText("Criar Nome").assertIsDisplayed()
         composeRule.onNodeWithText("‹ Voltar").assertIsDisplayed()
+        // Não aceitar captura com tela preta "Atualizando prévia...".
+        // O motor de bordado roda em Dispatchers.Default, portanto
+        // waitForIdle() sozinho não garante que a matriz ficou pronta.
+        composeRule.waitUntil(90_000) {
+            runCatching {
+                composeRule.onNodeWithText("Criar matriz")
+                    .assertIsDisplayed()
+                    .assertIsEnabled()
+            }.isSuccess
+        }
         composeRule.waitForIdle()
+        check(composeRule.onAllNodesWithText("Atualizando prévia...")
+            .fetchSemanticsNodes().isEmpty()) {
+            "Captura Android recusada: prévia ainda está sendo gerada."
+        }
         ensureVisibleTarget()
         // Teste funcional de rota: é o formulário Criar Nome com a matriz
         // "Maria", não a Home por trás de um diálogo do Pixel Launcher.
