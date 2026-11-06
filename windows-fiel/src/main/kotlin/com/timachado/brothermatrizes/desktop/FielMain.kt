@@ -112,7 +112,7 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
-                nameEditorScreenshot -> DpSize(920.dp, 720.dp)
+                nameEditorScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
