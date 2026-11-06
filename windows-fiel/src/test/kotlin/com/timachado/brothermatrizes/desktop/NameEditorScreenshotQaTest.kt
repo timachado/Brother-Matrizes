@@ -27,7 +27,7 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("rgbColors.size >= 18"))
         assertTrue(host.contains("onEditName = { detail = ActiveDetail.NAME_EDITOR }"))
         assertTrue(host.contains("NameEditorScreen("))
-        assertTrue(host.contains("importedFontId"))
+        assertTrue(host.contains("NameCompositionMode.MONOGRAM_OVERLAY"))
         assertTrue(host.contains("--capture-name-editor-qa"))
         assertTrue(yaml.contains("--capture-name-editor-qa"))
         assertTrue(yaml.contains("windows-fiel/build/qa/name-editor-windows-original-port.png"))
