@@ -32,7 +32,9 @@ internal fun DesktopSvgLayerPanel(
     enabled: Boolean,
     onSelect: (Int) -> Unit,
     onNudge: (Int, Int) -> Unit,
-    onTransform: (DesktopSvgObjectAction) -> Unit
+    onTransform: (DesktopSvgObjectAction) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val pageSize = 8
     val totalPages = (artwork.paths.size + pageSize - 1) / pageSize
@@ -86,6 +88,25 @@ internal fun DesktopSvgLayerPanel(
             }
         }
         if (selectedIndex != null && selectedIndex in artwork.paths.indices) {
+            Text(
+                "Gerenciar o objeto SVG selecionado",
+                color = DesktopBrandColors.muted, fontSize = 11.sp
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = enabled && artwork.paths.size < DesktopSvgImport.MAX_PATHS,
+                    onClick = onDuplicate
+                ) { Text("Duplicar +10 SVG", fontSize = 11.sp) }
+                TextButton(
+                    enabled = enabled && artwork.paths.size > 1,
+                    onClick = onDelete
+                ) { Text("Excluir caminho", fontSize = 11.sp) }
+            }
+            Text(
+                "Duplicar cria uma cópia deslocada em 10 unidades SVG " +
+                    "por eixo; Excluir remove apenas da sessão (Desfazer disponível).",
+                color = DesktopBrandColors.muted, fontSize = 10.sp
+            )
             Text(
                 "Mover caminho ${selectedIndex + 1} por 1 unidade vetorial",
                 color = DesktopBrandColors.muted, fontSize = 11.sp
@@ -143,7 +164,7 @@ internal fun DesktopSvgLayerPanel(
         }
         Text(
             "Unidade SVG não significa 1 mm na bordadeira. " +
-                "Movimentos entram no histórico Desfazer/Refazer SVG; " +
+                "Duplicação, exclusão e transformações entram no histórico SVG; " +
                 "para persistir, salve um novo FLP com .bmvector.",
             color = DesktopBrandColors.muted, fontSize = 10.sp
         )
