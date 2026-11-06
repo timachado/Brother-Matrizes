@@ -63,11 +63,13 @@ jobs:
           gradle -p windows-fiel run --args="--capture-home-wide-qa" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--capture-create-name-qa" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--capture-name-editor-qa" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--capture-name-editor-scroll-qa" --no-daemon --stacktrace
           foreach ($photo in @(
             "windows-fiel/build/qa/home-windows-original-port.png",
             "windows-fiel/build/qa/home-windows-wide-original-port.png",
             "windows-fiel/build/qa/create-name-windows-original-port.png",
-            "windows-fiel/build/qa/name-editor-windows-original-port.png"
+            "windows-fiel/build/qa/name-editor-windows-original-port.png",
+            "windows-fiel/build/qa/name-editor-windows-scrolled-qa.png"
           )) {
             if (!(Test-Path $photo)) { throw "Captura Windows ausente: $photo" }
             if ((Get-Item $photo).Length -lt 10000) {
@@ -85,6 +87,7 @@ jobs:
             windows-fiel/build/qa/home-windows-wide-original-port.png
             windows-fiel/build/qa/create-name-windows-original-port.png
             windows-fiel/build/qa/name-editor-windows-original-port.png
+            windows-fiel/build/qa/name-editor-windows-scrolled-qa.png
           if-no-files-found: warn
           retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home

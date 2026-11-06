@@ -100,8 +100,10 @@ fun main(args: Array<String>) = application {
     val wideScreenshot = args.singleOrNull() == "--capture-home-wide-qa"
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
+    val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
+    val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot
     val screenshotMode =
-        compactScreenshot || wideScreenshot || createNameScreenshot || nameEditorScreenshot
+        compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture
     require(args.isEmpty() || screenshotMode) {
         "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
     }
@@ -112,7 +114,7 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
-                nameEditorScreenshot -> DpSize(920.dp, 680.dp)
+                editorCapture -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -141,7 +143,7 @@ fun main(args: Array<String>) = application {
                 composeWindow.setLocation(20, 20)
                 delay(
                     when {
-                        nameEditorScreenshot -> 11_000L
+                        editorCapture -> 11_000L
                         createNameScreenshot -> 5_000L
                         else -> 2_500L
                     }
@@ -163,7 +165,34 @@ fun main(args: Array<String>) = application {
                             "$bounds, tela=${screen.width}x${screen.height}; " +
                             "a taskbar não pode aparecer no PNG."
                     }
-                    val screenshot = Robot().createScreenCapture(bounds)
+                    val robot = Robot()
+                    val beforeScroll = if (nameEditorScrollScreenshot)
+                        robot.createScreenCapture(bounds) else null
+                    if (nameEditorScrollScreenshot) {
+                        // Rolagem no conteúdo abaixo da prévia, não nos gestos
+                        // do bastidor. Confirma acessibilidade dos controles
+                        // inferiores em monitores Windows de 768 px.
+                        robot.mouseMove(
+                            bounds.x + (bounds.width * 0.23f).toInt(),
+                            bounds.y + (bounds.height * 0.81f).toInt()
+                        )
+                        robot.mouseWheel(10)
+                        delay(1_400L)
+                    }
+                    val screenshot = robot.createScreenCapture(bounds)
+                    if (beforeScroll != null) {
+                        var changed = 0
+                        for (y in 80 until screenshot.height - 84 step 16) {
+                            for (x in 45 until screenshot.width - 45 step 16) {
+                                if (beforeScroll.getRGB(x, y) !=
+                                    screenshot.getRGB(x, y)) changed++
+                            }
+                        }
+                        check(changed >= 180) {
+                            "Editor de Nomes não respondeu à rolagem do mouse " +
+                                "(amostras de pixels alterados=$changed)."
+                        }
+                    }
                     // Detectar navegação inferior real, não barras da janela,
                     // taskbar ou espaços pretos. Na Home oficial o fundo da
                     // barra inferior é FioNavigationSurface = #102A40.
@@ -178,7 +207,7 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    if (nameEditorScreenshot) {
+                    if (editorCapture) {
                         // Editor usa tela cheia e não possui barra inferior.
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
@@ -205,6 +234,7 @@ fun main(args: Array<String>) = application {
                     val filename = when {
                         createNameScreenshot -> "create-name-windows-original-port.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
+                        nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
                         else -> "home-windows-original-port.png"
                     }
@@ -215,7 +245,7 @@ fun main(args: Array<String>) = application {
                         "Captura do canvas Windows não foi gerada."
                     }
                     println(
-                        (if (nameEditorScreenshot)
+                        (if (editorCapture)
                             "BROTHER_WINDOWS_NAME_EDITOR_SCREENSHOT_OK "
                         else "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK ") +
                             "${bounds.width}x${bounds.height}"
@@ -230,7 +260,7 @@ fun main(args: Array<String>) = application {
         BrotherMatrizesTheme(darkTheme = true) {
             FielHomeHost(
                 startInCreate = createNameScreenshot,
-                startInNameEditorQa = nameEditorScreenshot,
+                startInNameEditorQa = editorCapture,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )

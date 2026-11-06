@@ -57,8 +57,8 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("startInNameEditorQa"))
         assertTrue(host.contains("if (startInNameEditorQa) ActiveDetail.NAME_EDITOR"))
         assertTrue(host.contains("if (startInNameEditorQa) syntheticNameEditorQaDesign() else null"))
-        assertTrue(host.contains("nameEditorScreenshot -> 11_000L"))
-        assertTrue(host.contains("if (nameEditorScreenshot)"))
+        assertTrue(host.contains("editorCapture -> 11_000L"))
+        assertTrue(host.contains("if (editorCapture)"))
         assertTrue(host.contains("rgbColors.size >= 18"))
         assertTrue(host.contains("onEditName = { detail = ActiveDetail.NAME_EDITOR }"))
         assertTrue(host.contains("NameEditorScreen("))
@@ -66,5 +66,10 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("--capture-name-editor-qa"))
         assertTrue(yaml.contains("--capture-name-editor-qa"))
         assertTrue(yaml.contains("windows-fiel/build/qa/name-editor-windows-original-port.png"))
+        assertTrue(host.contains("--capture-name-editor-scroll-qa"))
+        assertTrue(host.contains("robot.mouseWheel(10)"))
+        assertTrue(host.contains("changed >= 180"))
+        assertTrue(yaml.contains("--capture-name-editor-scroll-qa"))
+        assertTrue(yaml.contains("windows-fiel/build/qa/name-editor-windows-scrolled-qa.png"))
     }
 }
