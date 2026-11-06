@@ -86,7 +86,7 @@ import kotlin.math.roundToInt
 internal enum class DesktopWorkspace(val label: String) {
     HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
     DRAW("Desenhar"), MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
-    LIBRARY("Biblioteca"), TRANSFER("Transferir")
+    LIBRARY("Biblioteca"), TRANSFER("Transferir"), COMMUNITY("Comunidade")
 }
 
 // Valores oficiais Fio* do tema Android 1.11.8, compartilhados por contrato de QA.
@@ -774,6 +774,26 @@ private fun DesktopScreen(
                                 }
                             )
                         }
+                    } else if (workspace == DesktopWorkspace.COMMUNITY) {
+                        DesktopCommunityPanel(
+                            enabled = !busy,
+                            onBack = { workspace = DesktopWorkspace.HOME },
+                            onOpenExternal = { destination ->
+                                runCatching {
+                                    DesktopCommunityLinks.openByUserAction(destination)
+                                }.onSuccess {
+                                    report(
+                                        "Aplicativo externo aberto. " +
+                                            "Confira a mensagem antes de enviar."
+                                    )
+                                }.onFailure {
+                                    report(
+                                        "Não foi possível abrir o link oficial: ${it.message}",
+                                        true
+                                    )
+                                }
+                            }
+                        )
                     } else if (workspace == DesktopWorkspace.HOME) {
                         DesktopHomeLanding(
                             enabled = !busy,
@@ -784,7 +804,8 @@ private fun DesktopScreen(
                             onMonogram = { workspace = DesktopWorkspace.MONOGRAM },
                             onEditor = { workspace = DesktopWorkspace.EDIT },
                             onLibrary = { workspace = DesktopWorkspace.LIBRARY },
-                            onTransfer = { workspace = DesktopWorkspace.TRANSFER }
+                            onTransfer = { workspace = DesktopWorkspace.TRANSFER },
+                            onCommunity = { workspace = DesktopWorkspace.COMMUNITY }
                         )
                     } else if (preview == null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -934,8 +955,8 @@ private fun DesktopScreen(
                             color = muted, fontSize = 12.sp)
                         Text("Ferramentas principais e atalhos estão na área central.",
                             color = muted, fontSize = 12.sp)
-                        Text("Conta, comunidade, envio Wi-Fi direto e fluxos completos " +
-                            "de simulação ainda exigem implementação específica no Windows.",
+                        Text("Conta, notificações da comunidade, envio Wi-Fi direto e " +
+                            "fluxos completos de simulação continuam pendentes.",
                             color = muted, fontSize = 11.sp)
                         Text("Favoritos neste computador", color = cyan,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -2568,6 +2589,25 @@ private fun DesktopScreen(
                         color = muted, fontSize = 12.sp
                     )
 
+                    }
+                    if (workspace == DesktopWorkspace.COMMUNITY) {
+                        Text(
+                            "Comunidade e suporte — QA",
+                            color = cyan, fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Os links oficiais abrem apenas após clique. " +
+                                "O feedback é pré-preenchido em um aplicativo externo; " +
+                                "nenhum envio ocorre automaticamente.",
+                            color = muted, fontSize = 12.sp
+                        )
+                        Text(
+                            "Notificações push Firebase continuam indisponíveis " +
+                                "no Windows. Nunca cole credenciais, matrizes privadas " +
+                                "ou informações pessoais de terceiros no relato.",
+                            color = muted, fontSize = 11.sp
+                        )
                     }
                     if (workspace == DesktopWorkspace.TRANSFER) {
                         Spacer(Modifier.height(10.dp))
