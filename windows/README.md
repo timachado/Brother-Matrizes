@@ -497,3 +497,19 @@ de projetos. Links são verificados por allowlist.
 Notificações push Firebase, assinaturas, conta e integrações
 Telegram permanecem fora dessa etapa. A tela é de QA e não deve
 ser apresentada como paridade completa Android.
+
+## Conta e planos (navegador, Windows QA)
+
+A décima primeira área **Conta** apresenta o painel oficial
+WordPress/WooCommerce e links de consulta aos planos, usando
+`WordPressWebStore` e `BrotherPlanBenefits` diretamente do
+código Kotlin Android. Todos os destinos são predefinidos,
+verificados e abertos no navegador apenas após um clique.
+A tela não mostra preços e não presume disponibilidade.
+
+O estado indicado no Windows QA é **Conta não vinculada**.
+O login no navegador não autentica o aplicativo Windows nem
+libera recursos PRO, limitações de conta, assinatura, compras
+ou trial. Esses recursos exigem autenticação segura e
+validação de direitos no backend antes de uso comercial.
+Não são importadas senhas, sessões ou tokens Android.

@@ -33,7 +33,7 @@ Windows esteja completo nem comercialmente homologado.
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos DST/PES/JEF e TTF/OTF individual com consentimento, sem senha ou importação em lote; paridade total pendente |
-| `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
+| `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Parcial** — acesso externo ao painel WordPress e planos oficiais, catálogo informativo sem preço, sem login nativo, sem verificação PRO e sem tokens Android |
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Parcial** — grupo oficial, notas no site e feedback por WhatsApp/e-mail após clique; push Firebase, diagnóstico FCM e demais fluxos Android pendentes |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Parcial** — validação oficial de formato/bastidor e arquivo novo escolhido para USB/pasta com SHA-256; Wi-Fi, envio direto e testes na máquina pendentes |
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
@@ -68,12 +68,15 @@ mesmo recurso gráfico dentro de todas as telas ainda será auditada.
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
-em dez áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
-Editor, Biblioteca, Transferir e Comunidade**. A prévia técnica permanece visível à esquerda,
+em onze áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
+Editor, Biblioteca, Transferir, Comunidade e Conta**. A prévia técnica permanece visível à esquerda,
 enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
 
-Os módulos Android **Conta e Telegram** continuam pendentes.
+A rota Android **Telegram** continua pendente.
+**Conta** permite apenas abrir o WordPress oficial pelo navegador e
+consultar planos informativos. Login, vínculo Supabase, cobrança e
+liberação PRO permanecem pendentes.
 **Comunidade** oferece somente links oficiais e preparação de feedback,
 sem Firebase/FCM, inscrição automática, conta ou notificação Windows.
 A área Transferir prepara um arquivo escolhido pelo usuário, sem
@@ -431,3 +434,30 @@ A área **não** implementa push Firebase/FCM, permissões Android,
 diagnóstico de token, notificação nativa, autenticação, contas
 ou benefícios comerciais. A revisão exige testes de UI em PC e
 aprovação do CI. A paridade da rota é **parcial**.
+
+## Conta e planos — fundação pública, sem autenticação nativa (QA)
+
+A décima primeira área **Conta** usa **somente** os serviços Kotlin/JVM
+`WordPressWebStore.kt` e `BrotherPlanBenefits.kt` do Android 1.11.8,
+sincronizados de forma unidirecional pelo Gradle. A tela exibe
+estado **NÃO VINCULADA**, link do painel WordPress/WooCommerce
+oficial e quatro modalidades PRO informativas. Os destinos de plano,
+inclusive oferta promocional, são gerados pelo próprio
+`WordPressWebStore` com origem estrita e allowlist de URLs exatas.
+O aplicativo **não consulta nem exibe preços ou estoque**, pois
+esses valores só são válidos quando confirmados no checkout remoto.
+
+**Não há login Supabase ou senha no Windows QA; não existem tokens,
+refresh token, sessão WooCommerce importada, persistência de
+credenciais, gravação de direitos, simulação de compra, ativação de
+teste PRO ou concessão de licença.** A propriedade explícita
+`proAccessVerified=false` permanece fixa enquanto não existir
+integração segura de autenticação + verificação de direitos do
+backend. Abrir o site ou pagar no navegador não concede direitos
+no desktop. A compra real deve ser consultada e autorizada pelo
+servidor, nunca inferida por URL ou resposta do navegador.
+
+Testes unitários cobrem plano/código permitido, origem oficial,
+bloqueio de URLs adulteradas e ausência de liberação PRO.
+A paridade de Conta ainda é **parcial**, e a homologação física
+e comercial continua pendente.

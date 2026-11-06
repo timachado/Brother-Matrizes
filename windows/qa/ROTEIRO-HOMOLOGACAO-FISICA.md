@@ -180,3 +180,21 @@ críticos marcados como `NÃO EXECUTADO`.
       automático, nem solicita token Firebase/FCM ou conta Android.
 - [ ] Sem aplicativo externo instalado, verificar que um erro
       legível aparece e a interface permanece funcionando.
+
+## 9. Conta e planos públicos — teste físico (NÃO EXECUTADO)
+
+- [ ] Conferir que a Conta Windows exibe **não vinculada** e
+      não apresenta recursos PRO como habilitados.
+- [ ] Abrir o painel WordPress no navegador e confirmar
+      domínio `timachado.ifree.page` com HTTPS e rota esperada.
+- [ ] Abrir os quatro links de planos e conferir destino
+      oficial, sem finalizar compra nem informar senha em QA.
+- [ ] Confirmar que sem internet a UI apresenta mensagem
+      compreensível e preserva projetos locais.
+- [ ] Verificar que voltar do navegador não cria sessão,
+      não habilita PRO e não armazena credenciais no Windows.
+- [ ] Confirmar que preços, estoque e cobrança só são
+      apresentados/confirmados pelo checkout oficial, nunca
+      por valor estático do aplicativo.
+- [ ] Sem autenticação nativa e validação server-side,
+      marcar **Conta parcial / não comercial**.
