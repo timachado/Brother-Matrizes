@@ -60,16 +60,22 @@ import kotlin.system.exitProcess
 fun main(args: Array<String>) = application {
     // Modo de QA fechado: apenas uma captura da janela do próprio aplicativo.
     // Não aceita caminhos arbitrários de saída nem abre dados de clientes.
-    val screenshotMode = args.singleOrNull() == "--capture-home-qa"
+    val compactScreenshot = args.singleOrNull() == "--capture-home-qa"
+    val wideScreenshot = args.singleOrNull() == "--capture-home-wide-qa"
+    val screenshotMode = compactScreenshot || wideScreenshot
     require(args.isEmpty() || screenshotMode) {
-        "Argumentos inválidos. Somente --capture-home-qa é permitido."
+        "Argumentos inválidos. Use --capture-home-qa ou " +
+            "--capture-home-wide-qa."
     }
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
         state = WindowState(
-            size = if (screenshotMode) DpSize(420.dp, 680.dp)
-                else DpSize(1000.dp, 860.dp)
+            size = when {
+                compactScreenshot -> DpSize(420.dp, 680.dp)
+                wideScreenshot -> DpSize(920.dp, 680.dp)
+                else -> DpSize(1000.dp, 860.dp)
+            }
         )
     ) {
         val composeWindow = window
@@ -99,7 +105,29 @@ fun main(args: Array<String>) = application {
                             "a taskbar não pode aparecer no PNG."
                     }
                     val screenshot = Robot().createScreenCapture(bounds)
-                    val out = File("build/qa/home-windows-original-port.png")
+                    // Detectar navegação inferior real, não barras da janela,
+                    // taskbar ou espaços pretos. Na Home oficial o fundo da
+                    // barra inferior é FioNavigationSurface = #102A40.
+                    val navY = screenshot.height - 22
+                    val sampleX = (24 until screenshot.width - 24 step 12).toList()
+                    val correctNav = sampleX.count { x ->
+                        val rgb = screenshot.getRGB(x, navY)
+                        val red = rgb shr 16 and 255
+                        val green = rgb shr 8 and 255
+                        val blue = rgb and 255
+                        kotlin.math.abs(red - 16) <= 9 &&
+                            kotlin.math.abs(green - 42) <= 10 &&
+                            kotlin.math.abs(blue - 64) <= 11
+                    }
+                    check(correctNav >= sampleX.size * 0.70) {
+                        "Captura rejeitada: navegação Android não está " +
+                            "visível no rodapé do Windows (amostras=$correctNav/" +
+                            "${sampleX.size})."
+                    }
+                    val filename = if (wideScreenshot)
+                        "home-windows-wide-original-port.png"
+                    else "home-windows-original-port.png"
+                    val out = File("build/qa/$filename")
                     out.parentFile.mkdirs()
                     check(ImageIO.write(screenshot, "png", out) &&
                         out.length() > 10_000L) {
