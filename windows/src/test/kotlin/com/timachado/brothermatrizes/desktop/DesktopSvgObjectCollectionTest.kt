@@ -165,4 +165,42 @@ class DesktopSvgObjectCollectionTest {
         }
         assertEquals(2, source.paths.size)
     }
+
+    @Test
+    fun `reordenacao move somente o caminho selecionado e segue selecionado`() {
+        val source = drawing()
+        val movedUp = DesktopSvgObjectCollection.reorder(source, 1, -1)
+        assertEquals(0, movedUp.selectedIndex)
+        assertEquals(
+            listOf(source.paths[1], source.paths[0], source.paths[2]),
+            movedUp.artwork.paths
+        )
+        assertEquals(source.paths, drawing().paths)
+        val restored = DesktopSvgObjectCollection.reorder(movedUp.artwork, 0, 1)
+        assertEquals(1, restored.selectedIndex)
+        assertEquals(source, restored.artwork)
+        val movedDown = DesktopSvgObjectCollection.reorder(source, 1, 1)
+        assertEquals(2, movedDown.selectedIndex)
+        assertEquals(
+            listOf(source.paths[0], source.paths[2], source.paths[1]),
+            movedDown.artwork.paths
+        )
+        val history = DesktopSvgEditSession.start(source).record(movedDown.artwork)
+        assertEquals(source, history.undo().current)
+        assertEquals(movedDown.artwork, history.undo().redo().current)
+    }
+
+    @Test
+    fun `reordenacao rejeita ultrapassar extremidades e saltos nao autorizados`() {
+        val source = drawing()
+        for ((index, direction) in listOf(
+            0 to -1, 2 to 1, -1 to 1, 3 to -1,
+            1 to 0, 1 to 2, 1 to -2
+        )) {
+            assertFailsWith<IllegalArgumentException> {
+                DesktopSvgObjectCollection.reorder(source, index, direction)
+            }
+        }
+        assertEquals(3, source.paths.size)
+    }
 }
