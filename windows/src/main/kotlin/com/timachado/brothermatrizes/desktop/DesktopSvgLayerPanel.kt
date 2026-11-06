@@ -31,7 +31,8 @@ internal fun DesktopSvgLayerPanel(
     selectedIndex: Int?,
     enabled: Boolean,
     onSelect: (Int) -> Unit,
-    onNudge: (Int, Int) -> Unit
+    onNudge: (Int, Int) -> Unit,
+    onTransform: (DesktopSvgObjectAction) -> Unit
 ) {
     val pageSize = 8
     val totalPages = (artwork.paths.size + pageSize - 1) / pageSize
@@ -104,6 +105,30 @@ internal fun DesktopSvgLayerPanel(
                 TextButton(enabled = enabled, onClick = { onNudge(0, 1) }) {
                     Text("Baixo", fontSize = 11.sp)
                 }
+            }
+            Text(
+                "Transformações em torno do centro do caminho",
+                color = DesktopBrandColors.muted, fontSize = 11.sp
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.SCALE_DOWN) }
+                ) { Text("Escala −10%", fontSize = 11.sp) }
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.SCALE_UP) }
+                ) { Text("Escala +10%", fontSize = 11.sp) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.ROTATE_LEFT) }
+                ) { Text("Girar −15°", fontSize = 11.sp) }
+                TextButton(
+                    enabled = enabled,
+                    onClick = { onTransform(DesktopSvgObjectAction.ROTATE_RIGHT) }
+                ) { Text("Girar +15°", fontSize = 11.sp) }
             }
         }
         Text(
