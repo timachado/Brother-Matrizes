@@ -138,7 +138,7 @@ val copyAndroidVisualization by tasks.registering(Sync::class) {
             "SimulatorScreen.kt", "MachineSimulationCanvas.kt",
             "ViewerScreen.kt", "ConverterScreen.kt", "MonogramScreen.kt",
             "NameEditorPlacement.kt",
-            "NameEditorStitchLayer.kt"
+            "NameEditorStitchLayer.kt", "ImportedNameSelectionPanel.kt"
         )) include("com/timachado/brothermatrizes/$name")
     }
     into(generatedViewer)
@@ -377,6 +377,10 @@ val copyOfficialCore by tasks.registering(Sync::class) {
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIntegrity.kt")
         include("com/timachado/brothermatrizes/core/embroidery/HoopLayerPositioning.kt")
         include("com/timachado/brothermatrizes/core/embroidery/NamePlacementSafety.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/ImportedNameBlockSelection.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/MatrixNameRotation.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/NameAutoPlacement.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/NamePersonalization.kt")
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryModels.kt")
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryProfiles.kt")
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryStats.kt")
