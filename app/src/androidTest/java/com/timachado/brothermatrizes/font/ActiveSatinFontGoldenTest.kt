@@ -126,6 +126,18 @@ class ActiveSatinFontGoldenTest {
                 "\t" + point.yUnits + "\t" + point.command.name +
                 "\t" + point.colorIndex
         }
+        // Medir também a guarda de SILHUETA para o O REAL da mesma
+        // fonte e do mesmo kernel; a matriz não é publicada. Se ambos
+        // os SO bloquearem, o diagnóstico deve refletir esse bloqueio.
+        val realCoverage = runCatching {
+            ImportedFontCoverageGuard.check(polygons, qaStitches)
+        }.fold(
+            onSuccess = { "PASS\t" + it.precision + "\t" + it.coverage },
+            onFailure = { "BLOCKED" }
+        )
+        File(context.filesDir, "bm-parity-android-coverage-real-o.tsv")
+            .writeText(realCoverage + "\n", Charsets.UTF_8)
+
         File(context.filesDir, "bm-parity-android-kernel-o.tsv")
             .writeText(stitchRows.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
 
