@@ -166,6 +166,18 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Duplicar e excluir caminhos SVG com histórico (QA)
+
+A área de objetos SVG permite duplicar caminho (+10 unidades SVG em ambos
+os eixos, inserção após a origem) e excluir caminho selecionado em memória,
+com Desfazer/Refazer e seleção atualizada. A validação recusa exceder limites
+de nós/caminhos/coordenadas e impede remover o único caminho ou tornar o
+desenho geometricamente inválido. Nenhum DST/PES/JEF importado é dividido
+em objetos e a gravação continua sendo novo par FLP v11 + `.bmvector`.
+Os testes de persistência cobrem dois ciclos de salvar/reabrir,
+preservação de cor, pontadas e bytes dos arquivos anteriores.
+Não representa homologação da ordem de costura ou de execução em bordadeira.
+
 ## Espelhamento horizontal e vertical de objetos SVG (QA)
 
 Cada caminho SVG da composição vetorial ativa pode ser refletido
