@@ -378,6 +378,75 @@ internal object DesktopReferenceSatinKernel {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedReferenceSatin)
 
 /**
+ * Stroke-flow principal: extração LITERAL da fase de thinning/skeleton
+ * (Zhang–Suen em dois passes + trace de arestas) do Android 1.11.8.
+ * Continua sem tocar no pipeline Android. O compositor Skia será
+ * implementado como adaptador isolado.
+ */
+val generatedStrokeSkeleton = layout.buildDirectory.dir("generated/stroke-skeleton/kotlin")
+val copyAndroidStrokeSkeleton by tasks.registering {
+    val originalFile = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+    )
+    inputs.file(originalFile)
+    outputs.dir(generatedStrokeSkeleton)
+    doLast {
+        val source = originalFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val begin = source.indexOf("    private fun thinMask(")
+        val end = source.indexOf("    private fun orientSkeletonLine(", begin)
+        require(begin > 0 && end > begin &&
+            source.substring(begin, end).contains("private fun traceSkeleton(") &&
+            source.substring(begin, end).contains("pass <") &&
+            source.substring(begin, end).contains("120")) {
+            "Algoritmo de esqueleto Android mudou: bloquear porta automática."
+        }
+        val pure = source.substring(begin, end)
+        require(!pure.contains("android.") &&
+            !pure.contains("Bitmap(") && !pure.contains("Canvas(") &&
+            !pure.contains("Path(")) {
+            "Fase de skeleton Android requer adaptação específica; QA abortada."
+        }
+        val wrapper = """
+package com.timachado.brothermatrizes.desktop.platform
+
+import kotlin.math.hypot
+
+/** Linhas do esqueleto devolvidas sem reordenar ou suavizar. */
+internal data class DesktopSkeletonPoint(val x: Int, val y: Int)
+
+/** Algoritmo original Android extraído diretamente em tempo de compilação. */
+internal object DesktopStrokeSkeleton {
+    private data class SkeletonPoint(val x: Int, val y: Int)
+
+    fun analyze(mask: BooleanArray, width: Int, height: Int): List<List<DesktopSkeletonPoint>> {
+        require(width in 5..1800 && height in 5..1800 &&
+            width.toLong() * height.toLong() <= 1_500_000L &&
+            mask.size.toLong() == width.toLong() * height.toLong()) {
+            "Máscara de rasterização possui dimensões inválidas."
+        }
+        require(mask.any { it }) { "A máscara não tem pixels preenchidos." }
+        // Defesa: algoritmos de afinamento são chamados só em máscaras
+        // com borda exterior livre, conforme o padding do Android.
+        require((0 until width).all { !mask[it] && !mask[(height-1)*width + it] } &&
+            (0 until height).all { !mask[it*width] && !mask[it*width+width-1] }) {
+            "A máscara precisa ter uma margem vazia de um pixel."
+        }
+        val thinned = thinMask(mask, width, height)
+        return traceSkeleton(thinned, width, height)
+            .map { line -> line.map { DesktopSkeletonPoint(it.x, it.y) } }
+    }
+
+""" + pure + "\n}\n"
+        val out = generatedStrokeSkeleton.get().file(
+            "com/timachado/brothermatrizes/desktop/platform/DesktopStrokeSkeleton.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(wrapper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeSkeleton)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -456,7 +525,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
-        copyAndroidLoader, copyAndroidReferenceSatin
+        copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton
     )
 }
 
