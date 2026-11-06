@@ -24,8 +24,12 @@ if (-not [Environment]::UserInteractive) {
 
 $folder = Join-Path $PSScriptRoot '..\build\qa\desktop-ui'
 [System.IO.Directory]::CreateDirectory($folder) | Out-Null
-if (@($SyntheticPreview, $WheelZoom, $Drawing, $VectorSvg |
-    Where-Object { $_ }).Count -gt 1) {
+$selectedModes = @()
+if ($SyntheticPreview) { $selectedModes += 'synthetic' }
+if ($WheelZoom) { $selectedModes += 'wheel' }
+if ($Drawing) { $selectedModes += 'drawing' }
+if ($VectorSvg) { $selectedModes += 'svg' }
+if ($selectedModes.Count -gt 1) {
     throw 'Escolha apenas um modo de diagnóstico de interface.'
 }
 $stem = if ($WheelZoom) {
