@@ -118,14 +118,15 @@ def compare_maria(font_sha: str) -> dict:
 
 
 
-def compare_active_stitches() -> dict:
+def compare_active_stitches(case: str = "o") -> dict:
     """QA do kernel oficial em contornos equivalentes, sem o guard comercial.
 
     Exige mesmos comandos e cores; coordenadas podem diferir no máximo
     uma unidade (0,1mm) na fase inicial de diagnóstico.
     """
+    assert case in ("o", "maria"), "Cenário de kernel desconhecido."
     report = {
-        "case": "O - CleanRoomSatinEngine active kernel",
+        "case": f"{case} - CleanRoomSatinEngine active kernel per glyph",
         "passed": False,
         "issues": [],
         "max_coordinate_delta_units": None,
@@ -145,8 +146,8 @@ def compare_active_stitches() -> dict:
             parsed.append((x, y, row[4], int(row[5])))
         return parsed
 
-    android = read(BASE / "android" / "bm-parity-android-kernel-o.tsv")
-    windows = read(BASE / "windows" / "bm-parity-windows-kernel-o.tsv")
+    android = read(BASE / "android" / f"bm-parity-android-kernel-{case}.tsv")
+    windows = read(BASE / "windows" / f"bm-parity-windows-kernel-{case}.tsv")
     report["android_commands"] = len(android)
     report["windows_commands"] = len(windows)
     if len(android) != len(windows):
@@ -321,6 +322,11 @@ def main():
         if not report["satin_kernel_o"]["passed"]:
             report["issues"].append(
                 "Sequencia Satin do motor ativo diverge do Android para O."
+            )
+        report["satin_kernel_maria"] = compare_active_stitches("maria")
+        if not report["satin_kernel_maria"]["passed"]:
+            report["issues"].append(
+                "Kernel Satin multiglifo Maria diverge entre Android e Windows."
             )
         report["maria"] = compare_maria(sha)
         if not report["maria"]["passed"]:

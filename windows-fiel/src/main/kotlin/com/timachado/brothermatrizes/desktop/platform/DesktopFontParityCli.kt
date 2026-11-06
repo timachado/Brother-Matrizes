@@ -87,6 +87,38 @@ fun main(args: Array<String>) {
             output.resolveSibling("bm-parity-windows-outline-maria.tsv")
         Files.createDirectories(target.parent)
         Files.writeString(target, lines.joinToString("\n", postfix = "\n"))
+        if (text == "Maria") {
+            // Comparação multiglifo: somente os comandos do motor por
+            // glifo, sem afirmar paridade do trânsito comercial entre letras.
+            val wordStitches = geometry.contoursByGlyph.flatMap { glyph ->
+                val plan = CleanRoomSatinEngine.planContours(
+                    glyph.map { contour ->
+                        contour.map { point ->
+                            CleanRoomSatinEngine.V(point.x, point.y)
+                        }
+                    },
+                    densityMm = .45f,
+                    pullMm = .2f
+                )
+                if (plan.rails.isEmpty()) emptyList() else
+                    CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+                        plan, SatinUnderlayMode.BOTH
+                    )
+            }
+            require(wordStitches.count { it.command == StitchCommand.STITCH } > 60) {
+                "Maria não produziu pontadas Satin suficientes no Windows."
+            }
+            val mariaRows = mutableListOf("STITCHES\\t" + wordStitches.size)
+            wordStitches.forEachIndexed { i, point ->
+                mariaRows += "P\\t" + i + "\\t" + point.xUnits +
+                    "\\t" + point.yUnits + "\\t" + point.command.name +
+                    "\\t" + point.colorIndex
+            }
+            Files.writeString(
+                output.resolveSibling("bm-parity-windows-kernel-maria.tsv"),
+                mariaRows.joinToString("\\n", postfix = "\\n")
+            )
+        }
         if (text == "O") {
             // Testar o MESMO kernel Satin ativo do Android, sem abrir
             // comercialmente o gerador que exige o guard de silhueta.

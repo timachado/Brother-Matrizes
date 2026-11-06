@@ -166,6 +166,35 @@ class ActiveSatinFontGoldenTest {
         File(context.filesDir, "bm-parity-android-outline-maria.tsv")
             .writeText(wordLines.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
 
+        // Novo golden multiglifo: kernel Satin ATIVO aplicado a cada
+        // contorno individual de "Maria". Ainda não testa o sequenciamento
+        // comercial de deslocamentos ENTRE glifos nem o guard integrado.
+        val mariaStitches = wordGeometry.glyphPolygons.flatMap { glyph ->
+            val plan = CleanRoomSatinEngine.planContours(
+                glyph.map { contour ->
+                    contour.map { point ->
+                        CleanRoomSatinEngine.V(point.x, point.y)
+                    }
+                },
+                densityMm = .45f,
+                pullMm = .2f
+            )
+            if (plan.rails.isEmpty()) emptyList() else
+                CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+                    plan, SatinUnderlayMode.BOTH
+                )
+        }
+        assertTrue("Maria precisa gerar pontadas reais no kernel ativo.",
+            mariaStitches.count { it.command == StitchCommand.STITCH } > 60)
+        val mariaRows = mutableListOf("STITCHES\\t" + mariaStitches.size)
+        mariaStitches.forEachIndexed { i, point ->
+            mariaRows += "P\\t" + i + "\\t" + point.xUnits +
+                "\\t" + point.yUnits + "\\t" + point.command.name +
+                "\\t" + point.colorIndex
+        }
+        File(context.filesDir, "bm-parity-android-kernel-maria.tsv")
+            .writeText(mariaRows.joinToString("\\n", postfix = "\\n"), Charsets.UTF_8)
+
         val result = CleanRoomSatinEngine.generate(
             font = font,
             sourceText = text,
