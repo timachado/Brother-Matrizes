@@ -80,6 +80,10 @@ garante aceitação no PE-DESIGN 11 nem costura em bordadeira. Somente avaliador
 autorizados devem utilizar esse kit, de acordo com
 `qa/ROTEIRO-HOMOLOGACAO-FISICA.md`.
 
+## Preferência de tema claro/escuro (QA)
+
+O seletor visual utiliza as cores oficiais Android 1.11.8 e agora guarda somente o modo escolhido nas preferências locais do perfil do Windows. Na reabertura, o aplicativo restaura a preferência; uma chave ausente/inválida usa o modo escuro. Falhas de gravação não bloqueiam a troca de tema na sessão atual. Nenhuma matriz, senha ou credencial é salva por esse recurso, nem o Android é alterado. O teste automatizado comprova persistência lógica, não substitui homologação visual em PC físico.
+
 ## Funcionalidades disponíveis na QA
 
 - Compose Desktop com instaladores EXE/MSI gerados por runner Windows.
