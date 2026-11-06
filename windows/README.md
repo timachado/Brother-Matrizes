@@ -418,3 +418,14 @@ oficial e compara todos os pontos antes de liberar objetos. O FLP
 também abre isoladamente no Android, porém somente com as pontadas.
 O arquivo SVG original não é modificado e o histórico de sessão
 não fica persistido. QA não comercial, ainda sem validação física.
+
+## Persistência de traços desenhados à mão — QA
+
+**Desenhar → Desenho livre** oferece **Salvar FLP + traços** e
+**Abrir FLP + traços**. São criados dois arquivos sem sobrescrita:
+FLP v11 oficial e sidecar `.bmdraw` contendo traços normalizados
+com SHA-256 vinculando ambos os arquivos. Ao abrir, o programa
+regenera a matriz com o motor Android e compara todas as pontadas
+antes de disponibilizar a edição no canvas. Um FLP isolado continua
+legível no Android sem traços reeditáveis. Este recurso não
+equivale à homologação física nem à paridade total do mobile.

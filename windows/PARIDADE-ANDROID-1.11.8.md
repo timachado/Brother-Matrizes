@@ -28,7 +28,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
-| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre e SVG local, seleção/movimento por caminho, histórico e persistência opcional FLP + .bmvector (QA); paridade total pendente |
+| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre e SVG com salvamento editável via FLP + .bmdraw/.bmvector, histórico SVG; paridade total pendente |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
@@ -306,3 +306,21 @@ A associação SHA-256 detecta divergências, **não autentica a origem**,
 não substitui assinatura de código e não equivale a um formato vetorial
 nativo lido pelo Android. O modo Desenho livre ainda não salva seus
 traços como camadas editáveis. CI e homologação no PC físico pendentes.
+
+## Persistência de traços de desenho livre (QA)
+
+O módulo **Desenhar → Desenho livre** permite salvar pares de arquivos
+**NOVOS**: o projeto `.flp` v11 do Android com as pontadas geradas pelo
+`VectorMatrixGenerator` oficial, e o arquivo auxiliar Windows
+`.bmdraw` (v1) com os traços de mouse normalizados e opções de
+largura, ponto e bastidor. O auxiliar é associado aos bytes exatos
+do FLP por SHA-256 (integridade, não autenticidade).
+
+**Abrir FLP + traços** valida tamanho, origem local, limites de pontos,
+hash do par, parâmetros, integridade das pontadas e regeneração completa
+antes de preencher a área de desenho. O FLP continua abrível no Android
+sem o arquivo auxiliar, mas apenas como bordado, sem traços reeditáveis.
+As operações não sobrescrevem destinos existentes e não alteram a
+versão comercial Android. A reabertura permite acrescentar/remover traços
+e salvar um NOVO par para futuras revisões. Não restaura o histórico
+de mouse da sessão original. Ainda requer CI e homologação em PC físico.

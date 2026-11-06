@@ -1163,6 +1163,103 @@ private fun DesktopScreen(
                                 ) { Text("Restaurar SVG importado") }
                             }
                         } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Button(
+                                    enabled = !busy && drawingStrokes.isNotEmpty(),
+                                    onClick = {
+                                        val chooser = JFileChooser().apply {
+                                            dialogTitle = "Salvar novo FLP + traços de desenho livre"
+                                            fileFilter = FileNameExtensionFilter(
+                                                "Projeto Brother Matrizes (*.flp)", "flp"
+                                            )
+                                            isAcceptAllFileFilterUsed = false
+                                            selectedFile = java.io.File("desenho-livre-qa.flp")
+                                        }
+                                        if (chooser.showSaveDialog(null) ==
+                                            JFileChooser.APPROVE_OPTION) {
+                                            val destination = chooser.selectedFile
+                                                .toPath().toAbsolutePath()
+                                            val strokes = drawingStrokes
+                                            val width = drawingWidthText.trim()
+                                                .replace(',', '.').toFloatOrNull() ?: Float.NaN
+                                            val style = drawingStyle
+                                            val hoop = drawingHoop
+                                            busy = true
+                                            scope.launch {
+                                                val saved = withContext(Dispatchers.IO) {
+                                                    runCatching {
+                                                        DesktopFreehandProjectBundle.saveNew(
+                                                            strokes, width, style, hoop, destination
+                                                        )
+                                                    }
+                                                }
+                                                busy = false
+                                                saved.onSuccess { (flp, aux) ->
+                                                    report(
+                                                        "Desenho livre salvo como novos " +
+                                                            "${flp.fileName} e ${aux.fileName}. " +
+                                                            "FLP oficial intacto."
+                                                    )
+                                                }.onFailure {
+                                                    report(
+                                                        "Desenho livre não salvo: ${it.message}",
+                                                        true
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                ) { Text("Salvar FLP + traços", fontSize = 11.sp) }
+                            }
+                            Button(enabled = !busy, onClick = {
+                                val chooser = JFileChooser().apply {
+                                    dialogTitle = "Reabrir desenho livre FLP + .bmdraw"
+                                    fileFilter = FileNameExtensionFilter(
+                                        "Projeto Brother Matrizes (*.flp)", "flp"
+                                    )
+                                    isAcceptAllFileFilterUsed = false
+                                }
+                                if (chooser.showOpenDialog(null) ==
+                                    JFileChooser.APPROVE_OPTION) {
+                                    val file = chooser.selectedFile.toPath().toAbsolutePath()
+                                    busy = true
+                                    scope.launch {
+                                        val opened = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                DesktopFreehandProjectBundle.open(file)
+                                            }
+                                        }
+                                        busy = false
+                                        opened.onSuccess { loaded ->
+                                            document = loaded.document
+                                            editTimeline = DesktopEditTimeline.start(loaded.document)
+                                            drawingStrokes = loaded.strokes
+                                            drawingFromSvg = false
+                                            drawingWidthText = loaded.widthMm.toString()
+                                            drawingStyle = loaded.style
+                                            drawingHoop = loaded.hoop
+                                            stitchProgress = 1f
+                                            format = loaded.document.current.format
+                                            letterSession = null
+                                            letterPreviewDocument = null
+                                            report(
+                                                "Desenho livre recuperado com " +
+                                                    "${loaded.strokes.size} traços editáveis. " +
+                                                    "FLP original preservado."
+                                            )
+                                        }.onFailure {
+                                            report(
+                                                "Desenho livre não aberto: ${it.message}", true
+                                            )
+                                        }
+                                    }
+                                }
+                            }) { Text("Abrir FLP + traços", fontSize = 11.sp) }
+                            Text(
+                                "Reedição exige par .flp + .bmdraw. " +
+                                    "O FLP isolado continua compatível com Android.",
+                                fontSize = 11.sp, color = muted
+                            )
                             Text(
                                 "Desenhe com mouse à esquerda. O motor oficial " +
                                     "converte os traços em pontadas.",
@@ -1272,9 +1369,9 @@ private fun DesktopScreen(
                             Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
                         }
                         Text(
-                            "QA: SVG importado com edição individual reversível " +
-                                "e par FLP + .bmvector. O FLP comum contém apenas " +
-                                "pontadas; a paridade Android total ainda é parcial.",
+                            "QA: desenho livre reeditável em FLP + .bmdraw e " +
+                                "SVG editável em FLP + .bmvector. O FLP oficial " +
+                                "contém pontadas; paridade total ainda parcial.",
                             color = muted, fontSize = 11.sp
                         )
                     }
