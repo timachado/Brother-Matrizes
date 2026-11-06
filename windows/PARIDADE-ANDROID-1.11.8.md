@@ -166,6 +166,22 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Edição de nós e reordenação vetorial (QA parcial)
+
+O editor Windows permite selecionar nós por caminho SVG, deslocar um nó de
+cada vez em incrementos de uma unidade do desenho, inserir ponto médio de
+segmento e remover nó sem violar os limites de geometria. O painel lista nós
+paginados em grupos de oito e preserva as operações no Desfazer/Refazer da
+sessão vetorial. A ordenação ↑/↓ move apenas o caminho selecionado uma posição,
+passando a nova ordem ao motor no próximo novo projeto FLP. **A ordem pode
+modificar a sequência de pontos na geração** e deve ser verificada em máquina.
+O codec FLP v11 do Android e arquivos importados permanecem intactos.
+
+Testes cobrem geometria inválida, limites de pontos, histórico e dois ciclos
+de novos projetos FLP + `.bmvector`, com reabertura e comparação das pontadas.
+Não extrai pontos de arquivos importados nem representa paridade total do
+Editor Android ou homologação em máquina física.
+
 ## Duplicar e excluir caminhos SVG com histórico (QA)
 
 A área de objetos SVG permite duplicar caminho (+10 unidades SVG em ambos
