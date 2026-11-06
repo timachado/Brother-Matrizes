@@ -242,7 +242,7 @@ val copyAndroidNameEditor by tasks.registering {
         fontImportStatus = "Importação TTF/OTF indisponível nesta QA Windows: autenticação e cotas ainda não homologadas."
     }
 
-"""
+""".trimStart('\n')
         val buttonStart = "                fontPicker.launch(arrayOf("
         val buttonAt = source.indexOf(buttonStart, end)
         val buttonEnd = source.indexOf("\n            },", buttonAt)
