@@ -41,6 +41,7 @@ import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.ConverterScreen
 import com.timachado.brothermatrizes.EditorScreen
+import com.timachado.brothermatrizes.NameEditorScreen
 import com.timachado.brothermatrizes.MonogramScreen
 import com.timachado.brothermatrizes.ProjectLibraryScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
@@ -210,7 +211,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR }
 
 @Composable
 private fun FielHomeHost(
@@ -503,7 +504,7 @@ private fun FielHomeHost(
                     onOpen = { openProject() },
                     onSimulate = { detail = ActiveDetail.SIMULATOR },
                     onEdit = { detail = ActiveDetail.EDITOR },
-                    onEditName = { informNotPorted("Editar nome") },
+                    onEditName = { detail = ActiveDetail.NAME_EDITOR },
                     onConvert = { detail = ActiveDetail.CONVERTER },
                     onTransfer = { informNotPorted("Enviar") },
                     onSaveProject = { saveProject() },
@@ -512,6 +513,21 @@ private fun FielHomeHost(
                     onSavePeDesign = { exportDesign("PES", peDesign = true) },
                     onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
                     onPositionChange = { activeDesign = it }
+                )
+            } else if (detail == ActiveDetail.NAME_EDITOR && activeDesign != null) {
+                // Formulário oficial Android de personalização de matriz:
+                // somente fontes EMBUTIDAS são funcionais nesta QA Windows.
+                // Importação TTF/OTF permanece bloqueada: nenhuma autorização
+                // nem cobrança de cota comercial é simulada.
+                NameEditorScreen(
+                    original = checkNotNull(activeDesign),
+                    referenceHoop = hoop,
+                    onBack = { detail = ActiveDetail.VIEWER },
+                    onApply = { personalized ->
+                        activeDesign = personalized
+                        hoop = personalized.hoopProfile ?: hoop
+                        detail = ActiveDetail.VIEWER
+                    }
                 )
             } else if (detail == ActiveDetail.EDITOR && activeDesign != null) {
                 // Composable EditorScreen original Android, controle de retorno

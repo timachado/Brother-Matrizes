@@ -209,6 +209,85 @@ $function
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedEditor)
 
+// Editor de Nomes Android: importar 100% da interface oficial para Desktop,
+// exceto ponte ActivityResult/Google/quotas de importação de fonte (bloqueada).
+// Fontes embutidas, gestos, abas, preview, autoajuste e motor são os originais.
+val generatedNameEditor = layout.buildDirectory.dir("generated/android-name-editor/kotlin")
+val copyAndroidNameEditor by tasks.registering {
+    val input = originalAndroidCode.file("NameEditorScreen.kt")
+    inputs.file(input)
+    outputs.dir(generatedNameEditor)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val startAnchor = "    val fontPicker = rememberLauncherForActivityResult("
+        val endAnchor = "    fun optionsFor(value: NameDraft)"
+        val start = source.indexOf(startAnchor)
+        val end = source.indexOf(endAnchor, start)
+        check(start > 0 && end > start &&
+            source.split(startAnchor).size == 2 &&
+            source.split(endAnchor).size == 2 &&
+            source.substring(start, end).contains("BrotherMatrizesAccountService.authorizeImport") &&
+            source.substring(start, end).contains("BrotherMatrizesAccountService.finalizeImport") &&
+            source.contains("NamePersonalization.add(") &&
+            source.contains("NameAutoPlacement.find(") &&
+            source.contains("NameEditorPlacement.") &&
+            source.contains("NameEditorStitchLayer(") &&
+            source.contains("onApply(baseDesign)") &&
+            source.contains("onClick = { preview?.let(onApply) }")
+        ) { "NameEditor Android mudou: revisar permissões antes do Windows." }
+        val safePicker = """
+    // Fontes externas TTF/OTF são protegidas por licença e cotas Android.
+    // Não simular login, importação, cobrança ou geração de pontadas.
+    fun requestFontImport() {
+        fontImportStatus = "Importação TTF/OTF indisponível nesta QA Windows: autenticação e cotas ainda não homologadas."
+    }
+
+"""
+        val buttonStart = "                fontPicker.launch(arrayOf("
+        val buttonAt = source.indexOf(buttonStart, end)
+        val buttonEnd = source.indexOf("\n            },", buttonAt)
+        check(buttonAt > end && buttonEnd > buttonAt &&
+            source.substring(buttonAt, buttonEnd).contains("font/ttf") &&
+            source.split(buttonStart).size == 2
+        ) { "O botão de importação mudou; não expor TTF sem autorização." }
+        val clean = (source.substring(0, start) + safePicker +
+            source.substring(end, buttonAt) +
+            "                requestFontImport()" + source.substring(buttonEnd))
+            .replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "")
+            .replace("import androidx.activity.result.contract.ActivityResultContracts\n", "")
+            .replace("import androidx.compose.ui.platform.LocalContext\n",
+                "import com.timachado.brothermatrizes.desktop.platform.LocalContext\n")
+            .replace("import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator\n",
+                "import com.timachado.brothermatrizes.desktop.platform.ImportedFontMatrixGenerator\n")
+            .replace("import com.timachado.brothermatrizes.font.ImportedFontStore\n",
+                "import com.timachado.brothermatrizes.desktop.platform.ImportedFontStore\n")
+            .replace("import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService\n", "")
+            .replace("+ Importar TTF/OTF do celular (DaFont, NetFontes)",
+                "+ Importar TTF/OTF (indisponível no Windows)")
+            .replace("A fonte deste projeto não está instalada neste aparelho. " +
+                "\" +\n                \"Reimporte o mesmo TTF/OTF para editar o nome.",
+                "Fonte TTF/OTF do projeto indisponível no Windows. " +
+                "\" +\n                \"Não é possível reprocessar o nome sem autorização comercial.")
+        check(!clean.contains("rememberLauncherForActivityResult") &&
+            !clean.contains("ActivityResultContracts") &&
+            !clean.contains("fontPicker.launch") &&
+            !clean.contains("BrotherMatrizesAccountService") &&
+            !clean.contains("NameQaImportPolicy") &&
+            !clean.contains("BuildConfig.DEBUG") &&
+            clean.contains("fun NameEditorScreen(") &&
+            clean.contains("NamePersonalization.add(") &&
+            clean.contains("requestFontImport()") &&
+            clean.contains("fun optionsFor(value: NameDraft)")
+        ) { "Permissão comercial não isolada no NameEditor Desktop." }
+        val output = generatedNameEditor.get().file(
+            "com/timachado/brothermatrizes/NameEditorScreen.kt"
+        ).asFile
+        output.parentFile.mkdirs()
+        output.writeText(clean, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedNameEditor)
+
 // Biblioteca: a UI das seções e cartões continua literalmente a do Android.
 // Somente o bloco de ponte RAR/Google/ActivityResult (não suportado no Desktop)
 // é substituído por um aviso. Não fingir login ou descontar cotas do cliente.
@@ -1042,7 +1121,7 @@ tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
-        copyAndroidProjectLibrary, copyAndroidEditor,
+        copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
