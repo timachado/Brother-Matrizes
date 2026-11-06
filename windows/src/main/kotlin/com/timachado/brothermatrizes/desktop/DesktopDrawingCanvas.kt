@@ -26,6 +26,7 @@ import kotlin.math.hypot
 @Composable
 internal fun DesktopDrawingCanvas(
     strokes: List<List<VectorPoint>>,
+    threadRgb: Int,
     enabled: Boolean,
     onStrokeCommitted: (List<VectorPoint>) -> Unit
 ) {
@@ -72,7 +73,7 @@ internal fun DesktopDrawingCanvas(
             .background(DesktopBrandColors.surfaceAlt, RoundedCornerShape(16.dp))
     ) {
         Canvas(modifier = Modifier.fillMaxSize().then(pointer)) {
-            val color = Color(0xFFE6BE70)
+            val color = Color((0xFF000000L or threadRgb.toLong()).toInt())
             val w = size.width
             val h = size.height
             // Grade apenas visual; não é transformada em comandos de bordado.

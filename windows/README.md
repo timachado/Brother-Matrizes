@@ -429,3 +429,11 @@ regenera a matriz com o motor Android e compara todas as pontadas
 antes de disponibilizar a edição no canvas. Um FLP isolado continua
 legível no Android sem traços reeditáveis. Este recurso não
 equivale à homologação física nem à paridade total do mobile.
+
+## Cores e histórico de desenhos (QA)
+
+A paleta de dez cores foi sincronizada com a tela Android 1.11.8.
+O preview usa ARGB opaco e as cores são passadas ao motor oficial,
+além de restauradas ao abrir pares FLP + arquivos auxiliares.
+Desenho livre suporta oito revisões de Desfazer e Refazer, inclusive
+limpeza da tela; nenhum arquivo existente é alterado.

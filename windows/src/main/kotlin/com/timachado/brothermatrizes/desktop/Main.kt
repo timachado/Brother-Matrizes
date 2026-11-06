@@ -96,6 +96,11 @@ private val palette = listOf(
     Color(0xFF45D9FD), Color(0xFFF3BB60), Color(0xFFFC6C8A),
     Color(0xFF73D6AE), Color(0xFFC3AAFF), Color(0xFFE4E9F0)
 )
+// Cores oficiais de CreateDrawingScreen.kt no Android 1.11.8.
+private val drawingThreadPalette = listOf(
+    0xE6BE70, 0xFFFFFF, 0x111111, 0xE63946, 0xF4A261,
+    0x2A9D8F, 0x457B9D, 0x9B5DE5, 0xF4A7B9, 0x6D597A
+)
 
 /**
  * CLI restrita a diagnóstico local: usada exclusivamente para confirmar que
@@ -209,7 +214,9 @@ private fun DesktopScreen(
     var threadColorHexText by remember { mutableStateOf("#E6BE70") }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
-    var drawingStrokes by remember { mutableStateOf<List<List<VectorPoint>>>(emptyList()) }
+    var drawingHistory by remember { mutableStateOf(DesktopFreehandEditSession.start()) }
+    val drawingStrokes = drawingHistory.current
+    var drawingColor by remember { mutableStateOf(0xE6BE70) }
     var drawingFromSvg by remember { mutableStateOf(false) }
     var drawingSvg by remember { mutableStateOf<DesktopImportedSvg?>(null) }
     var drawingSvgEditSession by remember {
@@ -680,6 +687,7 @@ private fun DesktopScreen(
                             if (artwork != null) {
                                 DesktopSvgPreview(
                                     artwork = drawingSvgEditSession?.current ?: artwork.artwork,
+                                    threadRgb = drawingColor,
                                     selectedPathIndex = selectedSvgPath,
                                     enabled = !busy,
                                     onSelect = { index ->
@@ -717,10 +725,13 @@ private fun DesktopScreen(
                         } else {
                             DesktopDrawingCanvas(
                                 strokes = drawingStrokes,
+                                threadRgb = drawingColor,
                                 enabled = !busy &&
                                     drawingStrokes.size < DesktopDrawingService.MAX_STROKES,
                                 onStrokeCommitted = { newStroke ->
-                                    drawingStrokes = drawingStrokes + listOf(newStroke)
+                                    drawingHistory = drawingHistory.record(
+                                        drawingHistory.current + listOf(newStroke)
+                                    )
                                 }
                             )
                         }
@@ -1003,7 +1014,7 @@ private fun DesktopScreen(
                                                     runCatching {
                                                         DesktopVectorProjectBundle.saveNew(
                                                             svgSnapshot, width, style, hoop,
-                                                            destination
+                                                            destination, rgb = drawingColor
                                                         )
                                                     }
                                                 }
@@ -1053,6 +1064,7 @@ private fun DesktopScreen(
                                             drawingWidthText = loaded.widthMm.toString()
                                             drawingStyle = loaded.style
                                             drawingHoop = loaded.hoop
+                                            drawingColor = loaded.rgb
                                             stitchProgress = 1f
                                             format = loaded.document.current.format
                                             letterSession = null
@@ -1189,7 +1201,8 @@ private fun DesktopScreen(
                                                 val saved = withContext(Dispatchers.IO) {
                                                     runCatching {
                                                         DesktopFreehandProjectBundle.saveNew(
-                                                            strokes, width, style, hoop, destination
+                                                            strokes, width, style, hoop, destination,
+                                                            rgb = drawingColor
                                                         )
                                                     }
                                                 }
@@ -1233,11 +1246,13 @@ private fun DesktopScreen(
                                         opened.onSuccess { loaded ->
                                             document = loaded.document
                                             editTimeline = DesktopEditTimeline.start(loaded.document)
-                                            drawingStrokes = loaded.strokes
+                                            drawingHistory =
+                                                DesktopFreehandEditSession.start(loaded.strokes)
                                             drawingFromSvg = false
                                             drawingWidthText = loaded.widthMm.toString()
                                             drawingStyle = loaded.style
                                             drawingHoop = loaded.hoop
+                                            drawingColor = loaded.rgb
                                             stitchProgress = 1f
                                             format = loaded.document.current.format
                                             letterSession = null
@@ -1272,12 +1287,18 @@ private fun DesktopScreen(
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 TextButton(
-                                    enabled = !busy && drawingStrokes.isNotEmpty(),
-                                    onClick = { drawingStrokes = drawingStrokes.dropLast(1) }
-                                ) { Text("Desfazer traço") }
+                                    enabled = !busy && drawingHistory.canUndo,
+                                    onClick = { drawingHistory = drawingHistory.undo() }
+                                ) { Text("Desfazer") }
+                                TextButton(
+                                    enabled = !busy && drawingHistory.canRedo,
+                                    onClick = { drawingHistory = drawingHistory.redo() }
+                                ) { Text("Refazer") }
                                 TextButton(
                                     enabled = !busy && drawingStrokes.isNotEmpty(),
-                                    onClick = { drawingStrokes = emptyList() }
+                                    onClick = {
+                                        drawingHistory = drawingHistory.record(emptyList())
+                                    }
                                 ) { Text("Limpar") }
                             }
                         }
@@ -1287,6 +1308,28 @@ private fun DesktopScreen(
                             label = { Text("Largura (mm)") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
+                        )
+                        Text("Cor da linha — paleta Android", color = muted, fontSize = 12.sp)
+                        repeat(2) { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                drawingThreadPalette.drop(row * 5).take(5).forEach { rgb ->
+                                    TextButton(enabled = !busy, onClick = {
+                                        drawingColor = rgb
+                                    }) {
+                                        Text(
+                                            if (drawingColor == rgb) "◉" else "●",
+                                            color = Color(
+                                                (0xFF000000L or rgb.toLong()).toInt()
+                                            ),
+                                            fontSize = 21.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Text(
+                            "RGB: #${drawingColor.toString(16).uppercase(Locale.ROOT).padStart(6, '0')}",
+                            color = muted, fontSize = 11.sp
                         )
                         Text("Tipo de ponto", color = muted, fontSize = 12.sp)
                         for (style in listOf(TextStitchStyle.RUNNING, TextStitchStyle.SATIN)) {
@@ -1319,6 +1362,7 @@ private fun DesktopScreen(
                                 val usingSvg = drawingFromSvg
                                 val style = drawingStyle
                                 val hoop = drawingHoop
+                                val chosenRgb = drawingColor
                                 busy = true
                                 scope.launch {
                                     val made = withContext(Dispatchers.Default) {
@@ -1332,14 +1376,16 @@ private fun DesktopScreen(
                                                     ),
                                                     widthMm = width,
                                                     style = style,
-                                                    hoop = hoop
+                                                    hoop = hoop,
+                                                    rgb = chosenRgb
                                                 )
                                             } else {
                                                 DesktopDrawingService.generate(
                                                     strokes = input,
                                                     widthMm = width,
                                                     style = style,
-                                                    hoop = hoop
+                                                    hoop = hoop,
+                                                    rgb = chosenRgb
                                                 )
                                             }
                                         }
@@ -1369,9 +1415,9 @@ private fun DesktopScreen(
                             Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
                         }
                         Text(
-                            "QA: desenho livre reeditável em FLP + .bmdraw e " +
-                                "SVG editável em FLP + .bmvector. O FLP oficial " +
-                                "contém pontadas; paridade total ainda parcial.",
+                            "QA: desenho livre com Desfazer/Refazer e cores Android. " +
+                                "Projetos editáveis FLP + .bmdraw/.bmvector; " +
+                                "paridade total ainda parcial.",
                             color = muted, fontSize = 11.sp
                         )
                     }

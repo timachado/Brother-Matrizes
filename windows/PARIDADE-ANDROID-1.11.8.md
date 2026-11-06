@@ -324,3 +324,14 @@ As operações não sobrescrevem destinos existentes e não alteram a
 versão comercial Android. A reabertura permite acrescentar/remover traços
 e salvar um NOVO par para futuras revisões. Não restaura o histórico
 de mouse da sessão original. Ainda requer CI e homologação em PC físico.
+
+## Paleta e histórico de desenho livre (QA)
+
+A tela Desenhar recebe a paleta de dez cores RGB oficial de
+`CreateDrawingScreen` Android 1.11.8. A mesma cor é mostrada no
+canvas e enviada ao `VectorMatrixGenerator` compartilhado, tanto
+para desenho livre quanto para SVG. A cor também é recuperada dos
+arquivos auxiliares `.bmdraw` e `.bmvector` quando se reabre um FLP.
+O histórico do desenho livre agora inclui Desfazer, Refazer e Limpar
+reversíveis, com limite de oito revisões, independentes de operações
+de arquivo. Após abrir um projeto, inicia-se uma nova sessão.

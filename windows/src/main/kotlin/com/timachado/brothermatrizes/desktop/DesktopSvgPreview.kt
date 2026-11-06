@@ -29,6 +29,7 @@ import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 @Composable
 internal fun DesktopSvgPreview(
     artwork: VectorArtwork,
+    threadRgb: Int,
     selectedPathIndex: Int?,
     enabled: Boolean,
     onSelect: (Int) -> Unit,
@@ -115,7 +116,10 @@ internal fun DesktopSvgPreview(
                     com.timachado.brothermatrizes.core.embroidery.VectorPoint(x, y)
                 ) + delta
                 val color = if (index == selectedPathIndex || index == dragIndex)
-                    DesktopBrandColors.goldSoft else DesktopBrandColors.gold
+                    DesktopBrandColors.goldSoft
+                else androidx.compose.ui.graphics.Color(
+                    (0xFF000000L or threadRgb.toLong()).toInt()
+                )
                 path.points.zipWithNext().forEach { (a, b) ->
                     drawLine(
                         color, point(a.x, a.y), point(b.x, b.y),
