@@ -331,6 +331,9 @@ private fun DesktopScreen(
     var previewZoom by remember(document?.original) { mutableStateOf(1f) }
     var previewPan by remember(document?.original) { mutableStateOf(Offset.Zero) }
     var moveWholeDesign by remember { mutableStateOf(false) }
+    // Grade é só uma sobreposição visual local; jamais entra no projeto FLP.
+    var showMeasurementGrid by remember { mutableStateOf(false) }
+    var measurementGridMm by remember { mutableStateOf(10) }
     val scope = rememberCoroutineScope()
     val detailScroll = rememberScrollState()
     LaunchedEffect(document) { simulatorPlaying = false }
@@ -890,6 +893,9 @@ private fun DesktopScreen(
                             StitchPreview(
                                 preview, stitchProgress, previewThreadColors,
                                 zoom = previewZoom, pan = previewPan,
+                                showGuides = workspace == DesktopWorkspace.EDIT &&
+                                    showMeasurementGrid,
+                                guideSpacingMm = measurementGridMm,
                                 onPan = { delta ->
                                     previewPan = Offset(
                                         (previewPan.x + delta.x).coerceIn(-2000f, 2000f),
@@ -2441,6 +2447,35 @@ private fun DesktopScreen(
                     if (workspace == DesktopWorkspace.EDIT) {
                     Spacer(Modifier.height(8.dp))
                     Text("Ajustes geométricos — QA", color = cyan, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = showMeasurementGrid,
+                            onCheckedChange = { showMeasurementGrid = it },
+                            enabled = document != null && !busy
+                        )
+                        Text("Exibir grade e eixos da matriz (mm)", fontSize = 11.sp)
+                    }
+                    if (showMeasurementGrid && document != null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (spacing in listOf(5, 10)) {
+                                TextButton(
+                                    enabled = !busy,
+                                    onClick = { measurementGridMm = spacing }
+                                ) {
+                                    Text(
+                                        (if (measurementGridMm == spacing) "● " else "") +
+                                            "$spacing mm", fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            "Guias de referência visual com centro e contorno da matriz. " +
+                                "A grade adapta o espaçamento em desenhos extensos; " +
+                                "não modifica nem é exportada com as pontadas.",
+                            fontSize = 11.sp, color = muted
+                        )
+                    }
                     if (document === letterPreviewDocument && letterSession != null) {
                         val active = letterSession?.current
                         val obj = active?.objects?.getOrNull(selectedLetterIndex)
@@ -3306,6 +3341,7 @@ private fun StitchPreview(
     preview: DstPreview, progress: Float, threadColors: List<Int>,
     zoom: Float, pan: Offset, onPan: (Offset) -> Unit,
     onWheel: (Float, Offset, androidx.compose.ui.unit.IntSize) -> Unit,
+    showGuides: Boolean, guideSpacingMm: Int,
     keyboardEnabled: Boolean,
     onEditorShortcut: (DesktopEditorShortcut) -> Unit,
     selectedLetterRegion: DesktopLetterRegion?,
@@ -3474,7 +3510,7 @@ private fun StitchPreview(
     ) {
         renderPreview(
             preview, progress, threadColors, zoom, pan,
-            selectedLetterRegion,
+            showGuides, guideSpacingMm, selectedLetterRegion,
             if (draggingLetterIndex == selectedLetterRegion?.index)
                 draggingLetterOffset else Offset.Zero
         )
@@ -3483,13 +3519,46 @@ private fun StitchPreview(
 
 private fun DrawScope.renderPreview(
     design: DstPreview, progress: Float, threadColors: List<Int>,
-    zoom: Float, pan: Offset, selectedRegion: DesktopLetterRegion?,
-    dragOutlineOffset: Offset
+    zoom: Float, pan: Offset, showGuides: Boolean, guideSpacingMm: Int,
+    selectedRegion: DesktopLetterRegion?, dragOutlineOffset: Offset
 ) {
     if (size.width <= 0f || size.height <= 0f) return
     val viewport = DesktopPreviewNavigation.viewport(
         design.bounds, size.width, size.height, zoom, pan
     )
+
+    if (showGuides) {
+        // Renderiza apenas no canvas, ANTES das pontadas e das caixas de seleção.
+        // A grade segue as coordenadas reais (0,1 mm/unidade) com zoom e pan.
+        val bounds = design.bounds
+        val guide = DesktopPreviewGuideGeometry.calculate(bounds, guideSpacingMm)
+        val origin = viewport.screenPoint(bounds.minX, bounds.minY)
+        val opposite = viewport.screenPoint(bounds.maxX, bounds.maxY)
+        val left = minOf(origin.x, opposite.x)
+        val right = maxOf(origin.x, opposite.x)
+        val top = minOf(origin.y, opposite.y)
+        val bottom = maxOf(origin.y, opposite.y)
+        val gridColor = DesktopBrandColors.muted.copy(alpha = 0.28f)
+        val axisColor = DesktopBrandColors.gold.copy(alpha = 0.65f)
+        for (xUnits in guide.verticalUnits) {
+            val x = viewport.screenPoint(xUnits, bounds.minY).x
+            drawLine(gridColor, Offset(x, top), Offset(x, bottom), strokeWidth = 0.8f)
+        }
+        for (yUnits in guide.horizontalUnits) {
+            val y = viewport.screenPoint(bounds.minX, yUnits).y
+            drawLine(gridColor, Offset(left, y), Offset(right, y), strokeWidth = 0.8f)
+        }
+        val centerX = viewport.screenPoint(guide.centerXUnits, bounds.minY).x
+        val centerY = viewport.screenPoint(bounds.minX, guide.centerYUnits).y
+        drawLine(axisColor, Offset(centerX, top), Offset(centerX, bottom), strokeWidth = 1.2f)
+        drawLine(axisColor, Offset(left, centerY), Offset(right, centerY), strokeWidth = 1.2f)
+        drawRect(
+            color = gridColor,
+            topLeft = Offset(left, top),
+            size = Size((right - left).coerceAtLeast(1f), (bottom - top).coerceAtLeast(1f)),
+            style = Stroke(width = 1f)
+        )
+    }
 
     val stride = maxOf(1, (design.points.size + 199_999) / 200_000)
     var previousX = 0
