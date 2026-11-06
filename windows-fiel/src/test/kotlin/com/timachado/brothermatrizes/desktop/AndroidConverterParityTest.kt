@@ -23,7 +23,7 @@ class AndroidConverterParityTest {
         ).replace("\r\n", "\n")
         val generated = Files.readString(
             root.resolve("build/generated/android-viewer/kotlin/com/timachado/brothermatrizes/ConverterScreen.kt")
-        )
+        ).replace("\r\n", "\n")
         assertEquals(original, generated, "Converter Android não foi copiado literalmente.")
         assertTrue(generated.contains("fun ConverterScreen("))
         assertTrue(generated.contains("MatrixConverter.supportedFormats"))
