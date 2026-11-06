@@ -46,6 +46,13 @@ internal object DesktopExtendedArchiveImporter {
                 "Assinatura 7Z/RAR/RAR5 inválida."
             )
         }
+        // Junrar pode interpretar somente a assinatura RAR5 como arquivo
+        // vazio. O cabeçalho isolado de 8 bytes nunca é pacote completo.
+        if (kind == Kind.RAR) {
+            require(Files.size(file) > 8L) {
+                "Pacote RAR/RAR5 truncado: apenas assinatura presente."
+            }
+        }
         val ext = file.fileName.toString()
             .substringAfterLast('.', "").lowercase(Locale.ROOT)
         require((kind == Kind.SEVEN_Z && ext == "7z") ||
