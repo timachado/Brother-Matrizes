@@ -158,6 +158,42 @@ O runner Windows compila e testa as alterações, mas CI só
 é considerada concluída depois do job do commit correspondente
 retornar `success`. A branch `main` não foi modificada.
 
+## Planejamento do percurso e linhas Satin — extração original (QA)
+
+**Novos componentes, sem alterar o Android comercial:**
+
+- `copyAndroidStrokePlanner` reproduz literalmente
+  `splitStrokeFlowSegments`, `rebaseLeadingClosedSkeletonLine`,
+  `rebaseLeadingClosedStrokeFlow`, `preferredOpenSwashEntry`,
+  `preferredStrokeFlowEntry`, `planStrokeFlowTraversal` e
+  seus auxiliares do `ImportedFontMatrixGenerator.kt` oficial.
+  Para cada segmento define **CENTER_RUN → SATIN_RETURN**, de forma
+  determinística. O wrapper `DesktopStrokeFlowPlanner` valida
+  coordenadas/complexidade e não grava arquivos.
+- `copyAndroidStrokeRows` copia literalmente o construtor de linhas
+  `buildStrokeFlowRows`, suavização/reamostragem de esqueleto,
+  `boundaryDistance` e conversão de pixels em unidades de
+  bordado. O wrapper `DesktopStrokeFlowRows` usa a **máscara
+  Skia** e aplica os intervalos oficiais de densidade e repuxo.
+- `DesktopStrokeFlowPlannerTest` testa as duas fases por trecho,
+  percurso em loop, entrada inválida e igualdade exata do código.
+- `DesktopStrokeFlowRowsTest` testa o encadeamento de máscara,
+  thinning, planejamento e linhas satin em barras reais; repuxo,
+  determinismo e não mutação da máscara.
+
+**Estado de homologação:** o planner passou pela compilação da QA
+[42204139644](https://github.com/timachado/Brother-Matrizes/actions/runs/42204139644).
+As linhas satin foram adicionadas depois e exigem uma nova aprovação da QA
+[42204525932](https://github.com/timachado/Brother-Matrizes/actions/runs/42204525932).
+Não confundir código implementado com teste aprovado.
+
+**Ainda não conectado:** a emissão original de pontos
+`moveStrokeFlowTo`, `emitStrokeFlowCenterRun` e
+`emitStrokeFlowCoverage`, a criação de uma `EmbroideryDesign`
+completa, equivalência numérica da mesma fonte Android/Skia,
+licenciamento e autorização de conta. Nenhuma matriz de fonte
+importada sai desse caminho experimental para o cliente.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
