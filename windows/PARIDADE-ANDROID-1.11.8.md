@@ -166,6 +166,18 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Espelhamento horizontal e vertical de objetos SVG (QA)
+
+Cada caminho SVG da composição vetorial ativa pode ser refletido
+horizontalmente ou verticalmente ao redor do centro de sua própria caixa
+geométrica, mantendo a ordem dos caminhos, o estado aberto/fechado e os
+outros objetos inalterados. A interface aciona a transformação pela mesma
+sessão de Desfazer/Refazer; o motor de bordado Android e seu FLP v11 não
+são modificados. Os testes automatizados incluem reversibilidade e
+reabertura de FLP + `.bmvector` após espelhamento sem sobrescrever originais.
+Isso **não equivale** a espelhamento de objetos extraídos de DST/PES/JEF,
+nem valida a execução em máquina real.
+
 ## Geometria de objetos SVG e persistência (QA)
 
 O caminho SVG selecionado pode ser redimensionado incrementalmente em
