@@ -34,7 +34,7 @@ Windows esteja completo nem comercialmente homologado.
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos DST/PES/JEF e TTF/OTF individual com consentimento, sem senha ou importação em lote; paridade total pendente |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
-| `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Pendente** |
+| `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Parcial** — grupo oficial, notas no site e feedback por WhatsApp/e-mail após clique; push Firebase, diagnóstico FCM e demais fluxos Android pendentes |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Parcial** — validação oficial de formato/bastidor e arquivo novo escolhido para USB/pasta com SHA-256; Wi-Fi, envio direto e testes na máquina pendentes |
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
 | `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
@@ -68,13 +68,15 @@ mesmo recurso gráfico dentro de todas as telas ainda será auditada.
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
-em nove áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
-Editor, Biblioteca e Transferir**. A prévia técnica permanece visível à esquerda,
+em dez áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
+Editor, Biblioteca, Transferir e Comunidade**. A prévia técnica permanece visível à esquerda,
 enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
 
-Os módulos Android **Conta, Comunidade e Telegram** continuam pendentes.
-A nova área Transferir prepara um arquivo escolhido pelo usuário, sem
+Os módulos Android **Conta e Telegram** continuam pendentes.
+**Comunidade** oferece somente links oficiais e preparação de feedback,
+sem Firebase/FCM, inscrição automática, conta ou notificação Windows.
+A área Transferir prepara um arquivo escolhido pelo usuário, sem
 protocolo direto USB/Wi-Fi ou detecção de equipamentos. Criar uma aba não comprova
 paridade: continuam necessários portadores de serviços, persistência e
 testes funcionais por recurso.
@@ -405,3 +407,27 @@ Esta é uma **cópia local preparada**, não controle físico de bordadeira,
 envio Wi-Fi, comunicação USB direta, detecção automática de mídia
 removível, prova de compatibilidade de firmware ou autenticação
 comercial. Testes com operador e máquina física são obrigatórios.
+
+## Comunidade e suporte no Windows (QA)
+
+A área **Comunidade** abre os destinos oficiais do Android 1.11.8:
+convite de grupo WhatsApp informado pelo proprietário no código
+mobile e página do produto no site da T.I. Machado. O serviço
+`DesktopCommunityLinks` usa uma allowlist estrita de esquemas,
+hosts, caminhos e destinos; links arbitrários, arquivos locais,
+redirecionamentos e protocolos executáveis não são aceitos.
+Não realiza consulta de rede ao abrir a tela.
+
+O editor de feedback contém categorias **Sugestão** ou **Problema**,
+limita a 2500 caracteres e reutiliza diretamente o
+`BrotherFeedbackDelivery.kt` oficial, sincronizado pelo Gradle
+apenas para a compilação Windows. O usuário escolhe um botão
+WhatsApp/e-mail; somente então o aplicativo abre o cliente externo
+com a mensagem pré-preenchida. **O envio final permanece a cargo
+do próprio usuário no aplicativo externo.** Não salva o feedback,
+não anexa arquivos, não envia telemetria nem usa tokens Android.
+
+A área **não** implementa push Firebase/FCM, permissões Android,
+diagnóstico de token, notificação nativa, autenticação, contas
+ou benefícios comerciais. A revisão exige testes de UI em PC e
+aprovação do CI. A paridade da rota é **parcial**.

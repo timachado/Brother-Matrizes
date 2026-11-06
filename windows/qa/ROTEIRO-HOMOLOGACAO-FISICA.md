@@ -161,3 +161,22 @@ críticos marcados como `NÃO EXECUTADO`.
       pontos, orientação e eventuais requisitos de pastas.
 - [ ] Registrar modelo, firmware e resultados. **Não** classificar este
       fluxo como envio direto USB/Wi-Fi nem como versão comercial.
+
+## 8. Comunidade e feedback — ensaio em PC físico (NÃO EXECUTADO)
+
+- [ ] Na área Comunidade, abrir o link do grupo e confirmar
+      domínio `chat.whatsapp.com` e convite oficial sem variações.
+- [ ] **Não entrar com conta real de cliente**; cancelar no navegador
+      se não houver ambiente ou autorização de teste.
+- [ ] Abrir notas de versão e confirmar que a página pertence
+      ao site oficial da T.I. Machado.
+- [ ] Digitar relato inteiramente sintético (sem dados pessoais,
+      credenciais ou matrizes de clientes) de até 2500 caracteres.
+- [ ] Selecionar Problema/Sugestão e conferir destinatários e
+      conteúdo pré-preenchidos no cliente externo WhatsApp/e-mail.
+- [ ] **Não enviar** mensagem de teste a contatos públicos sem
+      autorização específica. Cancelar no aplicativo externo.
+- [ ] Confirmar que fechar/reabrir o Windows não dispara envio
+      automático, nem solicita token Firebase/FCM ou conta Android.
+- [ ] Sem aplicativo externo instalado, verificar que um erro
+      legível aparece e a interface permanece funcionando.

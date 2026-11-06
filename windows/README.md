@@ -481,3 +481,19 @@ o programa relê e compara SHA-256 após a gravação.
 Não há descoberta de máquinas, protocolo Wi-Fi, montagem/ejeção
 automática ou garantia de leitura pela bordadeira. A etapa ainda
 depende da homologação física, assinatura de código e licenciamento.
+
+## Comunidade e feedback (Windows QA)
+
+O menu **Comunidade** apresenta link do grupo oficial de WhatsApp,
+notas e novidades no site da T.I. Machado e editor de feedback.
+A mensagem é limitada a 2500 caracteres e usa as categorias e os
+contatos do `BrotherFeedbackDelivery.kt` oficial Android,
+compilado no módulo Desktop por sincronização unidirecional.
+Ao selecionar WhatsApp ou e-mail, o aplicativo apenas preenche
+o cliente externo; o usuário revisa e decide enviar. Nenhuma
+mensagem é enviada automaticamente nem são lidos arquivos
+de projetos. Links são verificados por allowlist.
+
+Notificações push Firebase, assinaturas, conta e integrações
+Telegram permanecem fora dessa etapa. A tela é de QA e não deve
+ser apresentada como paridade completa Android.
