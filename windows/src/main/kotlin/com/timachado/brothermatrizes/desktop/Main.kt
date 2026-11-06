@@ -212,6 +212,10 @@ private fun DesktopScreen(
     var drawingStrokes by remember { mutableStateOf<List<List<VectorPoint>>>(emptyList()) }
     var drawingFromSvg by remember { mutableStateOf(false) }
     var drawingSvg by remember { mutableStateOf<DesktopImportedSvg?>(null) }
+    var drawingSvgEditSession by remember {
+        mutableStateOf<DesktopSvgEditSession?>(null)
+    }
+    var selectedSvgPath by remember { mutableStateOf<Int?>(null) }
     var drawingWidthText by remember { mutableStateOf("60") }
     var drawingStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
     var drawingHoop by remember { mutableStateOf(HoopProfile.H100X100) }
@@ -674,7 +678,36 @@ private fun DesktopScreen(
                         if (drawingFromSvg) {
                             val artwork = drawingSvg
                             if (artwork != null) {
-                                DesktopSvgPreview(artwork = artwork.artwork)
+                                DesktopSvgPreview(
+                                    artwork = drawingSvgEditSession?.current ?: artwork.artwork,
+                                    selectedPathIndex = selectedSvgPath,
+                                    enabled = !busy,
+                                    onSelect = { index ->
+                                        selectedSvgPath = index
+                                    },
+                                    onMove = { index, delta, dimensions ->
+                                        val session = drawingSvgEditSession
+                                        if (session != null) {
+                                            runCatching {
+                                                DesktopSvgPathEditor.move(
+                                                    session.current, index,
+                                                    dimensions.width.toFloat(),
+                                                    dimensions.height.toFloat(),
+                                                    delta
+                                                )
+                                            }.onSuccess { edited ->
+                                                drawingSvgEditSession = session.record(edited)
+                                                selectedSvgPath = index
+                                                report(
+                                                    "Caminho SVG ${index + 1} movido em memória. " +
+                                                        "Desfazer e Refazer disponíveis."
+                                                )
+                                            }.onFailure {
+                                                report("Movimento SVG recusado: ${it.message}", true)
+                                            }
+                                        }
+                                    }
+                                )
                             } else {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("Nenhum SVG carregado.", fontSize = 18.sp)
@@ -963,6 +996,9 @@ private fun DesktopScreen(
                                         busy = false
                                         loaded.onSuccess {
                                             drawingSvg = it
+                                            drawingSvgEditSession =
+                                                DesktopSvgEditSession.start(it.artwork)
+                                            selectedSvgPath = null
                                             report(
                                                 "SVG validado: ${it.sourceName} · " +
                                                     "${it.artwork.paths.size} caminhos. " +
@@ -970,6 +1006,8 @@ private fun DesktopScreen(
                                             )
                                         }.onFailure {
                                             drawingSvg = null
+                                            drawingSvgEditSession = null
+                                            selectedSvgPath = null
                                             report("SVG recusado: ${it.message}", true)
                                         }
                                     }
@@ -981,6 +1019,47 @@ private fun DesktopScreen(
                                 } ?: "Nenhum SVG selecionado.",
                                 fontSize = 11.sp, color = muted
                             )
+                            drawingSvgEditSession?.let { session ->
+                                val selected = selectedSvgPath
+                                Text(
+                                    if (selected != null)
+                                        "Caminho ${selected + 1} selecionado. Arraste na prévia " +
+                                            "para alterar apenas esse objeto."
+                                    else
+                                        "Clique em uma linha da prévia para selecionar " +
+                                            "o caminho vetorial.",
+                                    fontSize = 11.sp, color = muted
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    TextButton(
+                                        enabled = !busy && session.canUndo,
+                                        onClick = {
+                                            drawingSvgEditSession = session.undo()
+                                            report("Movimento de caminho SVG desfeito.")
+                                        }
+                                    ) { Text("Desfazer SVG", fontSize = 11.sp) }
+                                    TextButton(
+                                        enabled = !busy && session.canRedo,
+                                        onClick = {
+                                            drawingSvgEditSession = session.redo()
+                                            report("Movimento de caminho SVG refeito.")
+                                        }
+                                    ) { Text("Refazer SVG", fontSize = 11.sp) }
+                                }
+                                TextButton(
+                                    enabled = !busy && session.current != drawingSvg?.artwork,
+                                    onClick = {
+                                        val original = drawingSvg?.artwork
+                                        if (original != null) {
+                                            drawingSvgEditSession = session.record(original)
+                                            report(
+                                                "Desenho SVG original restaurado em memória. " +
+                                                    "Nenhum arquivo foi alterado."
+                                            )
+                                        }
+                                    }
+                                ) { Text("Restaurar SVG importado") }
+                            }
                         } else {
                             Text(
                                 "Desenhe com mouse à esquerda. O motor oficial " +
@@ -1047,7 +1126,11 @@ private fun DesktopScreen(
                                         runCatching {
                                             if (usingSvg) {
                                                 DesktopDrawingService.generateSvg(
-                                                    imported = requireNotNull(svg),
+                                                    imported = DesktopImportedSvg(
+                                                        sourceName = requireNotNull(svg).sourceName,
+                                                        artwork = drawingSvgEditSession?.current
+                                                            ?: svg.artwork
+                                                    ),
                                                     widthMm = width,
                                                     style = style,
                                                     hoop = hoop
@@ -1087,9 +1170,9 @@ private fun DesktopScreen(
                             Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
                         }
                         Text(
-                            "QA: desenho livre e importação SVG vetorial local. " +
-                                "Não há persistência de traços, edição SVG por objeto " +
-                                "nem paridade integral com a tela Android.",
+                            "QA: desenho livre e importação SVG local com edição " +
+                                "reversível por caminho. Arquivo-fonte preservado; " +
+                                "persistência vetorial e paridade total ainda pendentes.",
                             color = muted, fontSize = 11.sp
                         )
                     }

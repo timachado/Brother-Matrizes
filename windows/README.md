@@ -398,3 +398,12 @@ gerar matriz **nova** com o gerador de pontos oficial. Limita-se ao
 subconjunto de formas suportadas pelo parser Android; não abre
 imagens raster dentro de SVG, não faz download de recursos e não
 sobrescreve o arquivo original.
+
+## SVG: editar caminhos no canvas (QA)
+
+Clique sobre uma linha SVG para selecionar um caminho individual,
+arraste para movimentá-lo, use Desfazer/Refazer SVG (oito revisões)
+e Restaurar SVG importado. A geometria modificada é utilizada apenas
+ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
+SVG original não é sobrescrito. A sessão vetorial não é persistida
+como projeto editável ainda e requer homologação no Windows.

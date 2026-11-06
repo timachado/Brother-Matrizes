@@ -28,7 +28,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
-| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre, SVG vetorial local com prévia segura, largura, estilo e bastidor pelo motor oficial Android; objetos e paridade total pendentes |
+| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre e SVG vetorial local, seleção/movimento por caminho e histórico em memória; paridade total pendente |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
@@ -262,3 +262,23 @@ Os dois modos preservam sua entrada ao alternar; falha de importação
 descarta apenas o SVG inválido. Ainda faltam edição por objeto vetorial,
 salvar desenho-fonte editável, opções completas do Android e testes de
 bordado físico. Testar CI e PC real antes de distribuir.
+
+## Seleção e arrasto de caminhos SVG (QA)
+
+No modo **Desenhar → SVG**, após importação segura e validação dos
+caminhos pelo parser Android, cada objeto vetorial pode ser selecionado
+clicando próximo à sua linha e deslocado com o mouse na prévia. O teste
+de seleção usa distância até segmentos, não apenas uma caixa que poderia
+selecionar objetos distantes. A transformação é feita sobre uma
+cópia de `VectorArtwork`, com validação de coordenadas e limites;
+o arquivo SVG original permanece intocado. O histórico temporário
+`DesktopSvgEditSession` mantém até oito movimentos reversíveis,
+incluindo desfazer/refazer e opção de restaurar o vetor importado.
+A exportação gera **nova** matriz a partir da geometria editada,
+empregando o `VectorMatrixGenerator` oficial do Android.
+
+Esta etapa não salva objetos vetoriais em FLP, não edita pontos de
+bordado de arquivos importados nem entrega paridade visual integral
+do Android. Os testes automatizados verificam seleção, transformação,
+proteção do original, histórico e geração de pontadas; faltam
+testes manuais no Windows e na bordadeira.
