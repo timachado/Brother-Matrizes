@@ -41,6 +41,7 @@ import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.ConverterScreen
 import com.timachado.brothermatrizes.MonogramScreen
+import com.timachado.brothermatrizes.ProjectLibraryScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
 import com.timachado.brothermatrizes.SimulatorScreen
 import com.timachado.brothermatrizes.ViewerScreen
@@ -51,6 +52,7 @@ import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
+import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -67,6 +69,7 @@ import java.awt.Robot
 import java.awt.Toolkit
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import javax.swing.JFileChooser
 import javax.imageio.ImageIO
@@ -103,10 +106,14 @@ fun main(args: Array<String>) = application {
         // Menu desktop não modifica a hierarquia original Compose Android.
         // Desabilitado durante capturas golden para manter a mesma viewport.
         var monogramLaunchRequest by remember { mutableIntStateOf(0) }
+        var libraryFolderRequest by remember { mutableIntStateOf(0) }
         if (!screenshotMode) {
             MenuBar {
                 Menu("Criar") {
                     Item("Monograma", onClick = { monogramLaunchRequest++ })
+                }
+                Menu("Biblioteca") {
+                    Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
                 }
             }
         }
@@ -181,7 +188,8 @@ fun main(args: Array<String>) = application {
         BrotherMatrizesTheme(darkTheme = true) {
             FielHomeHost(
                 startInCreate = createNameScreenshot,
-                monogramLaunchRequest = monogramLaunchRequest
+                monogramLaunchRequest = monogramLaunchRequest,
+                libraryFolderRequest = libraryFolderRequest
             )
         }
     }
@@ -203,7 +211,8 @@ private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM }
 @Composable
 private fun FielHomeHost(
     startInCreate: Boolean = false,
-    monogramLaunchRequest: Int = 0
+    monogramLaunchRequest: Int = 0,
+    libraryFolderRequest: Int = 0
 ) {
     var area by remember {
         mutableStateOf(if (startInCreate) HomeArea.CREATE else HomeArea.HOME)
@@ -221,6 +230,42 @@ private fun FielHomeHost(
     var showConnections by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var catalog by remember { mutableStateOf<DesktopProjectCatalog.ScanResult?>(null) }
+    var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var recentProjectIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    fun chooseLibraryFolder() {
+        scope.launch {
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Selecionar pasta de projetos FLP — somente leitura"
+                fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            }
+            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val selected = chooser.selectedFile.toPath()
+            runCatching {
+                withContext(Dispatchers.IO) { DesktopProjectCatalog.scan(selected) }
+            }.fold(onSuccess = { scanned ->
+                catalog = scanned
+                favorites = favorites.intersect(scanned.pathById.keys)
+                recentProjectIds = recentProjectIds.filter { it in scanned.pathById }
+                area = HomeArea.LIBRARY
+                detail = ActiveDetail.NONE
+                snackbar.showSnackbar(
+                    "Biblioteca FLP: ${scanned.projects.size} projeto(s), " +
+                        "${scanned.skippedInvalid} arquivo(s) inválido(s) ignorado(s)."
+                )
+            }, onFailure = { error ->
+                snackbar.showSnackbar(
+                    "Não foi possível ler a pasta FLP: ${error.message}"
+                )
+            })
+        }
+    }
+
+    LaunchedEffect(libraryFolderRequest) {
+        if (libraryFolderRequest > 0) chooseLibraryFolder()
+    }
+
     fun informNotPorted(feature: String) {
         scope.launch {
             snackbar.showSnackbar(
@@ -354,7 +399,17 @@ private fun FielHomeHost(
                         selected = area == target,
                         onClick = {
                             if (target == HomeArea.CREATE) openCreate()
-                            else { area = target; detail = ActiveDetail.NONE }
+                            else {
+                                area = target
+                                detail = ActiveDetail.NONE
+                                if (target == HomeArea.LIBRARY && catalog == null) {
+                                    scope.launch {
+                                        snackbar.showSnackbar(
+                                            "No menu Biblioteca, selecione uma pasta de projetos FLP."
+                                        )
+                                    }
+                                }
+                            }
                         },
                         icon = {
                             Icon(
@@ -440,6 +495,56 @@ private fun FielHomeHost(
                     onSimulate = { design, mode ->
                         openDesign(design, mode, ActiveDetail.SIMULATOR)
                     }
+                )
+            } else if (area == HomeArea.LIBRARY) {
+                // UI, abas, cartões e metadados copiados do Android.
+                // Apenas o catálogo de arquivos FLP local é integrado nesta QA.
+                ProjectLibraryScreen(
+                    projects = catalog?.projects.orEmpty(),
+                    favoriteProjectIds = favorites,
+                    recentProjectIds = recentProjectIds,
+                    sentMatrices = emptyList(),
+                    onBack = { area = HomeArea.HOME },
+                    onOpen = { summary ->
+                        val path: Path? = catalog?.pathById?.get(summary.id)
+                        if (path == null) {
+                            scope.launch { snackbar.showSnackbar("Projeto não encontrado na pasta selecionada.") }
+                        } else {
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        DesktopEmbroideryFiles.open(path)
+                                    }
+                                }.fold(onSuccess = { design ->
+                                    recentProjectIds = (
+                                        listOf(summary.id) + recentProjectIds.filter { it != summary.id }
+                                    ).take(30)
+                                    openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER)
+                                }, onFailure = { error ->
+                                    snackbar.showSnackbar("FLP recusado: ${error.message}")
+                                })
+                            }
+                        }
+                    },
+                    onTransfer = { informNotPorted("Transferência para a máquina") },
+                    onToggleFavorite = { summary ->
+                        favorites = if (summary.id in favorites)
+                            favorites - summary.id else favorites + summary.id
+                        scope.launch {
+                            snackbar.showSnackbar("Favoritos mantidos somente nesta sessão de QA.")
+                        }
+                    },
+                    // Nunca excluir projeto sem fluxo homologado e confirmação.
+                    onDelete = {
+                        informNotPorted("Exclusão de projetos")
+                    },
+                    onDeleteSent = { informNotPorted("Histórico de envios") },
+                    onClearSent = { informNotPorted("Limpeza de envios") },
+                    onBackup = { informNotPorted("Backup da Biblioteca") },
+                    onRestore = { informNotPorted("Restauração da Biblioteca") },
+                    onFonts = { area = HomeArea.FONTS },
+                    onSearchMatrices = { informNotPorted("Pesquisa Telegram") },
+                    onRequireGoogle = { informNotPorted("Conta Google Windows") }
                 )
             } else if (area == HomeArea.HOME) {
                 // Fonte original HomeScreen.kt do Android, não uma recriação.
