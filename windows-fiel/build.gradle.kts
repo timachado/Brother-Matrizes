@@ -820,6 +820,26 @@ internal object DesktopStrokeFlowEmitter {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeEmitter)
 
 /**
+ * Motor Satin REAL do APK Android 1.11.8: importar o arquivo Kotlin inteiro,
+ * byte por byte, sem forks de rotinas de pontada, do código fonte Android.
+ *
+ * É o CleanRoomSatinEngine chamado por ImportedFontMatrixGenerator quando
+ * options.style == SATIN e specialStitchMode == null. O antigo stroke-flow
+ * não é a rota comercial vigente e fica apenas como experimento isolado.
+ *
+ * AndroidSkiaOutlineExtractor e ImportedFontCoverageGuard são adaptadores
+ * de plataforma e FALHAM FECHADOS até equivalência numérica demonstrada.
+ */
+val generatedActiveSatin = layout.buildDirectory.dir("generated/active-satin-android/kotlin")
+val copyAndroidActiveSatin by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt")
+    }
+    into(generatedActiveSatin)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedActiveSatin)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -900,7 +920,7 @@ tasks.named("compileKotlin") {
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
-        copyAndroidStrokeEmitter
+        copyAndroidStrokeEmitter, copyAndroidActiveSatin
     )
 }
 
