@@ -46,6 +46,7 @@ import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
+import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -258,6 +259,44 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
         }
     }
 
+    fun saveProject() {
+        val design = activeDesign ?: return
+        scope.launch {
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Salvar projeto original Brother Matrizes FLP"
+                selectedFile = File("brother-matrizes-projeto.flp")
+            }
+            if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                runCatching {
+                    DesktopFlpProjectFiles.saveNew(design, chooser.selectedFile.toPath())
+                }.onSuccess { file ->
+                    snackbar.showSnackbar("Projeto FLP salvo: ${file.fileName}")
+                }.onFailure {
+                    snackbar.showSnackbar("Projeto FLP não salvo: ${it.message}")
+                }
+            }
+        }
+    }
+
+    fun openProject() {
+        scope.launch {
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Abrir projeto FLP do Brother Matrizes"
+                fileSelectionMode = JFileChooser.FILES_ONLY
+            }
+            if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                runCatching {
+                    DesktopFlpProjectFiles.open(chooser.selectedFile.toPath())
+                }.onSuccess { design ->
+                    openDesign(design, displayMode, ActiveDetail.VIEWER)
+                    snackbar.showSnackbar("Projeto FLP aberto.")
+                }.onFailure {
+                    snackbar.showSnackbar("Não foi possível abrir o projeto: ${it.message}")
+                }
+            }
+        }
+    }
+
     Scaffold(
         containerColor = FioBackground,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -321,13 +360,13 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                     showConnections = showConnections,
                     onShowConnectionsChange = { showConnections = it },
                     onBack = { detail = ActiveDetail.NONE },
-                    onOpen = { informNotPorted("Abrir matriz") },
+                    onOpen = { openProject() },
                     onSimulate = { detail = ActiveDetail.SIMULATOR },
                     onEdit = { informNotPorted("Editor") },
                     onEditName = { informNotPorted("Editar nome") },
                     onConvert = { informNotPorted("Converter") },
                     onTransfer = { informNotPorted("Enviar") },
-                    onSaveProject = { informNotPorted("Salvar projeto FLP") },
+                    onSaveProject = { saveProject() },
                     onSaveCopy = { exportDesign(MatrixConverter.preferredBrotherFormat) },
                     onShare = { informNotPorted("Compartilhar") },
                     onSavePeDesign = { exportDesign("PES", peDesign = true) },
@@ -360,7 +399,7 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                     onCreateName = { openCreate() },
                     onFonts = { area = HomeArea.FONTS },
                     onTransfer = { informNotPorted("Enviar") },
-                    onOpen = { informNotPorted("Abrir matriz") },
+                    onOpen = { openProject() },
                     onRecent = { informNotPorted("Recente") },
                     onSimulate = {
                         if (activeDesign != null) detail = ActiveDetail.SIMULATOR
