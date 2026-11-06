@@ -315,6 +315,7 @@ package com.timachado.brothermatrizes.desktop.platform
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import kotlin.math.*
 
 /** Métodos Satin, underlay, fixação e travel extraídos do Android 1.11.8. */
@@ -324,11 +325,16 @@ internal object DesktopReferenceSatinKernel {
         options: TextMatrixOptions
     ): List<EmbroideryPoint> {
         require(contoursByGlyph.size in 1..64) { "Quantidade de glifos inválida." }
+        require(options.style == TextStitchStyle.SATIN) {
+            "Este kernel é exclusivo da configuração Satin."
+        }
         require(options.satinDensityMm.isFinite() &&
-            options.satinDensityMm in 0.15f..2f) { "Densidade Satin inválida." }
+            options.satinDensityMm in 0.3f..1.2f) {
+            "Densidade Satin fora do intervalo oficial Android."
+        }
         require(options.satinPullCompensationMm.isFinite() &&
-            options.satinPullCompensationMm in 0f..3f) {
-            "Compensação de puxamento inválida."
+            options.satinPullCompensationMm in 0f..1f) {
+            "Compensação de repuxo fora do intervalo Android."
         }
         var total = 0
         contoursByGlyph.forEach { glyph ->
