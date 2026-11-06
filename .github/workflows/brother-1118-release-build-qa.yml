@@ -1,4 +1,4 @@
-name: Brother Matrizes 1.11.8 - build release sem segredos (QA)
+name: Brother Matrizes 1.11.9 - build release sem segredos (QA)
 
 on:
   pull_request:
@@ -24,8 +24,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^ *versionCode = 195 *$' app/build.gradle.kts
-          grep -Fq 'versionName = "1.11.8"' app/build.gradle.kts
+          grep -Eq '^ *versionCode = 196 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.9"' app/build.gradle.kts
           # The 1.11.8 release is already live. Validate the currently published
           # baseline instead of the previously published 1.11.7 manifest.
           test "$(jq -r .versionCode updates/stable.json)" = "195"
@@ -54,8 +54,8 @@ jobs:
           sdk="$ANDROID_HOME/build-tools/36.0.0"
           badging="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
           [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
-          [[ "$badging" == *"versionCode='195'"* ]]
-          [[ "$badging" == *"versionName='1.11.8'"* ]]
+          [[ "$badging" == *"versionCode='196'"* ]]
+          [[ "$badging" == *"versionName='1.11.9'"* ]]
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
           grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' app/build/generated/source/buildConfig/release
