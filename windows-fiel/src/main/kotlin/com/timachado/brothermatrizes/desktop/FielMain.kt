@@ -77,6 +77,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.awt.Rectangle
 import java.awt.Robot
+import java.awt.event.InputEvent
 import java.awt.Toolkit
 import java.io.File
 import java.nio.file.Files
@@ -101,7 +102,8 @@ fun main(args: Array<String>) = application {
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
-    val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot
+    val nameEditorApplyQa = args.singleOrNull() == "--qa-name-editor-click-apply"
+    val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot || nameEditorApplyQa
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture
     require(args.isEmpty() || screenshotMode) {
@@ -166,6 +168,39 @@ fun main(args: Array<String>) = application {
                             "a taskbar não pode aparecer no PNG."
                     }
                     val robot = Robot()
+                    if (nameEditorApplyQa) {
+                        // Clique físico do mouse no CTA da UI Android,
+                        // sem invocar callbacks artificialmente por código.
+                        // A própria tela precisa completar onApply, salvar FLP
+                        // sintético via codec oficial e reabrir o projeto.
+                        val file = Path.of("build/qa/name-editor-apply-synthetic.flp")
+                        check(!Files.exists(file)) {
+                            "Arquivo QA anterior não pode ser sobrescrito."
+                        }
+                        robot.mouseMove(
+                            bounds.x + bounds.width / 2,
+                            bounds.y + bounds.height - 38
+                        )
+                        robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)
+                        robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
+                        delay(3_200L)
+                        check(Files.isRegularFile(file) && Files.size(file) > 100L) {
+                            "O clique real não acionou Aplicar nome/FLP sintético."
+                        }
+                        val reopened = DesktopFlpProjectFiles.open(file)
+                        check(reopened.editableName?.options?.text == "Maria" &&
+                            reopened.editableName?.original?.points?.isNotEmpty() == true) {
+                            "FLP do Editor não preservou o nome editável/original."
+                        }
+                        val post = robot.createScreenCapture(bounds)
+                        val png = File("build/qa/name-editor-applied-qa.png")
+                        check(ImageIO.write(post, "png", png) && png.length() > 10_000) {
+                            "Captura do visualizador após Aplicar não foi gerada."
+                        }
+                        println("BROTHER_WINDOWS_NAME_EDITOR_APPLY_MOUSE_FLP_OK " +
+                            "pontos=${reopened.points.size}")
+                        exitProcess(0)
+                    }
                     val beforeScroll = if (nameEditorScrollScreenshot)
                         robot.createScreenCapture(bounds) else null
                     if (nameEditorScrollScreenshot) {
@@ -261,6 +296,7 @@ fun main(args: Array<String>) = application {
             FielHomeHost(
                 startInCreate = createNameScreenshot,
                 startInNameEditorQa = editorCapture,
+                startInNameEditorApplyQa = nameEditorApplyQa,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -320,6 +356,7 @@ private fun syntheticNameEditorQaDesign(): EmbroideryDesign {
 private fun FielHomeHost(
     startInCreate: Boolean = false,
     startInNameEditorQa: Boolean = false,
+    startInNameEditorApplyQa: Boolean = false,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
@@ -636,6 +673,20 @@ private fun FielHomeHost(
                     referenceHoop = hoop,
                     onBack = { detail = ActiveDetail.VIEWER },
                     onApply = { personalized ->
+                        if (startInNameEditorApplyQa) {
+                            check(personalized.editableName?.options?.text == "Maria") {
+                                "A edição QA retornou texto diferente do projeto."
+                            }
+                            val qaFile = Path.of("build/qa/name-editor-apply-synthetic.flp")
+                            Files.createDirectories(qaFile.parent)
+                            // Escrita CREATE_NEW; jamais tocar em projetos reais.
+                            DesktopFlpProjectFiles.saveNew(personalized, qaFile)
+                            val loaded = DesktopFlpProjectFiles.open(qaFile)
+                            check(loaded.points == personalized.points &&
+                                loaded.editableName?.options?.text == "Maria") {
+                                "O projeto FLP não sobreviveu ao round-trip."
+                            }
+                        }
                         activeDesign = personalized
                         hoop = personalized.hoopProfile ?: hoop
                         detail = ActiveDetail.VIEWER

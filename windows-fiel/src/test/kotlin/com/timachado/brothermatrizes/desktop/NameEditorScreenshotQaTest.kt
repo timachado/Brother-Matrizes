@@ -71,5 +71,11 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("changed >= 180"))
         assertTrue(yaml.contains("--capture-name-editor-scroll-qa"))
         assertTrue(yaml.contains("windows-fiel/build/qa/name-editor-windows-scrolled-qa.png"))
+        assertTrue(host.contains("--qa-name-editor-click-apply"))
+        assertTrue(host.contains("robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)"))
+        assertTrue(host.contains("DesktopFlpProjectFiles.saveNew(personalized, qaFile)"))
+        assertTrue(host.contains("reopened.editableName?.options?.text == \"Maria\""))
+        assertTrue(yaml.contains("name-editor-applied-qa.png"))
+        assertTrue(yaml.contains("--qa-name-editor-click-apply"))
     }
 }
