@@ -144,12 +144,15 @@ val prepareOriginalAssets by tasks.registering {
         val w = heroNoText.width * 3
         val h = heroNoText.height * 3
         val resized = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
-        resized.createGraphics().use { g ->
-            g.setRenderingHint(
+        val graphics = resized.createGraphics()
+        try {
+            graphics.setRenderingHint(
                 RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_BICUBIC
             )
-            g.drawImage(heroNoText, 0, 0, w, h, null)
+            graphics.drawImage(heroNoText, 0, 0, w, h, null)
+        } finally {
+            graphics.dispose()
         }
         val contrasted = RescaleOp(1.07f, 3f, null).filter(resized, null)
         val sharpened = ConvolveOp(
