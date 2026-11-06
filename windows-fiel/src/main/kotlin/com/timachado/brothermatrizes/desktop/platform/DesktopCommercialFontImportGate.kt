@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop.platform
 
 import java.nio.file.Path
+import kotlinx.coroutines.sync.Mutex
 
 /**
  * Contrato de autorização comercial, sem credenciais persistidas.
@@ -38,11 +39,31 @@ internal class DesktopCommercialFontImportGate(
     private val verifiedSession: DesktopVerifiedFontSession = WindowsFontSessionUnavailable,
     private val usage: DesktopFontUsageGateway
 ) {
+    // Uma transacao comercial por vez no processo Windows, inclusive entre
+    // instancias diferentes do gate. Impede reserva dupla para a mesma fonte
+    // e rollback que apagaria a importacao concorrente de outra operacao.
+    // Ainda e necessaria idempotencia no servidor e coordenacao entre processos.
+    private companion object {
+        val transactionLock = Mutex()
+    }
+
     private val serverReservation = Regex(
         "^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     )
 
     suspend fun importFont(source: Path, displayName: String? = null): DesktopFontRecord {
+        transactionLock.lock()
+        try {
+            return importFontLocked(source, displayName)
+        } finally {
+            transactionLock.unlock()
+        }
+    }
+
+    private suspend fun importFontLocked(
+        source: Path,
+        displayName: String?
+    ): DesktopFontRecord {
         // Importação e leitura do disco são proibidas antes de autenticar e reservar.
         val token = verifiedSession.accessToken()
         check(token.isNotBlank()) { "É necessário entrar na conta Google verificada." }
