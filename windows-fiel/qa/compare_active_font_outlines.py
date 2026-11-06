@@ -58,6 +58,65 @@ def bounds(points):
     return [min(xs), min(ys), max(xs), max(ys)]
 
 
+
+def compare_maria(font_sha: str) -> dict:
+    """Caso multiglifo: mede kerning, shaping, topologia e erro geométrico."""
+    result = {
+        "case": "Maria",
+        "passed": False,
+        "issues": [],
+        "max_point_distance_units": None,
+    }
+    android, contours_android, meta_android = parse(
+        BASE / "android" / "bm-parity-android-outline-maria.tsv"
+    )
+    windows, contours_windows, meta_windows = parse(
+        BASE / "windows" / "bm-parity-windows-outline-maria.tsv"
+    )
+    result["android_contours"] = len(contours_android)
+    result["windows_contours"] = len(contours_windows)
+    result["android_points"] = sum(len(p) for p in contours_android.values())
+    result["windows_points"] = sum(len(p) for p in contours_windows.values())
+    result["contextual_shaping_android"] = meta_android[-1]
+    result["contextual_shaping_windows"] = meta_windows[-1]
+    if android != windows or android[0] != font_sha or android[2] != "Maria":
+        result["issues"].append("Fonte/parametros da palavra diferentes entre SO.")
+    if contours_android.keys() != contours_windows.keys():
+        result["issues"].append(
+            "Agrupamento/ordem dos glifos mudou; possivel shaping contextual."
+        )
+    if meta_android[-1] != meta_windows[-1]:
+        result["issues"].append(
+            "A detecção de shaping contextual diverge entre Android e Windows."
+        )
+    max_distance = 0.0
+    comparisons = 0
+    for key in sorted(contours_android.keys() | contours_windows.keys()):
+        aa, ww = contours_android.get(key, []), contours_windows.get(key, [])
+        if len(aa) != len(ww):
+            result["issues"].append(
+                f"Contorno {key}: {len(aa)} pontos Android e {len(ww)} Windows."
+            )
+            continue
+        if not aa:
+            continue
+        comparisons += 1
+        local = max(
+            math.hypot(ax - wx, ay - wy)
+            for (ax, ay), (wx, wy) in zip(aa, ww)
+        )
+        max_distance = max(max_distance, local)
+        if local > MAX_ERROR_UNITS:
+            result["issues"].append(
+                f"Contorno {key}: desvio geométrico {local:.3f} unidades."
+            )
+    result["compared_contours"] = comparisons
+    result["max_point_distance_units"] = round(max_distance, 5)
+    result["issues"] = result["issues"][:80]
+    result["passed"] = comparisons > 0 and not result["issues"]
+    return result
+
+
 def main():
     report = {
         "gate": "Android active CleanRoom outlines vs Windows Skia - identical TTF",
@@ -107,6 +166,11 @@ def main():
                             f"Contorno {key}: desvio máximo {max_distance:.3f} unidades"
                         )
         report["issues"] = report["issues"][:80]
+        report["maria"] = compare_maria(sha)
+        if not report["maria"]["passed"]:
+            report["issues"].append(
+                "Maria (multiglifo): equivalencia ainda nao comprovada."
+            )
         report["passed"] = not report["issues"]
     except (ValueError, AssertionError, FileNotFoundError, OSError) as exc:
         report["issues"].append(f"Erro de integridade da QA: {exc}")
