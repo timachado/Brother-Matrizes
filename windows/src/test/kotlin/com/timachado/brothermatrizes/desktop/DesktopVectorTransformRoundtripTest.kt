@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 
 class DesktopVectorTransformRoundtripTest {
     @Test
-    fun `escala e rotacao de caminho sobrevivem a dois ciclos de salvar e reabrir FLP vetorial`() {
+    fun `escala rotacao e espelhamento sobrevivem a dois ciclos FLP mais bmvector`() {
         val source = DesktopImportedSvg(
             "formas.svg",
             VectorArtwork(
@@ -71,14 +71,29 @@ class DesktopVectorTransformRoundtripTest {
                 opened.document.current.points
             )
             assertFalse(opened.session.canUndo) // histórico fica só na sessão
-            val movedAgain = DesktopSvgObjectTransform.apply(
+            val turnedBack = DesktopSvgObjectTransform.apply(
                 opened.session.current, 1, DesktopSvgObjectAction.ROTATE_LEFT
             )
+            val mirroredH = DesktopSvgObjectTransform.apply(
+                turnedBack, 1, DesktopSvgObjectAction.MIRROR_HORIZONTAL
+            )
+            val mirroredBoth = DesktopSvgObjectTransform.apply(
+                mirroredH, 1, DesktopSvgObjectAction.MIRROR_VERTICAL
+            )
+            // As transformações do segundo salvamento não alteram o primeiro
+            // nem a ordem dos caminhos ou os pontos da primeira camada vetorial.
+            assertEquals(originalPath, mirroredBoth.paths[0])
             DesktopVectorProjectBundle.saveNew(
-                opened.imported.copy(artwork = movedAgain),
+                opened.imported.copy(artwork = mirroredBoth),
                 opened.widthMm, opened.style, opened.hoop, nextFlp, opened.rgb
             )
-            assertEquals(movedAgain, DesktopVectorProjectBundle.open(nextFlp).session.current)
+            val reopenedNext = DesktopVectorProjectBundle.open(nextFlp)
+            assertEquals(mirroredBoth, reopenedNext.session.current)
+            assertEquals(opened.rgb, reopenedNext.rgb)
+            assertEquals(
+                DesktopProjectService.open(nextFlp).current.points,
+                reopenedNext.document.current.points
+            )
             // O novo salvamento nunca substitui nem edita o par original.
             assertTrue(firstFlpBytes.contentEquals(Files.readAllBytes(firstFlp)))
             assertTrue(firstAuxBytes.contentEquals(Files.readAllBytes(firstSidecar)))
