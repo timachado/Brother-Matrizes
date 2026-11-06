@@ -45,9 +45,9 @@ jobs:
       - name: Validar geração da Home ORIGINAL (não copiar versão rejeitada)
         shell: pwsh
         run: |
-          $home = "windows-fiel/build/generated/android-home/kotlin/com/timachado/brothermatrizes/HomeScreen.kt"
-          if (!(Test-Path $home)) { throw "Fonte Compose original nao gerada" }
-          $source = Get-Content $home -Raw
+          $homeFile = "windows-fiel/build/generated/android-home/kotlin/com/timachado/brothermatrizes/HomeScreen.kt"
+          if (!(Test-Path $homeFile)) { throw "Fonte Compose original nao gerada" }
+          $source = Get-Content $homeFile -Raw
           foreach ($item in @("fun HomeScreen(", "fun PremiumHeroCard()", "brother_home_hero", "brother_bm_premium_approved", "Ferramentas")) {
             if (!$source.Contains($item)) { throw "Componente Android perdido: $item" }
           }
