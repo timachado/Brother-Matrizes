@@ -447,6 +447,27 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Duplicação e exclusão reversível de objetos SVG (QA)
+
+No inspetor **Desenhar → SVG**, agora é possível **Duplicar +10 SVG** o
+caminho selecionado (cópia adicionada imediatamente após o original, com
++10 unidades vetoriais em X e Y) e **Excluir caminho** apenas da sessão
+editável. As operações devolvem seleção consistente, passam pela validação
+do desenho e entram no mesmo histórico Desfazer/Refazer de até oito revisões.
+A duplicação respeita os limites de **96 caminhos**, **6.000 coordenadas**,
+**800 por caminho** e ±1.000.000 para coordenadas; a exclusão da última
+forma é recusada e a exclusão que deixa a largura/altura inválida também.
+Unidades SVG **não** correspondem necessariamente a milímetros do bordado.
+
+Os testes `DesktopSvgObjectCollectionTest` verificam isolamento do caminho,
+inserção, seleção após remoção, limites e histórico. O teste
+`DesktopVectorCollectionRoundtripTest` valida dois projetos salvos como
+**novos** pares FLP v11 + `.bmvector`: duplica, salva, reabre, exclui,
+salva novamente e verifica as pontadas de ambos, a edição recuperada
+e a preservação byte a byte do primeiro par. Nenhum arquivo importado é
+sobrescrito; gravação só ocorre pelo comando explícito **Salvar FLP + vetores**.
+Ainda exige validação visual Windows e teste em máquina física. QA não comercial.
+
 ## Espelhamento individual de caminhos SVG (QA)
 
 O inspetor vetorial em **Desenhar → SVG** agora oferece
