@@ -670,6 +670,51 @@ private fun DesktopScreen(
         letterRotation = item.rotationDegrees.toString()
     }
 
+    // Ajuste fino pelo inspetor: usa o mesmo motor oficial do arrasto,
+    // validado antes de registrar uma única revisão de parâmetros.
+    fun nudgeSelectedLetter(deltaXUnits: Int, deltaYUnits: Int) {
+        val session = letterSession ?: return
+        val active = letterPreviewDocument ?: return
+        val index = selectedLetterIndex
+        if (busy || document !== active ||
+            workspace !in setOf(DesktopWorkspace.NAME, DesktopWorkspace.EDIT) ||
+            letterRegions.none { it.index == index }) return
+        val next = runCatching {
+            DesktopLetterNudge.move(session.current, index, deltaXUnits, deltaYUnits)
+        }.getOrElse {
+            report("Ajuste fino da camada recusado: ${it.message}", true)
+            return
+        }
+        if (next == session.current) return
+        busy = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching { DesktopLetterComposer.renderDetailed(next) }
+            }
+            busy = false
+            result.onSuccess { rendered ->
+                if (document !== active || letterSession !== session) return@onSuccess
+                letterSession = session.record(next)
+                letterPreviewDocument = rendered.document
+                document = rendered.document
+                letterRegions = rendered.regions
+                editTimeline = DesktopEditTimeline.start(rendered.document)
+                val obj = next.objects[index]
+                letterMoveX = obj.moveXmm.toString()
+                letterMoveY = obj.moveYmm.toString()
+                letterScale = obj.scale.toString()
+                letterRotation = obj.rotationDegrees.toString()
+                stitchProgress = 1f
+                report(
+                    "Camada ${index + 1} ajustada para X=${obj.moveXmm} mm, " +
+                        "Y=${obj.moveYmm} mm. Desfazer letra disponível em Criar nome."
+                )
+            }.onFailure {
+                report("Ajuste da camada não validado: ${it.message}", true)
+            }
+        }
+    }
+
     fun selectLetterInPreview(
         point: Offset, dimensions: androidx.compose.ui.unit.IntSize
     ) {
@@ -2179,26 +2224,13 @@ private fun DesktopScreen(
                         letterSession
                     } else null
                     activeLetters?.let { session ->
-                        Text(
-                            "Selecione uma letra para editar:",
-                            color = muted, fontSize = 11.sp
+                        DesktopLetterLayerPanel(
+                            layout = session.current,
+                            selectedIndex = selectedLetterIndex,
+                            enabled = !busy && letterRegions.isNotEmpty(),
+                            onSelect = ::beginSingleLetterDrag,
+                            onNudge = ::nudgeSelectedLetter
                         )
-                        session.current.editableIndices.forEach { index ->
-                            val item = session.current.objects[index]
-                            TextButton(enabled = !busy, onClick = {
-                                selectedLetterIndex = index
-                                letterMoveX = item.moveXmm.toString()
-                                letterMoveY = item.moveYmm.toString()
-                                letterScale = item.scale.toString()
-                                letterRotation = item.rotationDegrees.toString()
-                            }) {
-                                Text(
-                                    (if (index == selectedLetterIndex) "● " else "") +
-                                        "Objeto ${index + 1}: ${item.character}",
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             OutlinedTextField(
                                 value = letterMoveX,
@@ -2479,7 +2511,7 @@ private fun DesktopScreen(
                     if (document === letterPreviewDocument && letterSession != null) {
                         val active = letterSession?.current
                         val obj = active?.objects?.getOrNull(selectedLetterIndex)
-                        if (obj != null) {
+                        if (obj != null && active != null) {
                             Text(
                                 "Letra selecionada: ${selectedLetterIndex + 1} — ${obj.character}",
                                 color = DesktopBrandColors.goldSoft, fontSize = 12.sp
@@ -2487,6 +2519,13 @@ private fun DesktopScreen(
                             TextButton(enabled = !busy, onClick = {
                                 workspace = DesktopWorkspace.NAME
                             }) { Text("Editar propriedades da letra") }
+                            DesktopLetterLayerPanel(
+                                layout = active,
+                                selectedIndex = selectedLetterIndex,
+                                enabled = !busy && letterRegions.isNotEmpty(),
+                                onSelect = ::beginSingleLetterDrag,
+                                onNudge = ::nudgeSelectedLetter
+                            )
                         }
                     }
                     val editableLetterDocument =
