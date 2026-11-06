@@ -60,18 +60,25 @@ jobs:
         shell: pwsh
         run: |
           gradle -p windows-fiel run --args="--capture-home-qa" --no-daemon --stacktrace
-          $photo = "windows-fiel/build/qa/home-windows-original-port.png"
-          if (!(Test-Path $photo)) { throw "Captura Windows ausente" }
-          if ((Get-Item $photo).Length -lt 10000) {
-            throw "Captura Windows muito pequena"
+          gradle -p windows-fiel run --args="--capture-home-wide-qa" --no-daemon --stacktrace
+          foreach ($photo in @(
+            "windows-fiel/build/qa/home-windows-original-port.png",
+            "windows-fiel/build/qa/home-windows-wide-original-port.png"
+          )) {
+            if (!(Test-Path $photo)) { throw "Captura Windows ausente: $photo" }
+            if ((Get-Item $photo).Length -lt 10000) {
+              throw "Captura Windows muito pequena: $photo"
+            }
           }
-          "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_VERIFIED"
+          "BROTHER_WINDOWS_FIEL_HOME_BOTH_VIEWPORTS_VERIFIED"
       - name: Disponibilizar captura para comparação com Home Android
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: brother-windows-fiel-HOME-RENDER-QA
-          path: windows-fiel/build/qa/home-windows-original-port.png
+          path: |
+            windows-fiel/build/qa/home-windows-original-port.png
+            windows-fiel/build/qa/home-windows-wide-original-port.png
           if-no-files-found: warn
           retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home
