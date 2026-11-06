@@ -72,12 +72,48 @@ pontadas reais, a ordenação e a autorização comercial sejam equivalentes.
 A QA da revisão de geometria precisa passar antes de declarar esta
 etapa aprovada.
 
+## Kernel de pontadas Satin extraído sem fork (QA de integração)
+
+O Gradle `copyAndroidReferenceSatin` lê diretamente
+`app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt`
+e gera, durante a compilação, `DesktopReferenceSatinKernel.kt`.
+Não altera a fonte Android. O trecho extraído contém exatamente:
+
+- `appendReferenceSatinGlyph` (colunas de satin e escolha de eixo);
+- `scanReferenceSpans`, `buildReferenceColumns` e divisão de colunas;
+- `emitReferenceColumn` e `emitReferenceCenterUnderlay`;
+- `emitReferenceLock`, `emitReferenceTravel`, `emitReferenceStitchTo`.
+
+Não se copia a função de rasterização `densifyReferenceContours`,
+específica de `SampledContour` Android. O novo amostrador Skia entrega
+polígonos vetoriais ao kernel e os cálculos de costura aproveitam
+**o mesmo código matemático Android**, sem reimplementar as pontadas.
+
+O wrapper valida estilo `SATIN`, densidade 0,3–1,2 mm,
+compensação 0–1 mm (limites do motor Android), finitude,
+número de glifos, pontos de contorno e quantidade final de pontos.
+
+`DesktopReferenceSatinKernelTest` valida emissão de pontos
+`STITCH` / `JUMP` para **Maria**, o efeito de underlay no mesmo
+contorno, determinismo e igualdade exata do código-fonte gerado
+com o trecho oficial Android.
+
+**Limitação fundamental:** a criação de polígonos no Skia não
+foi demonstrada numericamente idêntica à função
+`buildReferenceGlyphGeometry` do Android para a **mesma fonte TTF/OTF**.
+Mesmo com algoritmo Satin compartilhado, diferenças de contorno,
+posicionamento, resolução e arredondamento podem produzir matrizes
+diferentes. Portanto o kernel permanece **experimental, isolado de UI,
+clientes e exportação comercial** até completar comparação binária
+de pontadas, validação física e autorização/licenciamento.
+
 ## Portões seguintes
 
-1. Portar a **geometria** de `ImportedFontMatrixGenerator` para
-   Skia/Desktop ou isolar algoritmo compartilhável, sem alterar
-   resultados oficiais do Android. Comparar pontadas de nomes de teste
-   por estilo, tamanho, underlay, fonte e orientação.
+1. **Concluir a paridade numérica** entre contornos Android e Skia
+   com o mesmo arquivo TTF/OTF, e comparar pontadas de nomes sintéticos
+   por estilo, tamanho, underlay, fonte e orientação. Os extratores
+   de contorno e kernel Satin estão implementados em QA, ainda sem
+   aprovação de fidelidade de saída do motor de fonte.
 2. Porta de autorização: login, cotas e direitos da conta comercial
    equivalentes ao Android; nenhuma importação deve ser aberta ao
    usuário sem autorização.
