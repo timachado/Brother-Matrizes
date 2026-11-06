@@ -457,3 +457,13 @@ Android valida cada matriz após a leitura; os arquivos originais não
 são modificados. Bibliotecas e limites de memória equivalentes
 à rotina Android foram aplicados. Sem senha, fontes, importação
 múltipla e homologação de todos os pacotes RAR5 nesta fase.
+
+## Importar fontes de pacotes (QA)
+
+Em **Fontes → Importar fonte TTF/OTF de ZIP / 7Z / RAR**, selecione
+o pacote, escolha uma entrada, confira sua validade e indique onde
+**salvar somente essa fonte como arquivo novo**. Nada é instalado
+no Windows e não há sobrescrita de arquivos. A fonte passa pela
+validação Java2D já usada no preview local e, após ser salva,
+pode ser usada para gerar nome Satin em QA. Não há importação
+em lote, senhas ou integração com licenciamento Android.

@@ -32,7 +32,7 @@ Windows esteja completo nem comercialmente homologado.
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
-| `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos de DST/PES/JEF (QA); fontes, senhas e fluxo integral pendentes |
+| `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos DST/PES/JEF e TTF/OTF individual com consentimento, sem senha ou importação em lote; paridade total pendente |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Pendente** |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Pendente** — exportação de arquivo não é transferência |
@@ -366,3 +366,21 @@ sem criar pastas nem regravar o arquivo original.
 importação em lote e permissões comerciais ainda faltam. RAR/RAR5
 precisa ser validado com amostras reais autorizadas e Windows físico;
 compilação e teste de RAR truncado não garantem suporte a todo pacote.
+
+## Fonte TTF/OTF de ZIP, 7Z e RAR/RAR5 (QA)
+
+A área **Fontes** permite inspecionar ZIP/7Z/RAR/RAR5 locais sem
+extrair pastas; mostra somente entradas TTF/OTF até 12 MiB,
+aplicando inventário, limite total, caminho seguro e verificação de
+assinatura/estrutura Java2D em memória. Depois de selecionar uma fonte,
+a pessoa escolhe explicitamente um **arquivo novo** de destino.
+`CREATE_NEW` proíbe sobrescrever qualquer fonte existente. A fonte
+não é instalada no Windows nem enviada a serviços remotos.
+
+A fonte validada é utilizada no mesmo preview TTF/OTF do Desktop e
+fica disponível como entrada da geração Satin experimental na aba
+Criar nome. A embalagem original e outras entradas permanecem
+intactas. Não há instalação automática, persistência de fontes da
+conta Android, senhas de pacotes, importação em lote ou fluxo comercial
+de cobrança. RAR/RAR5 precisa de testes com amostras válidas; não é
+considerado homologado industrialmente.

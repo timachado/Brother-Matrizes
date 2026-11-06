@@ -72,7 +72,10 @@ internal object DesktopExtendedArchiveImporter {
         return normalized
     }
 
-    private class Inspection {
+    private class Inspection(
+        private val formats: Set<String>,
+        private val maxEntryBytes: Long
+    ) {
         val items = mutableListOf<DesktopArchiveMatrix>()
         private val seen = HashSet<String>()
         private var index = 0
@@ -97,14 +100,20 @@ internal object DesktopExtendedArchiveImporter {
             }
             val fileName = safe.substringAfterLast('/')
             val format = fileName.substringAfterLast('.', "").uppercase(Locale.ROOT)
-            if (format !in DesktopMatrixService.inputFormats ||
-                size == 0L || size > DesktopMatrixService.MAX_INPUT_BYTES) return
+            if (format !in formats ||
+                size == 0L || size > maxEntryBytes) return
             items += DesktopArchiveMatrix(current, safe, fileName, format, size)
         }
     }
 
-    fun inspect(file: Path): List<DesktopArchiveMatrix> {
-        val inspection = Inspection()
+    fun inspect(file: Path): List<DesktopArchiveMatrix> =
+        inspectMatching(file, DesktopMatrixService.inputFormats,
+            DesktopMatrixService.MAX_INPUT_BYTES)
+
+    internal fun inspectMatching(
+        file: Path, formats: Set<String>, maxEntryBytes: Long
+    ): List<DesktopArchiveMatrix> {
+        val inspection = Inspection(formats, maxEntryBytes)
         when (checkArchive(file)) {
             Kind.SEVEN_Z -> SevenZFile.builder().setFile(file.toFile())
                 .setMaxMemoryLimitKiB(32768).get().use { archive ->
@@ -121,6 +130,54 @@ internal object DesktopExtendedArchiveImporter {
                 }
         }
         return inspection.items
+    }
+
+    /** Leitura selecionada de fonte; sem extração para pasta ou execução. */
+    internal fun readFontBytes(file: Path, selected: DesktopArchiveMatrix): ByteArray {
+        require(selected.format in setOf("TTF", "OTF") &&
+            inspectMatching(
+                file, setOf("TTF", "OTF"),
+                DesktopFontPreviewService.MAX_FONT_BYTES
+            ).contains(selected)) {
+            "Fonte não consta no inventário íntegro do pacote."
+        }
+        val bytes = when (checkArchive(file)) {
+            Kind.SEVEN_Z -> SevenZFile.builder().setFile(file.toFile())
+                .setMaxMemoryLimitKiB(32768).get().use { archive ->
+                    var index = 0
+                    var data: ByteArray? = null
+                    while (true) {
+                        val entry = archive.nextEntry ?: break
+                        if (index++ != selected.index) continue
+                        require(safeName(entry.name) == selected.relativePath &&
+                            entry.size == selected.bytes && !entry.isDirectory) {
+                            "Entrada 7Z da fonte mudou desde o inventário."
+                        }
+                        data = archive.getInputStream(entry).use {
+                            it.readNBytes(DesktopFontPreviewService.MAX_FONT_BYTES.toInt() + 1)
+                        }
+                        break
+                    }
+                    data ?: error("Fonte não encontrada no 7Z.")
+                }
+            Kind.RAR -> Archive(file.toFile(), ArchiveOptions.builder()
+                .maxDictionarySize(32L * 1024 * 1024).build()).use { archive ->
+                    val entry = archive.fileHeaders.getOrNull(selected.index)
+                        ?: error("Fonte não encontrada no RAR.")
+                    require(safeName(entry.fileName) == selected.relativePath &&
+                        entry.fullUnpackSize == selected.bytes && !entry.isDirectory) {
+                        "Entrada RAR da fonte mudou desde o inventário."
+                    }
+                    val output = BoundedBuffer(DesktopFontPreviewService.MAX_FONT_BYTES)
+                    archive.extractFile(entry, output)
+                    output.toByteArray()
+                }
+        }
+        require(bytes.size.toLong() == selected.bytes) {
+            "Tamanho da fonte descompactada não corresponde ao inventário."
+        }
+        DesktopFontPreviewService.inspectBytes(selected.fileName, bytes)
+        return bytes
     }
 
     fun openMatrix(file: Path, selected: DesktopArchiveMatrix): DesktopMatrixDocument {

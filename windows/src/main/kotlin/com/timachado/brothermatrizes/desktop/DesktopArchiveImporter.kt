@@ -59,9 +59,23 @@ internal object DesktopArchiveImporter {
      * O inventário é limitado como no app Android 1.11.8.
      * Nenhum arquivo do pacote é escrito no disco durante o exame.
      */
-    fun inspect(archive: Path): List<DesktopArchiveMatrix> {
+    private val fontFormats = setOf("TTF", "OTF")
+
+    fun inspect(archive: Path): List<DesktopArchiveMatrix> =
+        inspectMatching(archive, DesktopMatrixService.inputFormats,
+            DesktopMatrixService.MAX_INPUT_BYTES)
+
+    /** Inventário isolado de fontes, sem alterar o fluxo de matrizes. */
+    fun inspectFonts(archive: Path): List<DesktopArchiveMatrix> =
+        inspectMatching(archive, fontFormats, DesktopFontPreviewService.MAX_FONT_BYTES)
+
+    private fun inspectMatching(
+        archive: Path, formats: Set<String>, maxEntryBytes: Long
+    ): List<DesktopArchiveMatrix> {
         if (!archive.fileName.toString().endsWith(".zip", ignoreCase = true)) {
-            return DesktopExtendedArchiveImporter.inspect(archive)
+            return DesktopExtendedArchiveImporter.inspectMatching(
+                archive, formats, maxEntryBytes
+            )
         }
         validatePath(archive)
         val accepted = mutableListOf<DesktopArchiveMatrix>()
@@ -96,12 +110,48 @@ internal object DesktopArchiveImporter {
                 }
                 val fileName = safe.substringAfterLast('/')
                 val extension = fileName.substringAfterLast('.', "").uppercase(Locale.ROOT)
-                if (extension !in DesktopMatrixService.inputFormats ||
-                    size == 0L || size > DesktopMatrixService.MAX_INPUT_BYTES) continue
+                if (extension !in formats ||
+                    size == 0L || size > maxEntryBytes) continue
                 accepted += DesktopArchiveMatrix(index, safe, fileName, extension, size)
             }
         }
         return accepted
+    }
+
+    /**
+     * Lê somente uma fonte pré-selecionada em memória.
+     * Valida novamente inventário, índice, nome e tamanho para evitar
+     * troca de entrada entre inventário e abertura. Não grava em disco.
+     */
+    fun readFontBytes(archive: Path, selected: DesktopArchiveMatrix): ByteArray {
+        require(selected.format in fontFormats && inspectFonts(archive).contains(selected)) {
+            "A fonte escolhida não pertence ao pacote atual."
+        }
+        if (!archive.fileName.toString().endsWith(".zip", ignoreCase = true)) {
+            return DesktopExtendedArchiveImporter.readFontBytes(archive, selected)
+        }
+        validatePath(archive)
+        ZipFile(archive.toFile()).use { zip ->
+            val entries = zip.entries()
+            var index = 0
+            while (entries.hasMoreElements()) {
+                val item = entries.nextElement()
+                if (index++ != selected.index) continue
+                require(item.name.replace('\\', '/') == selected.relativePath &&
+                    item.size == selected.bytes && !item.isDirectory) {
+                    "Entrada ZIP da fonte mudou desde o inventário."
+                }
+                val bytes = zip.getInputStream(item).use {
+                    it.readNBytes(DesktopFontPreviewService.MAX_FONT_BYTES.toInt() + 1)
+                }
+                require(bytes.size.toLong() == selected.bytes) {
+                    "Tamanho real da fonte difere do inventário ZIP."
+                }
+                DesktopFontPreviewService.inspectBytes(selected.fileName, bytes)
+                return bytes
+            }
+        }
+        error("Fonte selecionada não encontrada no ZIP.")
     }
 
     fun openMatrix(archive: Path, selected: DesktopArchiveMatrix): DesktopMatrixDocument {

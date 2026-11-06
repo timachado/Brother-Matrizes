@@ -1656,6 +1656,90 @@ private fun DesktopScreen(
                             }
                         }
                     }) { Text("Carregar fonte TTF/OTF para prévia") }
+                    Button(enabled = !busy, onClick = {
+                        val chooser = JFileChooser().apply {
+                            dialogTitle = "Selecionar pacote de fontes ZIP, 7Z ou RAR"
+                            fileFilter = FileNameExtensionFilter(
+                                "Pacotes de fontes (.zip, .7z, .rar)",
+                                "zip", "7z", "rar"
+                            )
+                            isAcceptAllFileFilterUsed = false
+                        }
+                        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val packagePath = chooser.selectedFile.toPath()
+                            busy = true
+                            scope.launch {
+                                val candidates = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        DesktopArchiveImporter.inspectFonts(packagePath)
+                                    }
+                                }
+                                val list = candidates.getOrElse { error ->
+                                    busy = false
+                                    report("Pacote de fontes recusado: ${error.message}", true)
+                                    return@launch
+                                }
+                                if (list.isEmpty()) {
+                                    busy = false
+                                    report("Pacote sem TTF/OTF válido para seleção.", true)
+                                    return@launch
+                                }
+                                val picked = JOptionPane.showInputDialog(
+                                    null,
+                                    "Escolha somente uma fonte. Nenhum arquivo será extraído ainda.",
+                                    "Brother Matrizes — selecionar fonte",
+                                    JOptionPane.PLAIN_MESSAGE,
+                                    null, list.toTypedArray(), list.first()
+                                ) as? DesktopArchiveMatrix
+                                if (picked == null) {
+                                    busy = false
+                                    report("Seleção cancelada. Pacote preservado.")
+                                    return@launch
+                                }
+                                val source = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        DesktopArchiveImporter.readFontBytes(packagePath, picked)
+                                    }
+                                }
+                                val bytes = source.getOrElse { error ->
+                                    busy = false
+                                    report("Fonte do pacote recusada: ${error.message}", true)
+                                    return@launch
+                                }
+                                val target = JFileChooser().apply {
+                                    dialogTitle = "Salvar somente a fonte selecionada como NOVO arquivo"
+                                    fileFilter = FileNameExtensionFilter(
+                                        "Fonte ${picked.format}", picked.format.lowercase(Locale.ROOT)
+                                    )
+                                    selectedFile = java.io.File(picked.fileName)
+                                    isAcceptAllFileFilterUsed = false
+                                }
+                                if (target.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) {
+                                    busy = false
+                                    report("Importação cancelada: nenhum arquivo salvo.")
+                                    return@launch
+                                }
+                                val path = target.selectedFile.toPath().toAbsolutePath()
+                                val saved = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        DesktopFontPreviewService.saveArchiveFontNew(
+                                            picked.fileName, bytes, path
+                                        )
+                                    }
+                                }
+                                busy = false
+                                saved.onSuccess { loaded ->
+                                    fontPreview = loaded
+                                    report(
+                                        "Fonte ${loaded.family} importada com consentimento " +
+                                            "em arquivo novo. Disponível para prévia e Satin QA."
+                                    )
+                                }.onFailure {
+                                    report("Fonte não importada: ${it.message}", true)
+                                }
+                            }
+                        }
+                    }) { Text("Importar fonte TTF/OTF de ZIP / 7Z / RAR") }
                     fontPreview?.let { chosen ->
                         val sample = nameText.trim().ifBlank { "Brother Matrizes" }
                         val absent = sample.filter { !chosen.awtFont.canDisplay(it) }.toSet().joinToString("")
