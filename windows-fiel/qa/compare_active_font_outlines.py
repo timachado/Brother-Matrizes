@@ -216,6 +216,48 @@ def compare_coverage_guard() -> dict:
     return result
 
 
+
+def compare_real_coverage_o() -> dict:
+    """Requer MESMA decisão de guard Android na mesma fonte/pontos O.
+
+    Se ambos bloquearem, isso confirma somente consistência de bloqueio,
+    nunca autorização para geração comercial.
+    """
+    report = {"case": "Real Roboto O coverage guard", "passed": False, "issues": []}
+
+    def parse(path: Path):
+        content = path.read_text(encoding="utf-8").strip()
+        if content == "BLOCKED":
+            return ("BLOCKED",)
+        fields = content.split("\t")
+        assert len(fields) == 3 and fields[0] == "PASS"
+        p, c = float(fields[1]), float(fields[2])
+        assert all(math.isfinite(v) and 0 <= v <= 1 for v in (p, c))
+        return ("PASS", p, c)
+
+    android = parse(BASE / "android" / "bm-parity-android-coverage-real-o.tsv")
+    windows = parse(BASE / "windows" / "bm-parity-windows-coverage-real-o.tsv")
+    report["android_status"] = android[0]
+    report["windows_status"] = windows[0]
+    if android[0] != windows[0]:
+        report["issues"].append(
+            "Guard Android e Windows discordam em APROVAR/BLOQUEAR fonte real O."
+        )
+    elif android[0] == "PASS":
+        error = max(abs(android[i] - windows[i]) for i in (1, 2))
+        report["android_precision_coverage"] = list(android[1:])
+        report["windows_precision_coverage"] = list(windows[1:])
+        report["max_score_delta"] = round(error, 6)
+        if error > 0.02:
+            report["issues"].append("Métricas reais diferem acima de 0,02.")
+    else:
+        report["note"] = (
+            "AMBOS BLOQUEARAM. Não demonstra a qualidade de fonte bordável."
+        )
+    report["passed"] = not report["issues"]
+    return report
+
+
 def main():
     report = {
         "gate": "Android active CleanRoom outlines vs Windows Skia - identical TTF",
@@ -265,6 +307,11 @@ def main():
                             f"Contorno {key}: desvio máximo {max_distance:.3f} unidades"
                         )
         report["issues"] = report["issues"][:80]
+        report["real_coverage_o"] = compare_real_coverage_o()
+        if not report["real_coverage_o"]["passed"]:
+            report["issues"].append(
+                "O real: bloqueio/aceitacao do guard de silhueta divergem."
+            )
         report["coverage_guard"] = compare_coverage_guard()
         if not report["coverage_guard"]["passed"]:
             report["issues"].append(
