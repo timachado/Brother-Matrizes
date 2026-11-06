@@ -21,9 +21,9 @@ import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 /**
  * Navegador de caminhos SVG com paginação, seleção e microajuste.
  *
- * Não adiciona visibilidade/ordenação persistente nem finge camadas
- * separadas de bordados externos já achatados. A prévia e o histórico
- * existentes continuam sendo a fonte de verdade da edição.
+ * Não finge camadas separadas em bordados já achatados: a ordenação
+ * só afeta a próxima matriz gerada a partir dos caminhos SVG da sessão.
+ * A prévia e o histórico existentes continuam sendo a fonte de verdade.
  */
 @Composable
 internal fun DesktopSvgLayerPanel(
@@ -34,7 +34,11 @@ internal fun DesktopSvgLayerPanel(
     onNudge: (Int, Int) -> Unit,
     onTransform: (DesktopSvgObjectAction) -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onReorder: (Int) -> Unit,
+    selectedNodeIndex: Int,
+    onSelectNode: (Int) -> Unit,
+    onNodeAction: (DesktopSvgNodeAction) -> Unit
 ) {
     val pageSize = 8
     val totalPages = (artwork.paths.size + pageSize - 1) / pageSize
@@ -107,6 +111,21 @@ internal fun DesktopSvgLayerPanel(
                     "por eixo; Excluir remove apenas da sessão (Desfazer disponível).",
                 color = DesktopBrandColors.muted, fontSize = 10.sp
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = enabled && selectedIndex > 0,
+                    onClick = { onReorder(-1) }
+                ) { Text("Na sequência ↑", fontSize = 11.sp) }
+                TextButton(
+                    enabled = enabled && selectedIndex < artwork.paths.lastIndex,
+                    onClick = { onReorder(1) }
+                ) { Text("Na sequência ↓", fontSize = 11.sp) }
+            }
+            Text(
+                "Reordenar muda a sequência dos caminhos na próxima matriz gerada. " +
+                    "Não altera a ordem de uma matriz já salva.",
+                color = DesktopBrandColors.muted, fontSize = 10.sp
+            )
             Text(
                 "Mover caminho ${selectedIndex + 1} por 1 unidade vetorial",
                 color = DesktopBrandColors.muted, fontSize = 11.sp
@@ -161,6 +180,14 @@ internal fun DesktopSvgLayerPanel(
                     onClick = { onTransform(DesktopSvgObjectAction.MIRROR_VERTICAL) }
                 ) { Text("Espelhar V", fontSize = 11.sp) }
             }
+            DesktopSvgNodePanel(
+                artwork = artwork,
+                pathIndex = selectedIndex,
+                selectedNodeIndex = selectedNodeIndex,
+                enabled = enabled,
+                onSelectNode = onSelectNode,
+                onNodeAction = onNodeAction
+            )
         }
         Text(
             "Unidade SVG não significa 1 mm na bordadeira. " +
