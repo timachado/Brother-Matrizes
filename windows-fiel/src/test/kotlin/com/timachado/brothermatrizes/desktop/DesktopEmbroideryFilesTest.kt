@@ -45,7 +45,9 @@ class DesktopEmbroideryFilesTest {
                 assertContentEquals(originalBytes, Files.readAllBytes(path))
             }
         } finally {
-            Files.list(root).use { stream -> stream.forEach(Files::deleteIfExists) }
+            Files.list(root).use { stream ->
+                stream.forEach { file -> Files.deleteIfExists(file) }
+            }
             Files.deleteIfExists(root)
         }
     }
