@@ -15,7 +15,7 @@ if grep -Eq 'FAILURES|INSTRUMENTATION_FAILED|INSTRUMENTATION_STATUS_CODE: -2' \
   echo 'Teste Android não aprovado: cancelar referência.' >&2
   exit 1
 fi
-for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-status.txt; do
+for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-kernel-o.tsv bm-parity-android-status.txt; do
   adb exec-out run-as com.timachado.brothermatrizes cat "files/$name" \
     > "windows-fiel/build/qa/font-parity/android/$name"
 done
@@ -39,5 +39,9 @@ maria = (root / "bm-parity-android-outline-maria.tsv").read_text()
 assert maria.startswith("FONT\t" + sha + "\t")
 assert maria.splitlines()[0].endswith("\tMaria"), "Fixture Maria não corresponde ao Android."
 assert sum(line.startswith("P\t") for line in maria.splitlines()) > 50
+kernel = (root / "bm-parity-android-kernel-o.tsv").read_text().splitlines()
+assert kernel[0].startswith("STITCHES\t")
+assert len(kernel) == int(kernel[0].split("\t")[1]) + 1
+assert sum("\tSTITCH\t" in line for line in kernel[1:]) > 20
 print("BM_ACTIVE_SATIN_ANDROID_FONT_GOLDEN_OK sha256=" + sha)
 PY
