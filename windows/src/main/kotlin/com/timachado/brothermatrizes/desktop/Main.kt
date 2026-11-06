@@ -278,6 +278,7 @@ private fun DesktopScreen(
         mutableStateOf(qaSvg?.let { DesktopSvgEditSession.start(it.artwork) })
     }
     var selectedSvgPath by remember { mutableStateOf<Int?>(null) }
+    var selectedSvgNodeIndex by remember { mutableStateOf(0) }
     var drawingWidthText by remember { mutableStateOf("60") }
     var drawingStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
     var drawingHoop by remember { mutableStateOf(HoopProfile.H100X100) }
@@ -820,6 +821,7 @@ private fun DesktopScreen(
                                     enabled = !busy,
                                     onSelect = { index ->
                                         selectedSvgPath = index
+                                        selectedSvgNodeIndex = 0
                                     },
                                     onMove = { index, delta, dimensions ->
                                         val session = drawingSvgEditSession
@@ -1313,7 +1315,42 @@ private fun DesktopScreen(
                                     artwork = session.current,
                                     selectedIndex = selectedSvgPath,
                                     enabled = !busy,
-                                    onSelect = { selectedSvgPath = it },
+                                    onSelect = {
+                                        selectedSvgPath = it
+                                        selectedSvgNodeIndex = 0
+                                    },
+                                    selectedNodeIndex = selectedSvgNodeIndex,
+                                    onSelectNode = { selectedSvgNodeIndex = it },
+                                    onNodeAction = { action ->
+                                        val pathIndex = selectedSvgPath
+                                        if (pathIndex != null &&
+                                            pathIndex in session.current.paths.indices) {
+                                            val availableNodes =
+                                                session.current.paths[pathIndex].points.indices
+                                            val nodeIndex = selectedSvgNodeIndex.coerceIn(
+                                                availableNodes
+                                            )
+                                            runCatching {
+                                                DesktopSvgNodeEditor.apply(
+                                                    session.current, pathIndex, nodeIndex, action
+                                                )
+                                            }.onSuccess { change ->
+                                                drawingSvgEditSession =
+                                                    session.record(change.artwork)
+                                                selectedSvgNodeIndex = change.selectedNodeIndex
+                                                report(
+                                                    "Nó ${change.selectedNodeIndex + 1} do " +
+                                                        "caminho ${pathIndex + 1} editado. " +
+                                                        "Desfazer/Refazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Edição de nó SVG recusada: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
+                                    },
                                     onNudge = { dx, dy ->
                                         val index = selectedSvgPath
                                         if (index != null) {
@@ -1368,6 +1405,7 @@ private fun DesktopScreen(
                                                 drawingSvgEditSession =
                                                     session.record(change.artwork)
                                                 selectedSvgPath = change.selectedIndex
+                                                selectedSvgNodeIndex = 0
                                                 report(
                                                     "Caminho SVG ${index + 1} duplicado " +
                                                         "na sessão. Desfazer SVG disponível."
@@ -1391,6 +1429,7 @@ private fun DesktopScreen(
                                                 drawingSvgEditSession =
                                                     session.record(change.artwork)
                                                 selectedSvgPath = change.selectedIndex
+                                                selectedSvgNodeIndex = 0
                                                 report(
                                                     "Caminho SVG ${index + 1} excluído " +
                                                         "somente da sessão. Desfazer SVG disponível."
@@ -1398,6 +1437,32 @@ private fun DesktopScreen(
                                             }.onFailure {
                                                 report(
                                                     "Exclusão SVG recusada: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onReorder = { direction ->
+                                        val index = selectedSvgPath
+                                        if (index != null) {
+                                            runCatching {
+                                                DesktopSvgObjectCollection.reorder(
+                                                    session.current, index, direction
+                                                )
+                                            }.onSuccess { change ->
+                                                drawingSvgEditSession =
+                                                    session.record(change.artwork)
+                                                selectedSvgPath = change.selectedIndex
+                                                selectedSvgNodeIndex = 0
+                                                report(
+                                                    "Caminho SVG reordenado para posição " +
+                                                        "${change.selectedIndex + 1}. " +
+                                                        "A nova ordem vale ao gerar outro FLP. " +
+                                                        "Desfazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Reordenação SVG recusada: ${it.message}",
                                                     true
                                                 )
                                             }
