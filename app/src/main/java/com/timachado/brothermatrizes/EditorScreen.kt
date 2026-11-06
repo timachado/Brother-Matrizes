@@ -210,11 +210,15 @@ fun EditorScreen(
                 colors
         )
 
-    val preview =
+    // Uma recomposição de controles, cores de exibição ou diálogos não deve
+    // transformar novamente milhares de pontadas. Recalcule somente quando
+    // o desenho ou a transformação física realmente mudar.
+    val preview = remember(design, transform) {
         MatrixEditor.apply(
             design,
             transform
         )
+    }
 
     val hasPendingChanges =
         scale !=
