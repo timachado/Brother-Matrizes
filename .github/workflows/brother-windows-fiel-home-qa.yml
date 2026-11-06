@@ -67,6 +67,8 @@ jobs:
           gradle -p windows-fiel run --args="--qa-name-editor-click-apply" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--qa-name-editor-keyboard-apply" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--qa-name-editor-ctrl-a-apply" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--qa-open-chooser-pes" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--qa-open-chooser-jef" --no-daemon --stacktrace
           foreach ($photo in @(
             "windows-fiel/build/qa/home-windows-original-port.png",
             "windows-fiel/build/qa/home-windows-wide-original-port.png",
@@ -77,7 +79,9 @@ jobs:
             "windows-fiel/build/qa/name-editor-keyboard-input-qa.png",
             "windows-fiel/build/qa/name-editor-keyboard-applied-qa.png",
             "windows-fiel/build/qa/name-editor-ctrl-a-input-qa.png",
-            "windows-fiel/build/qa/name-editor-ctrl-a-applied-qa.png"
+            "windows-fiel/build/qa/name-editor-ctrl-a-applied-qa.png",
+            "windows-fiel/build/qa/chooser-pes-viewer.png",
+            "windows-fiel/build/qa/chooser-jef-viewer.png"
           )) {
             if (!(Test-Path $photo)) { throw "Captura Windows ausente: $photo" }
             if ((Get-Item $photo).Length -lt 10000) {
@@ -101,6 +105,8 @@ jobs:
             windows-fiel/build/qa/name-editor-keyboard-applied-qa.png
             windows-fiel/build/qa/name-editor-ctrl-a-input-qa.png
             windows-fiel/build/qa/name-editor-ctrl-a-applied-qa.png
+            windows-fiel/build/qa/chooser-pes-viewer.png
+            windows-fiel/build/qa/chooser-jef-viewer.png
           if-no-files-found: warn
           retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home

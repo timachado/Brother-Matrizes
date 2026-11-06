@@ -85,6 +85,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import javax.swing.JFileChooser
+import javax.swing.JDialog
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
@@ -109,10 +110,29 @@ fun main(args: Array<String>) = application {
     val nameEditorApplyQa =
         args.singleOrNull() == "--qa-name-editor-click-apply" || nameEditorKeyboardQa
     val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot || nameEditorApplyQa
+    val openPesChooserQa = args.singleOrNull() == "--qa-open-chooser-pes"
+    val openJefChooserQa = args.singleOrNull() == "--qa-open-chooser-jef"
+    val fileChooserQa = openPesChooserQa || openJefChooserQa
     val screenshotMode =
-        compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture
+        compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture || fileChooserQa
     require(args.isEmpty() || screenshotMode) {
         "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
+    }
+    val chooserQaFormat = if (openPesChooserQa) "PES" else if (openJefChooserQa) "JEF" else null
+    val chooserQaFile = chooserQaFormat?.let { format ->
+        val filename = "random1.${format.lowercase()}"
+        val source = Path.of("../app/src/test/resources/samples", filename)
+            .toAbsolutePath().normalize()
+        check(Files.isRegularFile(source) && !Files.isSymbolicLink(source)) {
+            "A referência Android do seletor não está disponível."
+        }
+        val target = Path.of("build/qa/chooser-fixtures", filename)
+            .toAbsolutePath().normalize()
+        Files.createDirectories(target.parent)
+        // Só uma cópia de trabalho, nunca a matriz versionada/cliente.
+        Files.copy(source, target)
+        check(Files.readAllBytes(source).contentEquals(Files.readAllBytes(target)))
+        target
     }
     Window(
         onCloseRequest = ::exitApplication,
@@ -142,6 +162,68 @@ fun main(args: Array<String>) = application {
         }
         val composeWindow = window
         LaunchedEffect(screenshotMode) {
+            if (fileChooserQa) {
+                // Exercita o JFileChooser REAL do comando Abrir da Home:
+                // janela Swing aparece, o teclado confirma a seleção de
+                // arquivo pré-posicionado (cópia sintética de referência), o
+                // callback importa e navega para o Visualizador. Sem API
+                // privada do seletor e sem dados de clientes.
+                withContext(Dispatchers.IO) {
+                    val deadline = System.nanoTime() + 40_000_000_000L
+                    var dialogVisible = false
+                    while (System.nanoTime() < deadline) {
+                        dialogVisible = java.awt.Window.getWindows().any { window ->
+                            window is JDialog && window.isShowing &&
+                                window.title.contains("Abrir matriz DST")
+                        }
+                        if (dialogVisible) break
+                        Thread.sleep(250L)
+                    }
+                    check(dialogVisible) { "O JFileChooser da Home não foi apresentado." }
+                    val robot = Robot()
+                    robot.keyPress(KeyEvent.VK_ENTER)
+                    robot.keyRelease(KeyEvent.VK_ENTER)
+                    val format = checkNotNull(chooserQaFormat)
+                    val marker = Path.of("build/qa/chooser-${format.lowercase()}-opened.txt")
+                    while (System.nanoTime() < deadline && !Files.isRegularFile(marker)) {
+                        Thread.sleep(250L)
+                    }
+                    check(Files.isRegularFile(marker)) {
+                        "O diálogo não importou a matriz ${format} no Visualizador."
+                    }
+                    Thread.sleep(1_400L)
+                    check(java.awt.Window.getWindows().none { window ->
+                        window is JDialog && window.isShowing &&
+                            window.title.contains("Abrir matriz DST")
+                    }) { "JFileChooser não foi fechado após confirmar a matriz." }
+                    val pane = composeWindow.contentPane
+                    val point = pane.locationOnScreen
+                    val bounds = Rectangle(point.x, point.y, pane.width, pane.height)
+                    val screen = Toolkit.getDefaultToolkit().screenSize
+                    check(bounds.width >= 700 && bounds.height >= 600 &&
+                        bounds.x >= 0 && bounds.y >= 0 &&
+                        bounds.x + bounds.width <= screen.width &&
+                        bounds.y + bounds.height <= screen.height - 42
+                    ) { "O Viewer QA excedeu a área visível do monitor Windows." }
+                    val screenshot = robot.createScreenCapture(bounds)
+                    val output = File("build/qa/chooser-${format.lowercase()}-viewer.png")
+                    output.parentFile.mkdirs()
+                    check(ImageIO.write(screenshot, "png", output) &&
+                        output.length() > 10_000L
+                    ) { "Visualizador da matriz importada não foi capturado." }
+                    check(
+                        Files.readAllBytes(checkNotNull(chooserQaFile)).contentEquals(
+                            Files.readAllBytes(Path.of(
+                                "../app/src/test/resources/samples",
+                                "random1.${format.lowercase()}"
+                            ))
+                        )
+                    ) { "A cópia de trabalho não preservou o arquivo original." }
+                    println("BROTHER_WINDOWS_CHOOSER_${format}_VIEWER_OK")
+                    exitProcess(0)
+                }
+                return@LaunchedEffect
+            }
             if (screenshotMode) {
                 // Renderização estabilizada em Windows real do runner;
                 // não é captura simulada da Home Android.
@@ -377,6 +459,7 @@ fun main(args: Array<String>) = application {
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
                 startInNameEditorCtrlAQa = nameEditorCtrlAQa,
+                startInChooserQaFile = chooserQaFile,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -439,6 +522,7 @@ private fun FielHomeHost(
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
     startInNameEditorCtrlAQa: Boolean = false,
+    startInChooserQaFile: Path? = null,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
@@ -645,18 +729,47 @@ private fun FielHomeHost(
             val chooser = JFileChooser().apply {
                 dialogTitle = "Abrir matriz DST, PES, JEF ou projeto FLP"
                 fileSelectionMode = JFileChooser.FILES_ONLY
+                if (startInChooserQaFile != null) {
+                    currentDirectory = startInChooserQaFile.parent.toFile()
+                    selectedFile = startInChooserQaFile.toFile()
+                }
             }
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
                 runCatching {
-                    DesktopEmbroideryFiles.open(chooser.selectedFile.toPath())
+                    val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+                    if (startInChooserQaFile != null) {
+                        check(selected == startInChooserQaFile) {
+                            "O seletor abriu arquivo diferente da cópia isolada de QA."
+                        }
+                    }
+                    DesktopEmbroideryFiles.open(selected)
                 }.onSuccess { design ->
                     openDesign(design, displayMode, ActiveDetail.VIEWER)
+                    if (startInChooserQaFile != null) {
+                        check(design.format.equals(
+                            startInChooserQaFile.fileName.toString().substringAfterLast('.'),
+                            ignoreCase = true
+                        ) && design.stitchCount > 0 && design.endFound) {
+                            "A matriz selecionada não foi interpretada corretamente."
+                        }
+                        val marker = Path.of(
+                            "build/qa/chooser-${design.format.lowercase()}-opened.txt"
+                        )
+                        Files.writeString(
+                            marker, "ABERTO_NO_VIEWER ${design.format} ${design.stitchCount}",
+                            StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
+                        )
+                    }
                     snackbar.showSnackbar("Matriz aberta no visualizador.")
                 }.onFailure {
                     snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
                 }
             }
         }
+    }
+
+    LaunchedEffect(startInChooserQaFile) {
+        if (startInChooserQaFile != null) openProject()
     }
 
     Scaffold(

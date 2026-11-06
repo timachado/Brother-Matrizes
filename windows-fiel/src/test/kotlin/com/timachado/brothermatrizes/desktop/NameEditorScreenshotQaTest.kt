@@ -92,5 +92,14 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("nameEditorCtrlAQa ->"))
         assertTrue(yaml.contains("--qa-name-editor-ctrl-a-apply"))
         assertTrue(yaml.contains("name-editor-ctrl-a-applied-qa.png"))
+        assertTrue(host.contains("--qa-open-chooser-pes"))
+        assertTrue(host.contains("--qa-open-chooser-jef"))
+        assertTrue(host.contains("chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION"))
+        assertTrue(host.contains("robot.keyPress(KeyEvent.VK_ENTER)"))
+        assertTrue(host.contains("currentDirectory = startInChooserQaFile.parent.toFile()"))
+        assertTrue(host.contains("DesktopEmbroideryFiles.open(selected)"))
+        assertTrue(host.contains("BROTHER_WINDOWS_CHOOSER_"))
+        assertTrue(yaml.contains("chooser-pes-viewer.png"))
+        assertTrue(yaml.contains("chooser-jef-viewer.png"))
     }
 }
