@@ -23,6 +23,30 @@ class DesktopFreehandProjectBundleTest {
     private val style = TextStitchStyle.RUNNING
 
     @Test
+    fun `cor RGB sobrevive ao salvamento e abertura do projeto desenhado`() {
+        val folder = Files.createTempDirectory("brother-draw-color-")
+        val flp = folder.resolve("cores.flp")
+        val aux = DesktopFreehandProjectBundle.companion(flp)
+        try {
+            val rgb = 0x2A9D8F
+            DesktopFreehandProjectBundle.saveNew(
+                strokes, 40f, style, hoop, flp, rgb
+            )
+            val opened = DesktopFreehandProjectBundle.open(flp)
+            assertEquals(rgb, opened.rgb)
+            assertEquals(rgb, opened.document.current.threadColors.first())
+            assertEquals(
+                DesktopProjectService.open(flp).current.threadColors,
+                opened.document.current.threadColors
+            )
+        } finally {
+            Files.deleteIfExists(aux)
+            Files.deleteIfExists(flp)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `recupera traços reais e FLP oficial sem modificar pontadas`() {
         val folder = Files.createTempDirectory("brother-draw-roundtrip-")
         val flp = folder.resolve("desenho.FLP")

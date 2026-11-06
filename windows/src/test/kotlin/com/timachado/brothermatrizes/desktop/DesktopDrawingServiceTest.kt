@@ -19,6 +19,18 @@ class DesktopDrawingServiceTest {
     ))
 
     @Test
+    fun `cor selecionada chega ao gerador de pontadas oficial`() {
+        val rgb = 0xE63946
+        val result = DesktopDrawingService.generate(
+            square, 40f, TextStitchStyle.RUNNING,
+            HoopProfile.H100X100, rgb
+        )
+        assertEquals(rgb, result.current.threadColors.first())
+        assertEquals(result.original.threadColors, result.current.threadColors)
+        assertTrue(result.current.stitchCount > 0)
+    }
+
+    @Test
     fun `traço livre gera matriz real pelo motor Android com END unico`() {
         val doc = DesktopDrawingService.generate(
             square, 40f, TextStitchStyle.RUNNING, HoopProfile.H100X100

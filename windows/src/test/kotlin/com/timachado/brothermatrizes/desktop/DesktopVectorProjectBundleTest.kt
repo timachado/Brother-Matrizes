@@ -34,6 +34,30 @@ class DesktopVectorProjectBundleTest {
     private val hoop = HoopProfile.H100X100
 
     @Test
+    fun `cor RGB sobrevive ao salvamento e abertura de caminhos SVG`() {
+        val folder = Files.createTempDirectory("brother-vector-color-")
+        val flp = folder.resolve("cores.flp")
+        val aux = DesktopVectorProjectBundle.companion(flp)
+        try {
+            val rgb = 0x457B9D
+            DesktopVectorProjectBundle.saveNew(
+                shape, 40f, style, hoop, flp, rgb
+            )
+            val opened = DesktopVectorProjectBundle.open(flp)
+            assertEquals(rgb, opened.rgb)
+            assertEquals(rgb, opened.document.current.threadColors.first())
+            assertEquals(
+                DesktopProjectService.open(flp).current.threadColors,
+                opened.document.current.threadColors
+            )
+        } finally {
+            Files.deleteIfExists(aux)
+            Files.deleteIfExists(flp)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun `roundtrip FLP oficial e vetores reeditaveis preserva caminhos e parametros`() {
         val root = Files.createTempDirectory("brother-vector-roundtrip-")
         val flp = root.resolve("vetores.FLP")
