@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,12 @@ import com.timachado.brothermatrizes.ui.theme.FioNavigationMuted
 import com.timachado.brothermatrizes.ui.theme.FioNavigationSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.awt.Rectangle
+import java.awt.Robot
+import java.io.File
+import javax.imageio.ImageIO
+import kotlin.system.exitProcess
 
 /**
  * Port inicial e isolado da Home, NÃO um produto funcional.
@@ -49,12 +56,54 @@ import kotlinx.coroutines.launch
  * sem modificar a hierarquia Compose. Somente o host e os adaptadores
  * de recursos são específicos do Windows.
  */
-fun main() = application {
+fun main(args: Array<String>) = application {
+    // Modo de QA fechado: apenas uma captura da janela do próprio aplicativo.
+    // Não aceita caminhos arbitrários de saída nem abre dados de clientes.
+    val screenshotMode = args.singleOrNull() == "--capture-home-qa"
+    require(args.isEmpty() || screenshotMode) {
+        "Argumentos inválidos. Somente --capture-home-qa é permitido."
+    }
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
-        state = WindowState(size = DpSize(1000.dp, 860.dp))
+        state = WindowState(
+            size = if (screenshotMode) DpSize(420.dp, 890.dp)
+                else DpSize(1000.dp, 860.dp)
+        )
     ) {
+        val composeWindow = window
+        LaunchedEffect(screenshotMode) {
+            if (screenshotMode) {
+                // Renderização estabilizada em Windows real do runner;
+                // não é captura simulada da Home Android.
+                delay(2_500L)
+                try {
+                    val container = composeWindow.contentPane
+                    val origin = container.locationOnScreen
+                    val bounds = Rectangle(
+                        origin.x, origin.y, container.width, container.height
+                    )
+                    check(bounds.width >= 320 && bounds.height >= 600) {
+                        "Janela Windows insuficiente para comparar Home."
+                    }
+                    val screenshot = Robot().createScreenCapture(bounds)
+                    val out = File("build/qa/home-windows-original-port.png")
+                    out.parentFile.mkdirs()
+                    check(ImageIO.write(screenshot, "png", out) &&
+                        out.length() > 10_000L) {
+                        "Captura do canvas Windows não foi gerada."
+                    }
+                    println(
+                        "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK " +
+                            "${bounds.width}x${bounds.height}"
+                    )
+                    exitProcess(0)
+                } catch (error: Exception) {
+                    System.err.println("BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_FAIL: ${error.message}")
+                    exitProcess(2)
+                }
+            }
+        }
         BrotherMatrizesTheme(darkTheme = true) {
             FielHomeHost()
         }
