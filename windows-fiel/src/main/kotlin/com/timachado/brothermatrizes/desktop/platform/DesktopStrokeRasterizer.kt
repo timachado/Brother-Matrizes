@@ -3,7 +3,7 @@ package com.timachado.brothermatrizes.desktop.platform
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Paint
 import org.jetbrains.skia.PaintMode
-import org.jetbrains.skia.PathBuilder
+import org.jetbrains.skia.Path
 import org.jetbrains.skia.PathFillMode
 import org.jetbrains.skia.Surface
 import kotlin.math.max
@@ -61,8 +61,9 @@ internal object DesktopStrokeRasterizer {
             width.toLong() * height.toLong() <= 1_500_000L) {
             "Máscara de fonte excedeu os limites de processamento seguro."
         }
-        val skiaPath = PathBuilder(PathFillMode.EVEN_ODD)
+        val skiaPath = Path()
         try {
+            skiaPath.fillMode = PathFillMode.EVEN_ODD
             paths.forEach { polygon ->
                 val first = polygon.first()
                 skiaPath.moveTo(
@@ -77,16 +78,14 @@ internal object DesktopStrokeRasterizer {
                 }
                 skiaPath.closePath()
             }
-            val immutablePath = skiaPath.detach()
+            val surface = Surface.makeRasterN32Premul(width, height)
             try {
-              val surface = Surface.makeRasterN32Premul(width, height)
-              try {
                 val paint = Paint()
                 try {
                     paint.isAntiAlias = true
                     paint.mode = PaintMode.FILL
                     paint.color = 0xFFFFFFFF.toInt()
-                    surface.canvas.drawPath(immutablePath, paint)
+                    surface.canvas.drawPath(skiaPath, paint)
                     val bitmap = Bitmap()
                     try {
                         require(bitmap.allocN32Pixels(width, height)) {
@@ -112,11 +111,8 @@ internal object DesktopStrokeRasterizer {
                 } finally {
                     paint.close()
                 }
-              } finally {
-                  surface.close()
-              }
             } finally {
-                immutablePath.close()
+                surface.close()
             }
         } finally {
             skiaPath.close()
