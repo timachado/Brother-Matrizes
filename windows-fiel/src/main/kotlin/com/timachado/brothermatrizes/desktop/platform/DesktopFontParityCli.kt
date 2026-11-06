@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop.platform
 
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.font.CleanRoomSatinEngine
 import java.nio.file.Files
@@ -25,6 +26,36 @@ fun main(args: Array<String>) {
     }
     val sha = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
+    // Probe de qualidade SOMENTE QA. A função de proteção comercial
+    // em com.timachado...font.ImportedFontCoverageGuard continua fechada.
+    val coverageGlyph = listOf(listOf(listOf(
+        DesktopContourPoint(0f, 0f),
+        DesktopContourPoint(120f, 0f),
+        DesktopContourPoint(120f, 80f),
+        DesktopContourPoint(0f, 80f)
+    )))
+    val coverageStitches = buildList {
+        for (y in 3..77 step 6) {
+            add(EmbroideryPoint(3, y, StitchCommand.JUMP, 0))
+            add(EmbroideryPoint(117, y, StitchCommand.STITCH, 0))
+        }
+    }
+    val coverage = DesktopCoverageGuardProbe.check(
+        coverageGlyph, coverageStitches
+    )
+    val blocked = runCatching {
+        DesktopCoverageGuardProbe.check(
+            coverageGlyph,
+            coverageStitches.map { it.copy(xUnits = it.xUnits + 300) }
+        )
+    }.isFailure
+    require(blocked) { "Probe falhou em rejeitar bordado deslocado." }
+    Files.createDirectories(output.parent)
+    Files.writeString(
+        output.resolveSibling("bm-parity-windows-coverage.tsv"),
+        "SCORE\t" + coverage.precision + "\t" + coverage.coverage +
+            "\nBLOCKED\t" + blocked + "\n"
+    )
     // Medir glifo isolado e palavra inteira. Os parâmetros e a TTF
     // são os mesmos dos casos produzidos no emulador Android.
     for (text in listOf("O", "Maria")) {
