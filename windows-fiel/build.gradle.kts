@@ -677,6 +677,149 @@ internal object DesktopStrokeFlowRows {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeRows)
 
 /**
+ * Emitter do stroke-flow Satin principal: extrai literalmente do Android
+ * as rotinas que emitem JUMP/TRIM/STITCH, center-run, underlay e cobertura.
+ * NÃO altera o motor comercial Android; teste isolado em JVM Windows.
+ */
+val generatedStrokeEmitter = layout.buildDirectory.dir("generated/stroke-emitter/kotlin")
+val copyAndroidStrokeEmitter by tasks.registering {
+    val originalFile = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+    )
+    inputs.file(originalFile)
+    outputs.dir(generatedStrokeEmitter)
+    doLast {
+        val source = originalFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val typesStart = source.indexOf("    private data class SkeletonPoint(")
+        val typesEnd = source.indexOf("    private fun buildStrokeFlowSatinText(", typesStart)
+        val emissionStart = source.indexOf("    private fun orientStrokeFlowRows(", typesEnd)
+        val emissionEnd = source.indexOf("    internal fun debugStrokeFlowPostOrder()", emissionStart)
+        val splitStart = source.indexOf("    private fun appendSplitStitch(", emissionEnd)
+        val splitEnd = source.indexOf("    private fun repairSatinSequence(", splitStart)
+        require(typesStart > 0 && typesEnd > typesStart &&
+            emissionStart > typesEnd && emissionEnd > emissionStart &&
+            splitStart > emissionEnd && splitEnd > splitStart) {
+            "Métodos de costura stroke-flow mudaram: revisar extração."
+        }
+        val types = source.substring(typesStart, typesEnd)
+        val emit = source.substring(emissionStart, emissionEnd)
+        val split = source.substring(splitStart, splitEnd)
+        require(emit.contains("private fun moveStrokeFlowTo(") &&
+            emit.contains("private fun emitStrokeFlowCenterRun(") &&
+            emit.contains("private fun emitStrokeFlowCoverage(") &&
+            emit.contains("private fun orientStrokeFlowRows(") &&
+            split.contains("private fun appendSplitStitch(") &&
+            !(emit + split).contains("android.graphics.") &&
+            !(emit + split).contains("Bitmap(") &&
+            !(emit + split).contains("Canvas(")) {
+            "Emissor oficial não é Kotlin puro seguro para Windows."
+        }
+        val wrapper = """
+package com.timachado.brothermatrizes.desktop.platform
+
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
+import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import kotlin.math.*
+
+/**
+ * Resultado real em pontos das fases CENTER_RUN / SATIN_RETURN.
+ * Alimentado por planejamento e rows oficiais. Não é release TTF/OTF.
+ */
+internal object DesktopStrokeFlowEmitter {
+    fun emit(
+        plan: List<DesktopStrokeFlowPlanStep>,
+        rowsBySegment: Map<Int, List<DesktopStrokeRow>>,
+        includeUnderlay: Boolean,
+        densityMm: Float
+    ): List<EmbroideryPoint> {
+        require(plan.isNotEmpty() && plan.size <= 512 && plan.size % 2 == 0) {
+            "Plano Satin inválido ou excessivo."
+        }
+        require(densityMm.isFinite() && densityMm in 0.3f..1.2f) {
+            "Densidade do motor Android fora do intervalo aprovado."
+        }
+        val normalized = mutableMapOf<Int, Pair<StrokeFlowSegment, List<StrokeFlowSatinRow>>>()
+        for (pair in plan.chunked(2)) {
+            val center = pair[0]
+            val satin = pair[1]
+            require(center.phase == "CENTER_RUN" && satin.phase == "SATIN_RETURN" &&
+                center.segmentId == satin.segmentId &&
+                center.from == satin.to && center.to == satin.from &&
+                center.geometry.size in 2..100_000) {
+                "Plano de fases não corresponde à ordem Android."
+            }
+            require(center.segmentId !in normalized) {
+                "Um segmento não pode ser costurado duas vezes."
+            }
+            val rows = checkNotNull(rowsBySegment[center.segmentId]) {
+                "Segmento sem colunas de cobertura Satin."
+            }
+            require(rows.size in 2..50_000) {
+                "Um segmento precisa de 2 ou mais linhas de cobertura."
+            }
+            require(rows.all {
+                kotlin.math.abs(it.centerXUnits) <= 1_000_000 &&
+                kotlin.math.abs(it.centerYUnits) <= 1_000_000 &&
+                kotlin.math.abs(it.aXUnits) <= 1_000_000 &&
+                kotlin.math.abs(it.aYUnits) <= 1_000_000 &&
+                kotlin.math.abs(it.bXUnits) <= 1_000_000 &&
+                kotlin.math.abs(it.bYUnits) <= 1_000_000
+            }) {
+                "Linhas de cobertura fora da área de trabalho."
+            }
+            fun nodeKey(node: DesktopSkeletonPoint): Long =
+                (node.x.toLong() shl 32) or (node.y.toLong() and 0xffffffffL)
+            val segment = StrokeFlowSegment(
+                id = center.segmentId,
+                points = center.geometry.map { SkeletonPoint(it.x, it.y) },
+                startNode = nodeKey(center.from),
+                endNode = nodeKey(center.to)
+            )
+            normalized[center.segmentId] = segment to rows.map {
+                StrokeFlowSatinRow(
+                    it.centerXUnits, it.centerYUnits,
+                    it.aXUnits, it.aYUnits, it.bXUnits, it.bYUnits
+                )
+            }
+        }
+        require(rowsBySegment.keys == normalized.keys) {
+            "Linhas de segmento não correspondem ao plano de costura."
+        }
+        val output = mutableListOf<EmbroideryPoint>()
+        val densityUnits = (densityMm * 10f).coerceIn(2.5f, 12f)
+        for (step in plan) {
+            val (segment, baseRows) = checkNotNull(normalized[step.segmentId])
+            val fromKey = (step.from.x.toLong() shl 32) or
+                (step.from.y.toLong() and 0xffffffffL)
+            val rows = orientStrokeFlowRows(segment, baseRows, fromKey)
+            when (step.phase) {
+                "CENTER_RUN" -> emitStrokeFlowCenterRun(
+                    output, rows, includeUnderlay, densityUnits
+                )
+                "SATIN_RETURN" -> emitStrokeFlowCoverage(output, rows)
+                else -> error("Fase desconhecida do algoritmo Android.")
+            }
+            require(output.size <= 100_000) {
+                "Número de pontadas excede o limite da QA."
+            }
+        }
+        require(output.any { it.command == StitchCommand.STITCH }) {
+            "O emissor não produziu pontadas de costura."
+        }
+        return output
+    }
+
+""" + types + emit + split + "\n}\n"
+        val target = generatedStrokeEmitter.get().file(
+            "com/timachado/brothermatrizes/desktop/platform/DesktopStrokeFlowEmitter.kt"
+        ).asFile
+        target.parentFile.mkdirs()
+        target.writeText(wrapper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeEmitter)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -756,7 +899,8 @@ tasks.named("compileKotlin") {
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
-        copyAndroidStrokePlanner, copyAndroidStrokeRows
+        copyAndroidStrokePlanner, copyAndroidStrokeRows,
+        copyAndroidStrokeEmitter
     )
 }
 
