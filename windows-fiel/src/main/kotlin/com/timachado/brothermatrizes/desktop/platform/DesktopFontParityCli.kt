@@ -1,5 +1,8 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.font.CleanRoomSatinEngine
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -53,6 +56,38 @@ fun main(args: Array<String>) {
             output.resolveSibling("bm-parity-windows-outline-maria.tsv")
         Files.createDirectories(target.parent)
         Files.writeString(target, lines.joinToString("\n", postfix = "\n"))
+        if (text == "O") {
+            // Testar o MESMO kernel Satin ativo do Android, sem abrir
+            // comercialmente o gerador que exige o guard de silhueta.
+            val plan = CleanRoomSatinEngine.planContours(
+                geometry.contoursByGlyph[0].map { contour ->
+                    contour.map { point ->
+                        CleanRoomSatinEngine.V(point.x, point.y)
+                    }
+                },
+                densityMm = .45f,
+                pullMm = .2f
+            )
+            require(plan.rails.isNotEmpty()) {
+                "A fonte O não criou trilhos Satin no Windows."
+            }
+            val stitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+                plan, SatinUnderlayMode.BOTH
+            )
+            require(stitches.count { it.command == StitchCommand.STITCH } > 20) {
+                "O motor Satin ativo não produziu pontadas Windows."
+            }
+            val stitchRows = mutableListOf("STITCHES\t" + stitches.size)
+            stitches.forEachIndexed { i, point ->
+                stitchRows += "P\t" + i + "\t" + point.xUnits +
+                    "\t" + point.yUnits + "\t" + point.command.name +
+                    "\t" + point.colorIndex
+            }
+            Files.writeString(
+                output.resolveSibling("bm-parity-windows-kernel-o.tsv"),
+                stitchRows.joinToString("\n", postfix = "\n")
+            )
+        }
         println("BM_FONT_PARITY_EXPORTED text=" + text + " sha256=" + sha +
             " contours=" + geometry.contourCount)
     }
