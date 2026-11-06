@@ -24,6 +24,15 @@ Data da auditoria: **06/11/2026**. PR **#226** permanece rascunho.
 - Preferências de exibição, fonte nativa e bastidor são isoladas em uma
   árvore privada `windows-fiel-qa` de `java.util.prefs`, sem tocar
   em dados do aplicativo Android ou cliente.
+- **Projeto FLP v11**: o `ProjectCodec` é extraído literalmente da
+  fonte Android. `DesktopFlpProjectFiles` abre/salva projetos FLP reais,
+  limita tamanho a 64 MB, valida integridade das pontadas e usa
+  `CREATE_NEW` para nunca sobrescrever outro projeto.
+- **Importação DST, PES e JEF**: o `EmbroideryLoader.loadBytes` e os
+  parsers originais Android são compilados no Windows, removendo somente
+  o método de acesso a URI Android. `DesktopEmbroideryFiles` valida
+  extensão, tamanho, entradas inválidas e links simbólicos. A ação
+  `Abrir matriz` da Home e do Viewer usa o seletor local Windows.
 
 ## Evidência de QA
 
@@ -34,9 +43,16 @@ Data da auditoria: **06/11/2026**. PR **#226** permanece rascunho.
   incluindo `create-name-windows-original-port.png` (404×641).
 - A captura demonstra prévia real de `Maria`, bastidor e contagem de
   pontadas, cinco abas originais e controles da aba `Texto`.
-- Captura equivalente **Android** está em instrumentação separada
-  (`BrotherCreateNameScreenshotTest`) e deve ser inspecionada antes
-  de declarar paridade visual da rota.
+- Captura equivalente **Android** foi executada. A primeira captura,
+  apesar da QA verde, estava inválida por um alerta **Pixel Launcher ANR**
+  sobre o aplicativo. Uma segunda captura removeu o alerta, mas ainda
+  mostrava **Atualizando prévia...**, sem pontadas prontas. O teste
+  `BrotherCreateNameScreenshotTest` agora exige primeiro plano Android
+  e botão **Criar matriz** habilitado antes de aceitar a imagem.
+- **QA Windows #42196408550**: compilação e testes dos formatos
+  FLP/PES/DST/JEF concluídos com sucesso; testes de equivalência da
+  fonte do codec e loader foram adicionados em revisão posterior e
+  aguardam sua própria QA.
 
 ## Bloqueios que NÃO podem ser ocultados
 
@@ -48,9 +64,11 @@ Data da auditoria: **06/11/2026**. PR **#226** permanece rascunho.
 2. A Biblioteca de Fontes, conta, Projetos, importação de matrizes e
    outras telas ainda não foram portadas; os callbacks exibem estado
    de pendência explícito e não gravam dados fictícios.
-3. Salvar projeto FLP, compartilhar, transferir e outras ações do
-   Viewer ainda precisam de adaptadores reais, com testes de arquivos
-   e dos direitos/licenciamento.
+3. **Salvar/abrir FLP foi implementado**. Compartilhar, transferir,
+   conta e outras ações do Viewer ainda precisam de adaptadores reais
+   e homologação de direitos/licenciamento. Os diálogos nativos
+   FLP/PES/DST/JEF foram compilados, porém ainda não foram testados
+   manualmente em PC físico.
 4. O fluxo visual **Criar Nome → Viewer → Simulador** compila e
    apresenta pontadas, mas ainda precisa de teste de mouse,
    teclado, salvamento por diálogo real e confirmação em PC físico.
