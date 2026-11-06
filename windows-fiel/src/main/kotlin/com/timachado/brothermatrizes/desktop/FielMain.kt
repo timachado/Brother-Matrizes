@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.awt.Rectangle
 import java.awt.Robot
+import java.awt.Toolkit
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
@@ -67,7 +68,7 @@ fun main(args: Array<String>) = application {
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
         state = WindowState(
-            size = if (screenshotMode) DpSize(420.dp, 890.dp)
+            size = if (screenshotMode) DpSize(420.dp, 680.dp)
                 else DpSize(1000.dp, 860.dp)
         )
     ) {
@@ -76,6 +77,9 @@ fun main(args: Array<String>) = application {
             if (screenshotMode) {
                 // Renderização estabilizada em Windows real do runner;
                 // não é captura simulada da Home Android.
+                // O runner Windows tem taskbar e resolução menor que o Android.
+                // A janela anterior de 890dp invadia a barra do sistema.
+                composeWindow.setLocation(20, 20)
                 delay(2_500L)
                 try {
                     val container = composeWindow.contentPane
@@ -83,8 +87,16 @@ fun main(args: Array<String>) = application {
                     val bounds = Rectangle(
                         origin.x, origin.y, container.width, container.height
                     )
-                    check(bounds.width >= 320 && bounds.height >= 600) {
-                        "Janela Windows insuficiente para comparar Home."
+                    val screen = Toolkit.getDefaultToolkit().screenSize
+                    check(
+                        bounds.width >= 320 && bounds.height >= 540 &&
+                            bounds.x >= 0 && bounds.y >= 0 &&
+                            bounds.x + bounds.width <= screen.width &&
+                            bounds.y + bounds.height <= screen.height - 42
+                    ) {
+                        "Janela QA fora da área segura do monitor: " +
+                            "$bounds, tela=${screen.width}x${screen.height}; " +
+                            "a taskbar não pode aparecer no PNG."
                     }
                     val screenshot = Robot().createScreenCapture(bounds)
                     val out = File("build/qa/home-windows-original-port.png")
