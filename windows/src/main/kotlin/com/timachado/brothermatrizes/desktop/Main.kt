@@ -1309,6 +1309,33 @@ private fun DesktopScreen(
                                 fontSize = 11.sp, color = muted
                             )
                             drawingSvgEditSession?.let { session ->
+                                DesktopSvgLayerPanel(
+                                    artwork = session.current,
+                                    selectedIndex = selectedSvgPath,
+                                    enabled = !busy,
+                                    onSelect = { selectedSvgPath = it },
+                                    onNudge = { dx, dy ->
+                                        val index = selectedSvgPath
+                                        if (index != null) {
+                                            runCatching {
+                                                DesktopSvgLayerNudge.move(
+                                                    session.current, index, dx, dy
+                                                )
+                                            }.onSuccess { moved ->
+                                                drawingSvgEditSession = session.record(moved)
+                                                report(
+                                                    "Caminho SVG ${index + 1} ajustado em memória. " +
+                                                        "Desfazer/Refazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Ajuste fino SVG recusado: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
                                 val selected = selectedSvgPath
                                 Text(
                                     if (selected != null)
