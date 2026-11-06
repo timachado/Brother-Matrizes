@@ -447,6 +447,25 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Escala, rotação e reabertura de caminhos SVG (QA)
+
+O inspetor **Desenhar → SVG** permite transformar apenas o caminho vetorial
+selecionado: escala incremental de **−10% / +10%** e rotação de **−15° / +15°**.
+O pivô é o centro da caixa geométrica desse caminho, calculado em precisão
+`Double`, independentemente do zoom do canvas. A transformação mantém a
+ordem e os outros caminhos intactos, passa por `DesktopSvgImport.validate`
+(incluindo limite de coordenadas ±1.000.000) e é inserida no histórico de
+Desfazer/Refazer existente. Operações inválidas são recusadas sem sobrescrever
+qualquer arquivo; trata-se de **geometria SVG**, não de uma rotação de motor
+físico ou de compensação de densidade do bordado.
+
+O teste `DesktopVectorTransformRoundtripTest` exercita a persistência de
+caminhos transformados, cor e pontadas por meio de **dois ciclos consecutivos**
+de novos pares FLP v11 + `.bmvector`, comprovando que os bytes do primeiro par
+não são alterados. A reedição vetorial só funciona com o auxiliar validado;
+um FLP isolado ainda abre como matriz sem seus objetos editáveis. O controle
+permanece QA, não homologado em bordadeira física ou PC de cliente.
+
 ## Inspetor de caminhos e microajuste SVG (QA)
 
 A área **Desenhar → SVG** agora inclui um navegador paginado de até oito
