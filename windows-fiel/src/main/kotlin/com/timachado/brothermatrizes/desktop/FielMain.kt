@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -33,11 +34,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.ConverterScreen
+import com.timachado.brothermatrizes.MonogramScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
 import com.timachado.brothermatrizes.SimulatorScreen
 import com.timachado.brothermatrizes.ViewerScreen
@@ -97,6 +100,16 @@ fun main(args: Array<String>) = application {
             }
         )
     ) {
+        // Menu desktop não modifica a hierarquia original Compose Android.
+        // Desabilitado durante capturas golden para manter a mesma viewport.
+        var monogramLaunchRequest by remember { mutableIntStateOf(0) }
+        if (!screenshotMode) {
+            MenuBar {
+                Menu("Criar") {
+                    Item("Monograma", onClick = { monogramLaunchRequest++ })
+                }
+            }
+        }
         val composeWindow = window
         LaunchedEffect(screenshotMode) {
             if (screenshotMode) {
@@ -166,7 +179,10 @@ fun main(args: Array<String>) = application {
             }
         }
         BrotherMatrizesTheme(darkTheme = true) {
-            FielHomeHost(startInCreate = createNameScreenshot)
+            FielHomeHost(
+                startInCreate = createNameScreenshot,
+                monogramLaunchRequest = monogramLaunchRequest
+            )
         }
     }
 }
@@ -182,14 +198,23 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM }
 
 @Composable
-private fun FielHomeHost(startInCreate: Boolean = false) {
+private fun FielHomeHost(
+    startInCreate: Boolean = false,
+    monogramLaunchRequest: Int = 0
+) {
     var area by remember {
         mutableStateOf(if (startInCreate) HomeArea.CREATE else HomeArea.HOME)
     }
     var detail by remember { mutableStateOf(ActiveDetail.NONE) }
+    LaunchedEffect(monogramLaunchRequest) {
+        if (monogramLaunchRequest > 0) {
+            area = HomeArea.CREATE
+            detail = ActiveDetail.MONOGRAM
+        }
+    }
     var activeDesign by remember { mutableStateOf<EmbroideryDesign?>(null) }
     var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
     var hoop by remember { mutableStateOf(HoopProfile.H100X100) }
@@ -375,6 +400,18 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                     onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
                     onPositionChange = { activeDesign = it }
                 )
+            } else if (detail == ActiveDetail.MONOGRAM) {
+                // MonogramScreen oficial do Android: mesmo formulário, preview,
+                // cores, estilos e motor de pontadas. Não imitar visualmente.
+                MonogramScreen(
+                    onBack = { detail = ActiveDetail.NONE; area = HomeArea.HOME },
+                    onCreate = { design ->
+                        openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER)
+                    },
+                    onSimulate = { design ->
+                        openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.SIMULATOR)
+                    }
+                )
             } else if (detail == ActiveDetail.CONVERTER && activeDesign != null) {
                 // Composable oficial Android; arquivos somente CREATE_NEW.
                 ConverterScreen(
@@ -407,12 +444,15 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
             } else if (area == HomeArea.HOME) {
                 // Fonte original HomeScreen.kt do Android, não uma recriação.
                 HomeScreen(
-                    recent = null,
+                    recent = activeDesign,
                     onCreateName = { openCreate() },
                     onFonts = { area = HomeArea.FONTS },
                     onTransfer = { informNotPorted("Enviar") },
                     onOpen = { openProject() },
-                    onRecent = { informNotPorted("Recente") },
+                    onRecent = {
+                        if (activeDesign != null) detail = ActiveDetail.VIEWER
+                        else informNotPorted("Recente")
+                    },
                     onSimulate = {
                         if (activeDesign != null) detail = ActiveDetail.SIMULATOR
                         else informNotPorted("Crie ou abra uma matriz primeiro")
@@ -424,7 +464,11 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                             snackbar.showSnackbar("Abra ou crie uma matriz antes de converter.")
                         }
                     },
-                    onClearRecent = { informNotPorted("Recentes") },
+                    onClearRecent = {
+                        // Apaga somente a referência de sessão, nunca arquivos.
+                        activeDesign = null
+                        scope.launch { snackbar.showSnackbar("Recente removido da sessão.") }
+                    },
                     onUnavailable = { text -> informNotPorted(text) },
                     onCommunity = { informNotPorted("Comunidade e novidades") }
                 )
