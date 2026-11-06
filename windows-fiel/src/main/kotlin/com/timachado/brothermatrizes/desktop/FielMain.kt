@@ -53,6 +53,7 @@ import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
+import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -64,6 +65,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.Toolkit
@@ -231,8 +234,61 @@ private fun FielHomeHost(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var catalog by remember { mutableStateOf<DesktopProjectCatalog.ScanResult?>(null) }
-    var favorites by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var recentProjectIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    val libraryStore = remember { DesktopLibraryActivityStore() }
+    val initialLibraryState = remember(libraryStore) {
+        runCatching { libraryStore.load() }
+    }
+    val initialData = initialLibraryState.getOrDefault(DesktopLibraryActivityStore.State())
+    var favorites by remember { mutableStateOf(initialData.favorites) }
+    var recentProjectIds by remember { mutableStateOf(initialData.recents) }
+    var selectedLibraryFolder by remember { mutableStateOf(initialData.selectedFolder) }
+    val libraryPersistenceLock = remember { Mutex() }
+
+    // Arquivo pequeno e versionado em %LOCALAPPDATA%; não é um backup
+    // de projetos e não altera nenhum FLP. Operações de disco fora da UI.
+    LaunchedEffect(favorites, recentProjectIds, selectedLibraryFolder) {
+        if (initialLibraryState.isSuccess) {
+            val snapshot = DesktopLibraryActivityStore.State(
+                favorites = favorites,
+                recents = recentProjectIds,
+                selectedFolder = selectedLibraryFolder
+            )
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    libraryPersistenceLock.withLock {
+                        libraryStore.save(snapshot)
+                    }
+                }
+            }.onFailure {
+                snackbar.showSnackbar(
+                    "Preferências locais não salvas: " + (it.message ?: "erro de acesso")
+                )
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (initialLibraryState.isFailure) {
+            snackbar.showSnackbar(
+                "Preferências da Biblioteca inválidas: proteção contra sobrescrita ativada."
+            )
+        } else {
+            val remembered = selectedLibraryFolder
+            if (remembered != null) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        DesktopProjectCatalog.scan(Path.of(remembered))
+                    }
+                }.onSuccess { scanned ->
+                    catalog = scanned
+                }.onFailure {
+                    snackbar.showSnackbar(
+                        "Reabra a pasta FLP da Biblioteca: " +
+                            (it.message ?: "pasta indisponível")
+                    )
+                }
+            }
+        }
+    }
 
     fun chooseLibraryFolder() {
         scope.launch {
@@ -246,8 +302,9 @@ private fun FielHomeHost(
                 withContext(Dispatchers.IO) { DesktopProjectCatalog.scan(selected) }
             }.fold(onSuccess = { scanned ->
                 catalog = scanned
-                favorites = favorites.intersect(scanned.pathById.keys)
-                recentProjectIds = recentProjectIds.filter { it in scanned.pathById }
+                // Manter favoritos/recentes de outras pastas, caso o usuário
+                // alterne entre bibliotecas FLP. Não apagar histórico externo.
+                selectedLibraryFolder = scanned.folder.toString()
                 area = HomeArea.LIBRARY
                 detail = ActiveDetail.NONE
                 snackbar.showSnackbar(
@@ -530,9 +587,6 @@ private fun FielHomeHost(
                     onToggleFavorite = { summary ->
                         favorites = if (summary.id in favorites)
                             favorites - summary.id else favorites + summary.id
-                        scope.launch {
-                            snackbar.showSnackbar("Favoritos mantidos somente nesta sessão de QA.")
-                        }
                     },
                     // Nunca excluir projeto sem fluxo homologado e confirmação.
                     onDelete = {
@@ -572,7 +626,10 @@ private fun FielHomeHost(
                     onClearRecent = {
                         // Apaga somente a referência de sessão, nunca arquivos.
                         activeDesign = null
-                        scope.launch { snackbar.showSnackbar("Recente removido da sessão.") }
+                        recentProjectIds = emptyList()
+                        scope.launch {
+                            snackbar.showSnackbar("Histórico de recentes limpo; arquivos preservados.")
+                        }
                     },
                     onUnavailable = { text -> informNotPorted(text) },
                     onCommunity = { informNotPorted("Comunidade e novidades") }
