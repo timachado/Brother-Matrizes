@@ -15,7 +15,7 @@ if grep -Eq 'FAILURES|INSTRUMENTATION_FAILED|INSTRUMENTATION_STATUS_CODE: -2' \
   echo 'Teste Android não aprovado: cancelar referência.' >&2
   exit 1
 fi
-for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-kernel-o.tsv bm-parity-android-coverage.tsv bm-parity-android-status.txt; do
+for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-kernel-o.tsv bm-parity-android-coverage.tsv bm-parity-android-coverage-real-o.tsv bm-parity-android-status.txt; do
   adb exec-out run-as com.timachado.brothermatrizes cat "files/$name" \
     > "windows-fiel/build/qa/font-parity/android/$name"
 done
@@ -48,5 +48,9 @@ assert len(coverage) == 2 and coverage[0].startswith("SCORE\t")
 assert coverage[1] == "BLOCKED\ttrue"
 for x in coverage[0].split("\t")[1:]:
     assert 0.0 <= float(x) <= 1.0
+real = (root / "bm-parity-android-coverage-real-o.tsv").read_text().strip()
+assert real == "BLOCKED" or (
+    real.startswith("PASS\t") and len(real.split("\t")) == 3
+)
 print("BM_ACTIVE_SATIN_ANDROID_FONT_GOLDEN_OK sha256=" + sha)
 PY
