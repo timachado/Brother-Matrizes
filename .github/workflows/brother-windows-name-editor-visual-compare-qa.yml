@@ -32,8 +32,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p qa-inputs/android qa-inputs/windows
-          # Run Android: golden do Editor aprovado; Home independente falhou.
-          gh run download 42281075067 -R "$GITHUB_REPOSITORY" \
+          # Referência Android corrigida: Surface FioBackground oficial.
+          # O golden antigo #42281075067 é inválido (fundo branco).
+          gh run download 42286949495 -R "$GITHUB_REPOSITORY" \
             -n brother-windows-fiel-REFERENCIA-ANDROID-NAME-EDITOR-1118 \
             -D qa-inputs/android
           # Run Windows: compilação e quatro capturas aprovadas.
@@ -41,6 +42,11 @@ jobs:
             -n brother-windows-fiel-HOME-RENDER-QA \
             -D qa-inputs/windows
           test -s qa-inputs/android/android-original-name-editor-1118.png
+          # O workflow Android pode falhar em Home sem invalidar o golden
+          # do Editor. Exigir explicitamente o job correto em 'success'.
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/42286949495/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name == "Golden Android Editor de Nomes 1.11.8 com matriz sintética") | .conclusion' \
+            | grep -qx success
           test -s qa-inputs/windows/name-editor-windows-original-port.png
           echo "BROTHER_EDITOR_FONTE_ANDROID_E_WINDOWS_PRESENTES"
       - name: Produzir painéis de inspeção e métricas sem falso selo de paridade

@@ -105,6 +105,20 @@ def compare(android_png: Path, windows_png: Path, out: Path) -> dict:
     android = read_image(android_png, android=True)
     windows = read_image(windows_png, android=False)
     am, wm = metrics(android), metrics(windows)
+    # O harness Android antigo criava uma janela branca sem Scaffold.
+    # Esse golden não corresponde ao FioBackground usado pelo app e pelo
+    # Desktop: recusar sem produzir relatórios visualmente enganosos.
+    edge = android.getpixel((4, android.height // 2))
+    if not (edge[0] <= 45 and edge[1] <= 70 and edge[2] <= 100):
+        raise ValueError(
+            "Golden Android inválido: borda sem o FioBackground azul-noite; "
+            "não utilizar a referência antiga de fundo branco."
+        )
+    if am["light_surface_ratio"] >= 0.70:
+        raise ValueError(
+            "Golden Android aparentemente branco: captura de QA não é "
+            "comparável à interface comercial."
+        )
     out.mkdir(parents=True, exist_ok=True)
 
     side_by_side(
@@ -126,7 +140,7 @@ def compare(android_png: Path, windows_png: Path, out: Path) -> dict:
     )
 
     stats = {
-        "status": "IMAGENS_REAIS_VALIDAS_REVISAO_VISUAL_PENDENTE",
+        "status": "GOLDEN_ANDROID_COM_FUNDO_OFICIAL_VALIDADO_REVISAO_VISUAL_PENDENTE",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "input": {
             "android": {"filename": android_png.name, **am},
@@ -138,6 +152,8 @@ def compare(android_png: Path, windows_png: Path, out: Path) -> dict:
                         "light_surface_ratio")
         },
         "fixture": "TM + Maria; parâmetros conferidos em teste Kotlin no repositório",
+        "android_background_edge_rgb": edge,
+        "android_dark_background_gate": "pass",
         "limitations": [
             "Resolução e densidade de pixels não são iguais nas duas plataformas.",
             "Cores normalizadas não provam fidelidade visual.",
