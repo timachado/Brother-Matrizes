@@ -113,28 +113,59 @@ fun main(args: Array<String>) = application {
     val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot || nameEditorApplyQa
     val openPesChooserQa = args.singleOrNull() == "--qa-open-chooser-pes"
     val openJefChooserQa = args.singleOrNull() == "--qa-open-chooser-jef"
-    val fileChooserQa = openPesChooserQa || openJefChooserQa
+    val openDstChooserQa = args.singleOrNull() == "--qa-open-chooser-dst"
+    val openFlpChooserQa = args.singleOrNull() == "--qa-open-chooser-flp"
+    val fileChooserQa =
+        openPesChooserQa || openJefChooserQa || openDstChooserQa || openFlpChooserQa
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture || fileChooserQa
     require(args.isEmpty() || screenshotMode) {
         "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
     }
-    val chooserQaFormat = if (openPesChooserQa) "PES" else if (openJefChooserQa) "JEF" else null
+    val chooserQaFormat = when {
+        openPesChooserQa -> "PES"
+        openJefChooserQa -> "JEF"
+        openDstChooserQa -> "DST"
+        openFlpChooserQa -> "FLP"
+        else -> null
+    }
     val chooserQaFile = chooserQaFormat?.let { format ->
-        val filename = "random1.${format.lowercase()}"
-        val source = Path.of("../app/src/test/resources/samples", filename)
-            .toAbsolutePath().normalize()
-        check(Files.isRegularFile(source) && !Files.isSymbolicLink(source)) {
-            "A referência Android do seletor não está disponível."
-        }
+        val sampleFromAndroid = format == "PES" || format == "JEF"
+        val filename = if (sampleFromAndroid) "random1.${format.lowercase()}"
+                       else "qa-matriz-original.${format.lowercase()}"
         val target = Path.of("build/qa/chooser-fixtures", filename)
             .toAbsolutePath().normalize()
         Files.createDirectories(target.parent)
-        // Só uma cópia de trabalho, nunca a matriz versionada/cliente.
-        Files.copy(source, target)
-        check(Files.readAllBytes(source).contentEquals(Files.readAllBytes(target)))
+        if (sampleFromAndroid) {
+            val source = Path.of("../app/src/test/resources/samples", filename)
+                .toAbsolutePath().normalize()
+            check(Files.isRegularFile(source) && !Files.isSymbolicLink(source)) {
+                "A referência Android do seletor não está disponível."
+            }
+            // Copiar os binários de referência: nenhum original ou cliente é alterado.
+            Files.copy(source, target)
+            check(Files.readAllBytes(source).contentEquals(Files.readAllBytes(target)))
+        } else {
+            // DST e FLP de QA são criados pelo motor/codec oficial com uma
+            // matriz sintética BM+Maria; não exigem dados reais do usuário.
+            val synthetic = syntheticNameEditorQaDesign()
+            if (format == "DST") {
+                val converted = MatrixConverter.convert(synthetic, "DST").getOrThrow()
+                Files.write(
+                    target, converted.bytes,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
+                )
+            } else {
+                DesktopFlpProjectFiles.saveNew(synthetic, target)
+            }
+            val reloaded = DesktopEmbroideryFiles.open(target)
+            check(reloaded.points.isNotEmpty() && reloaded.endFound) {
+                "A matriz sintética ${format} falhou antes do seletor."
+            }
+        }
         target
     }
+    val chooserQaInitialBytes = chooserQaFile?.let(Files::readAllBytes)
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
@@ -221,13 +252,19 @@ fun main(args: Array<String>) = application {
                         output.length() > 10_000L
                     ) { "Visualizador da matriz importada não foi capturado." }
                     check(
-                        Files.readAllBytes(checkNotNull(chooserQaFile)).contentEquals(
-                            Files.readAllBytes(Path.of(
-                                "../app/src/test/resources/samples",
-                                "random1.${format.lowercase()}"
-                            ))
-                        )
-                    ) { "A cópia de trabalho não preservou o arquivo original." }
+                        Files.readAllBytes(checkNotNull(chooserQaFile))
+                            .contentEquals(checkNotNull(chooserQaInitialBytes))
+                    ) { "O seletor alterou os bytes da cópia de trabalho." }
+                    if (format == "PES" || format == "JEF") {
+                        check(
+                            Files.readAllBytes(chooserQaFile).contentEquals(
+                                Files.readAllBytes(Path.of(
+                                    "../app/src/test/resources/samples",
+                                    "random1.${format.lowercase()}"
+                                ))
+                            )
+                        ) { "O arquivo Android de referência foi alterado." }
+                    }
                     println("BROTHER_WINDOWS_CHOOSER_${format}_VIEWER_OK")
                     exitProcess(0)
                 }
@@ -767,17 +804,28 @@ private fun FielHomeHost(
                 }.onSuccess { design ->
                     openDesign(design, displayMode, ActiveDetail.VIEWER)
                     if (startInChooserQaFile != null) {
-                        check(design.format.equals(
-                            startInChooserQaFile.fileName.toString().substringAfterLast('.'),
-                            ignoreCase = true
-                        ) && design.stitchCount > 0 && design.endFound) {
+                        val selectedExtension =
+                            startInChooserQaFile.fileName.toString().substringAfterLast('.')
+                                .lowercase()
+                        val expectedDesignFormat =
+                            if (selectedExtension == "flp") "DST"
+                            else selectedExtension.uppercase()
+                        check(design.format.equals(expectedDesignFormat, ignoreCase = true) &&
+                            design.stitchCount > 0 && design.endFound) {
                             "A matriz selecionada não foi interpretada corretamente."
                         }
+                        if (selectedExtension == "flp") {
+                            check(design.editableName?.options?.text == "Maria") {
+                                "O projeto FLP perdeu o nome original editável."
+                            }
+                        }
                         val marker = Path.of(
-                            "build/qa/chooser-${design.format.lowercase()}-opened.txt"
+                            "build/qa/chooser-${selectedExtension}-opened.txt"
                         )
                         Files.writeString(
-                            marker, "ABERTO_NO_VIEWER ${design.format} ${design.stitchCount}",
+                            marker,
+                            "ABERTO_NO_VIEWER ${selectedExtension.uppercase()} " +
+                                "${design.format} ${design.stitchCount}",
                             StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
                         )
                     }

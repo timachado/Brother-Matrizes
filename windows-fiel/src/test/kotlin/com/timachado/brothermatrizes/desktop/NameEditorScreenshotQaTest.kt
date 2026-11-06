@@ -101,5 +101,15 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("BROTHER_WINDOWS_CHOOSER_"))
         assertTrue(yaml.contains("chooser-pes-viewer.png"))
         assertTrue(yaml.contains("chooser-jef-viewer.png"))
+        assertTrue(host.contains("--qa-open-chooser-dst"))
+        assertTrue(host.contains("--qa-open-chooser-flp"))
+        assertTrue(host.contains("MatrixConverter.convert(synthetic, \"DST\")"))
+        assertTrue(host.contains("DesktopFlpProjectFiles.saveNew(synthetic, target)"))
+        assertTrue(host.contains("chooserQaInitialBytes"))
+        assertTrue(host.contains("selectedExtension == \"flp\""))
+        assertTrue(yaml.contains("--qa-open-chooser-dst"))
+        assertTrue(yaml.contains("--qa-open-chooser-flp"))
+        assertTrue(yaml.contains("chooser-dst-viewer.png"))
+        assertTrue(yaml.contains("chooser-flp-viewer.png"))
     }
 }
