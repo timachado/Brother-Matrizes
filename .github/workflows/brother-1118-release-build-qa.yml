@@ -26,8 +26,10 @@ jobs:
           set -euo pipefail
           grep -Eq '^ *versionCode = 195 *$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.8"' app/build.gradle.kts
-          test "$(jq -r .versionCode updates/stable.json)" = "194"
-          test "$(jq -r .versionName updates/stable.json)" = "1.11.7"
+          # The 1.11.8 release is already live. Validate the currently published
+          # baseline instead of the previously published 1.11.7 manifest.
+          test "$(jq -r .versionCode updates/stable.json)" = "195"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.8"
           bash scripts/pre_release_static_check.sh
       - uses: actions/setup-java@v4
         with:

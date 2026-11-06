@@ -335,7 +335,7 @@ object ImportedFontStore {
         val rawBase =
             file.nameWithoutExtension
 
-        val displayName =
+        val fallbackName =
             rawBase
                 .replace(
                     Regex("-[0-9a-fA-F]{10}$"),
@@ -347,6 +347,13 @@ object ImportedFontStore {
                 .ifBlank {
                     "Fonte importada"
                 }
+
+        // Prefer the actual TTF/OTF name, not the download/archive filename.
+        // Existing imports are corrected on the next library refresh; file IDs
+        // and the files used by Create Name remain unchanged.
+        val displayName =
+            OpenTypeFontNames.readDisplayName(file)
+                ?: fallbackName
 
         return ImportedFont(
             id = file.name,
