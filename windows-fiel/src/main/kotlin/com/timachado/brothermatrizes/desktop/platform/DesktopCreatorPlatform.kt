@@ -74,7 +74,10 @@ private fun validateKey(key: String) {
 /** Tipagem de fonte necessária apenas para compilar a tela Android sem enganar. */
 data class DesktopImportedFont(
     val id: String,
-    val displayName: String
+    val displayName: String,
+    // Metadado exigido pelo seletor Android ao distinguir nomes duplicados.
+    // Não concede acesso à fonte nem produz pontadas TTF/OTF.
+    val fileName: String = id
 )
 
 object ImportedFontStore {
