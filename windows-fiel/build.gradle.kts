@@ -34,7 +34,9 @@ val copyAndroidHome by tasks.registering {
     inputs.file(originalAndroidCode.file("HomeScreen.kt"))
     outputs.dir(generatedHome)
     doLast {
-        val source = originalAndroidCode.file("HomeScreen.kt").asFile.readText(Charsets.UTF_8)
+        // Windows checkout pode usar CRLF; normalizar só no diretório gerado.
+        val source = originalAndroidCode.file("HomeScreen.kt").asFile
+            .readText(Charsets.UTF_8).replace("\r\n", "\n")
         check(source.contains("fun HomeScreen(") &&
             source.contains("fun PremiumHeroCard()") &&
             source.contains("fun ExpressiveFeatureCard(")) {
