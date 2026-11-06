@@ -156,9 +156,21 @@ val syncOfficialSatin by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(officialSatinDir)
 
+// O criador de feedback é Kotlin/JVM puro e oficial no Android.
+// Reutiliza-se a mesma fonte sem duplicar contatos, enviar credenciais
+// ou alterar o aplicativo mobile.
+val officialFeedbackDir = layout.buildDirectory.dir("generated/official-feedback/kotlin")
+val syncOfficialFeedback by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/BrotherFeedbackDelivery.kt")
+    }
+    into(officialFeedbackDir)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(officialFeedbackDir)
+
 tasks.named("compileKotlin") {
     dependsOn(syncOfficialCore, extractOfficialProjectCodec,
-        extractImportedFontModel, syncOfficialSatin)
+        extractImportedFontModel, syncOfficialSatin, syncOfficialFeedback)
 }
 
 dependencies {
