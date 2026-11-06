@@ -213,13 +213,15 @@ private fun DesktopScreen(
     // A versão normal continua iniciando vazia. Somente o diagnóstico
     // autorizado injeta "QA", gerado localmente pelo motor oficial.
     var document by remember { mutableStateOf(initialDocument) }
+    // Sessão independente do Android e somente em RAM até fechar o app.
+    val accountAuth = remember { DesktopAccountAuth() }
     var workspace by remember { mutableStateOf(
         if (initialDrawingQa) DesktopWorkspace.DRAW else if (initialDocument == null)
             DesktopWorkspace.HOME else DesktopWorkspace.VIEWER
     ) }
     var editTimeline by remember { mutableStateOf<DesktopEditTimeline?>(null) }
     val preview = remember(document) { document?.let(DesktopMatrixService::preview) }
-    var message by remember { mutableStateOf("Versão Windows de homologação: sem acesso à conta ou arquivos em nuvem.") }
+    var message by remember { mutableStateOf("Windows QA: login opcional; licenciamento PRO e nuvem ainda bloqueados.") }
     var isError by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var scaleText by remember { mutableStateOf("1.00") }
@@ -778,6 +780,7 @@ private fun DesktopScreen(
                     } else if (workspace == DesktopWorkspace.ACCOUNT) {
                         DesktopAccountPanel(
                             enabled = !busy,
+                            auth = accountAuth,
                             onBack = { workspace = DesktopWorkspace.HOME },
                             onOpenExternal = { destination ->
                                 runCatching {
@@ -976,8 +979,8 @@ private fun DesktopScreen(
                             color = muted, fontSize = 12.sp)
                         Text("Ferramentas principais e atalhos estão na área central.",
                             color = muted, fontSize = 12.sp)
-                        Text("Login/assinatura no Windows, notificações da comunidade, " +
-                            "envio Wi-Fi direto e simulação completa permanecem pendentes.",
+                        Text("Aplicação de cotas e direitos PRO no Windows, notificações da " +
+                            "comunidade, envio Wi-Fi e simulação completa pendentes.",
                             color = muted, fontSize = 11.sp)
                         Text("Favoritos neste computador", color = cyan,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -2618,9 +2621,9 @@ private fun DesktopScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            "Sessão da conta: NÃO VINCULADA. " +
-                                "Nesta versão QA não existem login Supabase, " +
-                                "verificação de assinatura nem ativação PRO.",
+                            "A Conta aceita login Supabase por e-mail/senha, valida " +
+                                "identidade e direitos no servidor; " +
+                                "nenhuma operação PRO é liberada nesta QA.",
                             color = muted, fontSize = 11.sp
                         )
                         Text(
