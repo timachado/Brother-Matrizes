@@ -67,11 +67,12 @@ internal object DesktopCommunityLinks {
                 when (uri.host?.lowercase()) {
                     "chat.whatsapp.com" -> uri.toString() == OFFICIAL_GROUP
                     "timachado.ifree.page" -> uri.toString() == PRODUCT_PAGE
-                    "wa.me" -> uri.path ==
-                        "/${BrotherFeedbackDelivery.WHATSAPP_PHONE}" &&
-                        uri.rawQuery?.startsWith("text=") == true &&
-                        uri.rawQuery.length <= 12_000 &&
-                        !uri.rawQuery.contains('&')
+                    "wa.me" -> {
+                        val query = uri.rawQuery
+                        uri.path == "/${BrotherFeedbackDelivery.WHATSAPP_PHONE}" &&
+                            query != null && query.startsWith("text=") &&
+                            query.length <= 12_000 && !query.contains('&')
+                    }
                     else -> false
                 }
             }
@@ -94,9 +95,12 @@ internal object DesktopCommunityLinks {
             "O Windows não disponibilizou abertura de aplicativos externos."
         }
         val desktop = Desktop.getDesktop()
-        check(desktop.isSupported(Desktop.Action.BROWSE)) {
-            "Nenhum navegador/cliente externo foi encontrado."
+        val email = uri.scheme.equals("mailto", ignoreCase = true)
+        val action = if (email) Desktop.Action.MAIL else Desktop.Action.BROWSE
+        check(desktop.isSupported(action)) {
+            if (email) "Nenhum aplicativo de e-mail foi encontrado."
+            else "Nenhum navegador disponível para abrir o link."
         }
-        desktop.browse(uri)
+        if (email) desktop.mail(uri) else desktop.browse(uri)
     }
 }
