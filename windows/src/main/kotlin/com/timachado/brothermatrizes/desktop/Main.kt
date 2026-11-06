@@ -210,6 +210,8 @@ private fun DesktopScreen(
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
     var drawingStrokes by remember { mutableStateOf<List<List<VectorPoint>>>(emptyList()) }
+    var drawingFromSvg by remember { mutableStateOf(false) }
+    var drawingSvg by remember { mutableStateOf<DesktopImportedSvg?>(null) }
     var drawingWidthText by remember { mutableStateOf("60") }
     var drawingStyle by remember { mutableStateOf(TextStitchStyle.RUNNING) }
     var drawingHoop by remember { mutableStateOf(HoopProfile.H100X100) }
@@ -669,18 +671,31 @@ private fun DesktopScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     if (workspace == DesktopWorkspace.DRAW) {
-                        DesktopDrawingCanvas(
-                            strokes = drawingStrokes,
-                            enabled = !busy &&
-                                drawingStrokes.size < DesktopDrawingService.MAX_STROKES,
-                            onStrokeCommitted = { newStroke ->
-                                drawingStrokes = drawingStrokes + listOf(newStroke)
+                        if (drawingFromSvg) {
+                            val artwork = drawingSvg
+                            if (artwork != null) {
+                                DesktopSvgPreview(artwork = artwork.artwork)
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("Nenhum SVG carregado.", fontSize = 18.sp)
+                                    Text("Escolha Importar SVG no painel lateral.", color = muted)
+                                }
                             }
-                        )
+                        } else {
+                            DesktopDrawingCanvas(
+                                strokes = drawingStrokes,
+                                enabled = !busy &&
+                                    drawingStrokes.size < DesktopDrawingService.MAX_STROKES,
+                                onStrokeCommitted = { newStroke ->
+                                    drawingStrokes = drawingStrokes + listOf(newStroke)
+                                }
+                            )
+                        }
                     } else if (workspace == DesktopWorkspace.HOME) {
                         DesktopHomeLanding(
                             enabled = !busy,
                             onCreateName = { workspace = DesktopWorkspace.NAME },
+                            onDraw = { workspace = DesktopWorkspace.DRAW },
                             onOpenMatrix = { chooseMatrixFile() },
                             onFonts = { workspace = DesktopWorkspace.FONT },
                             onMonogram = { workspace = DesktopWorkspace.MONOGRAM },
@@ -916,26 +931,77 @@ private fun DesktopScreen(
                     if (workspace == DesktopWorkspace.DRAW) {
                         Text("Desenhar — QA", color = cyan, fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Desenhe livremente na área à esquerda. " +
-                                "Ao gerar, o motor vetorial oficial Android " +
-                                "converte os traços em pontos reais de bordado.",
-                            color = muted, fontSize = 11.sp
-                        )
-                        Text(
-                            "${drawingStrokes.size}/${DesktopDrawingService.MAX_STROKES} traços. " +
-                                "Não sobrescreve arquivos.",
-                            color = muted, fontSize = 11.sp
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(
-                                enabled = !busy && drawingStrokes.isNotEmpty(),
-                                onClick = { drawingStrokes = drawingStrokes.dropLast(1) }
-                            ) { Text("Desfazer traço") }
-                            TextButton(
-                                enabled = !busy && drawingStrokes.isNotEmpty(),
-                                onClick = { drawingStrokes = emptyList() }
-                            ) { Text("Limpar") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TextButton(enabled = !busy, onClick = {
+                                drawingFromSvg = false
+                            }) { Text(if (!drawingFromSvg) "● Desenho livre" else "Desenho livre") }
+                            TextButton(enabled = !busy, onClick = {
+                                drawingFromSvg = true
+                            }) { Text(if (drawingFromSvg) "● SVG" else "SVG") }
+                        }
+                        if (drawingFromSvg) {
+                            Text(
+                                "SVG local de formas vetoriais; não executa scripts " +
+                                    "nem carrega imagens ou URLs externas.",
+                                color = muted, fontSize = 11.sp
+                            )
+                            Button(enabled = !busy, onClick = {
+                                val chooser = JFileChooser().apply {
+                                    dialogTitle = "Importar desenho SVG local (QA)"
+                                    fileFilter = FileNameExtensionFilter(
+                                        "Desenhos vetoriais (*.svg)", "svg"
+                                    )
+                                    isAcceptAllFileFilterUsed = false
+                                }
+                                if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                    val file = chooser.selectedFile.toPath()
+                                    busy = true
+                                    scope.launch {
+                                        val loaded = withContext(Dispatchers.IO) {
+                                            runCatching { DesktopSvgImport.open(file) }
+                                        }
+                                        busy = false
+                                        loaded.onSuccess {
+                                            drawingSvg = it
+                                            report(
+                                                "SVG validado: ${it.sourceName} · " +
+                                                    "${it.artwork.paths.size} caminhos. " +
+                                                    "Gere uma matriz após conferir a prévia."
+                                            )
+                                        }.onFailure {
+                                            drawingSvg = null
+                                            report("SVG recusado: ${it.message}", true)
+                                        }
+                                    }
+                                }
+                            }) { Text("Importar SVG") }
+                            Text(
+                                drawingSvg?.let {
+                                    "${it.sourceName} · ${it.artwork.paths.size} caminhos"
+                                } ?: "Nenhum SVG selecionado.",
+                                fontSize = 11.sp, color = muted
+                            )
+                        } else {
+                            Text(
+                                "Desenhe com mouse à esquerda. O motor oficial " +
+                                    "converte os traços em pontadas.",
+                                color = muted, fontSize = 11.sp
+                            )
+                            Text(
+                                "${drawingStrokes.size}/${DesktopDrawingService.MAX_STROKES} " +
+                                    "traços. Originais preservados.",
+                                color = muted, fontSize = 11.sp
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(
+                                    enabled = !busy && drawingStrokes.isNotEmpty(),
+                                    onClick = { drawingStrokes = drawingStrokes.dropLast(1) }
+                                ) { Text("Desfazer traço") }
+                                TextButton(
+                                    enabled = !busy && drawingStrokes.isNotEmpty(),
+                                    onClick = { drawingStrokes = emptyList() }
+                                ) { Text("Limpar") }
+                            }
                         }
                         OutlinedTextField(
                             value = drawingWidthText,
@@ -964,23 +1030,36 @@ private fun DesktopScreen(
                             }
                         }
                         Button(
-                            enabled = !busy && drawingStrokes.isNotEmpty(),
+                            enabled = !busy &&
+                                (if (drawingFromSvg) drawingSvg != null
+                                 else drawingStrokes.isNotEmpty()),
                             onClick = {
                                 val width = drawingWidthText.trim()
                                     .replace(',', '.').toFloatOrNull() ?: Float.NaN
                                 val input = drawingStrokes
+                                val svg = drawingSvg
+                                val usingSvg = drawingFromSvg
                                 val style = drawingStyle
                                 val hoop = drawingHoop
                                 busy = true
                                 scope.launch {
                                     val made = withContext(Dispatchers.Default) {
                                         runCatching {
-                                            DesktopDrawingService.generate(
-                                                strokes = input,
-                                                widthMm = width,
-                                                style = style,
-                                                hoop = hoop
-                                            )
+                                            if (usingSvg) {
+                                                DesktopDrawingService.generateSvg(
+                                                    imported = requireNotNull(svg),
+                                                    widthMm = width,
+                                                    style = style,
+                                                    hoop = hoop
+                                                )
+                                            } else {
+                                                DesktopDrawingService.generate(
+                                                    strokes = input,
+                                                    widthMm = width,
+                                                    style = style,
+                                                    hoop = hoop
+                                                )
+                                            }
                                         }
                                     }
                                     busy = false
@@ -1008,9 +1087,9 @@ private fun DesktopScreen(
                             Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
                         }
                         Text(
-                            "QA: desenho livre e geração local. Importação SVG, " +
-                                "histórico de traços completo e paridade da tela " +
-                                "Android ainda pendentes.",
+                            "QA: desenho livre e importação SVG vetorial local. " +
+                                "Não há persistência de traços, edição SVG por objeto " +
+                                "nem paridade integral com a tela Android.",
                             color = muted, fontSize = 11.sp
                         )
                     }

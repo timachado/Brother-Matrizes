@@ -21,6 +21,47 @@ internal object DesktopDrawingService {
     const val MAX_TOTAL_POINTS = 6_000
     const val MAX_STITCH_COMMANDS = 200_000
 
+    fun generateSvg(
+        imported: DesktopImportedSvg,
+        widthMm: Float,
+        style: TextStitchStyle,
+        hoop: HoopProfile,
+        rgb: Int = 0xE6BE70
+    ): DesktopMatrixDocument {
+        DesktopSvgImport.validate(imported.artwork)
+        return generateArtwork(imported.artwork, widthMm, style, hoop, rgb)
+    }
+
+    private fun generateArtwork(
+        artwork: VectorArtwork,
+        widthMm: Float,
+        style: TextStitchStyle,
+        hoop: HoopProfile,
+        rgb: Int
+    ): DesktopMatrixDocument {
+        require(widthMm.isFinite() && widthMm in 5f..240f) {
+            "Largura do desenho: informe de 5 a 240 mm."
+        }
+        require(rgb in 0..0xFFFFFF) { "Cor RGB inválida." }
+        val rendered = VectorMatrixGenerator.generate(
+            artwork,
+            VectorMatrixOptions(
+                widthMm = widthMm, stitchStyle = style, color = rgb,
+                outputFormat = "DST", hoopProfile = hoop, enforceHoop = true
+            )
+        ).getOrThrow()
+        require(rendered.points.size <= MAX_STITCH_COMMANDS) {
+            "Desenho gerou pontadas demais para esta versão QA."
+        }
+        val design = EmbroideryIntegrity.normalize(rendered).getOrThrow().design
+        require(design.endFound && design.stitchCount > 0 &&
+            design.bounds.widthMm <= hoop.usableWidthMm &&
+            design.bounds.heightMm <= hoop.usableHeightMm) {
+            "Desenho não passou na verificação de integridade ou bastidor."
+        }
+        return DesktopMatrixDocument(original = design, current = design)
+    }
+
     fun generate(
         strokes: List<List<VectorPoint>>,
         widthMm: Float,
@@ -63,28 +104,6 @@ internal object DesktopDrawingService {
             label = "Desenho livre",
             paths = strokes.map { VectorPath(it) }
         )
-        // A mesma engine e as mesmas opções base do Android comercial.
-        // Restringir tamanho e encaixe antes de aceitar projeto Windows.
-        val rendered = VectorMatrixGenerator.generate(
-            artwork,
-            VectorMatrixOptions(
-                widthMm = widthMm,
-                stitchStyle = style,
-                color = rgb,
-                outputFormat = "DST",
-                hoopProfile = hoop,
-                enforceHoop = true
-            )
-        ).getOrThrow()
-        require(rendered.points.size <= MAX_STITCH_COMMANDS) {
-            "Desenho gerou pontadas demais para esta versão QA."
-        }
-        val design = EmbroideryIntegrity.normalize(rendered).getOrThrow().design
-        require(design.endFound && design.stitchCount > 0 &&
-            design.bounds.widthMm <= hoop.usableWidthMm &&
-            design.bounds.heightMm <= hoop.usableHeightMm) {
-            "Desenho não passou na verificação de integridade ou bastidor."
-        }
-        return DesktopMatrixDocument(original = design, current = design)
+        return generateArtwork(artwork, widthMm, style, hoop, rgb)
     }
 }

@@ -386,3 +386,15 @@ Os limites de pontos, geometria e bastidor são verificados antes de
 aceitar a matriz. Nenhum arquivo do usuário é sobrescrito. Esta primeira
 etapa ainda não inclui importação SVG nem paridade completa com a tela
 Android. Testes físicos de costura permanecem obrigatórios.
+
+## SVG no módulo Desenhar (QA)
+
+Importação seletiva e local de arquivos **.svg** até 2 MB, usando o
+parser `SimpleSvgParser` do Android compartilhado no build Windows.
+Bloqueia arquivos ativos ou com referências externas (script, imagem,
+DTD/entidade, evento e href), valida quantidades e dimensões, apresenta
+prévia em canvas nativo Compose, sem executar SVG, e permite
+gerar matriz **nova** com o gerador de pontos oficial. Limita-se ao
+subconjunto de formas suportadas pelo parser Android; não abre
+imagens raster dentro de SVG, não faz download de recursos e não
+sobrescreve o arquivo original.

@@ -28,7 +28,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
-| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre com mouse, largura, estilo, bastidor e geração pelo motor vetorial oficial Android; importação SVG e paridade total pendentes |
+| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre, SVG vetorial local com prévia segura, largura, estilo e bastidor pelo motor oficial Android; objetos e paridade total pendentes |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
@@ -242,3 +242,23 @@ das pontadas na tela Desenhar, persistência de traços como objetos,
 histórico de desenho independente e equivalência visual integral.
 A opção Satin requer validação de bordadeira real. Não distribuir
 comercialmente antes de CI e homologação.
+
+## Importação SVG vetorial local (QA)
+
+A área Desenhar agora possui modos independentes **Desenho livre** e
+**SVG**, importador local com limite de 2 MB (sem links simbólicos)
+e guarda contra DTD/entidades, scripts, imagens externas, eventos e
+referências `href`. O arquivo é aceito apenas após passagem pelo
+`SimpleSvgParser` oficial do Android e verificação de geometria:
+até 96 caminhos, 800 pontos por caminho e 6.000 no total, finitos,
+dentro dos limites dimensionais definidos. A prévia desenha somente
+linhas convertidas em dados vetoriais; não executa conteúdo XML,
+scripts, imagens ou recursos externos.
+
+A operação **Gerar nova matriz de bordado** usa o mesmo
+`VectorMatrixGenerator`, `HoopValidator` e verificador de
+integridade do Android. O SVG original jamais é gravado ou modificado.
+Os dois modos preservam sua entrada ao alternar; falha de importação
+descarta apenas o SVG inválido. Ainda faltam edição por objeto vetorial,
+salvar desenho-fonte editável, opções completas do Android e testes de
+bordado físico. Testar CI e PC real antes de distribuir.

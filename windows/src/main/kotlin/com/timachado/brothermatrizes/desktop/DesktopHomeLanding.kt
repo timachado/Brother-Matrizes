@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 internal fun DesktopHomeLanding(
     enabled: Boolean,
     onCreateName: () -> Unit,
+    onDraw: () -> Unit,
     onOpenMatrix: () -> Unit,
     onFonts: () -> Unit,
     onMonogram: () -> Unit,
@@ -85,6 +86,11 @@ internal fun DesktopHomeLanding(
                 ) { Text("Abrir matriz DST / PES / JEF") }
             }
         }
+        TextButton(
+            enabled = enabled,
+            onClick = onDraw,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Desenhar / importar SVG") }
         Text(
             "Ferramentas", color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleLarge
