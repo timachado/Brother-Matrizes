@@ -37,7 +37,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Parcial** — grupo oficial, notas no site e feedback por WhatsApp/e-mail após clique; push Firebase, diagnóstico FCM e demais fluxos Android pendentes |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Parcial** — validação oficial de formato/bastidor e arquivo novo escolhido para USB/pasta com SHA-256; Wi-Fi, envio direto e testes na máquina pendentes |
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
-| `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — sequência manual sem simulação completa |
+| `Simulator` / `SimulatorScreen` | Fluxos, modos e reprocessamento equivalentes ao Android | **Parcial** — aba Simulador com reprodução visual em memória, pausa, reinício, passos de ±1 comando e ritmos ilustrativos; não simula velocidade física, costura ou máquina real |
 | `Converter` / `ConverterScreen` | Formatos, exportação, compartilhamento e verificações equivalentes | **Parcial** — conversão local DST/PES/JEF |
 | `NameEditor` / `NameEditorScreen` | Editor de nomes, objetos, controles e histórico | **Parcial** — letras separadas, seleção e arrasto individual pelo mouse em composição com camadas verificadas (QA) |
 | `Editor` / `EditorScreen` | Editor completo: ferramentas, propriedades, camadas e acabamento | **Parcial** — transformações, cores, Desfazer/Refazer, atalhos de teclado e arrasto da matriz inteira em memória (QA) |
@@ -68,7 +68,7 @@ mesmo recurso gráfico dentro de todas as telas ainda será auditada.
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
-em onze áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
+em doze áreas: **Início, Visualizar, Simulador, Criar nome, Desenhar, Monogramas, Fontes,
 Editor, Biblioteca, Transferir, Comunidade e Conta**. A prévia técnica permanece visível à esquerda,
 enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
