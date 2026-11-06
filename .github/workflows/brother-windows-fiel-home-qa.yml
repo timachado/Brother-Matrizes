@@ -62,17 +62,19 @@ jobs:
           gradle -p windows-fiel run --args="--capture-home-qa" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--capture-home-wide-qa" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--capture-create-name-qa" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--capture-name-editor-qa" --no-daemon --stacktrace
           foreach ($photo in @(
             "windows-fiel/build/qa/home-windows-original-port.png",
             "windows-fiel/build/qa/home-windows-wide-original-port.png",
-            "windows-fiel/build/qa/create-name-windows-original-port.png"
+            "windows-fiel/build/qa/create-name-windows-original-port.png",
+            "windows-fiel/build/qa/name-editor-windows-original-port.png"
           )) {
             if (!(Test-Path $photo)) { throw "Captura Windows ausente: $photo" }
             if ((Get-Item $photo).Length -lt 10000) {
               throw "Captura Windows muito pequena: $photo"
             }
           }
-          "BROTHER_WINDOWS_FIEL_HOME_AND_CREATE_NAME_CAPTURED"
+          "BROTHER_WINDOWS_FIEL_HOME_CREATE_NAME_AND_NAME_EDITOR_CAPTURED"
       - name: Disponibilizar captura para comparação com Home Android
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,6 +84,7 @@ jobs:
             windows-fiel/build/qa/home-windows-original-port.png
             windows-fiel/build/qa/home-windows-wide-original-port.png
             windows-fiel/build/qa/create-name-windows-original-port.png
+            windows-fiel/build/qa/name-editor-windows-original-port.png
           if-no-files-found: warn
           retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home

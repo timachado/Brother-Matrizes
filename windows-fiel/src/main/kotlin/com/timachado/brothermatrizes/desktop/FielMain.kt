@@ -50,6 +50,12 @@ import com.timachado.brothermatrizes.ViewerScreen
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
+import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
+import com.timachado.brothermatrizes.core.embroidery.TextLayoutGenerator
+import com.timachado.brothermatrizes.core.embroidery.TextLayoutOptions
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
@@ -93,7 +99,9 @@ fun main(args: Array<String>) = application {
     val compactScreenshot = args.singleOrNull() == "--capture-home-qa"
     val wideScreenshot = args.singleOrNull() == "--capture-home-wide-qa"
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
-    val screenshotMode = compactScreenshot || wideScreenshot || createNameScreenshot
+    val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
+    val screenshotMode =
+        compactScreenshot || wideScreenshot || createNameScreenshot || nameEditorScreenshot
     require(args.isEmpty() || screenshotMode) {
         "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
     }
@@ -104,6 +112,7 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
+                nameEditorScreenshot -> DpSize(920.dp, 720.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -130,7 +139,13 @@ fun main(args: Array<String>) = application {
                 // O runner Windows tem taskbar e resolução menor que o Android.
                 // A janela anterior de 890dp invadia a barra do sistema.
                 composeWindow.setLocation(20, 20)
-                delay(if (createNameScreenshot) 5_000L else 2_500L)
+                delay(
+                    when {
+                        nameEditorScreenshot -> 11_000L
+                        createNameScreenshot -> 5_000L
+                        else -> 2_500L
+                    }
+                )
                 try {
                     val container = composeWindow.contentPane
                     val origin = container.locationOnScreen
@@ -163,13 +178,33 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    check(correctNav >= sampleX.size * 0.70) {
-                        "Captura rejeitada: navegação Android não está " +
-                            "visível no rodapé do Windows (amostras=$correctNav/" +
-                            "${sampleX.size})."
+                    if (nameEditorScreenshot) {
+                        // Editor usa tela cheia e não possui barra inferior.
+                        // Exigir uma composição real rica em pixels, impedindo
+                        // upload silencioso de janela vazia ou da área de trabalho.
+                        val rgbColors = buildSet {
+                            for (y in 19 until screenshot.height - 19 step 19) {
+                                for (x in 19 until screenshot.width - 19 step 19) {
+                                    add(screenshot.getRGB(x, y) and 0xFFFFFF)
+                                }
+                            }
+                        }
+                        check(bounds.width >= 700 && bounds.height >= 600 &&
+                            rgbColors.size >= 18
+                        ) {
+                            "Editor de Nomes não renderizado corretamente no Windows " +
+                                "(cores distintas=${rgbColors.size}, área=$bounds)."
+                        }
+                    } else {
+                        check(correctNav >= sampleX.size * 0.70) {
+                            "Captura rejeitada: navegação Android não está " +
+                                "visível no rodapé do Windows (amostras=$correctNav/" +
+                                "${sampleX.size})."
+                        }
                     }
                     val filename = when {
                         createNameScreenshot -> "create-name-windows-original-port.png"
+                        nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
                         else -> "home-windows-original-port.png"
                     }
@@ -180,7 +215,9 @@ fun main(args: Array<String>) = application {
                         "Captura do canvas Windows não foi gerada."
                     }
                     println(
-                        "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK " +
+                        (if (nameEditorScreenshot)
+                            "BROTHER_WINDOWS_NAME_EDITOR_SCREENSHOT_OK "
+                        else "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK ") +
                             "${bounds.width}x${bounds.height}"
                     )
                     exitProcess(0)
@@ -193,6 +230,7 @@ fun main(args: Array<String>) = application {
         BrotherMatrizesTheme(darkTheme = true) {
             FielHomeHost(
                 startInCreate = createNameScreenshot,
+                startInNameEditorQa = nameEditorScreenshot,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -213,23 +251,67 @@ private enum class HomeArea(
 
 private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR }
 
+/**
+ * Matriz sintética SEM dados de cliente para teste visual específico.
+ * Usa o mesmo gerador Android que a QA unitária; nenhum arquivo é aberto,
+ * enviado, exportado ou salvo. A camada personalizada faz o autoajuste
+ * inicial do Editor começar no mesmo estado que um projeto já editável.
+ */
+private fun syntheticNameEditorQaDesign(): EmbroideryDesign {
+    val base = TextLayoutGenerator.generate(
+        TextLayoutOptions(
+            textOptions = TextMatrixOptions(
+                text = "TM",
+                heightMm = 12f,
+                style = TextStitchStyle.RUNNING,
+                outputFormat = "DST",
+                hoopProfile = null,
+                enforceHoop = false
+            )
+        )
+    ).getOrThrow()
+    return NamePersonalization.add(
+        original = base.copy(hoopProfile = null),
+        options = TextMatrixOptions(
+            text = "Maria",
+            heightMm = 8f,
+            style = TextStitchStyle.SATIN,
+            outputFormat = "DST",
+            hoopProfile = null,
+            enforceHoop = false
+        ),
+        centerXUnits = 0,
+        centerYUnits = 0,
+        compositionMode = NameCompositionMode.MONOGRAM_OVERLAY
+    ).getOrThrow()
+}
+
 @Composable
 private fun FielHomeHost(
     startInCreate: Boolean = false,
+    startInNameEditorQa: Boolean = false,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
     var area by remember {
         mutableStateOf(if (startInCreate) HomeArea.CREATE else HomeArea.HOME)
     }
-    var detail by remember { mutableStateOf(ActiveDetail.NONE) }
+    var detail by remember {
+        mutableStateOf(
+            if (startInNameEditorQa) ActiveDetail.NAME_EDITOR else ActiveDetail.NONE
+        )
+    }
     LaunchedEffect(monogramLaunchRequest) {
         if (monogramLaunchRequest > 0) {
             area = HomeArea.CREATE
             detail = ActiveDetail.MONOGRAM
         }
     }
-    var activeDesign by remember { mutableStateOf<EmbroideryDesign?>(null) }
+    var activeDesign by remember {
+        mutableStateOf(
+            if (startInNameEditorQa) syntheticNameEditorQaDesign() else null
+        )
+    }
     var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
     var hoop by remember { mutableStateOf(HoopProfile.H100X100) }
     var showConnections by remember { mutableStateOf(false) }
