@@ -77,6 +77,72 @@ val copyAndroidHome by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedHome)
 
+// Criar Nome: portar a hierarquia e controles Compose DIRETAMENTE do APK
+// Android 1.11.8; adaptar apenas LocalContext (preferências Windows)
+// e as fontes TTF/OTF Android ainda indisponíveis no desktop.
+// Nenhuma implementação anterior da tela Windows pode entrar aqui.
+val generatedCreator = layout.buildDirectory.dir("generated/android-create-name/kotlin")
+val copyAndroidCreateName by tasks.registering {
+    inputs.file(originalAndroidCode.file("CreateNameScreen.kt"))
+    outputs.dir(generatedCreator)
+    doLast {
+        val source = originalAndroidCode.file("CreateNameScreen.kt").asFile
+            .readText(Charsets.UTF_8).replace("\r\n", "\n")
+        check(
+            source.contains("fun CreateNameScreen(") &&
+            source.contains("TextLayoutGenerator") &&
+            source.contains("fun generateAt(") &&
+            source.contains("\"Criar matriz\"") &&
+            source.contains("\"▶ Simular\"") &&
+            source.contains("EmbroideryCanvas(")
+        ) { "A tela oficial Criar Nome mudou: revisar contrato e bloquear QA." }
+        val desktop = source
+            .replace(
+                "import android.content.Context",
+                "import com.timachado.brothermatrizes.desktop.platform.Context"
+            )
+            .replace(
+                "import androidx.compose.ui.platform.LocalContext",
+                "import com.timachado.brothermatrizes.desktop.platform.LocalContext"
+            )
+            .replace(
+                "import com.timachado.brothermatrizes.font.ImportedFontMatrixGenerator",
+                "import com.timachado.brothermatrizes.desktop.platform.ImportedFontMatrixGenerator"
+            )
+            .replace(
+                "import com.timachado.brothermatrizes.font.ImportedFontStore",
+                "import com.timachado.brothermatrizes.desktop.platform.ImportedFontStore"
+            )
+        check(
+            !desktop.contains("import android.") &&
+            !desktop.contains("import androidx.compose.ui.platform.LocalContext") &&
+            !desktop.contains("import com.timachado.brothermatrizes.font.")
+        ) { "Dependência Android não adaptada no Criar Nome." }
+        val out = generatedCreator.get().file(
+            "com/timachado/brothermatrizes/CreateNameScreen.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedCreator)
+
+// Preview, Viewer e Simulador: importar os composables originais, inclusive
+// controles reais; adaptadores de plataforma ficam fora dos fontes copiados.
+val generatedViewer = layout.buildDirectory.dir("generated/android-viewer/kotlin")
+val copyAndroidVisualization by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        for (name in listOf(
+            "EmbroideryCanvas.kt", "EmbroideryDisplay.kt",
+            "EmbroideryRenderCoordinates.kt", "StitchThreadSegments.kt",
+            "SimulatorScreen.kt", "MachineSimulationCanvas.kt",
+            "ViewerScreen.kt"
+        )) include("com/timachado/brothermatrizes/$name")
+    }
+    into(generatedViewer)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedViewer)
+
 // Tema inteiro compilado diretamente do Android original: sem reimplementação
 // de cores, tipografia, esquemas light/dark ou cantos arredondados.
 val generatedTheme = layout.buildDirectory.dir("generated/android-theme/kotlin")
@@ -98,6 +164,10 @@ val sharedCoreDir = layout.buildDirectory.dir("generated/core-android/kotlin")
 val copyOfficialCore by tasks.registering(Sync::class) {
     from("../app/src/main/java") {
         include("com/timachado/brothermatrizes/core/embroidery/DstParser.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/TextLayoutGenerator.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/TextHoopAutoFit.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/EmbroideryPreviewOptimizer.kt")
+        include("com/timachado/brothermatrizes/core/embroidery/SimulationTiming.kt")
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIoParser.kt")
         include("com/timachado/brothermatrizes/core/embroidery/EmbroideryIntegrity.kt")
         include("com/timachado/brothermatrizes/core/embroidery/HoopLayerPositioning.kt")
@@ -197,7 +267,10 @@ sourceSets.getByName("main").resources.srcDir(generatedRes)
 
 tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
-    dependsOn(copyAndroidHome, copyAndroidTheme, copyOfficialCore)
+    dependsOn(
+        copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
+        copyAndroidTheme, copyOfficialCore
+    )
 }
 
 dependencies {
