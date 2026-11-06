@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.8",
-  "versionCode": 195,
+  "versionName": "1.11.9",
+  "versionCode": 196,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.8/Brother-Matrizes-1.11.8-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "3c51947aaf5337df517b3328686103adb2ae5cf8c1f1f2b9bfd9a95ee8193a90",
-  "releaseNotes": "Avisos de proximidade do nome agora identificam a matriz ativa e a margem mínima de segurança.; Opção explícita para permitir sobreposição intencional no editor.; Novo comando Salvar PES para PC com compatibilidade PES v6 para PE-DESIGN no Windows.; Novo comando Compartilhar PES para transferir o bordado ao computador.; Preservados os formatos e fluxos anteriores de máquinas Brother, DST e JEF.; Assinatura oficial e atualização instalada da 1.11.7 para 1.11.8 verificadas no Android 35.",
-  "publishedAt": "2026-11-03T08:21:58Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.8/Brother-Matrizes-1.11.8-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.9/Brother-Matrizes-1.11.9-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "bc091b5f1b68558de20fe061cf89ac01498f4ace6891fda66ce222eeb32dde88",
+  "releaseNotes": "Corrigidos os nomes das fontes TTF/OTF na Biblioteca de Fontes.; Os títulos passam a utilizar os nomes internos OpenType, não os códigos dos arquivos baixados.; Fontes já importadas são reconhecidas sem nova importação.; Preservados os arquivos das fontes, a seleção no Criar Nome e o restante das funcionalidades.; Atualização assinada sobre a 1.11.8 com preservação dos dados do aplicativo.",
+  "publishedAt": "2026-11-06T13:52:24Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.9/Brother-Matrizes-1.11.9-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
