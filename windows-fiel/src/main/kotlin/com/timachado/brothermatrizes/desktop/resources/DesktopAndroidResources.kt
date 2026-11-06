@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import com.timachado.brothermatrizes.R
 import org.jetbrains.skia.Image
-import org.jetbrains.skiko.toComposeImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
 
 /**
  * Adaptador Desktop, SEM redesenho: lê o SVG convertido do XML do Android,
