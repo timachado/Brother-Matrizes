@@ -84,6 +84,25 @@ autorizados devem utilizar esse kit, de acordo com
 
 O seletor visual utiliza as cores oficiais Android 1.11.8 e agora guarda somente o modo escolhido nas preferências locais do perfil do Windows. Na reabertura, o aplicativo restaura a preferência; uma chave ausente/inválida usa o modo escuro. Falhas de gravação não bloqueiam a troca de tema na sessão atual. Nenhuma matriz, senha ou credencial é salva por esse recurso, nem o Android é alterado. O teste automatizado comprova persistência lógica, não substitui homologação visual em PC físico.
 
+## Inspetor de camadas de letras (QA)
+
+Nas áreas **Criar nome** e **Editor**, composições de letras criadas nativamente
+no Windows ou reabertas com par FLP + `.bmlayers` verificado passam a mostrar
+um **inspetor de camadas**. Cada letra editável pode ser selecionada por botão,
+com sua posição X/Y em milímetros, e deslocada por um passo de **0,5 mm**
+em qualquer uma das quatro direções. O painel respeita limites de ±100 mm,
+trabalha em unidades exatas de 0,1 mm, preserva escala/rotação, impede a edição
+de espaços e usa `DesktopLetterComposer.renderDetailed` e o motor oficial
+para validar a matriz **antes** de incorporar a alteração. Cada ajuste entra
+no histórico de letras, com Desfazer/Refazer disponíveis em **Criar nome**.
+Ao salvar como novo FLP + .bmlayers, os parâmetros aprovados são persistidos.
+
+Este painel **não separa camadas** de arquivos DST/PES/JEF importados e
+não altera ordem de costura. Ao navegar para outros documentos, não disponibiliza
+controle de objeto até existir uma composição válida de letras vinculada à matriz.
+Falhas não sobrescrevem arquivos. A inspeção e os botões ainda exigem
+homologação em PC Windows físico antes de qualquer liberação comercial.
+
 ## Grade de medição no Editor (QA)
 
 O Editor Windows permite ativar uma grade de referência de **5 ou 10 mm** sobre
