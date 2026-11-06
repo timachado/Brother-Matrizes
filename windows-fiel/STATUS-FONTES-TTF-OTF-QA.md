@@ -323,6 +323,33 @@ o comparador Windows registra contornos e reprova diferenças em
 número/ordem dos glifos, geometria ou shaping. A QA ainda exige
 resultado próprio, sem afirmar paridade de palavras antes disso.
 
+## Sequência de pontadas Satin do motor ativo — gate adicional
+
+`ActiveSatinFontGoldenTest` registra, no mesmo Roboto e
+com os mesmos parâmetros, o plano de faixas
+`CleanRoomSatinEngine.planContours` e a sequência gerada por
+`stitchPlannedGlyphForTest` para a letra **O**, com underlay.
+`DesktopFontParityCli` executa o MESMO motor Kotlin oficial
+com os contornos Skia no Windows.
+
+`compare_active_stitches.py` **não** é um script separado: a
+função `compare_active_stitches` faz parte de
+`windows-fiel/qa/compare_active_font_outlines.py` e exige
+a mesma quantidade, ordem, tipo de comando STITCH/JUMP/TRIM
+e índice de cor; reprova diferenças de coordenadas superiores
+a uma unidade (**0,1 mm**) na comparação inicial.
+
+Esse teste é **de kernel isolado**, não a exportação comercial.
+O fluxo de `CleanRoomSatinEngine.generate` continua bloqueado
+no Windows até `AndroidSkiaOutlineExtractor` e
+`ImportedFontCoverageGuard` estarem portados e homologados.
+Sem validação da silhueta, qualquer matriz TTF/OTF continua
+proibida no aplicativo oficial.
+
+O gate completo inclui agora O (contornos), Maria
+(multiglifo e kerning) e O (sequência de Satin). A aprovação só
+é atribuída após execução CI com todos os cenários.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
