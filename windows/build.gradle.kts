@@ -165,6 +165,10 @@ dependencies {
     implementation(compose.material3)
     // Mesma versão de EmbroideryIO, variante JVM apropriada ao Desktop.
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-jvm:0.1.23")
+    // Mesmas dependências e versões do extrator Android 1.11.8.
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("org.tukaani:xz:1.10")
+    implementation("com.github.junrar:junrar:8.1.1")
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")

@@ -60,6 +60,9 @@ internal object DesktopArchiveImporter {
      * Nenhum arquivo do pacote é escrito no disco durante o exame.
      */
     fun inspect(archive: Path): List<DesktopArchiveMatrix> {
+        if (!archive.fileName.toString().endsWith(".zip", ignoreCase = true)) {
+            return DesktopExtendedArchiveImporter.inspect(archive)
+        }
         validatePath(archive)
         val accepted = mutableListOf<DesktopArchiveMatrix>()
         val seenPaths = HashSet<String>()
@@ -102,6 +105,9 @@ internal object DesktopArchiveImporter {
     }
 
     fun openMatrix(archive: Path, selected: DesktopArchiveMatrix): DesktopMatrixDocument {
+        if (!archive.fileName.toString().endsWith(".zip", ignoreCase = true)) {
+            return DesktopExtendedArchiveImporter.openMatrix(archive, selected)
+        }
         // Examinar de novo no momento da abertura evita confiar em um
         // inventário antigo ou parâmetros inventados pelo chamador.
         require(inspect(archive).contains(selected)) {

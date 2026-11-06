@@ -32,7 +32,7 @@ Windows esteja completo nem comercialmente homologado.
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
-| `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP local seletivo para DST/PES/JEF em desenvolvimento |
+| `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos de DST/PES/JEF (QA); fontes, senhas e fluxo integral pendentes |
 | `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Pendente** — não reutilizar tokens Android |
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Pendente** |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Pendente** — exportação de arquivo não é transferência |
@@ -348,3 +348,21 @@ Ambos arquivam relatórios e PNG no artefato gráfico de QA de sete
 dias. Esses testes confirmam renderização em runner Windows virtual,
 **não** substituem inspeção visual humana, bordadeira, testes com
 projetos reais ou homologação comercial.
+
+## Importação seletiva ZIP, 7Z, RAR e RAR5 (QA)
+
+A área Biblioteca aceita pacotes locais `.zip`, `.7z` e `.rar` e
+interpreta as assinaturas binárias reais, usando as bibliotecas e
+versões já empregadas no Android comercial (`commons-compress 1.28.0`,
+`xz 1.10`, `junrar 8.1.1`). O inventário recusa mais de 300 entradas,
+pacote acima de 128 MB, entradas acima de 24 MB ou totais acima de
+256 MB. Nomes de caminho absolutos, traversal, duplicados e
+entradas inválidas não são abertos. 7Z limita memória de dicionário
+a 32 MiB e RAR limita a 32 MiB. A leitura selecionada de matriz
+DST/PES/JEF é limitada a 8 MB e executada inteiramente em memória,
+sem criar pastas nem regravar o arquivo original.
+
+**Limitações explícitas:** senhas, fontes TTF/OTF dentro de pacotes,
+importação em lote e permissões comerciais ainda faltam. RAR/RAR5
+precisa ser validado com amostras reais autorizadas e Windows físico;
+compilação e teste de RAR truncado não garantem suporte a todo pacote.

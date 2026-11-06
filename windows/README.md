@@ -448,3 +448,12 @@ A automação de QA abre a tela Desenhar em duas execuções isoladas:
 As PNGs e os relatórios são armazenados somente no artefato
 `brother-windows-ui-smoke-QA-NAO-COMERCIAL`; não entram na versão
 comercial Android. Não representa homologação da bordadeira.
+
+## Importar ZIP / 7Z / RAR / RAR5 (Windows QA)
+
+A Biblioteca oferece inventário e abertura seletiva de matriz
+DST/PES/JEF de pacote local, sem extrair caminhos ao disco. O motor
+Android valida cada matriz após a leitura; os arquivos originais não
+são modificados. Bibliotecas e limites de memória equivalentes
+à rotina Android foram aplicados. Sem senha, fontes, importação
+múltipla e homologação de todos os pacotes RAR5 nesta fase.

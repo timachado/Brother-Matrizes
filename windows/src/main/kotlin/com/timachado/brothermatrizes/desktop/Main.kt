@@ -2618,8 +2618,10 @@ private fun DesktopScreen(
                     Text("Biblioteca local (somente leitura)", color = cyan, fontWeight = FontWeight.SemiBold)
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
-                            dialogTitle = "Importar matriz de pacote ZIP (QA)"
-                            fileFilter = FileNameExtensionFilter("Pacote ZIP (*.zip)", "zip")
+                            dialogTitle = "Importar matriz de ZIP, 7Z ou RAR (QA)"
+                            fileFilter = FileNameExtensionFilter(
+                                "Pacotes ZIP, 7Z ou RAR", "zip", "7z", "rar"
+                            )
                             isAcceptAllFileFilterUsed = false
                         }
                         if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
@@ -2631,18 +2633,18 @@ private fun DesktopScreen(
                                 }
                                 val entries = inventory.getOrElse { error ->
                                     busy = false
-                                    report("ZIP recusado: ${error.message}", true)
+                                    report("Pacote recusado: ${error.message}", true)
                                     return@launch
                                 }
                                 if (entries.isEmpty()) {
                                     busy = false
-                                    report("Nenhuma matriz DST, PES ou JEF válida no ZIP.", true)
+                                    report("Nenhuma matriz DST, PES ou JEF válida no pacote.", true)
                                     return@launch
                                 }
                                 val choice = JOptionPane.showInputDialog(
                                     null,
-                                    "Selecione a matriz a abrir; o ZIP não será modificado.",
-                                    "Brother Matrizes — importar ZIP",
+                                    "Selecione a matriz a abrir; o pacote será preservado.",
+                                    "Brother Matrizes — importar pacote",
                                     JOptionPane.PLAIN_MESSAGE,
                                     null,
                                     entries.toTypedArray(),
@@ -2675,13 +2677,13 @@ private fun DesktopScreen(
                                     yMmText = "0"
                                     mirrorX = false
                                     mirrorY = false
-                                    report("Matriz ${loaded.current.format} importada do ZIP em memória. Pacote preservado.")
+                                    report("Matriz ${loaded.current.format} importada do pacote em memória. Original preservado.")
                                 }.onFailure { error ->
-                                    report("Não foi possível abrir matriz do ZIP: ${error.message}", true)
+                                    report("Não foi possível abrir matriz do pacote: ${error.message}", true)
                                 }
                             }
                         }
-                    }) { Text("Importar matriz de ZIP (sem extrair pastas)") }
+                    }) { Text("Importar ZIP / 7Z / RAR seletivamente") }
                     Button(enabled = !busy, onClick = {
                         val chooser = JFileChooser().apply {
                             dialogTitle = "Selecionar pasta de matrizes no computador"
