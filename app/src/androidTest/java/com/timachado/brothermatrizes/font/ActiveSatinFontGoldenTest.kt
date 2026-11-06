@@ -64,6 +64,34 @@ class ActiveSatinFontGoldenTest {
         File(context.filesDir, "bm-parity-android-outline.tsv")
             .writeText(lines.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
 
+        // Segundo cenário: palavra inteira na MESMA TTF. O Android usa
+        // getRunAdvance + shaping contextual; não aceitar a soma das
+        // larguras isoladas do Desktop como equivalência presumida.
+        val word = "Maria"
+        val wordGeometry = AndroidSkiaOutlineExtractor.extract(
+            font = font, text = word,
+            targetCapHeightUnits = 120f,
+            spacingUnits = 3f,
+            rotationDegrees = 0f
+        )
+        val wordLines = mutableListOf<String>()
+        wordLines += "FONT\t" + digest + "\t" + bytes.size + "\t" + word
+        wordGeometry.glyphPolygons.forEachIndexed { g, glyph ->
+            glyph.forEachIndexed { c, contour ->
+                contour.forEachIndexed { i, point ->
+                    wordLines += "P\t" + g + "\t" + c + "\t" + i + "\t" +
+                        point.x + "\t" + point.y
+                }
+            }
+        }
+        wordLines += "META\t" + wordGeometry.sourceWidth + "\t" +
+            wordGeometry.sourceHeight + "\t" +
+            wordGeometry.contextualShapingPreserved
+        assertTrue("A palavra não produziu contornos.",
+            wordLines.count { it.startsWith("P\t") } > 50)
+        File(context.filesDir, "bm-parity-android-outline-maria.tsv")
+            .writeText(wordLines.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
+
         val result = CleanRoomSatinEngine.generate(
             font = font,
             sourceText = text,
