@@ -942,3 +942,23 @@ compose.desktop {
         // A Home deve ser comparada visualmente antes de empacotar Windows.
     }
 }
+
+/**
+ * Comparação isolada de contornos da MESMA TTF.
+ * A fonte vem do artifact do job Android; sem rede no CLI, sem exportar PES.
+ */
+tasks.register<JavaExec>("exportFontOutlineQa") {
+    group = "verification"
+    description = "Exporta contornos Skia da mesma fonte TTF do emulador Android"
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set(
+        "com.timachado.brothermatrizes.desktop.platform.DesktopFontParityCliKt"
+    )
+    args(
+        layout.buildDirectory.file("qa/font-parity/android/bm-parity-font.ttf").get()
+            .asFile.absolutePath,
+        layout.buildDirectory.file("qa/font-parity/windows/bm-parity-windows-outline.tsv").get()
+            .asFile.absolutePath
+    )
+}
