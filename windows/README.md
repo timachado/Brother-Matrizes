@@ -84,6 +84,10 @@ autorizados devem utilizar esse kit, de acordo com
 
 O seletor visual utiliza as cores oficiais Android 1.11.8 e agora guarda somente o modo escolhido nas preferências locais do perfil do Windows. Na reabertura, o aplicativo restaura a preferência; uma chave ausente/inválida usa o modo escuro. Falhas de gravação não bloqueiam a troca de tema na sessão atual. Nenhuma matriz, senha ou credencial é salva por esse recurso, nem o Android é alterado. O teste automatizado comprova persistência lógica, não substitui homologação visual em PC físico.
 
+## Simulador de sequência visual (QA)
+
+Nova área **Simulador** permite reproduzir e pausar a visualização progressiva de comandos do bordado na matriz aberta, reiniciar a sequência e avançar/voltar um comando. Ritmos de 100, 500 e 2.000 comandos gráficos por segundo são parâmetros de UI, não velocidade de uma máquina de bordado. Uma rotina determinística limitada a cinco atualizações por segundo aciona a prévia existente; ao mudar de área, trocar a matriz ou manipular manualmente a barra de progresso, a reprodução pausa. O motor oficial de bordado, o projeto e os arquivos não são modificados. Testes unitários cobrem índice exato, limites e até dois milhões de comandos; **não representa simulação física ou homologação de bordadeira real**.
+
 ## Funcionalidades disponíveis na QA
 
 - Compose Desktop com instaladores EXE/MSI gerados por runner Windows.
