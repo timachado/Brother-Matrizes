@@ -145,6 +145,67 @@ val copyAndroidVisualization by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedViewer)
 
+
+// Biblioteca: a UI das seções e cartões continua literalmente a do Android.
+// Somente o bloco de ponte RAR/Google/ActivityResult (não suportado no Desktop)
+// é substituído por um aviso. Não fingir login ou descontar cotas do cliente.
+val generatedProjectLibrary = layout.buildDirectory.dir("generated/android-project-library/kotlin")
+val copyAndroidProjectLibrary by tasks.registering {
+    val input = originalAndroidCode.file("ProjectLibraryScreen.kt")
+    inputs.file(input)
+    outputs.dir(generatedProjectLibrary)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val start = source.indexOf("    val context = LocalContext.current\n")
+        val end = source.indexOf("    val recentProjects =", start)
+        check(start > 0 && end > start &&
+            source.contains("fun ProjectLibraryScreen(") &&
+            source.contains("fun ProjectLibraryCard(") &&
+            source.contains("fun SentMatricesList(") &&
+            source.substring(start, end).contains("BrotherMatrizesAccountService") &&
+            source.substring(start, end).contains("RarExternalOpener")
+        ) { "Ponte RAR da Biblioteca mudou: revisar antes do port Windows." }
+        val secureRarBlock = """
+    var showRarOptions by remember { mutableStateOf(false) }
+    var rarMessage by remember { mutableStateOf<String?>(null) }
+    fun chooseRar() {
+        rarMessage = "RAR exige autenticação e cota comercial ainda não portadas para Windows."
+    }
+    if (showRarOptions) {
+        AlertDialog(
+            onDismissRequest = { showRarOptions = false },
+            title = { Text("Abrir com RAR (WinRAR)") },
+            text = { Text("Integração RAR/conta indisponível nesta versão de QA Windows. Nenhuma operação nem cota será cobrada.") },
+            confirmButton = {
+                TextButton(onClick = { showRarOptions = false }) {
+                    Text("Entendido", color = FioGold)
+                }
+            }
+        )
+    }
+
+"""
+        val desktop = (source.substring(0, start) + secureRarBlock +
+            source.substring(end))
+            .replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "")
+            .replace("import androidx.activity.result.contract.ActivityResultContracts\n", "")
+            .replace("import androidx.compose.ui.platform.LocalContext\n", "")
+            .replace("import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService\n", "")
+        check(!desktop.contains("import androidx.activity") &&
+            !desktop.contains("RarExternalOpener") &&
+            !desktop.contains("BrotherMatrizesAccountService") &&
+            desktop.contains("fun ProjectLibraryScreen(") &&
+            desktop.contains("fun SentMatricesList(")
+        ) { "Biblioteca Android contém dependências não portadas: bloquear build." }
+        val out = generatedProjectLibrary.get().file(
+            "com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedProjectLibrary)
+
 // Tema inteiro compilado diretamente do Android original: sem reimplementação
 // de cores, tipografia, esquemas light/dark ou cantos arredondados.
 val generatedTheme = layout.buildDirectory.dir("generated/android-theme/kotlin")
@@ -918,6 +979,7 @@ tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
+        copyAndroidProjectLibrary,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
