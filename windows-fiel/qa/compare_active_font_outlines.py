@@ -117,6 +117,66 @@ def compare_maria(font_sha: str) -> dict:
     return result
 
 
+
+def compare_active_stitches() -> dict:
+    """QA do kernel oficial em contornos equivalentes, sem o guard comercial.
+
+    Exige mesmos comandos e cores; coordenadas podem diferir no máximo
+    uma unidade (0,1mm) na fase inicial de diagnóstico.
+    """
+    report = {
+        "case": "O - CleanRoomSatinEngine active kernel",
+        "passed": False,
+        "issues": [],
+        "max_coordinate_delta_units": None,
+    }
+
+    def read(path: Path):
+        lines = list(csv.reader(path.open(encoding="utf-8"), delimiter="\t"))
+        assert lines and len(lines[0]) == 2 and lines[0][0] == "STITCHES"
+        count = int(lines[0][1])
+        assert count > 20 and count == len(lines) - 1
+        parsed = []
+        for index, row in enumerate(lines[1:]):
+            assert len(row) == 6 and row[0] == "P"
+            assert int(row[1]) == index
+            x, y = int(row[2]), int(row[3])
+            assert max(abs(x), abs(y)) <= 1_000_000
+            parsed.append((x, y, row[4], int(row[5])))
+        return parsed
+
+    android = read(BASE / "android" / "bm-parity-android-kernel-o.tsv")
+    windows = read(BASE / "windows" / "bm-parity-windows-kernel-o.tsv")
+    report["android_commands"] = len(android)
+    report["windows_commands"] = len(windows)
+    if len(android) != len(windows):
+        report["issues"].append(
+            f"Comandos Satin: Android={len(android)} vs Windows={len(windows)}."
+        )
+    if len(android) == len(windows):
+        changed = [
+            i for i, (a, w) in enumerate(zip(android, windows))
+            if a[2:] != w[2:]
+        ]
+        report["different_command_or_color_indices"] = changed[:30]
+        if changed:
+            report["issues"].append(
+                f"Ordem/tipo/cor de {len(changed)} comandos diverge."
+            )
+        maxima = [
+            max(abs(a[0] - w[0]), abs(a[1] - w[1]))
+            for a, w in zip(android, windows)
+        ]
+        diff = max(maxima, default=0)
+        report["max_coordinate_delta_units"] = diff
+        if diff > MAX_ERROR_UNITS:
+            report["issues"].append(
+                f"Delta máximo de pontos Satin={diff} unidades."
+            )
+    report["passed"] = not report["issues"]
+    return report
+
+
 def main():
     report = {
         "gate": "Android active CleanRoom outlines vs Windows Skia - identical TTF",
@@ -166,6 +226,11 @@ def main():
                             f"Contorno {key}: desvio máximo {max_distance:.3f} unidades"
                         )
         report["issues"] = report["issues"][:80]
+        report["satin_kernel_o"] = compare_active_stitches()
+        if not report["satin_kernel_o"]["passed"]:
+            report["issues"].append(
+                "Sequencia Satin do motor ativo diverge do Android para O."
+            )
         report["maria"] = compare_maria(sha)
         if not report["maria"]["passed"]:
             report["issues"].append(
