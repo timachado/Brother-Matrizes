@@ -229,6 +229,47 @@ val copyAndroidProjectCodec by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedProjectCodec)
 
+// Importação DST/PES/JEF: copiar a implementação REAL de EmbroideryLoader
+// (loadBytes, sniff de formato e parsers originais); retirar APENAS o método
+// Android ContentResolver/Uri e os helpers de streams Android.
+val generatedLoader = layout.buildDirectory.dir("generated/android-embroidery-loader/kotlin")
+val copyAndroidLoader by tasks.registering {
+    val source = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/core/embroidery/EmbroideryLoader.kt"
+    )
+    inputs.file(source)
+    outputs.dir(generatedLoader)
+    doLast {
+        val original = source.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val start = original.indexOf("    fun load(")
+        val fromBytes = original.indexOf("    fun loadBytes(")
+        val endBytes = original.indexOf("    private class FileTooLargeException")
+        require(start > 0 && fromBytes > start && endBytes > fromBytes &&
+            original.contains("private fun parseByExtension(") &&
+            original.contains("fun loadBytes(")) {
+            "Loader Android mudou: revisão obrigatória da adaptação."
+        }
+        val shared = original.substring(0, start)
+            .replace("import android.content.ContentResolver\n", "")
+            .replace("import android.net.Uri\n", "")
+            .replace("import android.provider.OpenableColumns\n", "") +
+                original.substring(fromBytes, endBytes) + "}\n"
+        check(!shared.contains("import android.") &&
+            !shared.contains("ContentResolver") &&
+            shared.contains("DstParser.parse(") &&
+            shared.contains("EmbroideryIoParser") &&
+            shared.contains("fun loadBytes(")) {
+            "Loader JVM não corresponde ao parse original Android."
+        }
+        val out = generatedLoader.get().file(
+            "com/timachado/brothermatrizes/core/embroidery/EmbroideryLoader.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(shared, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedLoader)
+
 /**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
@@ -307,7 +348,8 @@ tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
-        copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec
+        copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
+        copyAndroidLoader
     )
 }
 
