@@ -79,8 +79,14 @@ internal class DesktopAuthHttpGateway: DesktopAuthGateway {
 }
 
 internal class DesktopAccountAuth(
-    private val gateway: DesktopAuthGateway = DesktopAuthHttpGateway()
+    // Não criar HttpClient durante a primeira composição da janela:
+    // o Java SSL/Windows provider só é inicializado quando o usuário
+    // inicia LOGIN, sempre no Dispatchers.IO (nunca no thread Compose).
+    private val suppliedGateway: DesktopAuthGateway? = null
 ) {
+    private val gateway: DesktopAuthGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        suppliedGateway ?: DesktopAuthHttpGateway()
+    }
     private val json = Json
     private var token: String? = null
     private var expiry: Instant = Instant.EPOCH
