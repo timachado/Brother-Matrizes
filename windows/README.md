@@ -447,6 +447,25 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Seleção direta de nós no canvas SVG (QA)
+
+Ao clicar em um marcador de nó na prévia **Desenhar → SVG**, a seleção
+correspondente de caminho e nó é atualizada no painel lateral. A detecção
+usa a **mesma viewport** do desenho, tolerância de 11 pixels e escolhe o
+marcador mais próximo. Em nós coincidentes, o caminho já selecionado
+tem preferência; clicar em um segmento distante de marcadores preserva
+a seleção normal de caminhos. Um arrasto iniciado sobre o marcador
+**não move acidentalmente o caminho inteiro**: apenas seleciona o nó,
+que pode ser alterado pelos controles já disponíveis no painel.
+
+A seleção em si não altera o projeto nem cria histórico; somente as
+edições confirmadas de nós geram revisões reversíveis.
+`DesktopSvgNodePickerTest` cobre seleção, proximidade, interseções,
+preferência por caminho, limites de toque e entradas inválidas. A
+funcionalidade permanece restrita à QA não comercial; ainda precisa de
+verificação visual/interativa em PC físico. Não habilita arrastar nós
+livremente pela tela e não promete precisão de máquina.
+
 ## Nós editáveis e sequência de caminhos SVG (QA)
 
 No inspetor **Desenhar → SVG**, selecionar um caminho habilita um painel paginado
