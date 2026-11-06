@@ -350,6 +350,35 @@ O gate completo inclui agora O (contornos), Maria
 (multiglifo e kerning) e O (sequência de Satin). A aprovação só
 é atribuída após execução CI com todos os cenários.
 
+## Falha real em Maria e correção de avanço completo (QA)
+
+A primeira execução que **de fato exigiu o gate multiglifo**
+[#42212281190](https://github.com/timachado/Brother-Matrizes/actions/runs/42212281190)
+**reprovou**, sem relaxar o limite. Para a mesma Roboto TTF (SHA
+`9ca9debb09459bf4e3e7f826f5cd0f35f253902b85684921fce2ba3f28dd0f50`),
+o Android e Windows tinham **11 contornos e 1.432 pontos** em
+`Maria`. Largura Android **416,4898 unidades** (41,64898 mm),
+Windows **418,0714 unidades** (41,80714 mm); diferença
+**1,5816 unidade = 0,15816 mm**. O máximo entre pontos
+correspondentes foi **1,10091 unidade = 0,110091 mm** na última
+letra, maior que o limite 1 unidade / 0,1 mm.
+
+A inspeção completa do ZIP da QA comprovou **erro acumulativo de
+deslocamento por glifo**. A fonte Android usa
+`Paint.getRunAdvance(texto completo, offset)`, preservando kerning.
+O adaptador Windows somava `Font.measureTextWidth` caractere
+a caractere, sem os ajustes do par contextual. A correção
+**#1b27a8dc** usa `org.jetbrains.skia.shaper.Shaper` para obter
+as posições do texto inteiro via HarfBuzz. O código não assume
+suporte a ligaduras/substituições: se a associação entre glifos
+shaped e caracteres isolados não for 1:1, rejeita explicitamente
+a fonte até portar o caminho contextual do Android.
+
+**Status:** esta alteração é uma hipótese corretiva baseada em dados,
+não está homologada até o gate Android×Windows do mesmo commit
+retornar `success`. Não ampliar tolerância, não modificar a
+fonte comercial e não liberar o importador na UI.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
