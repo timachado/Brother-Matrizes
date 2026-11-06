@@ -57,7 +57,7 @@ dourado suave e erros, nos **modos escuro e claro**. Os esquemas
 Material 3, formas arredondadas e tipografia também partem da versão
 Android, em um tema Desktop isolado. O cabeçalho exibe a marca
 **Brother / Matrizes**, e o usuário pode alternar escuro/claro na
-sessão. A escolha ainda não persiste após fechar o aplicativo.
+sessão. A escolha claro/escuro agora é persistida nas preferências locais do usuário Windows (`DesktopThemePreferences`), e restaurada na próxima abertura. Preferências ausentes ou inválidas mantêm o modo escuro padrão. Não há sincronização com conta, Android ou nuvem; testes unitários cobrem reinicialização simulada e fallback. A persistência ainda requer homologação em PC físico.
 
 Esta etapa implementa **identidade cromática**; não significa que as
 16 telas, a distribuição de controles e os recursos específicos
