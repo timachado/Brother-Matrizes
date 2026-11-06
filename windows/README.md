@@ -447,6 +447,24 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Inspetor de caminhos e microajuste SVG (QA)
+
+A área **Desenhar → SVG** agora inclui um navegador paginado de até oito
+objetos vetoriais por página, com seleção explícita, contagem de nós e
+indicação de caminho fechado. O caminho selecionado pode ser movido
+em passos de **uma unidade da coordenada SVG** nas quatro direções.
+Essas unidades **não são milímetros de bordado**. A edição cria nova
+cópia de `VectorArtwork`, valida os limites pelo
+`DesktopSvgImport.validate` e registra o resultado no
+`DesktopSvgEditSession` (Desfazer/Refazer limitado a oito edições).
+
+O SVG original não é sobrescrito e a prévia não assume que objetos podem
+ser extraídos de matrizes PES/DST/JEF. A persistência dos caminhos editáveis
+continua pelo par **novo** `.flp` + `.bmvector`, já validado pelo
+`DesktopVectorProjectBundle`. O recurso não muda a ordem dos caminhos,
+não promete representação de camadas do Android e exige QA Windows
+e homologação manual em PC físico antes de publicação.
+
 ## Projeto SVG reeditável: FLP + .bmvector (QA)
 
 A área Desenhar → SVG permite salvar novos pares `.flp` (codec v11 do
