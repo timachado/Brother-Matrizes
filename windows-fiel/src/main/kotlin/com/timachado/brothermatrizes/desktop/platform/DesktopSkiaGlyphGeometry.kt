@@ -4,6 +4,7 @@ import org.jetbrains.skia.Font
 import org.jetbrains.skia.FontMgr
 import org.jetbrains.skia.Path
 import org.jetbrains.skia.PathVerb
+import org.jetbrains.skia.shaper.Shaper
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path as FilePath
@@ -98,11 +99,44 @@ internal object DesktopSkiaGlyphGeometry {
                     "Escala da fonte inválida."
                 }
 
+                // Android usa Paint.getRunAdvance(texto COMPLETO, offset)
+                // para posicionar cada glifo. Somar measureTextWidth(char)
+                // ignora kerning/GPOS e desloca progressivamente a palavra.
+                // HarfBuzz (Shaper Skia) preserva o avanço contextual.
+                val shaper = Shaper.makeShapeDontWrapOrReorder()
+                val offsets = try {
+                    val blob = shaper.shape(text, font)
+                        ?: error("HarfBuzz não conseguiu posicionar a fonte.")
+                    try {
+                        val ids = blob.glyphs
+                        val positions = blob.positions
+                        // O Android une o contorno inteiro quando detecta
+                        // shaping complexo; não inventar essa funcionalidade
+                        // na porta Windows até existir adaptador equivalente.
+                        require(ids.size == text.length &&
+                            positions.size == ids.size * 2 &&
+                            text.indices.all { i ->
+                                ids[i] == font.getUTF32Glyph(text[i].code)
+                            }) {
+                            "Fonte com ligadura/substituição contextual ainda não homologada."
+                        }
+                        FloatArray(text.length) { i ->
+                            positions[2 * i] + i * spacingUnits
+                        }
+                    } finally {
+                        blob.close()
+                    }
+                } finally {
+                    shaper.close()
+                }
+                require(offsets.all {
+                    it.isFinite() && abs(it) < 1_000_000f
+                }) { "Posições HarfBuzz fora da geometria de segurança." }
+
                 data class GlyphPath(val source: Path, val penX: Float)
                 val paths = mutableListOf<GlyphPath>()
-                var penX = 0f
                 try {
-                    text.forEach { char ->
+                    text.forEachIndexed { index, char ->
                         val glyph = font.getUTF32Glyph(char.code)
                         require(glyph.toInt() != 0 || char.isWhitespace()) {
                             "A fonte não possui o glifo '$char'."
@@ -110,13 +144,10 @@ internal object DesktopSkiaGlyphGeometry {
                         if (!char.isWhitespace()) {
                             val outline = font.getPath(glyph)
                             if (outline != null) {
-                                if (!outline.isEmpty) paths += GlyphPath(outline, penX)
-                                else outline.close()
+                                if (!outline.isEmpty) {
+                                    paths += GlyphPath(outline, offsets[index])
+                                } else outline.close()
                             }
-                        }
-                        penX += font.measureTextWidth(char.toString()) + spacingUnits
-                        require(penX.isFinite() && abs(penX) < 1_000_000f) {
-                            "Dimensões de texto excederam o limite vetorial."
                         }
                     }
                     require(paths.isNotEmpty()) {
