@@ -17,7 +17,7 @@ class AndroidHomeSourceParityTest {
     fun `Home Desktop e fonte Android com somente tres adaptacoes de compilacao`() {
         val android = Files.readString(
             root.resolve("../app/src/main/java/com/timachado/brothermatrizes/HomeScreen.kt")
-        )
+        ).replace("\r\n", "\n")
         val generated = Files.readString(
             root.resolve("build/generated/android-home/kotlin/com/timachado/brothermatrizes/HomeScreen.kt")
         )
