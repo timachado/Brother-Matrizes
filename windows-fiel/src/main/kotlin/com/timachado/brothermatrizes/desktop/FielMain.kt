@@ -142,7 +142,7 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
-                editorCapture -> DpSize(920.dp, 680.dp)
+                editorCapture || fileChooserQa -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -164,6 +164,10 @@ fun main(args: Array<String>) = application {
         val composeWindow = window
         LaunchedEffect(screenshotMode) {
             if (fileChooserQa) {
+                // A janela inicial 1000x860 invadia a taskbar no runner
+                // 1024x768, apesar de a seleção PES/JEF já ter funcionado.
+                // Posicionar a viewport de 920x680dp na área segura.
+                composeWindow.setLocation(20, 20)
                 try {
                 // Exercita o JFileChooser REAL do comando Abrir da Home:
                 // janela Swing aparece, o teclado confirma a seleção de
@@ -206,7 +210,10 @@ fun main(args: Array<String>) = application {
                         bounds.x >= 0 && bounds.y >= 0 &&
                         bounds.x + bounds.width <= screen.width &&
                         bounds.y + bounds.height <= screen.height - 42
-                    ) { "O Viewer QA excedeu a área visível do monitor Windows." }
+                    ) {
+                        "O Viewer QA excedeu a área visível do monitor Windows: " +
+                            "$bounds; tela=${screen.width}x${screen.height}"
+                    }
                     val screenshot = robot.createScreenCapture(bounds)
                     val output = File("build/qa/chooser-${format.lowercase()}-viewer.png")
                     output.parentFile.mkdirs()
