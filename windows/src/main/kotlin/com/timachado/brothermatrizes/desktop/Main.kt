@@ -824,6 +824,14 @@ private fun DesktopScreen(
                                         selectedSvgPath = index
                                         selectedSvgNodeIndex = 0
                                     },
+                                    onSelectNode = { pathIndex, nodeIndex ->
+                                        selectedSvgPath = pathIndex
+                                        selectedSvgNodeIndex = nodeIndex
+                                        report(
+                                            "Nó ${nodeIndex + 1} do caminho SVG " +
+                                                "${pathIndex + 1} selecionado no canvas."
+                                        )
+                                    },
                                     onMove = { index, delta, dimensions ->
                                         val session = drawingSvgEditSession
                                         if (session != null) {
