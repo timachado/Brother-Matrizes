@@ -166,6 +166,23 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Camadas individuais: inspetor e microajuste Windows (QA)
+
+O novo inspetor de letras acrescenta seleção explícita por índice e
+movimentação em passos de 0,5 mm (X/Y) nos módulos **Criar nome** e **Editor**.
+Só aparece para composições de letras desta QA; um arquivo FLP + .bmlayers
+reaberto precisa ser validado contra as pontadas e o hash do projeto.
+O controle de movimento recusa espaços, eixos simultâneos e deslocamentos
+além de ±100 mm, preserva escala/rotação e reconstrói o documento com o motor
+Android reutilizado. Desfazer/Refazer de parâmetros permanece no módulo
+**Criar nome**, sem reescrever o formato FLP v11 nem os arquivos Android.
+
+Não é edição por objeto em DST/PES/JEF importados nem gerenciamento
+de ordem física de costura. Os testes automatizados confirmam
+passos exatos, limites, histórico e invariância das pontadas da
+primeira letra quando se move a segunda. A UI requer homologação
+física Windows, e **nenhuma rota** deve ser anunciada como 100% paritária.
+
 ## Grade métrica do Editor (QA)
 
 O Editor agora possui uma sobreposição opcional de grade em milímetros
