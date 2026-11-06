@@ -77,7 +77,10 @@ etapa aprovada.
 O Gradle `copyAndroidReferenceSatin` lê diretamente
 `app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt`
 e gera, durante a compilação, `DesktopReferenceSatinKernel.kt`.
-Não altera a fonte Android. O trecho extraído contém exatamente:
+Não altera a fonte Android. **Atenção: trata-se do algoritmo de fallback**
+`buildReferenceSatinText`, usado quando o fluxo principal
+`buildStrokeFlowSatinText` não produz pontadas; não é ainda a
+implementação dominante do Android 1.11.8. O trecho extraído contém:
 
 - `appendReferenceSatinGlyph` (colunas de satin e escolha de eixo);
 - `scanReferenceSpans`, `buildReferenceColumns` e divisão de colunas;
@@ -87,7 +90,8 @@ Não altera a fonte Android. O trecho extraído contém exatamente:
 Não se copia a função de rasterização `densifyReferenceContours`,
 específica de `SampledContour` Android. O novo amostrador Skia entrega
 polígonos vetoriais ao kernel e os cálculos de costura aproveitam
-**o mesmo código matemático Android**, sem reimplementar as pontadas.
+**o mesmo código matemático de FALLBACK Android**, sem reimplementar
+as pontadas.
 
 O wrapper valida estilo `SATIN`, densidade 0,3–1,2 mm,
 compensação 0–1 mm (limites do motor Android), finitude,
@@ -98,14 +102,25 @@ número de glifos, pontos de contorno e quantidade final de pontos.
 contorno, determinismo e igualdade exata do código-fonte gerado
 com o trecho oficial Android.
 
-**Limitação fundamental:** a criação de polígonos no Skia não
-foi demonstrada numericamente idêntica à função
-`buildReferenceGlyphGeometry` do Android para a **mesma fonte TTF/OTF**.
-Mesmo com algoritmo Satin compartilhado, diferenças de contorno,
-posicionamento, resolução e arredondamento podem produzir matrizes
-diferentes. Portanto o kernel permanece **experimental, isolado de UI,
-clientes e exportação comercial** até completar comparação binária
-de pontadas, validação física e autorização/licenciamento.
+**Limitações fundamentais, verificadas no código Android:**
+
+1. Para texto Satin, o Android chama primeiro
+   `buildStrokeFlowSatinText`, cujo `buildSatinByAxis` desenha máscara
+   EVEN_ODD com `Bitmap/Canvas`, calcula o esqueleto
+   (`thinMask`, `traceSkeleton`) e distribui colunas de satin
+   seguindo a topologia do glifo. O código puro de fallback só é
+   acionado quando esse fluxo não emite pontadas. **Essa rota principal
+   ainda não está portada.**
+2. A criação de polígonos no Skia ainda não foi demonstrada
+   numericamente idêntica ao `buildReferenceGlyphGeometry` Android
+   com a **mesma fonte TTF/OTF**.
+3. Mesmo o mesmo kernel de fallback pode produzir saída diferente
+   por diferenças de contorno, posicionamento, tesselação e
+   arredondamento.
+
+Portanto o kernel permanece **experimental, isolado de UI, clientes
+e exportação comercial** até portar o stroke-flow principal, completar
+comparação binária de pontadas e validar direitos/licenciamento.
 
 ## Portões seguintes
 
