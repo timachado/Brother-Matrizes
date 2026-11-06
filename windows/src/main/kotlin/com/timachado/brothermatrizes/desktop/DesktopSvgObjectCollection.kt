@@ -42,6 +42,34 @@ internal object DesktopSvgObjectCollection {
         return DesktopSvgCollectionChange(next, addedIndex)
     }
 
+    /**
+     * Altera em uma posição a ordem dos caminhos SVG. A ordem é significativa:
+     * quando salvar como FLP novo, afeta a sequência gerada de pontos.
+     * Não é uma operação de sobreposição gráfica ("z-index").
+     */
+    fun reorder(
+        artwork: VectorArtwork,
+        index: Int,
+        direction: Int
+    ): DesktopSvgCollectionChange {
+        DesktopSvgImport.validate(artwork)
+        require(direction == -1 || direction == 1) {
+            "Reordenação SVG permite apenas subir ou descer uma posição."
+        }
+        require(index in artwork.paths.indices &&
+            index.toLong() + direction.toLong() in artwork.paths.indices.first.toLong()..
+                artwork.paths.indices.last.toLong()) {
+            "Caminho não pode ultrapassar o limite da sequência."
+        }
+        val nextIndex = index + direction
+        val paths = artwork.paths.toMutableList()
+        val current = paths.removeAt(index)
+        paths.add(nextIndex, current)
+        val next = artwork.copy(paths = paths)
+        DesktopSvgImport.validate(next)
+        return DesktopSvgCollectionChange(next, nextIndex)
+    }
+
     fun delete(artwork: VectorArtwork, index: Int): DesktopSvgCollectionChange {
         DesktopSvgImport.validate(artwork)
         require(index in artwork.paths.indices) {
