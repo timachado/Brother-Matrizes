@@ -194,6 +194,49 @@ completa, equivalência numérica da mesma fonte Android/Skia,
 licenciamento e autorização de conta. Nenhuma matriz de fonte
 importada sai desse caminho experimental para o cliente.
 
+## Emissão real STITCH/JUMP/TRIM e underlay — experimento QA
+
+Na branch de homologação, o Gradle `copyAndroidStrokeEmitter` copia
+**literalmente** do `ImportedFontMatrixGenerator.kt` oficial:
+
+- `orientStrokeFlowRows`: reverte e troca os lados da cobertura
+  quando o plano Satin retorna pelo segmento.
+- `moveStrokeFlowTo`: gera deslocamentos JUMP, TRIM ou ponto de
+  ligação conforme distâncias do Android.
+- `emitStrokeFlowCenterRun`: faz o percurso de underlay pelo centro,
+  respeitando densidade; quando desabilitado, desloca até a saída.
+- `emitStrokeFlowCoverage`: percorre as colunas e cria pontos satin
+  alternando as bordas, fechando na linha central.
+- `appendSplitStitch`: divide pontos compridos em segmentos de
+  até 70 unidades do motor oficial.
+
+`DesktopStrokeFlowEmitter` é um wrapper de laboratório que recebe
+o plano e as linhas já construídas, valida pares CENTER_RUN e
+SATIN_RETURN e emite `EmbroideryPoint` reais. A classe
+`DesktopStrokeFlowPipeline` encadeia a máscara Skia, thinning,
+planejador, linhas e emissor, inicialmente em fixtures sintéticas.
+
+`DesktopStrokeFlowEmitterTest` cobre comandos de costura reais,
+limite de comprimento, efeito do underlay, determinismo, entradas
+fora dos parâmetros Android e igualdade **literal do código de emissão**
+com a fonte oficial.
+
+**Limitações de paridade ainda existentes:**
+
+- O Android remove segmentos sem linhas úteis ANTES de calcular o
+  plano. O wrapper experimental atualmente filtra os segmentos
+  insuficientes DEPOIS do planejamento; em geometria ramificada, isso
+  pode alterar ordem e comprimento de deslocamentos.
+- A geração da máscara Skia pode diferir de `Bitmap/Canvas` Android
+  em raster, anti-alias e limiar. Ainda não foi comparada pixel a
+  pixel usando o **mesmo arquivo TTF/OTF** e configuração.
+- O pipeline não está ligado à UI, aos arquivos de matrizes comerciais,
+  à conta/licenciamento ou à bordadeira. Não disponibilizar fontes
+  importadas nem distribuir EXE enquanto essas diferenças existirem.
+- A QA de integração deve retornar `success` ANTES de declarar
+  esse experimento testado. O teste de fonte Android e Windows
+  continua sendo o portão para equivalência da costura.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
