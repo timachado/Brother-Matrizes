@@ -447,6 +447,128 @@ internal object DesktopStrokeSkeleton {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeSkeleton)
 
 /**
+ * Planejamento do percurso stroke-flow: usa a implementação Android
+ * literalmente (split, rebases, raiz e planejamento ida/volta).
+ * A exportação Windows ainda NÃO usa este motor experimental.
+ */
+val generatedStrokePlanner = layout.buildDirectory.dir("generated/stroke-planner/kotlin")
+val copyAndroidStrokePlanner by tasks.registering {
+    val originalFile = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+    )
+    inputs.file(originalFile)
+    outputs.dir(generatedStrokePlanner)
+    doLast {
+        val source = originalFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val typesStart = source.indexOf("    private data class SkeletonPoint(")
+        val typesEnd = source.indexOf("    private fun buildStrokeFlowSatinText(", typesStart)
+        val plannerStart = source.indexOf("    private fun strokeFlowNodeKey(", typesEnd)
+        val plannerEnd = source.indexOf("    private fun buildStrokeFlowRows(", plannerStart)
+        val distanceStart = source.indexOf("    private fun pointDistance(", plannerEnd)
+        val distanceEnd = source.indexOf("    private fun appendSplitStitch(", distanceStart)
+        val lengthStart = source.indexOf("    private fun skeletonLineLength(", distanceEnd)
+        val lengthEnd = source.indexOf("    private fun smoothAndResampleSkeleton(", lengthStart)
+        check(typesStart > 0 && typesEnd > typesStart &&
+            plannerStart > typesEnd && plannerEnd > plannerStart &&
+            distanceStart > plannerEnd && distanceEnd > distanceStart &&
+            lengthStart > distanceEnd && lengthEnd > lengthStart) {
+            "Mudança na localização do planner Android: revisar antes de integrar."
+        }
+        val types = source.substring(typesStart, typesEnd)
+        val planner = source.substring(plannerStart, plannerEnd)
+        val helpers = source.substring(distanceStart, distanceEnd) +
+            source.substring(lengthStart, lengthEnd)
+        check(types.contains("data class StrokeFlowSegment(") &&
+            types.contains("data class StrokeFlowTraversalStep(") &&
+            planner.contains("private fun splitStrokeFlowSegments(") &&
+            planner.contains("private fun planStrokeFlowTraversal(") &&
+            planner.contains("private fun rebaseLeadingClosedSkeletonLine(") &&
+            planner.contains("private fun rebaseLeadingClosedStrokeFlow(") &&
+            helpers.contains("private fun pointDistance(") &&
+            helpers.contains("private fun skeletonLineLength(") &&
+            !planner.contains("Bitmap(") && !planner.contains("Canvas(") &&
+            !planner.contains("android.")) {
+            "O planner não corresponde ao algoritmo puro oficial Android."
+        }
+        val wrapper = """
+package com.timachado.brothermatrizes.desktop.platform
+
+import kotlin.math.*
+
+/** Plano QA das fases reais de cada segmento, sem emitir pontos comerciais. */
+internal data class DesktopStrokeFlowPlanStep(
+    val segmentId: Int,
+    val phase: String,
+    val from: DesktopSkeletonPoint,
+    val to: DesktopSkeletonPoint,
+    val geometry: List<DesktopSkeletonPoint>
+)
+
+/** Extrai o planejamento do motor Android, sem alterações nos métodos. */
+internal object DesktopStrokeFlowPlanner {
+    fun plan(
+        source: List<List<DesktopSkeletonPoint>>,
+        preferInitialStroke: Boolean = false
+    ): List<DesktopStrokeFlowPlanStep> {
+        require(source.size in 1..256 && source.sumOf { it.size } <= 100_000) {
+            "Quantidade de linhas ou pixels do esqueleto fora do limite."
+        }
+        require(source.all { line ->
+            line.size in 2..100_000 && line.all {
+                it.x in 0..1800 && it.y in 0..1800
+            }
+        }) { "Segmento do esqueleto inválido." }
+        val originalLines = source.map { line ->
+            line.map { SkeletonPoint(it.x, it.y) }
+        }.filter { line ->
+            line.size >= 5 && skeletonLineLength(line) >= 8f
+        }
+        if (originalLines.isEmpty()) return emptyList()
+        // Exatamente a ordem da implementação Android em buildSatinByAxis.
+        val normalized = rebaseLeadingClosedSkeletonLine(originalLines)
+        val loopEntry = normalized.filter { line ->
+            line.size >= 6 && line.first() == line.last()
+        }.minByOrNull { line -> line.minOf { it.x } }?.first()
+        val segments = rebaseLeadingClosedStrokeFlow(
+            splitStrokeFlowSegments(normalized)
+        )
+        if (segments.isEmpty()) return emptyList()
+        // Esta etapa não testa buildStrokeFlowRows; todos os segmentos
+        // geometricamente válidos são planejados. Quando o row builder
+        // for portado, filtrar segmentos por 2 ou mais linhas Satin.
+        val hint = loopEntry ?: if (preferInitialStroke)
+            preferredOpenSwashEntry(segments)
+        else preferredStrokeFlowEntry(segments)
+        val byId = segments.associateBy { it.id }
+        return planStrokeFlowTraversal(segments, hint).map { step ->
+            val seg = checkNotNull(byId[step.segmentId])
+            DesktopStrokeFlowPlanStep(
+                segmentId = step.segmentId,
+                phase = step.phase.name,
+                from = strokeFlowNodePoint(step.fromNode).let {
+                    DesktopSkeletonPoint(it.x, it.y)
+                },
+                to = strokeFlowNodePoint(step.toNode).let {
+                    DesktopSkeletonPoint(it.x, it.y)
+                },
+                geometry = orientedStrokeFlowPoints(seg, step.fromNode).map {
+                    DesktopSkeletonPoint(it.x, it.y)
+                }
+            )
+        }
+    }
+
+""" + types + planner + helpers + "\n}\n"
+        val out = generatedStrokePlanner.get().file(
+            "com/timachado/brothermatrizes/desktop/platform/DesktopStrokeFlowPlanner.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(wrapper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokePlanner)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -525,7 +647,8 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
-        copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton
+        copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
+        copyAndroidStrokePlanner
     )
 }
 
