@@ -111,5 +111,17 @@ class NameEditorScreenshotQaTest {
         assertTrue(yaml.contains("--qa-open-chooser-flp"))
         assertTrue(yaml.contains("chooser-dst-viewer.png"))
         assertTrue(yaml.contains("chooser-flp-viewer.png"))
+        assertTrue(host.contains("--qa-save-flp-dialog-new"))
+        assertTrue(host.contains("--qa-save-flp-dialog-protect"))
+        assertTrue(host.contains("chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION"))
+        assertTrue(host.contains("FileNameExtensionFilter("))
+        assertTrue(host.contains("StandardOpenOption.CREATE_NEW"))
+        assertTrue(host.contains("FileAlreadyExistsException"))
+        assertTrue(host.contains("BROTHER_WINDOWS_SAVE_DIALOG_PROTECT_FLPAUTH_OK"))
+        assertTrue(host.contains("BROTHER_WINDOWS_SAVE_DIALOG_NEW_FLPRT_OK"))
+        assertTrue(yaml.contains("--qa-save-flp-dialog-new"))
+        assertTrue(yaml.contains("--qa-save-flp-dialog-protect"))
+        assertTrue(yaml.contains("save-flp-created-viewer.png"))
+        assertTrue(yaml.contains("save-flp-protected-viewer.png"))
     }
 }

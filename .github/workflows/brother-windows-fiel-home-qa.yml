@@ -71,6 +71,8 @@ jobs:
           gradle -p windows-fiel run --args="--qa-open-chooser-jef" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--qa-open-chooser-dst" --no-daemon --stacktrace
           gradle -p windows-fiel run --args="--qa-open-chooser-flp" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--qa-save-flp-dialog-new" --no-daemon --stacktrace
+          gradle -p windows-fiel run --args="--qa-save-flp-dialog-protect" --no-daemon --stacktrace
           foreach ($photo in @(
             "windows-fiel/build/qa/home-windows-original-port.png",
             "windows-fiel/build/qa/home-windows-wide-original-port.png",
@@ -85,7 +87,9 @@ jobs:
             "windows-fiel/build/qa/chooser-pes-viewer.png",
             "windows-fiel/build/qa/chooser-jef-viewer.png",
             "windows-fiel/build/qa/chooser-dst-viewer.png",
-            "windows-fiel/build/qa/chooser-flp-viewer.png"
+            "windows-fiel/build/qa/chooser-flp-viewer.png",
+            "windows-fiel/build/qa/save-flp-created-viewer.png",
+            "windows-fiel/build/qa/save-flp-protected-viewer.png"
           )) {
             if (!(Test-Path $photo)) { throw "Captura Windows ausente: $photo" }
             if ((Get-Item $photo).Length -lt 10000) {
@@ -113,6 +117,8 @@ jobs:
             windows-fiel/build/qa/chooser-jef-viewer.png
             windows-fiel/build/qa/chooser-dst-viewer.png
             windows-fiel/build/qa/chooser-flp-viewer.png
+            windows-fiel/build/qa/save-flp-created-viewer.png
+            windows-fiel/build/qa/save-flp-protected-viewer.png
           if-no-files-found: warn
           retention-days: 14
       # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home

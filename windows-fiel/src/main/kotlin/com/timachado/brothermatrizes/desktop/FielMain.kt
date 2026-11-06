@@ -117,8 +117,12 @@ fun main(args: Array<String>) = application {
     val openFlpChooserQa = args.singleOrNull() == "--qa-open-chooser-flp"
     val fileChooserQa =
         openPesChooserQa || openJefChooserQa || openDstChooserQa || openFlpChooserQa
+    val saveDialogNewQa = args.singleOrNull() == "--qa-save-flp-dialog-new"
+    val saveDialogProtectQa = args.singleOrNull() == "--qa-save-flp-dialog-protect"
+    val saveDialogQa = saveDialogNewQa || saveDialogProtectQa
     val screenshotMode =
-        compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture || fileChooserQa
+        compactScreenshot || wideScreenshot || createNameScreenshot ||
+            editorCapture || fileChooserQa || saveDialogQa
     require(args.isEmpty() || screenshotMode) {
         "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
     }
@@ -166,6 +170,19 @@ fun main(args: Array<String>) = application {
         target
     }
     val chooserQaInitialBytes = chooserQaFile?.let(Files::readAllBytes)
+    val saveDialogQaFile = if (saveDialogQa) {
+        val fileName = if (saveDialogProtectQa)
+            "qa-projeto-existente.flp" else "qa-projeto-novo.flp"
+        Path.of("build/qa/save-fixtures", fileName).toAbsolutePath().normalize().also {
+            Files.createDirectories(it.parent)
+            if (saveDialogProtectQa) {
+                DesktopFlpProjectFiles.saveNew(syntheticNameEditorQaDesign(), it)
+            }
+        }
+    } else null
+    val saveDialogQaOriginalBytes =
+        if (saveDialogProtectQa) Files.readAllBytes(checkNotNull(saveDialogQaFile))
+        else null
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
@@ -173,7 +190,7 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
-                editorCapture || fileChooserQa -> DpSize(920.dp, 680.dp)
+                editorCapture || fileChooserQa || saveDialogQa -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -194,6 +211,88 @@ fun main(args: Array<String>) = application {
         }
         val composeWindow = window
         LaunchedEffect(screenshotMode) {
+            if (saveDialogQa) {
+                // JFileChooser Swing real de "Salvar como", confirmado por
+                // Enter do teclado. Apenas FLP sintético em build/qa.
+                composeWindow.setLocation(20, 20)
+                try {
+                    withContext(Dispatchers.IO) {
+                        val deadline = System.nanoTime() + 40_000_000_000L
+                        while (System.nanoTime() < deadline && java.awt.Window.getWindows().none {
+                            it is JDialog && it.isShowing &&
+                                it.title.contains("Salvar projeto original Brother Matrizes FLP")
+                        }) Thread.sleep(250L)
+                        check(java.awt.Window.getWindows().any {
+                            it is JDialog && it.isShowing &&
+                                it.title.contains("Salvar projeto original Brother Matrizes FLP")
+                        }) { "O diálogo real Salvar como não foi apresentado." }
+                        val robot = Robot()
+                        robot.keyPress(KeyEvent.VK_ENTER)
+                        robot.keyRelease(KeyEvent.VK_ENTER)
+                        val marker = Path.of(
+                            if (saveDialogProtectQa) "build/qa/save-flp-protected.txt"
+                            else "build/qa/save-flp-created.txt"
+                        )
+                        while (System.nanoTime() < deadline && !Files.isRegularFile(marker)) {
+                            Thread.sleep(250L)
+                        }
+                        check(Files.isRegularFile(marker)) {
+                            "Salvar como não produziu a confirmação esperada."
+                        }
+                        val target = checkNotNull(saveDialogQaFile)
+                        check(Files.isRegularFile(target)) {
+                            "O arquivo FLP de QA não existe."
+                        }
+                        if (saveDialogProtectQa) {
+                            check(Files.readAllBytes(target).contentEquals(
+                                checkNotNull(saveDialogQaOriginalBytes)
+                            )) { "A tentativa de sobrescrita alterou o FLP existente." }
+                        } else {
+                            val restored = DesktopFlpProjectFiles.open(target)
+                            check(restored.editableName?.options?.text == "Maria" &&
+                                restored.editableName?.original?.points?.isNotEmpty() == true) {
+                                "O Salvar como perdeu o nome editável no FLP."
+                            }
+                        }
+                        Thread.sleep(900L)
+                        check(java.awt.Window.getWindows().none {
+                            it is JDialog && it.isShowing &&
+                                it.title.contains("Salvar projeto original Brother Matrizes FLP")
+                        }) { "O seletor Salvar como não foi fechado." }
+                        val pane = composeWindow.contentPane
+                        val origin = pane.locationOnScreen
+                        val bounds = Rectangle(origin.x, origin.y, pane.width, pane.height)
+                        val screen = Toolkit.getDefaultToolkit().screenSize
+                        check(bounds.width >= 700 && bounds.height >= 600 &&
+                            bounds.x >= 0 && bounds.y >= 0 &&
+                            bounds.x + bounds.width <= screen.width &&
+                            bounds.y + bounds.height <= screen.height - 42) {
+                            "A janela QA do Salvar como excedeu a área do Windows."
+                        }
+                        val screenshot = robot.createScreenCapture(bounds)
+                        val output = File(
+                            if (saveDialogProtectQa) "build/qa/save-flp-protected-viewer.png"
+                            else "build/qa/save-flp-created-viewer.png"
+                        )
+                        output.parentFile.mkdirs()
+                        check(ImageIO.write(screenshot, "png", output) &&
+                            output.length() > 10_000L) {
+                            "A captura após Salvar como está ausente."
+                        }
+                        println(if (saveDialogProtectQa)
+                            "BROTHER_WINDOWS_SAVE_DIALOG_PROTECT_FLPAUTH_OK"
+                        else "BROTHER_WINDOWS_SAVE_DIALOG_NEW_FLPRT_OK")
+                        exitProcess(0)
+                    }
+                } catch (error: Throwable) {
+                    System.err.println(
+                        "BROTHER_WINDOWS_SAVE_DIALOG_QA_FAIL: " +
+                            (error.message ?: error.javaClass.simpleName)
+                    )
+                    exitProcess(2)
+                }
+                return@LaunchedEffect
+            }
             if (fileChooserQa) {
                 // A janela inicial 1000x860 invadia a taskbar no runner
                 // 1024x768, apesar de a seleção PES/JEF já ter funcionado.
@@ -513,6 +612,9 @@ fun main(args: Array<String>) = application {
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
                 startInNameEditorCtrlAQa = nameEditorCtrlAQa,
                 startInChooserQaFile = chooserQaFile,
+                startInSaveDialogQaFile = saveDialogQaFile,
+                startInSaveDialogProtectQa = saveDialogProtectQa,
+                startInSaveDialogOriginalBytes = saveDialogQaOriginalBytes,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -576,6 +678,9 @@ private fun FielHomeHost(
     startInNameEditorKeyboardQa: Boolean = false,
     startInNameEditorCtrlAQa: Boolean = false,
     startInChooserQaFile: Path? = null,
+    startInSaveDialogQaFile: Path? = null,
+    startInSaveDialogProtectQa: Boolean = false,
+    startInSaveDialogOriginalBytes: ByteArray? = null,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
@@ -584,7 +689,11 @@ private fun FielHomeHost(
     }
     var detail by remember {
         mutableStateOf(
-            if (startInNameEditorQa) ActiveDetail.NAME_EDITOR else ActiveDetail.NONE
+            when {
+                startInNameEditorQa -> ActiveDetail.NAME_EDITOR
+                startInSaveDialogQaFile != null -> ActiveDetail.VIEWER
+                else -> ActiveDetail.NONE
+            }
         )
     }
     LaunchedEffect(monogramLaunchRequest) {
@@ -595,7 +704,8 @@ private fun FielHomeHost(
     }
     var activeDesign by remember {
         mutableStateOf(
-            if (startInNameEditorQa) syntheticNameEditorQaDesign() else null
+            if (startInNameEditorQa || startInSaveDialogQaFile != null)
+                syntheticNameEditorQaDesign() else null
         )
     }
     var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
@@ -763,15 +873,50 @@ private fun FielHomeHost(
         scope.launch {
             val chooser = JFileChooser().apply {
                 dialogTitle = "Salvar projeto original Brother Matrizes FLP"
-                selectedFile = File("brother-matrizes-projeto.flp")
+                selectedFile = if (startInSaveDialogQaFile != null)
+                    startInSaveDialogQaFile.toFile()
+                else File("brother-matrizes-projeto.flp")
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Projetos Brother Matrizes (*.flp)", "flp"
+                )
             }
             if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
                 runCatching {
-                    DesktopFlpProjectFiles.saveNew(design, chooser.selectedFile.toPath())
+                    val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+                    if (startInSaveDialogQaFile != null) {
+                        check(selected == startInSaveDialogQaFile) {
+                            "Seleção do Salvar como diferente da cópia QA."
+                        }
+                    }
+                    DesktopFlpProjectFiles.saveNew(design, selected)
                 }.onSuccess { file ->
+                    if (startInSaveDialogQaFile != null && !startInSaveDialogProtectQa) {
+                        val reopened = DesktopFlpProjectFiles.open(file)
+                        check(reopened.points == design.points &&
+                            reopened.editableName?.options?.text == "Maria") {
+                            "A gravação pelo Salvar como perdeu os dados FLP."
+                        }
+                        Files.writeString(
+                            Path.of("build/qa/save-flp-created.txt"), "CREATE_NEW_FLPRT_OK",
+                            StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
+                        )
+                    }
                     snackbar.showSnackbar("Projeto FLP salvo: ${file.fileName}")
-                }.onFailure {
-                    snackbar.showSnackbar("Projeto FLP não salvo: ${it.message}")
+                }.onFailure { error ->
+                    if (startInSaveDialogProtectQa &&
+                        error is java.nio.file.FileAlreadyExistsException) {
+                        val target = checkNotNull(startInSaveDialogQaFile)
+                        check(Files.readAllBytes(target).contentEquals(
+                            checkNotNull(startInSaveDialogOriginalBytes)
+                        )) { "O arquivo original de QA foi alterado ao rejeitar sobrescrita." }
+                        Files.writeString(
+                            Path.of("build/qa/save-flp-protected.txt"), "OVERWRITE_REJECTED",
+                            StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
+                        )
+                    }
+                    snackbar.showSnackbar("Projeto FLP não salvo: ${error.message}")
                 }
             }
         }
@@ -839,6 +984,9 @@ private fun FielHomeHost(
 
     LaunchedEffect(startInChooserQaFile) {
         if (startInChooserQaFile != null) openProject()
+    }
+    LaunchedEffect(startInSaveDialogQaFile) {
+        if (startInSaveDialogQaFile != null) saveProject()
     }
 
     Scaffold(
