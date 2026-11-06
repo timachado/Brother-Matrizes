@@ -569,6 +569,114 @@ internal object DesktopStrokeFlowPlanner {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokePlanner)
 
 /**
+ * Construtor das linhas Satin do stroke-flow oficial Android: suavização,
+ * reamostragem do esqueleto, busca perpendicular às bordas e coordenadas.
+ * Faz uso EXATO das funções de buildStrokeFlowRows e auxiliares da fonte
+ * Android, não um algoritmo alternativo de pontos.
+ */
+val generatedStrokeRows = layout.buildDirectory.dir("generated/stroke-rows/kotlin")
+val copyAndroidStrokeRows by tasks.registering {
+    val originalFile = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+    )
+    inputs.file(originalFile)
+    outputs.dir(generatedStrokeRows)
+    doLast {
+        val source = originalFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val typesStart = source.indexOf("    private data class SkeletonPoint(")
+        val typesEnd = source.indexOf("    private fun buildStrokeFlowSatinText(", typesStart)
+        val rowsStart = source.indexOf("    private fun buildStrokeFlowRows(", typesEnd)
+        val rowsEnd = source.indexOf("    private fun orientStrokeFlowRows(", rowsStart)
+        val smoothStart = source.indexOf("    private fun smoothAndResampleSkeleton(", rowsEnd)
+        val boundaryStart = source.indexOf("    private fun boundaryDistance(", smoothStart)
+        val end = source.indexOf("    private fun buildFilledText(", boundaryStart)
+        check(typesStart > 0 && typesEnd > typesStart &&
+            rowsStart > typesEnd && rowsEnd > rowsStart &&
+            smoothStart > rowsEnd && boundaryStart > smoothStart &&
+            end > boundaryStart &&
+            source.substring(rowsStart, rowsEnd).contains("private fun buildStrokeFlowRows(") &&
+            source.substring(smoothStart, boundaryStart).contains("private fun smoothSkeletonLine(") &&
+            source.substring(smoothStart, boundaryStart).contains("private fun sampleSkeletonLine(") &&
+            source.substring(boundaryStart, end).contains("private fun skeletonXToUnits(") &&
+            source.substring(boundaryStart, end).contains("private fun skeletonYToUnits(")
+        ) { "Funções oficiais de linhas Satin mudaram; a porta deve ser revista." }
+        val types = source.substring(typesStart, typesEnd)
+        val rows = source.substring(rowsStart, rowsEnd)
+        val smooth = source.substring(smoothStart, boundaryStart)
+        val boundary = source.substring(boundaryStart, end)
+        require((types + rows + smooth + boundary).let {
+            !it.contains("Bitmap(") && !it.contains("Canvas(") &&
+                !it.contains("android.graphics.")
+        }) { "Funções selecionadas deixaram de ser Kotlin independente." }
+        val wrapper = """
+package com.timachado.brothermatrizes.desktop.platform
+
+import kotlin.math.*
+
+/** Linhas geométricas do Satin original, antes de gerar pontadas. */
+internal data class DesktopStrokeRow(
+    val centerXUnits: Int,
+    val centerYUnits: Int,
+    val aXUnits: Int,
+    val aYUnits: Int,
+    val bXUnits: Int,
+    val bYUnits: Int
+)
+
+internal object DesktopStrokeFlowRows {
+    fun build(
+        skeleton: List<DesktopSkeletonPoint>,
+        raster: DesktopStrokeRaster,
+        densityMm: Float,
+        pullCompensationMm: Float
+    ): List<DesktopStrokeRow> {
+        require(skeleton.size in 2..100_000 && skeleton.all {
+            it.x in 0 until raster.width && it.y in 0 until raster.height
+        }) { "Pontos de esqueleto inválidos para esta máscara." }
+        require(densityMm.isFinite() && densityMm in 0.3f..1.2f) {
+            "Densidade Satin fora do intervalo oficial Android."
+        }
+        require(pullCompensationMm.isFinite() &&
+            pullCompensationMm in 0f..1f) {
+            "Repuxo Satin fora do intervalo oficial Android."
+        }
+        val densityUnits = (densityMm * 10f).coerceIn(2.5f, 12f)
+        val stepPixels = (densityUnits / raster.unitsPerPixel).coerceIn(2f, 8f)
+        val pullPixels = (
+            pullCompensationMm * 10f / raster.unitsPerPixel
+        ).coerceAtLeast(0f)
+        val rows = buildStrokeFlowRows(
+            rawLine = skeleton.map { SkeletonPoint(it.x, it.y) },
+            mask = raster.mask,
+            width = raster.width,
+            height = raster.height,
+            stepPixels = stepPixels,
+            pullPixels = pullPixels,
+            minX = raster.minX,
+            maxY = raster.maxY,
+            padding = raster.padding,
+            unitsPerPixel = raster.unitsPerPixel
+        )
+        require(rows.size <= 50_000) { "Muitas linhas de cobertura Satin." }
+        return rows.map { row ->
+            DesktopStrokeRow(
+                row.centerXUnits, row.centerYUnits,
+                row.aXUnits, row.aYUnits, row.bXUnits, row.bYUnits
+            )
+        }
+    }
+
+""" + types + rows + smooth + boundary + "\n}\n"
+        val out = generatedStrokeRows.get().file(
+            "com/timachado/brothermatrizes/desktop/platform/DesktopStrokeFlowRows.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(wrapper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedStrokeRows)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -648,7 +756,7 @@ tasks.named("compileKotlin") {
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
-        copyAndroidStrokePlanner
+        copyAndroidStrokePlanner, copyAndroidStrokeRows
     )
 }
 
