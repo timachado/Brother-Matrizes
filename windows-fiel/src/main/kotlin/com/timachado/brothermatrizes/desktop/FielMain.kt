@@ -86,6 +86,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import javax.swing.JFileChooser
 import javax.swing.JDialog
+import javax.swing.filechooser.FileNameExtensionFilter
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
@@ -163,6 +164,7 @@ fun main(args: Array<String>) = application {
         val composeWindow = window
         LaunchedEffect(screenshotMode) {
             if (fileChooserQa) {
+                try {
                 // Exercita o JFileChooser REAL do comando Abrir da Home:
                 // janela Swing aparece, o teclado confirma a seleção de
                 // arquivo pré-posicionado (cópia sintética de referência), o
@@ -221,6 +223,13 @@ fun main(args: Array<String>) = application {
                     ) { "A cópia de trabalho não preservou o arquivo original." }
                     println("BROTHER_WINDOWS_CHOOSER_${format}_VIEWER_OK")
                     exitProcess(0)
+                }
+                } catch (error: Throwable) {
+                    System.err.println(
+                        "BROTHER_WINDOWS_CHOOSER_QA_FAIL: " +
+                            (error.message ?: error.javaClass.simpleName)
+                    )
+                    exitProcess(2)
                 }
                 return@LaunchedEffect
             }
@@ -729,6 +738,11 @@ private fun FielHomeHost(
             val chooser = JFileChooser().apply {
                 dialogTitle = "Abrir matriz DST, PES, JEF ou projeto FLP"
                 fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Matrizes e projetos Brother Matrizes (*.dst, *.pes, *.jef, *.flp)",
+                    "dst", "pes", "jef", "flp"
+                )
                 if (startInChooserQaFile != null) {
                     currentDirectory = startInChooserQaFile.parent.toFile()
                     selectedFile = startInChooserQaFile.toFile()
