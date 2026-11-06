@@ -9,6 +9,41 @@ import kotlin.test.assertTrue
 class NameEditorScreenshotQaTest {
     private val root = Path.of("").toAbsolutePath().normalize()
 
+
+    @Test
+    fun `as duas capturas usam a mesma matriz sintética TM Maria e composição`() {
+        val desktop = Files.readString(root.resolve(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+        ))
+        val android = Files.readString(root.resolve(
+            "../app/src/androidTest/java/com/timachado/brothermatrizes/BrotherNameEditorScreenshotTest.kt"
+        ))
+        val desktopFixture = desktop.substringAfter("private fun syntheticNameEditorQaDesign()")
+            .substringBefore("@Composable")
+        val androidFixture = android.substringAfter("private fun syntheticFixture()")
+            .substringBefore("private fun ensureTargetVisible()")
+        val commonTokens = listOf(
+            "text = \"TM\"",
+            "text = \"Maria\"",
+            "heightMm = 12f",
+            "heightMm = 8f",
+            "style = TextStitchStyle.RUNNING",
+            "style = TextStitchStyle.SATIN",
+            "outputFormat = \"DST\"",
+            "hoopProfile = null",
+            "enforceHoop = false",
+            "centerXUnits = 0",
+            "centerYUnits = 0",
+            "compositionMode = NameCompositionMode.MONOGRAM_OVERLAY"
+        )
+        commonTokens.forEach { token ->
+            assertTrue(desktopFixture.contains(token), "Desktop não usa parâmetro: $token")
+            assertTrue(androidFixture.contains(token), "Android não usa parâmetro: $token")
+        }
+        assertTrue(desktop.contains("HoopProfile.H100X100"))
+        assertTrue(android.contains("referenceHoop = HoopProfile.H100X100"))
+    }
+
     @Test
     fun `a captura QA abre editor real com matriz sintética e isolamento`() {
         val host = Files.readString(root.resolve(
