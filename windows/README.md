@@ -407,3 +407,14 @@ e Restaurar SVG importado. A geometria modificada é utilizada apenas
 ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
+
+## Projeto SVG reeditável: FLP + .bmvector (QA)
+
+A área Desenhar → SVG permite salvar novos pares `.flp` (codec v11 do
+Android, pontadas) e `.bmvector` (caminhos vetoriais, largura, estilo,
+bastidor, cor e SHA-256 do FLP). Nunca sobrescreve destino existente.
+Ao reabrir, valida ambos os arquivos, recalcula bordado com o motor
+oficial e compara todos os pontos antes de liberar objetos. O FLP
+também abre isoladamente no Android, porém somente com as pontadas.
+O arquivo SVG original não é modificado e o histórico de sessão
+não fica persistido. QA não comercial, ainda sem validação física.

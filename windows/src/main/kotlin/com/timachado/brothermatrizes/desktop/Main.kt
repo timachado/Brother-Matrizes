@@ -973,6 +973,108 @@ private fun DesktopScreen(
                             }) { Text(if (drawingFromSvg) "● SVG" else "SVG") }
                         }
                         if (drawingFromSvg) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Button(enabled = !busy, onClick = {
+                                    val session = drawingSvgEditSession
+                                    val source = drawingSvg
+                                    if (session == null || source == null) {
+                                        report("Importe um SVG antes de salvar vetores.", true)
+                                    } else {
+                                        val chooser = JFileChooser().apply {
+                                            dialogTitle = "Salvar novo FLP + vetores editáveis"
+                                            fileFilter = FileNameExtensionFilter(
+                                                "Projeto Brother Matrizes (*.flp)", "flp"
+                                            )
+                                            isAcceptAllFileFilterUsed = false
+                                            selectedFile = java.io.File("desenho-vetorial-qa.flp")
+                                        }
+                                        if (chooser.showSaveDialog(null) ==
+                                            JFileChooser.APPROVE_OPTION) {
+                                            val destination = chooser.selectedFile
+                                                .toPath().toAbsolutePath()
+                                            val svgSnapshot = source.copy(artwork = session.current)
+                                            val width = drawingWidthText.trim()
+                                                .replace(',', '.').toFloatOrNull() ?: Float.NaN
+                                            val style = drawingStyle
+                                            val hoop = drawingHoop
+                                            busy = true
+                                            scope.launch {
+                                                val saved = withContext(Dispatchers.IO) {
+                                                    runCatching {
+                                                        DesktopVectorProjectBundle.saveNew(
+                                                            svgSnapshot, width, style, hoop,
+                                                            destination
+                                                        )
+                                                    }
+                                                }
+                                                busy = false
+                                                saved.onSuccess { (flp, aux) ->
+                                                    report(
+                                                        "Projeto vetorial salvo como NOVOS arquivos: " +
+                                                            "${flp.fileName} + ${aux.fileName}. " +
+                                                            "FLP Android preservado."
+                                                    )
+                                                }.onFailure {
+                                                    report(
+                                                        "Projeto vetorial não salvo: ${it.message}",
+                                                        true
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }) { Text("Salvar FLP + vetores", fontSize = 11.sp) }
+                            }
+                            Button(enabled = !busy, onClick = {
+                                val chooser = JFileChooser().apply {
+                                    dialogTitle = "Abrir FLP com vetores (.bmvector)"
+                                    fileFilter = FileNameExtensionFilter(
+                                        "Projeto Brother Matrizes (*.flp)", "flp"
+                                    )
+                                    isAcceptAllFileFilterUsed = false
+                                }
+                                if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                                    val file = chooser.selectedFile.toPath().toAbsolutePath()
+                                    busy = true
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                DesktopVectorProjectBundle.open(file)
+                                            }
+                                        }
+                                        busy = false
+                                        result.onSuccess { loaded ->
+                                            document = loaded.document
+                                            editTimeline = DesktopEditTimeline.start(loaded.document)
+                                            drawingSvg = loaded.imported
+                                            drawingSvgEditSession = loaded.session
+                                            drawingFromSvg = true
+                                            selectedSvgPath = null
+                                            drawingWidthText = loaded.widthMm.toString()
+                                            drawingStyle = loaded.style
+                                            drawingHoop = loaded.hoop
+                                            stitchProgress = 1f
+                                            format = loaded.document.current.format
+                                            letterSession = null
+                                            letterPreviewDocument = null
+                                            report(
+                                                "Projeto FLP + vetores recuperado. " +
+                                                    "${loaded.session.current.paths.size} " +
+                                                    "caminhos reeditáveis, arquivo original intacto."
+                                            )
+                                        }.onFailure {
+                                            report(
+                                                "Projeto vetorial não aberto: ${it.message}", true
+                                            )
+                                        }
+                                    }
+                                }
+                            }) { Text("Abrir FLP + vetores", fontSize = 11.sp) }
+                            Text(
+                                "A reedição exige FLP e .bmvector lado a lado. " +
+                                    "Nenhum arquivo existente é sobrescrito.",
+                                fontSize = 11.sp, color = muted
+                            )
                             Text(
                                 "SVG local de formas vetoriais; não executa scripts " +
                                     "nem carrega imagens ou URLs externas.",
@@ -1170,9 +1272,9 @@ private fun DesktopScreen(
                             Text(if (busy) "Gerando..." else "Gerar nova matriz de bordado")
                         }
                         Text(
-                            "QA: desenho livre e importação SVG local com edição " +
-                                "reversível por caminho. Arquivo-fonte preservado; " +
-                                "persistência vetorial e paridade total ainda pendentes.",
+                            "QA: SVG importado com edição individual reversível " +
+                                "e par FLP + .bmvector. O FLP comum contém apenas " +
+                                "pontadas; a paridade Android total ainda é parcial.",
                             color = muted, fontSize = 11.sp
                         )
                     }

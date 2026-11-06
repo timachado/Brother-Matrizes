@@ -28,7 +28,7 @@ Windows esteja completo nem comercialmente homologado.
 | `Home` / `HomeScreen` | Início, ações, recentes, atalhos e comunicação visual da versão oficial | **Parcial** — entrada desktop com marca, slogan e atalhos da Home oficial; navegação por 7 áreas e recentes locais; ainda não é a tela mobile completa |
 | `CreateName` / `CreateNameScreen` | Mesmas fontes, opções e resultado do criador de nomes mobile | **Parcial** — geração básica pelo motor compartilhado |
 | `CreateMonogram` / `MonogramScreen` | Estilos, ajustes, prévia e fluxo completo de monogramas | **Parcial** — motor compartilhado, UI simplificada |
-| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre e SVG vetorial local, seleção/movimento por caminho e histórico em memória; paridade total pendente |
+| `CreateDrawing` / `CreateDrawingScreen` | Criação/desenho e controles equivalentes adaptados a mouse | **Parcial** — desenho livre e SVG local, seleção/movimento por caminho, histórico e persistência opcional FLP + .bmvector (QA); paridade total pendente |
 | `FontLibrary` / `FontLibraryScreen` | Fontes internas, importadas e gestão conforme regras do mobile | **Parcial** — TTF/OTF e gerador Satin em QA |
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
@@ -282,3 +282,27 @@ bordado de arquivos importados nem entrega paridade visual integral
 do Android. Os testes automatizados verificam seleção, transformação,
 proteção do original, histórico e geração de pontadas; faltam
 testes manuais no Windows e na bordadeira.
+
+## Persistência de desenhos vetoriais FLP + .bmvector (QA)
+
+No modo Desenhar → SVG, **Salvar FLP + vetores** grava **dois arquivos novos**
+sem substituir arquivos existentes: `.flp` v11 oficial Android (pontadas,
+cores e bastidor pelo `ProjectCodec`) e `.bmvector` Windows com caminhos,
+identidade de origem, escala, estilo, cor e bastidor. O sidecar binário
+versionado (v1, no máximo 96 KiB) contém o SHA-256 dos bytes exatos do FLP.
+A gravação prepara e valida tudo antes de escrever, usa CREATE_NEW e
+tenta reverter apenas os novos arquivos em caso de erro.
+
+**Abrir FLP + vetores** exige par íntegro, verifica SHA-256, formato,
+limites de caminhos/pontos e parâmetros, decodifica o FLP pelo codec
+oficial e **regenera todas as pontadas** pelo motor `VectorMatrixGenerator`
+oficial do Android. Só habilita reedição após comparação integral
+de geometria, cores e comandos. A abertura reinicia o histórico
+Desfazer/Refazer; não reabre o XML SVG original nem modifica arquivos.
+Um FLP isolado continua abrindo normalmente no Android e Windows, mas
+sem controle de caminhos vetoriais.
+
+A associação SHA-256 detecta divergências, **não autentica a origem**,
+não substitui assinatura de código e não equivale a um formato vetorial
+nativo lido pelo Android. O modo Desenho livre ainda não salva seus
+traços como camadas editáveis. CI e homologação no PC físico pendentes.
