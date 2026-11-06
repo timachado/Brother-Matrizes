@@ -166,6 +166,21 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Objetos SVG: inspetor de caminhos e passo vetorial (QA)
+
+O módulo **Desenhar → SVG** mostra caminhos individuais em páginas de
+oito itens, com seleção e movimentação em passos de uma unidade SVG
+(não um milímetro da matriz). Cada movimento modifica apenas uma
+cópia do caminho selecionado e passa pela validação de geometria,
+com histórico reversível da sessão. A importação SVG local original
+permanece intacta. A gravação continua usando o FLP v11 oficial
+com o auxiliar `.bmvector` validado, sem alterações de formato.
+
+**Limitações:** não cria ordem de costura por camadas, não
+extrai objetos de DST/PES/JEF e não afirma paridade integral com as
+telas do Android. Testes de limites, isolamento e regressão em PC
+e máquina física permanecem critérios de homologação.
+
 ## Camadas individuais: inspetor e microajuste Windows (QA)
 
 O novo inspetor de letras acrescenta seleção explícita por índice e
