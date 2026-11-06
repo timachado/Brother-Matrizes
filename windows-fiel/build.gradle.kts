@@ -192,6 +192,43 @@ val copyOfficialCore by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(sharedCoreDir)
 
+// Codec FLP v11: extraído SEM MODIFICAR métodos do ProjectCodec Android.
+// O ProjectStore Android usa Context; não deve ser copiado para Windows.
+val generatedProjectCodec = layout.buildDirectory.dir("generated/project-codec/kotlin")
+val copyAndroidProjectCodec by tasks.registering {
+    val source = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/core/project/ProjectStore.kt"
+    )
+    inputs.file(source)
+    outputs.dir(generatedProjectCodec)
+    doLast {
+        val original = source.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val boundary = "\nobject ProjectStore {"
+        require(original.contains("object ProjectCodec {") &&
+            original.contains("fun encodeTo(") &&
+            original.contains("fun decode(") &&
+            original.contains(boundary)) {
+            "Projeto FLP oficial mudou; revisar codec antes de compilar."
+        }
+        val codec = original.substringBefore(boundary)
+            .replace("import android.content.Context\n", "")
+            .replace(
+                "import com.timachado.brothermatrizes.core.storage.AtomicFileWriter\n", ""
+            )
+        check(!codec.contains("import android.") &&
+            codec.contains("private const val VERSION =") &&
+            codec.contains("11") && codec.trimEnd().endsWith("}")) {
+            "Codec FLP Android não pôde ser isolado com segurança."
+        }
+        val out = generatedProjectCodec.get().file(
+            "com/timachado/brothermatrizes/core/project/ProjectCodec.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(codec + "\n", Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedProjectCodec)
+
 /**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
@@ -270,7 +307,7 @@ tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
-        copyAndroidTheme, copyOfficialCore
+        copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec
     )
 }
 
