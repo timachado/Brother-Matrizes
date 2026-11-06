@@ -26,7 +26,7 @@ internal object DesktopFontGlyphProbe {
         require(text.isNotBlank() && text.length <= 64) {
             "Use de 1 a 64 caracteres para investigar contornos da fonte."
         }
-        require(text.none { it.isISOControl() }) {
+        require(text.none { Character.isISOControl(it) }) {
             "Texto possui caracteres de controle inválidos."
         }
         require(!Files.isSymbolicLink(fontFile) &&
