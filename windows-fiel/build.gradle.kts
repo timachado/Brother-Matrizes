@@ -136,7 +136,7 @@ val copyAndroidVisualization by tasks.registering(Sync::class) {
             "EmbroideryCanvas.kt", "EmbroideryDisplay.kt",
             "EmbroideryRenderCoordinates.kt", "StitchThreadSegments.kt",
             "SimulatorScreen.kt", "MachineSimulationCanvas.kt",
-            "ViewerScreen.kt", "NameEditorPlacement.kt",
+            "ViewerScreen.kt", "ConverterScreen.kt", "NameEditorPlacement.kt",
             "NameEditorStitchLayer.kt"
         )) include("com/timachado/brothermatrizes/$name")
     }

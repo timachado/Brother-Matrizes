@@ -37,6 +37,7 @@ import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
+import com.timachado.brothermatrizes.ConverterScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
 import com.timachado.brothermatrizes.SimulatorScreen
 import com.timachado.brothermatrizes.ViewerScreen
@@ -181,7 +182,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER }
 
 @Composable
 private fun FielHomeHost(startInCreate: Boolean = false) {
@@ -365,7 +366,7 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                     onSimulate = { detail = ActiveDetail.SIMULATOR },
                     onEdit = { informNotPorted("Editor") },
                     onEditName = { informNotPorted("Editar nome") },
-                    onConvert = { informNotPorted("Converter") },
+                    onConvert = { detail = ActiveDetail.CONVERTER },
                     onTransfer = { informNotPorted("Enviar") },
                     onSaveProject = { saveProject() },
                     onSaveCopy = { exportDesign(MatrixConverter.preferredBrotherFormat) },
@@ -373,6 +374,16 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                     onSavePeDesign = { exportDesign("PES", peDesign = true) },
                     onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
                     onPositionChange = { activeDesign = it }
+                )
+            } else if (detail == ActiveDetail.CONVERTER && activeDesign != null) {
+                // Composable oficial Android; arquivos somente CREATE_NEW.
+                ConverterScreen(
+                    design = checkNotNull(activeDesign),
+                    onBack = { detail = ActiveDetail.VIEWER },
+                    onSave = { format -> exportDesign(format) },
+                    // Compartilhamento requer integração nativa Windows;
+                    // não simular entrega nem salvamento.
+                    onShare = { informNotPorted("Compartilhar matriz convertida") }
                 )
             } else if (detail == ActiveDetail.SIMULATOR && activeDesign != null) {
                 val design = checkNotNull(activeDesign)
@@ -407,7 +418,12 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
                         else informNotPorted("Crie ou abra uma matriz primeiro")
                     },
                     onEdit = { informNotPorted("Editor") },
-                    onConvert = { informNotPorted("Converter") },
+                    onConvert = {
+                        if (activeDesign != null) detail = ActiveDetail.CONVERTER
+                        else scope.launch {
+                            snackbar.showSnackbar("Abra ou crie uma matriz antes de converter.")
+                        }
+                    },
                     onClearRecent = { informNotPorted("Recentes") },
                     onUnavailable = { text -> informNotPorted(text) },
                     onCommunity = { informNotPorted("Comunidade e novidades") }
