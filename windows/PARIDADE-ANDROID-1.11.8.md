@@ -68,12 +68,12 @@ mesmo recurso gráfico dentro de todas as telas ainda será auditada.
 ## Navegação Desktop — primeira etapa implementada
 
 A interface de homologação passou a separar as funções já existentes
-em sete áreas: **Início, Visualizar, Criar nome, Monogramas, Fontes,
+em oito áreas: **Início, Visualizar, Criar nome, Desenhar, Monogramas, Fontes,
 Editor e Biblioteca**. A prévia técnica permanece visível à esquerda,
 enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
 
-Os módulos Android **Desenhar, Conta, Comunidade, Telegram, Transferir**
+Os módulos Android **Conta, Comunidade, Telegram, Transferir**
 e outros fluxos ainda não portados não são oferecidos como botões
 funcionais nem descritos como concluídos. Criar uma aba não comprova
 paridade: continuam necessários portadores de serviços, persistência e

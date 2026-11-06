@@ -6,10 +6,10 @@ import kotlin.test.assertTrue
 
 class DesktopWorkspaceTest {
     @Test
-    fun `navegacao agrupa sete modulos reais sem anunciar paridade total`() {
+    fun `navegacao agrupa oito modulos reais sem anunciar paridade total`() {
         assertEquals(
-            listOf("Início", "Visualizar", "Criar nome", "Monogramas",
-                "Fontes", "Editor", "Biblioteca"),
+            listOf("Início", "Visualizar", "Criar nome", "Desenhar",
+                "Monogramas", "Fontes", "Editor", "Biblioteca"),
             DesktopWorkspace.entries.map { it.label }
         )
         assertEquals(DesktopWorkspace.entries.size,
