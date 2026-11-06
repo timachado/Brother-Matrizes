@@ -103,7 +103,9 @@ fun main(args: Array<String>) = application {
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
-    val nameEditorKeyboardQa = args.singleOrNull() == "--qa-name-editor-keyboard-apply"
+    val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
+    val nameEditorKeyboardQa =
+        args.singleOrNull() == "--qa-name-editor-keyboard-apply" || nameEditorCtrlAQa
     val nameEditorApplyQa =
         args.singleOrNull() == "--qa-name-editor-click-apply" || nameEditorKeyboardQa
     val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot || nameEditorApplyQa
@@ -177,9 +179,11 @@ fun main(args: Array<String>) = application {
                         // A própria tela precisa completar onApply, salvar FLP
                         // sintético via codec oficial e reabrir o projeto.
                         val file = Path.of(
-                            if (nameEditorKeyboardQa)
-                                "build/qa/name-editor-keyboard-synthetic.flp"
-                            else "build/qa/name-editor-apply-synthetic.flp"
+                            when {
+                                nameEditorCtrlAQa -> "build/qa/name-editor-ctrl-a-synthetic.flp"
+                                nameEditorKeyboardQa -> "build/qa/name-editor-keyboard-synthetic.flp"
+                                else -> "build/qa/name-editor-apply-synthetic.flp"
+                            }
                         )
                         check(!Files.exists(file)) {
                             "Arquivo QA anterior não pode ser sobrescrito."
@@ -201,12 +205,25 @@ fun main(args: Array<String>) = application {
                             // Campo limitado a 24 caracteres pelo Android:
                             // ir ao fim e apagar fisicamente até 24 posições.
                             // Não manipular estado interno do Android por código.
-                            robot.keyPress(KeyEvent.VK_END)
-                            robot.keyRelease(KeyEvent.VK_END)
-                            repeat(24) {
-                                robot.keyPress(KeyEvent.VK_BACK_SPACE)
-                                robot.keyRelease(KeyEvent.VK_BACK_SPACE)
-                                delay(35L)
+                            if (nameEditorCtrlAQa) {
+                                // Diagnóstico separado do atalho Windows: NÃO
+                                // usar Backspace/Home nem alterar o draft.
+                                // O campo precisa executar Ctrl+A nativamente.
+                                delay(1_000L)
+                                robot.keyPress(KeyEvent.VK_CONTROL)
+                                robot.keyPress(KeyEvent.VK_A)
+                                delay(180L)
+                                robot.keyRelease(KeyEvent.VK_A)
+                                robot.keyRelease(KeyEvent.VK_CONTROL)
+                                delay(700L)
+                            } else {
+                                robot.keyPress(KeyEvent.VK_END)
+                                robot.keyRelease(KeyEvent.VK_END)
+                                repeat(24) {
+                                    robot.keyPress(KeyEvent.VK_BACK_SPACE)
+                                    robot.keyRelease(KeyEvent.VK_BACK_SPACE)
+                                    delay(35L)
+                                }
                             }
                             for (key in intArrayOf(KeyEvent.VK_A, KeyEvent.VK_N, KeyEvent.VK_A)) {
                                 robot.keyPress(key)
@@ -214,7 +231,10 @@ fun main(args: Array<String>) = application {
                                 delay(90L)
                             }
                             delay(3_500L)
-                            val inputPng = File("build/qa/name-editor-keyboard-input-qa.png")
+                            val inputPng = File(
+                                if (nameEditorCtrlAQa) "build/qa/name-editor-ctrl-a-input-qa.png"
+                                else "build/qa/name-editor-keyboard-input-qa.png"
+                            )
                             inputPng.parentFile.mkdirs()
                             check(ImageIO.write(
                                 robot.createScreenCapture(bounds), "png", inputPng
@@ -239,16 +259,22 @@ fun main(args: Array<String>) = application {
                             "FLP do Editor não preservou o nome editável/original."
                         }
                         val post = robot.createScreenCapture(bounds)
-                        val png = File(if (nameEditorKeyboardQa)
-                            "build/qa/name-editor-keyboard-applied-qa.png"
-                        else "build/qa/name-editor-applied-qa.png")
+                        val png = File(
+                            when {
+                                nameEditorCtrlAQa -> "build/qa/name-editor-ctrl-a-applied-qa.png"
+                                nameEditorKeyboardQa -> "build/qa/name-editor-keyboard-applied-qa.png"
+                                else -> "build/qa/name-editor-applied-qa.png"
+                            }
+                        )
                         check(ImageIO.write(post, "png", png) && png.length() > 10_000) {
                             "Captura do visualizador após Aplicar não foi gerada."
                         }
                         println(
-                            (if (nameEditorKeyboardQa)
-                                "BROTHER_WINDOWS_NAME_EDITOR_KEYBOARD_MOUSE_FLP_OK "
-                            else "BROTHER_WINDOWS_NAME_EDITOR_APPLY_MOUSE_FLP_OK ") +
+                            (when {
+                                nameEditorCtrlAQa -> "BROTHER_WINDOWS_NAME_EDITOR_CTRL_A_MOUSE_FLP_OK "
+                                nameEditorKeyboardQa -> "BROTHER_WINDOWS_NAME_EDITOR_KEYBOARD_MOUSE_FLP_OK "
+                                else -> "BROTHER_WINDOWS_NAME_EDITOR_APPLY_MOUSE_FLP_OK "
+                            }) +
                                 "pontos=${reopened.points.size}"
                         )
                         exitProcess(0)
@@ -350,6 +376,7 @@ fun main(args: Array<String>) = application {
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
+                startInNameEditorCtrlAQa = nameEditorCtrlAQa,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -411,6 +438,7 @@ private fun FielHomeHost(
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
+    startInNameEditorCtrlAQa: Boolean = false,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
@@ -734,9 +762,13 @@ private fun FielHomeHost(
                                 "A edição QA não refletiu a digitação real do teclado."
                             }
                             val qaFile = Path.of(
-                                if (startInNameEditorKeyboardQa)
-                                    "build/qa/name-editor-keyboard-synthetic.flp"
-                                else "build/qa/name-editor-apply-synthetic.flp"
+                                when {
+                                    startInNameEditorCtrlAQa ->
+                                        "build/qa/name-editor-ctrl-a-synthetic.flp"
+                                    startInNameEditorKeyboardQa ->
+                                        "build/qa/name-editor-keyboard-synthetic.flp"
+                                    else -> "build/qa/name-editor-apply-synthetic.flp"
+                                }
                             )
                             Files.createDirectories(qaFile.parent)
                             // Escrita CREATE_NEW; jamais tocar em projetos reais.
