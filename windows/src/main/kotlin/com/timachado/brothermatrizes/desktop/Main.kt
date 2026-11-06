@@ -84,7 +84,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 internal enum class DesktopWorkspace(val label: String) {
-    HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
+    HOME("Início"), VIEWER("Visualizar"), SIMULATOR("Simulador"), NAME("Criar nome"),
     DRAW("Desenhar"), MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
     LIBRARY("Biblioteca"), TRANSFER("Transferir"), COMMUNITY("Comunidade"),
     ACCOUNT("Conta")
@@ -325,13 +325,38 @@ private fun DesktopScreen(
     var libraryFilter by remember { mutableStateOf("TODOS") }
     var libraryPage by remember { mutableStateOf(0) }
     var stitchProgress by remember { mutableStateOf(1f) }
+    var simulatorPlaying by remember { mutableStateOf(false) }
+    var simulatorRate by remember { mutableStateOf(500) }
     // Navegação da prévia é visual e reinicia ao abrir um projeto diferente.
     var previewZoom by remember(document?.original) { mutableStateOf(1f) }
     var previewPan by remember(document?.original) { mutableStateOf(Offset.Zero) }
     var moveWholeDesign by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val detailScroll = rememberScrollState()
-    LaunchedEffect(workspace) { detailScroll.scrollTo(0) }
+    LaunchedEffect(document) { simulatorPlaying = false }
+    LaunchedEffect(workspace) {
+        if (workspace != DesktopWorkspace.SIMULATOR) simulatorPlaying = false
+        detailScroll.scrollTo(0)
+    }
+    LaunchedEffect(workspace, document, simulatorPlaying, simulatorRate) {
+        if (workspace != DesktopWorkspace.SIMULATOR || !simulatorPlaying) {
+            return@LaunchedEffect
+        }
+        val total = preview?.points?.size ?: 0
+        if (total == 0) {
+            simulatorPlaying = false
+            return@LaunchedEffect
+        }
+        while (simulatorPlaying && stitchProgress < 1f) {
+            // Reprodução de comandos gráficos, não o tempo real da bordadeira.
+            delay(DesktopStitchPlayback.TICK_MILLIS)
+            stitchProgress = DesktopStitchPlayback.advance(
+                total, stitchProgress,
+                DesktopStitchPlayback.commandsPerTick(simulatorRate)
+            )
+            if (stitchProgress >= 1f) simulatorPlaying = false
+        }
+    }
 
     fun report(text: String, error: Boolean = false) {
         message = text
@@ -956,23 +981,24 @@ private fun DesktopScreen(
                                 fontSize = 11.sp, color = muted
                             )
                             Text(
-                                "Sequência visual: ${(preview.points.size * stitchProgress).toInt()} de ${preview.points.size} comandos (não é tempo real de máquina)",
+                                "Sequência visual: ${DesktopStitchPlayback.visibleCount(preview.points.size, stitchProgress)} de ${preview.points.size} comandos (não é tempo real de máquina)",
                                 color = muted,
                                 fontSize = 12.sp
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = { stitchProgress = 0f }) {
+                                TextButton(onClick = { simulatorPlaying = false; stitchProgress = 0f }) {
                                     Text("Início")
                                 }
                                 Slider(
                                     value = stitchProgress,
-                                    onValueChange = { stitchProgress = it },
+                                    onValueChange = { simulatorPlaying = false; stitchProgress = it },
                                     modifier = Modifier.weight(1f)
                                 )
                                 TextButton(onClick = {
+                                    simulatorPlaying = false
                                     stitchProgress = (stitchProgress + 0.1f).coerceAtMost(1f)
                                 }) { Text("+10%") }
-                                TextButton(onClick = { stitchProgress = 1f }) {
+                                TextButton(onClick = { simulatorPlaying = false; stitchProgress = 1f }) {
                                     Text("Fim")
                                 }
                             }
@@ -1696,6 +1722,69 @@ private fun DesktopScreen(
                             )
                         }
                     }
+                    }
+                    if (workspace == DesktopWorkspace.SIMULATOR) {
+                        Text("Simulador visual — QA", color = cyan,
+                            fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Reproduz a sequência de comandos da matriz em memória. " +
+                                "Não simula velocidade física, tensão, movimento da agulha " +
+                                "nem tempo real de bordadeira.",
+                            color = muted, fontSize = 12.sp
+                        )
+                        val total = preview?.points?.size ?: 0
+                        if (total == 0) {
+                            Text("Abra uma matriz DST, PES, JEF ou projeto FLP.",
+                                color = muted, fontSize = 12.sp)
+                        } else {
+                            Text(
+                                "Comando ${DesktopStitchPlayback.visibleCount(total, stitchProgress)} de $total",
+                                color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Button(enabled = !busy, onClick = {
+                                    if (simulatorPlaying) {
+                                        simulatorPlaying = false
+                                    } else {
+                                        if (stitchProgress >= 1f) stitchProgress = 0f
+                                        simulatorPlaying = true
+                                    }
+                                }) { Text(if (simulatorPlaying) "Pausar" else "Reproduzir") }
+                                TextButton(enabled = !busy, onClick = {
+                                    simulatorPlaying = false
+                                    stitchProgress = 0f
+                                }) { Text("Reiniciar") }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                TextButton(enabled = !busy, onClick = {
+                                    simulatorPlaying = false
+                                    stitchProgress = DesktopStitchPlayback.advance(
+                                        total, stitchProgress, -1
+                                    )
+                                }) { Text("−1 comando") }
+                                TextButton(enabled = !busy, onClick = {
+                                    simulatorPlaying = false
+                                    stitchProgress = DesktopStitchPlayback.advance(
+                                        total, stitchProgress, 1
+                                    )
+                                }) { Text("+1 comando") }
+                            }
+                            Text("Ritmo visual (comandos/s)", color = muted, fontSize = 12.sp)
+                            DesktopStitchPlayback.availableRates.forEach { rate ->
+                                TextButton(enabled = !busy, onClick = {
+                                    simulatorRate = rate
+                                }) {
+                                    Text(
+                                        (if (simulatorRate == rate) "● " else "") + "$rate"
+                                    )
+                                }
+                            }
+                            Text(
+                                "Somente leitura: não altera pontadas, cores, bastidores " +
+                                    "nem arquivos da matriz. Costura física requer homologação.",
+                                color = muted, fontSize = 11.sp
+                            )
+                        }
                     }
                     if (workspace == DesktopWorkspace.FONT) {
                     Spacer(Modifier.height(7.dp))
