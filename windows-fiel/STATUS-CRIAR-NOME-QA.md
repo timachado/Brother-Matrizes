@@ -49,10 +49,29 @@ Data da auditoria: **06/11/2026**. PR **#226** permanece rascunho.
   mostrava **Atualizando prévia...**, sem pontadas prontas. O teste
   `BrotherCreateNameScreenshotTest` agora exige primeiro plano Android
   e botão **Criar matriz** habilitado antes de aceitar a imagem.
-- **QA Windows #42196408550**: compilação e testes dos formatos
-  FLP/PES/DST/JEF concluídos com sucesso; testes de equivalência da
-  fonte do codec e loader foram adicionados em revisão posterior e
-  aguardam sua própria QA.
+- **QA Windows #42196408550** e **#42196929853**: compilações,
+  testes de formatos FLP/PES/DST/JEF e testes adicionais de equivalência
+  de código aprovados.
+
+## Captura Android confiável e comparativo (06/11/2026)
+
+A QA [#42196696590](https://github.com/timachado/Brother-Matrizes/actions/runs/42196696590)
+gerou uma nova captura Android oficial, com o alerta Pixel Launcher
+removido e a prévia de **Maria** já concluída. O teste exige que a janela
+ativa pertença ao Brother Matrizes e que o botão **Criar matriz** esteja
+habilitado antes de capturar.
+
+Na comparação **Android 1080×2400** versus **Windows 404×641**,
+ambos mostram **Maria, 1.071 pontos e 88,1 × 28,3 mm**, além do tema
+escuro, formulário, bastidor e navegação de cinco abas com identidade
+equivalente. O Windows tem uma viewport vertical menor; os controles
+Reto/Arco ficam abaixo da área inicialmente visível e precisam de
+rolagem. Portanto, confirma-se **paridade da configuração básica
+testada**, não equivalência de todas as telas, gestos, estados e opções.
+
+A área de fontes TTF/OTF está sendo tratada separadamente em
+`STATUS-FONTES-TTF-OTF-QA.md`. Nenhum recurso do motor original de
+fontes importadas deve ser substituído por simples texto estilizado.
 
 ## Bloqueios que NÃO podem ser ocultados
 
