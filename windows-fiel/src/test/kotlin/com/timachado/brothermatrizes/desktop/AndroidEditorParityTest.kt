@@ -42,7 +42,7 @@ class AndroidEditorParityTest {
         )).replace("\r\n", "\n")
         val officialHoop = officialActivity.substringAfter(
             "internal fun recommendedHoopFor("
-        ).substringBefore("\nprivate sealed interface Screen").trim()
+        ).substringBefore("\nprivate sealed interface Screen").trimEnd()
         val extracted = Files.readString(root.resolve(
             "build/generated/android-editor/kotlin/com/timachado/brothermatrizes/RecommendedHoopFor.kt"
         )).replace("\r\n", "\n")
