@@ -1,0 +1,60 @@
+name: Brother Matrizes - Windows fiel Home Android (compilacao QA)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/**"
+      - "app/src/main/java/com/timachado/brothermatrizes/HomeScreen.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/ui/theme/**"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/**"
+      - "app/src/main/res/drawable/**"
+      - "branding/**"
+      - ".github/workflows/brother-windows-fiel-home-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-home:
+    name: Compilar Home Android ORIGINAL em Compose Desktop (sem instalador)
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Verificar fonte Android e arquivos oficiais
+        shell: pwsh
+        run: |
+          python windows-fiel/qa/verificar_referencia_android.py
+      - name: Compilar Home, recursos originais e validar testes unitarios
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel clean test classes --stacktrace --no-daemon
+      - name: Validar geração da Home ORIGINAL (não copiar versão rejeitada)
+        shell: pwsh
+        run: |
+          $home = "windows-fiel/build/generated/android-home/kotlin/com/timachado/brothermatrizes/HomeScreen.kt"
+          if (!(Test-Path $home)) { throw "Fonte Compose original nao gerada" }
+          $source = Get-Content $home -Raw
+          foreach ($item in @("fun HomeScreen(", "fun PremiumHeroCard()", "brother_home_hero", "brother_bm_premium_approved", "Ferramentas")) {
+            if (!$source.Contains($item)) { throw "Componente Android perdido: $item" }
+          }
+          $res = "windows-fiel/build/generated/resources/drawable"
+          foreach ($asset in @("brother_home_hero.jpg", "brother_bm_premium_approved.webp", "ic_ms_home_rounded.svg", "ic_ms_text_fields_rounded.svg")) {
+            if (!(Test-Path (Join-Path $res $asset))) { throw "Asset Android nao gerado: $asset" }
+          }
+          "BROTHER_WINDOWS_FIEL_HOME_COMPILE_OK"
+      # Não gerar ZIP, EXE, MSI ou release enquanto as capturas da Home
+      # Windows e Android não forem comparadas e aprovadas pelo proprietário.
