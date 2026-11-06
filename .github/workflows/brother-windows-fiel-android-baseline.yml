@@ -8,6 +8,8 @@ on:
       - "app/**"
       - "branding/**"
       - "windows-fiel/qa/verificar_referencia_android.py"
+      - "windows-fiel/qa/capture_android_creator.sh"
+      - "app/src/androidTest/java/com/timachado/brothermatrizes/BrotherCreateNameScreenshotTest.kt"
       - ".github/workflows/brother-windows-fiel-android-baseline.yml"
       - ".github/scripts/brother-premium-capture.sh"
   workflow_dispatch:
@@ -70,3 +72,45 @@ jobs:
 # Deliberadamente NÃO compila, publica ou reutiliza os EXE/MSI/ZIPs
 # do PR Windows rejeitado. Um screenshot do Android é apenas a referencia
 # de comparação: a aceitação do Windows requer capturas e testes próprios.
+
+  android-golden-create-name:
+    name: Capturar Criar Nome ORIGINAL do Android para comparar com Windows
+    needs: android-reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar SDK Android 36
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Ativar aceleração de emulador
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Capturar Criar Nome Android real usando instrumento QA
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash windows-fiel/qa/capture_android_creator.sh
+      - name: Reter imagem oficial do Criar Nome e log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-fiel-REFERENCIA-ANDROID-CREATE-NAME-1118
+          path: |
+            android-original-create-name-1118.png
+            android-creator-original-test.log
+          if-no-files-found: warn
+          retention-days: 14
