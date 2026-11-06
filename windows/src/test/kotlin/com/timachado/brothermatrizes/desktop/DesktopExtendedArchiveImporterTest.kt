@@ -17,7 +17,7 @@ class DesktopExtendedArchiveImporterTest {
                 generated, "DST", dir.resolve("matriz.dst")
             )
             val archive = dir.resolve("collection.7z")
-            SevenZOutputFile.builder().setFile(archive.toFile()).get().use { out ->
+            SevenZOutputFile(archive.toFile()).use { out ->
                 val entry = out.createArchiveEntry(dst.toFile(), "colecao/QA.dst")
                 out.putArchiveEntry(entry)
                 out.write(Files.readAllBytes(dst))
