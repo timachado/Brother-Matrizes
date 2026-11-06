@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.font
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -41,6 +42,37 @@ class ActiveSatinFontGoldenTest {
             extension = "ttf",
             absolutePath = dest.absolutePath
         )
+        // Golden da verificação de silhueta COMERCIAL, independente da
+        // fonte TTF: mesma geometria e mesmas linhas reais em Android/Skia.
+        val qualityGlyph = listOf(listOf(listOf(
+            AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            AndroidSkiaOutlineExtractor.Point(120f, 0f),
+            AndroidSkiaOutlineExtractor.Point(120f, 80f),
+            AndroidSkiaOutlineExtractor.Point(0f, 80f)
+        )))
+        val qualityStitches = buildList {
+            for (y in 3..77 step 6) {
+                add(EmbroideryPoint(3, y, StitchCommand.JUMP, 0))
+                add(EmbroideryPoint(117, y, StitchCommand.STITCH, 0))
+            }
+        }
+        val quality = ImportedFontCoverageGuard.check(
+            qualityGlyph, qualityStitches
+        )
+        val displaced = qualityStitches.map {
+            it.copy(xUnits = it.xUnits + 300)
+        }
+        val blocked = runCatching {
+            ImportedFontCoverageGuard.check(qualityGlyph, displaced)
+        }.isFailure
+        assertTrue("Guard Android não bloqueou bordado deslocado.", blocked)
+        File(context.filesDir, "bm-parity-android-coverage.tsv")
+            .writeText(
+                "SCORE\t" + quality.precision + "\t" + quality.coverage +
+                    "\nBLOCKED\t" + blocked + "\n",
+                Charsets.UTF_8
+            )
+
         val text = "O"
         val geometry = AndroidSkiaOutlineExtractor.extract(
             font = font, text = text,
