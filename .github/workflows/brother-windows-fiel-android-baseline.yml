@@ -1,0 +1,72 @@
+name: Brother Matrizes - baseline oficial Android 1.11.8 (Windows fiel)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "app/**"
+      - "branding/**"
+      - "windows-fiel/**"
+      - ".github/workflows/brother-windows-fiel-android-baseline.yml"
+      - ".github/scripts/brother-premium-capture.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-reference:
+    name: Conferir contrato oficial Android (sem Windows QA antiga)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir versao, Home, 16 rotas, tema e arquivos de marca
+        run: python3 windows-fiel/qa/verificar_referencia_android.py
+
+  android-golden-home:
+    name: Capturar Home original em emulador Android (golden de referencia)
+    needs: android-reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar Android SDK e ferramentas
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Habilitar aceleracao de emulador
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Capturar tela Android ORIGINAL por teste de instrumentacao
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/brother-premium-capture.sh
+      - name: Guardar apenas imagens de referencia e log de QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-fiel-REFERENCIA-ANDROID-1118
+          path: |
+            premium-home-screenshot.png
+            premium-launcher-icon.png
+            premium-home-test.log
+          if-no-files-found: warn
+          retention-days: 14
+
+# Deliberadamente NÃO compila, publica ou reutiliza os EXE/MSI/ZIPs
+# do PR Windows rejeitado. Um screenshot do Android é apenas a referencia
+# de comparação: a aceitação do Windows requer capturas e testes próprios.
