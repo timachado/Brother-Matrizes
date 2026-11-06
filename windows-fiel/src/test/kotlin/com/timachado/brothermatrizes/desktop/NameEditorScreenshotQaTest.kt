@@ -74,7 +74,7 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("--qa-name-editor-click-apply"))
         assertTrue(host.contains("robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)"))
         assertTrue(host.contains("DesktopFlpProjectFiles.saveNew(personalized, qaFile)"))
-        assertTrue(host.contains("reopened.editableName?.options?.text == \"Maria\""))
+        assertTrue(host.contains("reopened.editableName?.options?.text == expectedName"))
         assertTrue(yaml.contains("name-editor-applied-qa.png"))
         assertTrue(yaml.contains("--qa-name-editor-click-apply"))
         assertTrue(host.contains("--qa-name-editor-keyboard-apply"))
