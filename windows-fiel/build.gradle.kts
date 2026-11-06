@@ -146,6 +146,69 @@ val copyAndroidVisualization by tasks.registering(Sync::class) {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedViewer)
 
 
+// Editor de Matrizes: fonte original Android mantida integralmente,
+// exceto o BackHandler de Activity (o botão Voltar e seu AlertDialog
+// permanecem idênticos). recommendedHoopFor é extraído literalmente do
+// MainActivity.kt Android para impedir divergência nas dimensões do bastidor.
+val generatedEditor = layout.buildDirectory.dir("generated/android-editor/kotlin")
+val copyAndroidEditor by tasks.registering {
+    val editorFile = originalAndroidCode.file("EditorScreen.kt")
+    val activityFile = originalAndroidCode.file("MainActivity.kt")
+    inputs.file(editorFile)
+    inputs.file(activityFile)
+    outputs.dir(generatedEditor)
+    doLast {
+        val original = editorFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val handlerImport = "import androidx.activity.compose.BackHandler\n"
+        val handlerBlock = "    BackHandler {\n        requestBack()\n    }\n\n"
+        check(original.contains("fun EditorScreen(") &&
+            original.contains("MatrixEditor.apply(") &&
+            original.contains("fun requestBack()") &&
+            original.contains("showExitDialog") &&
+            original.contains("Aplicar edição") &&
+            original.split(handlerImport).size == 2 &&
+            original.split(handlerBlock).size == 2
+        ) { "Editor Android mudou: portagem Desktop precisa de revisão." }
+        val desktop = original.replace(handlerImport, "").replace(handlerBlock, "")
+        check(!desktop.contains("BackHandler") &&
+            desktop.contains("onApply(preview)") &&
+            desktop.contains("Alterações não aplicadas")
+        ) { "Adaptação do retorno Desktop descartou funcionalidades." }
+        val editorOut = generatedEditor.get().file(
+            "com/timachado/brothermatrizes/EditorScreen.kt"
+        ).asFile
+        editorOut.parentFile.mkdirs()
+        editorOut.writeText(desktop, Charsets.UTF_8)
+
+        val activity = activityFile.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val begin = activity.indexOf("internal fun recommendedHoopFor(")
+        val end = activity.indexOf("\nprivate sealed interface Screen", begin)
+        check(begin > 0 && end > begin) {
+            "A referência Android de recommendedHoopFor mudou."
+        }
+        val function = activity.substring(begin, end).trim()
+        check(function.contains("HoopProfile.entries") &&
+            function.contains("design.bounds.widthMm") &&
+            function.contains("design.bounds.heightMm") &&
+            function.endsWith("}")
+        ) { "Heurística oficial de bastidor alterada." }
+        val helper = """
+package com.timachado.brothermatrizes
+
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+
+$function
+""".trimStart()
+        val helperOut = generatedEditor.get().file(
+            "com/timachado/brothermatrizes/RecommendedHoopFor.kt"
+        ).asFile
+        helperOut.parentFile.mkdirs()
+        helperOut.writeText(helper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedEditor)
+
 // Biblioteca: a UI das seções e cartões continua literalmente a do Android.
 // Somente o bloco de ponte RAR/Google/ActivityResult (não suportado no Desktop)
 // é substituído por um aviso. Não fingir login ou descontar cotas do cliente.
@@ -979,7 +1042,7 @@ tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
-        copyAndroidProjectLibrary,
+        copyAndroidProjectLibrary, copyAndroidEditor,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,

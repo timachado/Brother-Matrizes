@@ -40,6 +40,7 @@ import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.ConverterScreen
+import com.timachado.brothermatrizes.EditorScreen
 import com.timachado.brothermatrizes.MonogramScreen
 import com.timachado.brothermatrizes.ProjectLibraryScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
@@ -209,7 +210,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR }
 
 @Composable
 private fun FielHomeHost(
@@ -501,7 +502,7 @@ private fun FielHomeHost(
                     onBack = { detail = ActiveDetail.NONE },
                     onOpen = { openProject() },
                     onSimulate = { detail = ActiveDetail.SIMULATOR },
-                    onEdit = { informNotPorted("Editor") },
+                    onEdit = { detail = ActiveDetail.EDITOR },
                     onEditName = { informNotPorted("Editar nome") },
                     onConvert = { detail = ActiveDetail.CONVERTER },
                     onTransfer = { informNotPorted("Enviar") },
@@ -511,6 +512,19 @@ private fun FielHomeHost(
                     onSavePeDesign = { exportDesign("PES", peDesign = true) },
                     onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
                     onPositionChange = { activeDesign = it }
+                )
+            } else if (detail == ActiveDetail.EDITOR && activeDesign != null) {
+                // Composable EditorScreen original Android, controle de retorno
+                // adaptado ao desktop. A edição é aplicada em memória; jamais
+                // gravar arquivo ou alterar a fonte FLP automaticamente.
+                EditorScreen(
+                    design = checkNotNull(activeDesign),
+                    onBack = { detail = ActiveDetail.VIEWER },
+                    onApply = { edited ->
+                        activeDesign = edited
+                        hoop = edited.hoopProfile ?: HoopProfile.H100X100
+                        detail = ActiveDetail.VIEWER
+                    }
                 )
             } else if (detail == ActiveDetail.MONOGRAM) {
                 // MonogramScreen oficial do Android: mesmo formulário, preview,
@@ -616,7 +630,10 @@ private fun FielHomeHost(
                         if (activeDesign != null) detail = ActiveDetail.SIMULATOR
                         else informNotPorted("Crie ou abra uma matriz primeiro")
                     },
-                    onEdit = { informNotPorted("Editor") },
+                    onEdit = {
+                        if (activeDesign != null) detail = ActiveDetail.EDITOR
+                        else informNotPorted("Abra ou crie uma matriz antes de editar")
+                    },
                     onConvert = {
                         if (activeDesign != null) detail = ActiveDetail.CONVERTER
                         else scope.launch {
