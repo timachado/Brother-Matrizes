@@ -44,6 +44,34 @@ homologar tanto o gerador de matrizes quanto autorização/cotas reais.
 lista vazia e recusa a geração TTF/OTF; isso é proposital e
 explicitamente bloqueado.
 
+## Geometria dos glifos — segundo estágio (ainda em QA)
+
+`DesktopSkiaGlyphGeometry.kt` implementa a etapa correspondente à
+`buildReferenceGlyphGeometry` / `polygonizeReferencePath` do motor
+Android, **sem reescrever as regras de satin**:
+
+- Define escala pela altura do contorno de `H`, como o Android.
+- Compõe caracteres por avanços individuais e espaçamento vetorial.
+- Preserva a ordem dos glifos e seus múltiplos contornos,
+  inclusive os vazados de letras como `O`.
+- Normaliza o desenho pelo centro da união das caixas vetoriais.
+- Discretiza curvas quadráticas, cúbicas e cônicas do Skia,
+  reamostrando cada contorno fechado com
+  `max(8, ceil(perimeter/2))` pontos, conforme o parâmetro
+  original Android. Diferenças de tesselação Skia/Android
+  ainda precisam de comparação numérica em fonte idêntica.
+- Rejeita Unicode inválido, glifos ausentes, números não finitos,
+  arquivos inadequados e contornos com complexidade excessiva.
+- `DesktopSkiaGlyphGeometryTest.kt` verifica `Maria`, os vazados
+  de `OO`, espaçamento, dimensões e entradas inválidas.
+
+**Sem pretensão de matrizes prontas:** os polígonos ainda NÃO foram
+passados ao gerador `appendReferenceSatinGlyph` do Android.
+`CreateNameScreen` não exibe fontes externas até que o cálculo de
+pontadas reais, a ordenação e a autorização comercial sejam equivalentes.
+A QA da revisão de geometria precisa passar antes de declarar esta
+etapa aprovada.
+
 ## Portões seguintes
 
 1. Portar a **geometria** de `ImportedFontMatrixGenerator` para
