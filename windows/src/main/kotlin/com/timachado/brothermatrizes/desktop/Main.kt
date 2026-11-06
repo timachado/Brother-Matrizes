@@ -818,6 +818,7 @@ private fun DesktopScreen(
                                     artwork = drawingSvgEditSession?.current ?: artwork.artwork,
                                     threadRgb = drawingColor,
                                     selectedPathIndex = selectedSvgPath,
+                                    selectedNodeIndex = selectedSvgNodeIndex,
                                     enabled = !busy,
                                     onSelect = { index ->
                                         selectedSvgPath = index
