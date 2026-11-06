@@ -43,6 +43,10 @@ class DesktopImportedFontLibraryTest {
             assertContentEquals(original, Files.readAllBytes(fontSource))
             assertEquals(listOf(imported), library.list())
             assertEquals(imported, library.importFile(fontSource, "Fonte de teste.ttf"))
+            assertEquals(
+                imported, library.importFile(fontSource, "Nome totalmente diferente.ttf"),
+                "Mesmo conteúdo não deve ocupar dois registros, como no Android."
+            )
             assertEquals(1, library.list().size)
 
             library.delete(imported.id)
