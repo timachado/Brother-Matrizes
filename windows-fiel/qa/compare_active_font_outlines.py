@@ -177,6 +177,45 @@ def compare_active_stitches() -> dict:
     return report
 
 
+
+def compare_coverage_guard() -> dict:
+    """Comparar a métrica comercial original com o probe Skia isolado.
+
+    Um PASS neste teste apenas indica que o CASO CONTROLADO é compatível;
+    não autoriza ligar ImportedFontCoverageGuard no Windows.
+    """
+    result = {
+        "case": "ImportedFontCoverageGuard - rectangle and shifted stitches",
+        "passed": False,
+        "max_score_delta": None,
+        "issues": [],
+    }
+
+    def read(path: Path):
+        rows = list(csv.reader(path.open(encoding="utf-8"), delimiter="\t"))
+        assert len(rows) == 2 and rows[0][0] == "SCORE"
+        assert len(rows[0]) == 3 and rows[1] == ["BLOCKED", "true"]
+        score = tuple(map(float, rows[0][1:]))
+        assert all(math.isfinite(v) and 0 <= v <= 1 for v in score)
+        return score
+
+    android = read(BASE / "android" / "bm-parity-android-coverage.tsv")
+    windows = read(BASE / "windows" / "bm-parity-windows-coverage.tsv")
+    result["android_precision_coverage"] = [round(v, 6) for v in android]
+    result["windows_precision_coverage"] = [round(v, 6) for v in windows]
+    result["max_score_delta"] = round(
+        max(abs(a - b) for a, b in zip(android, windows)), 6
+    )
+    if result["max_score_delta"] > 0.02:
+        result["issues"].append(
+            "Diferença precision/coverage supera 2 pontos percentuais."
+        )
+    if any(v < limit for v, limit in zip(windows, (0.54, 0.20))):
+        result["issues"].append("Probe Windows aprovou métrica abaixo do guard Android.")
+    result["passed"] = not result["issues"]
+    return result
+
+
 def main():
     report = {
         "gate": "Android active CleanRoom outlines vs Windows Skia - identical TTF",
@@ -226,6 +265,11 @@ def main():
                             f"Contorno {key}: desvio máximo {max_distance:.3f} unidades"
                         )
         report["issues"] = report["issues"][:80]
+        report["coverage_guard"] = compare_coverage_guard()
+        if not report["coverage_guard"]["passed"]:
+            report["issues"].append(
+                "ImportedFontCoverageGuard: precisão/cobertura Windows diferem do Android."
+            )
         report["satin_kernel_o"] = compare_active_stitches()
         if not report["satin_kernel_o"]["passed"]:
             report["issues"].append(
