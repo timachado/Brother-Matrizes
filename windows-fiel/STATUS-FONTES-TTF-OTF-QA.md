@@ -272,6 +272,34 @@ fonte e preservar conta, cotas, UI e testes em PC/bordadeira real.
 Os módulos stroke-flow anteriores permanecem laboratório
 separado; não devem ser confundidos com o motor ativo.
 
+## Gate automatizado de mesma fonte TTF — Android versus Windows
+
+Workflow `brother-windows-active-font-parity-qa.yml` no PR #226,
+com primeira execução [#42209060335](https://github.com/timachado/Brother-Matrizes/actions/runs/42209060335).
+
+1. `ActiveSatinFontGoldenTest` extrai no **emulador Android**
+   a fonte local Roboto, calcula SHA-256, amostra o glifo `O` via
+   `AndroidSkiaOutlineExtractor` **comercial ativo** e executa
+   `CleanRoomSatinEngine.generate` em caráter diagnóstico.
+2. A própria fonte extraída e as coordenadas Android seguem por
+   artefato privado de QA para o **job Windows da mesma execução**.
+   Nunca selecionar outra versão de Roboto pelo nome ou substituir
+   silenciosamente os bytes.
+3. `exportFontOutlineQa` amostra o `O` com `DesktopSkiaGlyphGeometry`.
+   `compare_active_font_outlines.py` verifica SHA-256, índice de cada
+   contorno, número de amostras, caixas geométricas e distância máxima
+   entre pontos. Divergências acima de **1 unidade = 0,1 mm** reprovam
+   a comparação e geram diagnóstico JSON, em vez de declarar paridade.
+4. O resultado Android das pontadas é guardado apenas como referência;
+   **o Windows ainda falha fechado** antes de `generate`, pois precisa
+   portar/examinar os adaptadores de extração de OpenType e de guarda
+   de silhueta. Portanto, o teste atual NÃO aprova matriz TTF/OTF
+   comercial nem substitui outros testes em outras fontes e estilos.
+
+A primeira execução está em homologação e seu resultado só deve ser
+marcado como concluído após o GitHub Actions retornar `success`.
+Uma divergência geométrica é bloqueio mensurável, não falha a ocultar.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
