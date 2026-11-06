@@ -13,7 +13,8 @@ import kotlin.math.sin
  * os pontos passam pelo validador já utilizado pelo parser oficial Android.
  */
 internal enum class DesktopSvgObjectAction {
-    SCALE_DOWN, SCALE_UP, ROTATE_LEFT, ROTATE_RIGHT
+    SCALE_DOWN, SCALE_UP, ROTATE_LEFT, ROTATE_RIGHT,
+    MIRROR_HORIZONTAL, MIRROR_VERTICAL
 }
 
 internal object DesktopSvgObjectTransform {
@@ -47,9 +48,14 @@ internal object DesktopSvgObjectTransform {
         val radians = Math.toRadians(degrees)
         val cosine = cos(radians)
         val sine = sin(radians)
+        // Espelhamento no espaço SVG: horizontal reflete X em torno do
+        // eixo vertical central; vertical reflete Y em torno do eixo horizontal.
+        // Não inverte a ordem dos pontos nem presume segurança de bordado real.
+        val mirrorX = if (action == DesktopSvgObjectAction.MIRROR_HORIZONTAL) -1.0 else 1.0
+        val mirrorY = if (action == DesktopSvgObjectAction.MIRROR_VERTICAL) -1.0 else 1.0
         val changedPoints = path.points.map { point ->
-            val dx = (point.x.toDouble() - centerX) * factor
-            val dy = (point.y.toDouble() - centerY) * factor
+            val dx = (point.x.toDouble() - centerX) * factor * mirrorX
+            val dy = (point.y.toDouble() - centerY) * factor * mirrorY
             val x = centerX + dx * cosine - dy * sine
             val y = centerY + dx * sine + dy * cosine
             require(x.isFinite() && y.isFinite() &&
