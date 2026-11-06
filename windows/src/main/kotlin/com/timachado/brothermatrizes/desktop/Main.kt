@@ -86,7 +86,8 @@ import kotlin.math.roundToInt
 internal enum class DesktopWorkspace(val label: String) {
     HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
     DRAW("Desenhar"), MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
-    LIBRARY("Biblioteca"), TRANSFER("Transferir"), COMMUNITY("Comunidade")
+    LIBRARY("Biblioteca"), TRANSFER("Transferir"), COMMUNITY("Comunidade"),
+    ACCOUNT("Conta")
 }
 
 // Valores oficiais Fio* do tema Android 1.11.8, compartilhados por contrato de QA.
@@ -774,6 +775,25 @@ private fun DesktopScreen(
                                 }
                             )
                         }
+                    } else if (workspace == DesktopWorkspace.ACCOUNT) {
+                        DesktopAccountPanel(
+                            enabled = !busy,
+                            onBack = { workspace = DesktopWorkspace.HOME },
+                            onOpenExternal = { destination ->
+                                runCatching {
+                                    DesktopAccountLinks.openByUserAction(destination)
+                                }.onSuccess {
+                                    report(
+                                        "Navegador oficial aberto. Entrar ou contratar " +
+                                            "no site não ativa recursos PRO no Windows QA."
+                                    )
+                                }.onFailure {
+                                    report(
+                                        "Conta no navegador indisponível: ${it.message}", true
+                                    )
+                                }
+                            }
+                        )
                     } else if (workspace == DesktopWorkspace.COMMUNITY) {
                         DesktopCommunityPanel(
                             enabled = !busy,
@@ -805,7 +825,8 @@ private fun DesktopScreen(
                             onEditor = { workspace = DesktopWorkspace.EDIT },
                             onLibrary = { workspace = DesktopWorkspace.LIBRARY },
                             onTransfer = { workspace = DesktopWorkspace.TRANSFER },
-                            onCommunity = { workspace = DesktopWorkspace.COMMUNITY }
+                            onCommunity = { workspace = DesktopWorkspace.COMMUNITY },
+                            onAccount = { workspace = DesktopWorkspace.ACCOUNT }
                         )
                     } else if (preview == null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -955,8 +976,8 @@ private fun DesktopScreen(
                             color = muted, fontSize = 12.sp)
                         Text("Ferramentas principais e atalhos estão na área central.",
                             color = muted, fontSize = 12.sp)
-                        Text("Conta, notificações da comunidade, envio Wi-Fi direto e " +
-                            "fluxos completos de simulação continuam pendentes.",
+                        Text("Login/assinatura no Windows, notificações da comunidade, " +
+                            "envio Wi-Fi direto e simulação completa permanecem pendentes.",
                             color = muted, fontSize = 11.sp)
                         Text("Favoritos neste computador", color = cyan,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -2589,6 +2610,24 @@ private fun DesktopScreen(
                         color = muted, fontSize = 12.sp
                     )
 
+                    }
+                    if (workspace == DesktopWorkspace.ACCOUNT) {
+                        Text(
+                            "Conta e planos — acesso pelo navegador",
+                            color = cyan, fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Sessão da conta: NÃO VINCULADA. " +
+                                "Nesta versão QA não existem login Supabase, " +
+                                "verificação de assinatura nem ativação PRO.",
+                            color = muted, fontSize = 11.sp
+                        )
+                        Text(
+                            "Preços, elegibilidade, pagamentos, direitos e " +
+                                "estoque só podem ser confirmados no servidor oficial.",
+                            color = muted, fontSize = 11.sp
+                        )
                     }
                     if (workspace == DesktopWorkspace.COMMUNITY) {
                         Text(

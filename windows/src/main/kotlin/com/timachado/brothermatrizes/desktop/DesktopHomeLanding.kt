@@ -40,7 +40,8 @@ internal fun DesktopHomeLanding(
     onEditor: () -> Unit,
     onLibrary: () -> Unit,
     onTransfer: () -> Unit,
-    onCommunity: () -> Unit
+    onCommunity: () -> Unit,
+    onAccount: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
@@ -137,6 +138,11 @@ internal fun DesktopHomeLanding(
             onClick = onCommunity,
             modifier = Modifier.fillMaxWidth()
         ) { Text("Comunidade e suporte") }
+        TextButton(
+            enabled = enabled,
+            onClick = onAccount,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Conta e planos (navegador)") }
         Text(
             "Versão Windows em homologação: nem todas as funções Android " +
                 "estão disponíveis. Nenhum arquivo é enviado automaticamente.",
