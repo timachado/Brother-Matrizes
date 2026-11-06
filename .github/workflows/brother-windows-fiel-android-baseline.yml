@@ -7,7 +7,7 @@ on:
     paths:
       - "app/**"
       - "branding/**"
-      - "windows-fiel/**"
+      - "windows-fiel/qa/verificar_referencia_android.py"
       - ".github/workflows/brother-windows-fiel-android-baseline.yml"
       - ".github/scripts/brother-premium-capture.sh"
   workflow_dispatch:
