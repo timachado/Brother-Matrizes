@@ -166,6 +166,20 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Geometria de objetos SVG e persistência (QA)
+
+O caminho SVG selecionado pode ser redimensionado incrementalmente em
+−10%/+10% e girado −15°/+15° em torno do centro da própria caixa delimitadora.
+O cálculo usa coordenadas SVG reais e preserva a ordenação, os outros caminhos
+e o histórico reversível, recusando ultrapassar os limites de segurança do
+parser Android. Testes cobrem isolamento de objetos, centro geométrico, limite
+de coordenadas e dois salvamentos/reaberturas de pares FLP + `.bmvector`,
+verificando que o par salvo anteriormente mantém seus bytes intactos.
+
+**Parcial:** a operação não resolve pontos de bordado individualmente nem cria
+camadas editáveis em DST/PES/JEF importados. Ajustes precisam de homologação
+visual em Windows físico e validação de bordado real antes de uma release.
+
 ## Objetos SVG: inspetor de caminhos e passo vetorial (QA)
 
 O módulo **Desenhar → SVG** mostra caminhos individuais em páginas de
