@@ -379,6 +379,39 @@ não está homologada até o gate Android×Windows do mesmo commit
 retornar `success`. Não ampliar tolerância, não modificar a
 fonte comercial e não liberar o importador na UI.
 
+## Probe da guarda de silhueta (diagnóstico, sem ativação comercial)
+
+`DesktopCoverageGuardProbe.kt` aplica, em Skia/JVM Windows, a mesma
+lógica mensurável da `ImportedFontCoverageGuard.kt` Android:
+
+- Preenchimento da fonte com `WINDING` e segmento costurado
+  em `STROKE`, raio/espessura **2,4 unidades** e cap redondo.
+- Bitmaps ARGB **320×192**, margem geométrica **18 pixels**,
+  anti-alias **desligado**, contagem binária de alpha não nulo.
+- Pontos STITCH simulados pela conexão à posição anterior, sem
+  transformar movimentos JUMP em pontos bordados.
+- `precision = pixels de silhueta correspondentes / pixels
+  costurados`, `coverage = pixels correspondentes / pixels
+  esperados`; mínimos comerciais **0,54 e 0,20**.
+- Limites de tamanho, coordenadas e rejeição de fonte ilegível.
+
+O `DesktopCoverageGuardProbeTest` confirma aprovação de
+geometria controlada, bloqueio de linhas deslocadas e
+rejeição de contornos inválidos. A nova QA automatizada coleta
+`bm-parity-android-coverage.tsv` pelo **guard comercial Android
+real** e `bm-parity-windows-coverage.tsv` pelo **probe Windows**,
+comparando diferenças absolutas de precision/coverage (até
+**0,02** no teste sintético), e exige que ambos rejeitem a
+mesma matriz deslocada.
+
+**Aviso:** o `ImportedFontCoverageGuard.check` na porta Windows
+continua com `UnsupportedOperationException`. O probe é um
+instrumento de medição QA; só poderá substituir o guard após
+comparações adicionais em fontes, tamanhos e sequências reais
+com equivalência sustentada, inclusive cenários de bloqueio.
+Não autorizar conta, prévia ou exportação baseando-se no probe.
+QA da última revisão em execução, não considerar o guard homologado.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
