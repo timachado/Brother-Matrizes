@@ -196,10 +196,18 @@ fun main(args: Array<String>) = application {
                             robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)
                             robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
                             delay(400L)
-                            robot.keyPress(KeyEvent.VK_CONTROL)
-                            robot.keyPress(KeyEvent.VK_A)
-                            robot.keyRelease(KeyEvent.VK_A)
-                            robot.keyRelease(KeyEvent.VK_CONTROL)
+                            // O Ctrl+A no runner Compose Desktop não selecionou
+                            // o texto (a primeira QA produziu "Mariaana").
+                            // Campo limitado a 24 caracteres pelo Android:
+                            // ir ao fim e apagar fisicamente até 24 posições.
+                            // Não manipular estado interno do Android por código.
+                            robot.keyPress(KeyEvent.VK_END)
+                            robot.keyRelease(KeyEvent.VK_END)
+                            repeat(24) {
+                                robot.keyPress(KeyEvent.VK_BACK_SPACE)
+                                robot.keyRelease(KeyEvent.VK_BACK_SPACE)
+                                delay(35L)
+                            }
                             for (key in intArrayOf(KeyEvent.VK_A, KeyEvent.VK_N, KeyEvent.VK_A)) {
                                 robot.keyPress(key)
                                 robot.keyRelease(key)
