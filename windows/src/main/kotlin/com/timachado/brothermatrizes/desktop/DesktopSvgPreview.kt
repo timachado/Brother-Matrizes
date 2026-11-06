@@ -34,11 +34,14 @@ internal fun DesktopSvgPreview(
     selectedNodeIndex: Int,
     enabled: Boolean,
     onSelect: (Int) -> Unit,
+    onSelectNode: (Int, Int) -> Unit,
     onMove: (Int, Offset, IntSize) -> Unit
 ) {
     var dragIndex by remember(artwork) { mutableStateOf<Int?>(null) }
     var dragDelta by remember(artwork) { mutableStateOf(Offset.Zero) }
     val latestSelect by rememberUpdatedState(onSelect)
+    val latestSelectNode by rememberUpdatedState(onSelectNode)
+    val latestSelectedPath by rememberUpdatedState(selectedPathIndex)
     val latestMove by rememberUpdatedState(onMove)
     val latestEnabled by rememberUpdatedState(enabled)
 
@@ -47,18 +50,29 @@ internal fun DesktopSvgPreview(
         var accumulated = Offset.Zero
         detectDragGestures(
             onDragStart = { start ->
-                current = if (latestEnabled) {
-                    runCatching {
+                val hitNode = if (latestEnabled) runCatching {
+                    DesktopSvgNodePicker.pick(
+                        artwork, size.width.toFloat(),
+                        size.height.toFloat(), start, latestSelectedPath
+                    )
+                }.getOrNull() else null
+                // Um gesto iniciado sobre um marcador NÃO arrasta a matriz
+                // inteira: só seleciona o nó para edição segura no painel.
+                if (hitNode != null) {
+                    latestSelectNode(hitNode.pathIndex, hitNode.nodeIndex)
+                    current = null
+                } else {
+                    current = if (latestEnabled) runCatching {
                         DesktopSvgPathEditor.select(
                             artwork, size.width.toFloat(),
                             size.height.toFloat(), start
                         )
-                    }.getOrNull()
-                } else null
+                    }.getOrNull() else null
+                    current?.let(latestSelect)
+                }
                 accumulated = Offset.Zero
                 dragIndex = current
                 dragDelta = Offset.Zero
-                current?.let(latestSelect)
             },
             onDragEnd = {
                 val selected = current
@@ -89,13 +103,25 @@ internal fun DesktopSvgPreview(
     val tapModifier = Modifier.pointerInput(artwork, enabled) {
         detectTapGestures(onTap = { cursor ->
             if (latestEnabled) {
-                val index = runCatching {
-                    DesktopSvgPathEditor.select(
+                // Marcadores têm prioridade sobre segmentos para que clicar
+                // no nó preserve a seleção correta mesmo com caminhos cruzados.
+                val node = runCatching {
+                    DesktopSvgNodePicker.pick(
                         artwork, size.width.toFloat(),
-                        size.height.toFloat(), cursor
+                        size.height.toFloat(), cursor, latestSelectedPath
                     )
                 }.getOrNull()
-                if (index != null) latestSelect(index)
+                if (node != null) {
+                    latestSelectNode(node.pathIndex, node.nodeIndex)
+                } else {
+                    val index = runCatching {
+                        DesktopSvgPathEditor.select(
+                            artwork, size.width.toFloat(),
+                            size.height.toFloat(), cursor
+                        )
+                    }.getOrNull()
+                    if (index != null) latestSelect(index)
+                }
             }
         })
     }
