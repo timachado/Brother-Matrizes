@@ -1334,6 +1334,28 @@ private fun DesktopScreen(
                                                 )
                                             }
                                         }
+                                    },
+                                    onTransform = { action ->
+                                        val index = selectedSvgPath
+                                        if (index != null) {
+                                            runCatching {
+                                                DesktopSvgObjectTransform.apply(
+                                                    session.current, index, action
+                                                )
+                                            }.onSuccess { transformed ->
+                                                drawingSvgEditSession =
+                                                    session.record(transformed)
+                                                report(
+                                                    "Caminho SVG ${index + 1} transformado. " +
+                                                        "Desfazer/Refazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Transformação SVG recusada: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
                                     }
                                 )
                                 val selected = selectedSvgPath
