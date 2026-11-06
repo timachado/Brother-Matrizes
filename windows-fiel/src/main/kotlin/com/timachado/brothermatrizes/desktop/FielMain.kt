@@ -2,6 +2,9 @@ package com.timachado.brothermatrizes.desktop
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -181,8 +184,11 @@ private fun FielHomeHost() {
         bottomBar = {
             // Mesmas cinco abas, sequência, formato e tokens da MainActivity
             // Android 1.11.8; não usar barra lateral da versão rejeitada.
-            NavigationBar(
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+              NavigationBar(
                 modifier = Modifier
+                    .widthIn(max = 700.dp)
+                    .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .testTag("brother_premium_bottom_bar"),
@@ -210,10 +216,15 @@ private fun FielHomeHost() {
                         colors = colors
                     )
                 }
+              }
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        // Uma grade Android de duas colunas ocupando 1000dp produz
+        // cartões e hero esticados. O limite é aplicado SOMENTE pelo
+        // host Windows, preservando 100% do HomeScreen Android original.
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+          Box(Modifier.widthIn(max = 700.dp).fillMaxWidth().fillMaxHeight()) {
             if (area == HomeArea.HOME) {
                 // Fonte original HomeScreen.kt do Android, não uma recriação.
                 HomeScreen(
@@ -252,6 +263,7 @@ private fun FielHomeHost() {
                     }
                 }
             }
+          }
         }
     }
 }
