@@ -1,7 +1,12 @@
 # Validação gráfica da interface Compose no runner Windows efêmero.
 # Os diagnósticos usam tela vazia ou matriz sintética, sem dados de clientes.
 [CmdletBinding()]
-param([switch]$SyntheticPreview, [switch]$WheelZoom)
+param(
+    [switch]$SyntheticPreview,
+    [switch]$WheelZoom,
+    [switch]$Drawing,
+    [switch]$VectorSvg
+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -19,13 +24,18 @@ if (-not [Environment]::UserInteractive) {
 
 $folder = Join-Path $PSScriptRoot '..\build\qa\desktop-ui'
 [System.IO.Directory]::CreateDirectory($folder) | Out-Null
-if ($SyntheticPreview -and $WheelZoom) {
+if (@($SyntheticPreview, $WheelZoom, $Drawing, $VectorSvg |
+    Where-Object { $_ }).Count -gt 1) {
     throw 'Escolha apenas um modo de diagnóstico de interface.'
 }
 $stem = if ($WheelZoom) {
     'brother-ui-wheel-smoke'
 } elseif ($SyntheticPreview) {
     'brother-ui-synthetic-smoke'
+} elseif ($Drawing) {
+    'brother-ui-drawing-smoke'
+} elseif ($VectorSvg) {
+    'brother-ui-svg-smoke'
 } else {
     'brother-ui-smoke'
 }
@@ -40,6 +50,10 @@ $command = if ($WheelZoom) {
     '--ui-wheel-smoke-test'
 } elseif ($SyntheticPreview) {
     '--ui-synthetic-smoke-test'
+} elseif ($Drawing) {
+    '--ui-drawing-smoke-test'
+} elseif ($VectorSvg) {
+    '--ui-svg-smoke-test'
 } else {
     '--ui-smoke-test'
 }
@@ -107,6 +121,21 @@ try {
             throw 'Captura ampliada inválida ou vazia.'
         }
         Write-Host 'BROTHER_WINDOWS_UI_MOUSE_WHEEL_VERIFIED'
+    }
+    if ($Drawing -or $VectorSvg) {
+        if (!$contents.Contains('BROTHER_WINDOWS_UI_DRAWING_VERIFIED')) {
+            throw 'Não foram detectados traços coloridos no canvas Desenhar.'
+        }
+        if ($Drawing) {
+            if (!$contents.Contains('BROTHER_WINDOWS_UI_MOUSE_DRAW_OK')) {
+                throw 'O movimento real do mouse não gerou desenho visível.'
+            }
+            $drawPicture = Join-Path $folder ($stem + '-after.png')
+            if (!(Test-Path -LiteralPath $drawPicture -PathType Leaf)) {
+                throw 'Captura após o movimento do mouse ausente.'
+            }
+        }
+        Write-Host 'BROTHER_WINDOWS_DRAWING_CANVAS_VERIFIED'
     }
     Write-Host $contents
     Write-Host 'BROTHER_WINDOWS_UI_SCREENSHOT_VERIFIED'

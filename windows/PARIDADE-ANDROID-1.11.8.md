@@ -335,3 +335,16 @@ arquivos auxiliares `.bmdraw` e `.bmvector` quando se reabre um FLP.
 O histórico do desenho livre agora inclui Desfazer, Refazer e Limpar
 reversíveis, com limite de oito revisões, independentes de operações
 de arquivo. Após abrir um projeto, inicia-se uma nova sessão.
+
+## Testes gráficos de Desenhar no runner Windows (QA)
+
+A QA de interface real passa a exercitar dois modos adicionais,
+exclusivamente com dados sintéticos: **desenho livre** com gesto real
+de mouse sobre o canvas Compose e **prévia de SVG** criado em
+memória e analisado pelo `SimpleSvgParser` Android compartilhado.
+O teste de mouse compara pixels da cor de linha no canvas antes
+versus depois do gesto; o teste SVG exige linhas coloridas visíveis.
+Ambos arquivam relatórios e PNG no artefato gráfico de QA de sete
+dias. Esses testes confirmam renderização em runner Windows virtual,
+**não** substituem inspeção visual humana, bordadeira, testes com
+projetos reais ou homologação comercial.

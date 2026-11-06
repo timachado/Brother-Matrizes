@@ -111,6 +111,20 @@ jobs:
         timeout-minutes: 3
         run: ./qa/validate-ui-desktop.ps1 -WheelZoom
 
+      # Desenho livre: movimento real de mouse no canvas Compose,
+      # compara cor no canvas antes/depois sem ler arquivos privados.
+      - name: Desenhar com mouse real e capturar resultado Windows (QA)
+        shell: pwsh
+        timeout-minutes: 3
+        run: ./qa/validate-ui-desktop.ps1 -Drawing
+
+      # Importa SVG inteiramente sintético pelo parser Android,
+      # exige vetores coloridos visíveis e captura a interface.
+      - name: Renderizar SVG vetorial sintetico no canvas Windows (QA)
+        shell: pwsh
+        timeout-minutes: 3
+        run: ./qa/validate-ui-desktop.ps1 -VectorSvg
+
       # ZIP com app-image + Java runtime, SEM instalador. Extrai para
       # pasta temporaria no Windows e confirma abertura de motor e GUI.
       - name: Criar e testar Brother Matrizes portatil sem instalador (QA)

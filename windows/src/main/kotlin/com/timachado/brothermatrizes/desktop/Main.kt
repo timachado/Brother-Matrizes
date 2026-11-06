@@ -120,14 +120,20 @@ fun main(args: Array<String>) {
         return
     }
     if (args.size == 2 &&
-        args[0] in setOf("--ui-smoke-test", "--ui-synthetic-smoke-test", "--ui-wheel-smoke-test")) {
+        args[0] in setOf(
+            "--ui-smoke-test", "--ui-synthetic-smoke-test", "--ui-wheel-smoke-test",
+            "--ui-drawing-smoke-test", "--ui-svg-smoke-test"
+        )) {
         require(System.getenv("BROTHER_WINDOWS_QA_UI") == "1") {
             "Captura da interface permitida somente em ambiente QA autorizado."
         }
         launchDesktopApp(
             java.nio.file.Path.of(args[1]),
-            syntheticUi = args[0] != "--ui-smoke-test",
-            wheelUi = args[0] == "--ui-wheel-smoke-test"
+            syntheticUi = args[0] == "--ui-synthetic-smoke-test" ||
+                args[0] == "--ui-wheel-smoke-test",
+            wheelUi = args[0] == "--ui-wheel-smoke-test",
+            drawingUi = args[0] == "--ui-drawing-smoke-test",
+            svgUi = args[0] == "--ui-svg-smoke-test"
         )
         return
     }
@@ -138,7 +144,9 @@ fun main(args: Array<String>) {
 private fun launchDesktopApp(
     uiReport: Path? = null,
     syntheticUi: Boolean = false,
-    wheelUi: Boolean = false
+    wheelUi: Boolean = false,
+    drawingUi: Boolean = false,
+    svgUi: Boolean = false
 ) = application {
     // A janela de 1280x820dp ultrapassava a area util de desktops pequenos.
     // Limitar ao workspace exclui a barra de tarefas e preserva os controles.
@@ -160,7 +168,11 @@ private fun launchDesktopApp(
                 delay(2500)
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
-                        if (wheelUi) {
+                        if (drawingUi) {
+                            DesktopDrawingUiSmoke.captureDrawGesture(window, uiReport)
+                        } else if (svgUi) {
+                            DesktopDrawingUiSmoke.captureSvgPreview(window, uiReport)
+                        } else if (wheelUi) {
                             DesktopUiSmoke.captureWheelZoom(window, uiReport)
                         } else {
                             DesktopUiSmoke.capture(window, uiReport, syntheticUi)
@@ -178,6 +190,8 @@ private fun launchDesktopApp(
         BrotherDesktopTheme(darkTheme = darkTheme) {
             DesktopScreen(
                 initialDocument = syntheticDocument,
+                initialDrawingQa = drawingUi || svgUi,
+                initialSvgQa = svgUi,
                 darkTheme = darkTheme,
                 onToggleTheme = { darkTheme = !darkTheme }
             )
@@ -188,6 +202,8 @@ private fun launchDesktopApp(
 @Composable
 private fun DesktopScreen(
     initialDocument: DesktopMatrixDocument? = null,
+    initialDrawingQa: Boolean = false,
+    initialSvgQa: Boolean = false,
     darkTheme: Boolean = true,
     onToggleTheme: () -> Unit = {}
 ) {
@@ -195,7 +211,8 @@ private fun DesktopScreen(
     // autorizado injeta "QA", gerado localmente pelo motor oficial.
     var document by remember { mutableStateOf(initialDocument) }
     var workspace by remember { mutableStateOf(
-        if (initialDocument == null) DesktopWorkspace.HOME else DesktopWorkspace.VIEWER
+        if (initialDrawingQa) DesktopWorkspace.DRAW else if (initialDocument == null)
+            DesktopWorkspace.HOME else DesktopWorkspace.VIEWER
     ) }
     var editTimeline by remember { mutableStateOf<DesktopEditTimeline?>(null) }
     val preview = remember(document) { document?.let(DesktopMatrixService::preview) }
@@ -214,13 +231,26 @@ private fun DesktopScreen(
     var threadColorHexText by remember { mutableStateOf("#E6BE70") }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
+    // Amostra de QA totalmente sintética, isolada da versão comercial.
+    // A versão normal não injeta desenhos nem lê arquivos de usuários.
+    val qaSvg = remember(initialSvgQa) {
+        if (initialSvgQa) DesktopSvgImport.parse(
+            "brother-ui-sintetico.svg",
+            ("<svg xmlns=\"http://www.w3.org/2000/svg\">" +
+                "<polyline points=\"5,10 95,10 95,90 5,90 5,10\"/>" +
+                "<polyline points=\"15,20 85,75\"/>" +
+                "</svg>").toByteArray(Charsets.UTF_8)
+        ) else null
+    }
     var drawingHistory by remember { mutableStateOf(DesktopFreehandEditSession.start()) }
     val drawingStrokes = drawingHistory.current
-    var drawingColor by remember { mutableStateOf(0xE6BE70) }
-    var drawingFromSvg by remember { mutableStateOf(false) }
-    var drawingSvg by remember { mutableStateOf<DesktopImportedSvg?>(null) }
+    var drawingColor by remember {
+        mutableStateOf(if (initialDrawingQa) 0x2A9D8F else 0xE6BE70)
+    }
+    var drawingFromSvg by remember { mutableStateOf(initialSvgQa) }
+    var drawingSvg by remember { mutableStateOf(qaSvg) }
     var drawingSvgEditSession by remember {
-        mutableStateOf<DesktopSvgEditSession?>(null)
+        mutableStateOf(qaSvg?.let { DesktopSvgEditSession.start(it.artwork) })
     }
     var selectedSvgPath by remember { mutableStateOf<Int?>(null) }
     var drawingWidthText by remember { mutableStateOf("60") }

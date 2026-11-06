@@ -437,3 +437,14 @@ O preview usa ARGB opaco e as cores são passadas ao motor oficial,
 além de restauradas ao abrir pares FLP + arquivos auxiliares.
 Desenho livre suporta oito revisões de Desfazer e Refazer, inclusive
 limpeza da tela; nenhum arquivo existente é alterado.
+
+## Smoke gráfico da área Desenhar no Windows (QA)
+
+A automação de QA abre a tela Desenhar em duas execuções isoladas:
+1. Desenho livre: o `Robot` do Windows realiza um traço de mouse,
+   capturado antes/depois para comprovar mudança real no canvas.
+2. SVG: uma forma vetorial sintética é interpretada pelo parser
+   compartilhado com o Android e precisa produzir linhas visíveis.
+As PNGs e os relatórios são armazenados somente no artefato
+`brother-windows-ui-smoke-QA-NAO-COMERCIAL`; não entram na versão
+comercial Android. Não representa homologação da bordadeira.
