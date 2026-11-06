@@ -78,17 +78,17 @@ fun main(args: Array<String>) = application {
     // Não aceita caminhos arbitrários de saída nem abre dados de clientes.
     val compactScreenshot = args.singleOrNull() == "--capture-home-qa"
     val wideScreenshot = args.singleOrNull() == "--capture-home-wide-qa"
-    val screenshotMode = compactScreenshot || wideScreenshot
+    val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
+    val screenshotMode = compactScreenshot || wideScreenshot || createNameScreenshot
     require(args.isEmpty() || screenshotMode) {
-        "Argumentos inválidos. Use --capture-home-qa ou " +
-            "--capture-home-wide-qa."
+        "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
     }
     Window(
         onCloseRequest = ::exitApplication,
         title = "Brother Matrizes — validação de fidelidade Android (QA)",
         state = WindowState(
             size = when {
-                compactScreenshot -> DpSize(420.dp, 680.dp)
+                compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
@@ -102,7 +102,7 @@ fun main(args: Array<String>) = application {
                 // O runner Windows tem taskbar e resolução menor que o Android.
                 // A janela anterior de 890dp invadia a barra do sistema.
                 composeWindow.setLocation(20, 20)
-                delay(2_500L)
+                delay(if (createNameScreenshot) 5_000L else 2_500L)
                 try {
                     val container = composeWindow.contentPane
                     val origin = container.locationOnScreen
@@ -140,9 +140,11 @@ fun main(args: Array<String>) = application {
                             "visível no rodapé do Windows (amostras=$correctNav/" +
                             "${sampleX.size})."
                     }
-                    val filename = if (wideScreenshot)
-                        "home-windows-wide-original-port.png"
-                    else "home-windows-original-port.png"
+                    val filename = when {
+                        createNameScreenshot -> "create-name-windows-original-port.png"
+                        wideScreenshot -> "home-windows-wide-original-port.png"
+                        else -> "home-windows-original-port.png"
+                    }
                     val out = File("build/qa/$filename")
                     out.parentFile.mkdirs()
                     check(ImageIO.write(screenshot, "png", out) &&
@@ -161,7 +163,7 @@ fun main(args: Array<String>) = application {
             }
         }
         BrotherMatrizesTheme(darkTheme = true) {
-            FielHomeHost()
+            FielHomeHost(startInCreate = createNameScreenshot)
         }
     }
 }
@@ -180,8 +182,10 @@ private enum class HomeArea(
 private enum class ActiveDetail { NONE, VIEWER, SIMULATOR }
 
 @Composable
-private fun FielHomeHost() {
-    var area by remember { mutableStateOf(HomeArea.HOME) }
+private fun FielHomeHost(startInCreate: Boolean = false) {
+    var area by remember {
+        mutableStateOf(if (startInCreate) HomeArea.CREATE else HomeArea.HOME)
+    }
     var detail by remember { mutableStateOf(ActiveDetail.NONE) }
     var activeDesign by remember { mutableStateOf<EmbroideryDesign?>(null) }
     var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
