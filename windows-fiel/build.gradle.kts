@@ -59,10 +59,12 @@ val copyAndroidHome by tasks.registering {
                 "import com.timachado.brothermatrizes.desktop.resources.BrotherUpdateHomeCard"
             )
             .replace("painterResource(", "desktopPainterResource(")
-        check(!desktopSource.contains("androidx.annotation") &&
-            !desktopSource.contains("import androidx.compose.ui.res.painterResource") &&
-            desktopSource.contains("desktopPainterResource(iconRes)")) {
-            "Transformação de recursos da Home não é segura."
+        check(
+            !desktopSource.contains("import androidx.annotation.DrawableRes") &&
+                !desktopSource.contains("import androidx.compose.ui.res.painterResource") &&
+                desktopSource.contains("desktopPainterResource(")
+        ) {
+            "Transformação de imports e recursos da Home não é segura."
         }
         val out = generatedHome.get().file(
             "com/timachado/brothermatrizes/HomeScreen.kt"
