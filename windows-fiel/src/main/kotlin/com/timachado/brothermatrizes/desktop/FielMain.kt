@@ -47,6 +47,7 @@ import com.timachado.brothermatrizes.core.embroidery.PesExportProfile
 import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
+import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -281,17 +282,17 @@ private fun FielHomeHost(startInCreate: Boolean = false) {
     fun openProject() {
         scope.launch {
             val chooser = JFileChooser().apply {
-                dialogTitle = "Abrir projeto FLP do Brother Matrizes"
+                dialogTitle = "Abrir matriz DST, PES, JEF ou projeto FLP"
                 fileSelectionMode = JFileChooser.FILES_ONLY
             }
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
                 runCatching {
-                    DesktopFlpProjectFiles.open(chooser.selectedFile.toPath())
+                    DesktopEmbroideryFiles.open(chooser.selectedFile.toPath())
                 }.onSuccess { design ->
                     openDesign(design, displayMode, ActiveDetail.VIEWER)
-                    snackbar.showSnackbar("Projeto FLP aberto.")
+                    snackbar.showSnackbar("Matriz aberta no visualizador.")
                 }.onFailure {
-                    snackbar.showSnackbar("Não foi possível abrir o projeto: ${it.message}")
+                    snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
                 }
             }
         }
