@@ -300,6 +300,29 @@ A primeira execução está em homologação e seu resultado só deve ser
 marcado como concluído após o GitHub Actions retornar `success`.
 Uma divergência geométrica é bloqueio mensurável, não falha a ocultar.
 
+## Resultado medido da mesma TTF no emulador e Windows
+
+A execução [#42209060335](https://github.com/timachado/Brother-Matrizes/actions/runs/42209060335)
+terminou com **success** nos dois jobs. O arquivo Roboto TTF foi
+transferido do emulador Android para o Windows na mesma execução e
+validado por SHA-256
+`9ca9debb09459bf4e3e7f826f5cd0f35f253902b85684921fce2ba3f28dd0f50`
+(tamanho **2.371.712 bytes**).
+
+Na letra **O**, cada plataforma registrou **2 contornos e 310 pontos
+vetoriais**. O maior desvio amostrado foi **0,1582 unidade** (0,01582 mm)
+no primeiro contorno e **0,13938 unidade** (0,013938 mm) no segundo.
+O gate inicial foi aprovado por ficar abaixo da tolerância de
+**1 unidade = 0,1 mm**. Esta é uma **comparação dos contornos do caso
+isolado**, não um ensaio de costura nem equivalência geral do motor.
+
+**Próxima comparação lançada**: palavra **Maria**, com o mesmo
+arquivo TTF e parâmetros. O Golden Android usa o layout de texto
+completo (`getRunAdvance` e deteção de `contextualShapingPreserved`);
+o comparador Windows registra contornos e reprova diferenças em
+número/ordem dos glifos, geometria ou shaping. A QA ainda exige
+resultado próprio, sem afirmar paridade de palavras antes disso.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
