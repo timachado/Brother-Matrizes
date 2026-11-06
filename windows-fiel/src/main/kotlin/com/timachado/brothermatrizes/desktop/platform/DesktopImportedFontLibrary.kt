@@ -5,7 +5,6 @@ import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.util.Locale
@@ -62,6 +61,24 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
             .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
         val rawBase = name.substringBeforeLast(".")
         val base = sanitizeBase(rawBase)
+        // Android deduplica fontes pelo mesmo conteúdo, mesmo quando
+        // importadas de outro nome ou extensão declarada.
+        Files.list(root).use { files ->
+            val existing = files.filter { entry ->
+                val fileName = entry.fileName.toString()
+                !Files.isSymbolicLink(entry) &&
+                    Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS) &&
+                    isSafeId(fileName) &&
+                    fileName.substringBeforeLast(".")
+                        .endsWith("-$hash", ignoreCase = true)
+            }.findFirst().orElse(null)
+            if (existing != null) {
+                require(Files.readAllBytes(existing).contentEquals(bytes)) {
+                    "Identificador de fonte duplicado com conteúdo diferente."
+                }
+                return record(existing)
+            }
+        }
         val target = root.resolve("$base-$hash.$extension")
         require(!Files.isSymbolicLink(target)) {
             "Uma entrada simbólica não pode substituir uma fonte."
@@ -102,6 +119,7 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
             files.filter {
                 !Files.isSymbolicLink(it) &&
                     Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) &&
+                    isSafeId(it.fileName.toString()) &&
                     it.fileName.toString()
                         .substringAfterLast('.', "")
                         .lowercase(Locale.ROOT) in validExtensions
