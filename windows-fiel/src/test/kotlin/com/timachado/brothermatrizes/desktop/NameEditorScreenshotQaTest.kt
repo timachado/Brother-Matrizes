@@ -55,7 +55,7 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("fun syntheticNameEditorQaDesign()"))
         assertTrue(host.contains("NamePersonalization.add("))
         assertTrue(host.contains("startInNameEditorQa"))
-        assertTrue(host.contains("if (startInNameEditorQa) ActiveDetail.NAME_EDITOR"))
+        assertTrue(host.contains("startInNameEditorQa -> ActiveDetail.NAME_EDITOR"))
         assertTrue(host.contains("if (startInNameEditorQa) syntheticNameEditorQaDesign() else null"))
         assertTrue(host.contains("editorCapture -> 11_000L"))
         assertTrue(host.contains("if (editorCapture)"))
