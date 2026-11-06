@@ -17,7 +17,7 @@ class DesktopFontGlyphProbeTest {
             win.resolve("segoeui.ttf"),
             Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
         )
-        return possible.firstOrNull(Files::isRegularFile)
+        return possible.firstOrNull { Files.isRegularFile(it) }
             ?: error("Sem fonte TTF de sistema para o teste de contorno.")
     }
 
