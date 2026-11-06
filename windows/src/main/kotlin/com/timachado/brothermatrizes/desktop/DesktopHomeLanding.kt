@@ -38,7 +38,8 @@ internal fun DesktopHomeLanding(
     onFonts: () -> Unit,
     onMonogram: () -> Unit,
     onEditor: () -> Unit,
-    onLibrary: () -> Unit
+    onLibrary: () -> Unit,
+    onTransfer: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
@@ -125,6 +126,11 @@ internal fun DesktopHomeLanding(
                 modifier = Modifier.weight(1f)
             )
         }
+        TextButton(
+            enabled = enabled,
+            onClick = onTransfer,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Preparar arquivo para pendrive (QA)") }
         Text(
             "Versão Windows em homologação: nem todas as funções Android " +
                 "estão disponíveis. Nenhum arquivo é enviado automaticamente.",

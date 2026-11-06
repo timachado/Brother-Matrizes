@@ -66,6 +66,8 @@ import androidx.compose.ui.window.rememberWindowState
 import com.timachado.brothermatrizes.core.embroidery.EditTransform
 import com.timachado.brothermatrizes.core.embroidery.MonogramStyle
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.MachineTransferValidator
+import com.timachado.brothermatrizes.core.embroidery.TransferIssueLevel
 import com.timachado.brothermatrizes.core.embroidery.VectorPoint
 import java.nio.file.Path
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
@@ -84,7 +86,7 @@ import kotlin.math.roundToInt
 internal enum class DesktopWorkspace(val label: String) {
     HOME("Início"), VIEWER("Visualizar"), NAME("Criar nome"),
     DRAW("Desenhar"), MONOGRAM("Monogramas"), FONT("Fontes"), EDIT("Editor"),
-    LIBRARY("Biblioteca")
+    LIBRARY("Biblioteca"), TRANSFER("Transferir")
 }
 
 // Valores oficiais Fio* do tema Android 1.11.8, compartilhados por contrato de QA.
@@ -231,6 +233,13 @@ private fun DesktopScreen(
     var threadColorHexText by remember { mutableStateOf("#E6BE70") }
     var format by remember { mutableStateOf("PES") }
     var peDesign by remember { mutableStateOf(false) }
+    var transferFormat by remember { mutableStateOf("PES") }
+    var transferHoop by remember { mutableStateOf(HoopProfile.H100X100) }
+    LaunchedEffect(document?.current) {
+        document?.current?.let {
+            transferHoop = MachineTransferValidator.recommendedHoop(it)
+        }
+    }
     // Amostra de QA totalmente sintética, isolada da versão comercial.
     // A versão normal não injeta desenhos nem lê arquivos de usuários.
     val qaSvg = remember(initialSvgQa) {
@@ -774,7 +783,8 @@ private fun DesktopScreen(
                             onFonts = { workspace = DesktopWorkspace.FONT },
                             onMonogram = { workspace = DesktopWorkspace.MONOGRAM },
                             onEditor = { workspace = DesktopWorkspace.EDIT },
-                            onLibrary = { workspace = DesktopWorkspace.LIBRARY }
+                            onLibrary = { workspace = DesktopWorkspace.LIBRARY },
+                            onTransfer = { workspace = DesktopWorkspace.TRANSFER }
                         )
                     } else if (preview == null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -924,7 +934,7 @@ private fun DesktopScreen(
                             color = muted, fontSize = 12.sp)
                         Text("Ferramentas principais e atalhos estão na área central.",
                             color = muted, fontSize = 12.sp)
-                        Text("Conta, comunidade, desenhos, transferência e fluxos completos " +
+                        Text("Conta, comunidade, envio Wi-Fi direto e fluxos completos " +
                             "de simulação ainda exigem implementação específica no Windows.",
                             color = muted, fontSize = 11.sp)
                         Text("Favoritos neste computador", color = cyan,
@@ -2558,6 +2568,159 @@ private fun DesktopScreen(
                         color = muted, fontSize = 12.sp
                     )
 
+                    }
+                    if (workspace == DesktopWorkspace.TRANSFER) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Preparar matriz para pendrive — QA",
+                            color = cyan, fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Usa o validador oficial Android para formato e bastidor. " +
+                                "Não envia diretamente à bordadeira ou por Wi-Fi.",
+                            color = muted, fontSize = 11.sp
+                        )
+                        val selectedDoc = document
+                        if (selectedDoc == null) {
+                            Text(
+                                "Abra ou crie uma matriz antes de preparar arquivo.",
+                                color = muted, fontSize = 12.sp
+                            )
+                            Button(enabled = !busy, onClick = { chooseMatrixFile() }) {
+                                Text("Abrir matriz de bordado")
+                            }
+                        } else {
+                            val current = selectedDoc.current
+                            Text(
+                                "${current.stitchCount} pontos · " +
+                                    "${current.bounds.widthMm} × " +
+                                    "${current.bounds.heightMm} mm",
+                                color = muted, fontSize = 12.sp
+                            )
+                            Text("Formato de saída", color = muted, fontSize = 12.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                for (option in listOf("PES", "DST", "JEF")) {
+                                    TextButton(
+                                        enabled = !busy,
+                                        onClick = { transferFormat = option }
+                                    ) {
+                                        Text(
+                                            (if (option == transferFormat) "● " else "") +
+                                                option
+                                        )
+                                    }
+                                }
+                            }
+                            Text("Bastidor da máquina", color = muted, fontSize = 12.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                HoopProfile.entries.forEach { option ->
+                                    TextButton(
+                                        enabled = !busy,
+                                        onClick = { transferHoop = option }
+                                    ) {
+                                        Text(
+                                            (if (transferHoop == option) "● " else "") +
+                                                option.displayName,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                            val validation = MachineTransferValidator.validate(
+                                current, transferFormat, transferHoop
+                            )
+                            Text(
+                                if (validation.ready) "Matriz validada para preparar arquivo"
+                                else "Existem impedimentos para este formato/bastidor",
+                                color = if (validation.ready) cyan
+                                    else DesktopBrandColors.danger,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            for (issue in validation.issues) {
+                                Text(
+                                    (if (issue.level == TransferIssueLevel.BLOCKING)
+                                        "Erro: " else "Aviso: ") + issue.message,
+                                    color = if (issue.level == TransferIssueLevel.BLOCKING)
+                                        DesktopBrandColors.danger else muted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Button(
+                                enabled = !busy && validation.ready,
+                                onClick = {
+                                    val proceed = validation.warnings.isEmpty() ||
+                                        JOptionPane.showConfirmDialog(
+                                            null,
+                                            validation.warnings.joinToString("\n") {
+                                                it.message
+                                            } + "\nContinuar com a cópia de teste?",
+                                            "Brother Matrizes — confira os avisos",
+                                            JOptionPane.YES_NO_OPTION,
+                                            JOptionPane.WARNING_MESSAGE
+                                        ) == JOptionPane.YES_OPTION
+                                    if (proceed) {
+                                        val formatToSave = validation.format
+                                        val hoopToSave = transferHoop
+                                        val chooser = JFileChooser().apply {
+                                            dialogTitle = "Salvar arquivo NOVO em pendrive ou pasta"
+                                            fileFilter = FileNameExtensionFilter(
+                                                "Matriz $formatToSave",
+                                                formatToSave.lowercase(Locale.ROOT)
+                                            )
+                                            isAcceptAllFileFilterUsed = false
+                                            selectedFile = java.io.File(
+                                                "Brother-Matrizes-QA." +
+                                                    formatToSave.lowercase(Locale.ROOT)
+                                            )
+                                        }
+                                        if (chooser.showSaveDialog(null) ==
+                                            JFileChooser.APPROVE_OPTION) {
+                                            val destination = chooser.selectedFile
+                                                .toPath().toAbsolutePath()
+                                            busy = true
+                                            scope.launch {
+                                                val result = withContext(Dispatchers.IO) {
+                                                    runCatching {
+                                                        DesktopMachineTransferService.saveNew(
+                                                            selectedDoc, formatToSave,
+                                                            hoopToSave, destination
+                                                        )
+                                                    }
+                                                }
+                                                busy = false
+                                                result.onSuccess { receipt ->
+                                                    report(
+                                                        "Cópia de QA gravada: " +
+                                                            "${receipt.destination.fileName} · " +
+                                                            "${receipt.bytes} bytes · " +
+                                                            "SHA-256 ${receipt.sha256}. " +
+                                                            "Confirme na bordadeira antes de usar."
+                                                    )
+                                                }.onFailure { error ->
+                                                    report(
+                                                        "Não foi possível preparar o arquivo: " +
+                                                            error.message, true
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ) { Text("Salvar novo arquivo no destino escolhido") }
+                            Text(
+                                "Escolha o pendrive conectado no seletor do Windows. " +
+                                    "O aplicativo não detecta máquinas, não sobrescreve " +
+                                    "arquivos nem envia dados por Wi-Fi. " +
+                                    "A leitura pelo firmware ainda exige teste físico.",
+                                color = muted, fontSize = 11.sp
+                            )
+                        }
                     }
                     if (workspace == DesktopWorkspace.LIBRARY) {
                     Spacer(Modifier.height(12.dp))
