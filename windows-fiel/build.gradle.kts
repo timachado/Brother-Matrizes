@@ -271,6 +271,107 @@ val copyAndroidLoader by tasks.registering {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedLoader)
 
 /**
+ * Gerador puro Satin do Android: extrai a fonte Kotlin ORIGINAL
+ * `ImportedFontMatrixGenerator.kt` SEM copiar APIs de Canvas, Bitmap,
+ * PathMeasure ou Context. Nenhuma regra de pontos é reimplementada.
+ *
+ * A rasterização e os contornos TTF/OTF do Windows ainda precisam ser
+ * comparados numericamente com Android no mesmo arquivo de fonte.
+ */
+val generatedReferenceSatin = layout.buildDirectory.dir("generated/satin-android/kotlin")
+val copyAndroidReferenceSatin by tasks.registering {
+    val input = layout.projectDirectory.file(
+        "../app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+    )
+    inputs.file(input)
+    outputs.dir(generatedReferenceSatin)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val begin = source.indexOf("    private data class ReferenceSatinState(")
+        val densify = source.indexOf("    private fun densifyReferenceContours(", begin)
+        val scan = source.indexOf("    private fun scanReferenceSpans(", densify)
+        val after = source.indexOf("    private fun buildCenterlineRunning(", scan)
+        check(begin > 0 && densify > begin && scan > densify && after > scan &&
+            source.substring(begin, after).contains("private fun appendReferenceSatinGlyph(") &&
+            source.substring(begin, after).contains("private fun emitReferenceColumn(") &&
+            source.substring(begin, after).contains("private fun emitReferenceCenterUnderlay(") &&
+            source.substring(begin, after).contains("private fun emitReferenceLock(") &&
+            source.substring(begin, after).contains("private fun emitReferenceTravel(") &&
+            source.substring(begin, after).contains("private fun emitReferenceStitchTo(")
+        ) { "Código Satin oficial Android mudou: revisar porta, NÃO executar versão divergente." }
+        // Exclui somente densifyReferenceContours(SampledContour), que
+        // depende de rasterização Android. Não é utilizado pelo caminho
+        // Satin de polígonos; este já chega do amostrador Skia Desktop.
+        val pure = source.substring(begin, densify) + source.substring(scan, after)
+        check(!pure.contains("android.graphics.") &&
+            !pure.contains("SampledContour") &&
+            !pure.contains("PathMeasure(") &&
+            !pure.contains("Bitmap(") && !pure.contains("Canvas(")) {
+            "Trecho não é puro Kotlin: adaptação abortada."
+        }
+        val wrapper = """
+package com.timachado.brothermatrizes.desktop.platform
+
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
+import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import kotlin.math.*
+
+/** Métodos Satin, underlay, fixação e travel extraídos do Android 1.11.8. */
+internal object DesktopReferenceSatinKernel {
+    fun generate(
+        contoursByGlyph: List<List<List<DesktopContourPoint>>>,
+        options: TextMatrixOptions
+    ): List<EmbroideryPoint> {
+        require(contoursByGlyph.size in 1..64) { "Quantidade de glifos inválida." }
+        require(options.satinDensityMm.isFinite() &&
+            options.satinDensityMm in 0.15f..2f) { "Densidade Satin inválida." }
+        require(options.satinPullCompensationMm.isFinite() &&
+            options.satinPullCompensationMm in 0f..3f) {
+            "Compensação de puxamento inválida."
+        }
+        var total = 0
+        contoursByGlyph.forEach { glyph ->
+            require(glyph.size in 1..64) { "Contornos da fonte inválidos." }
+            glyph.forEach { contour ->
+                require(contour.size in 3..20_000) { "Tamanho de contorno inválido." }
+                total += contour.size
+                require(total <= 80_000) { "Muitos pontos vetoriais." }
+                require(contour.all { it.x.isFinite() && it.y.isFinite() &&
+                    kotlin.math.abs(it.x) <= 1_000_000f &&
+                    kotlin.math.abs(it.y) <= 1_000_000f }) {
+                    "Coordenadas de contorno inválidas."
+                }
+            }
+        }
+        val output = mutableListOf<EmbroideryPoint>()
+        val state = ReferenceSatinState()
+        contoursByGlyph.forEach { glyph ->
+            val polygons = glyph.map { contour ->
+                contour.map { it.x to it.y }
+            }
+            appendReferenceSatinGlyph(output, polygons, options, state)
+            require(output.size <= 100_000) {
+                "A geração Satin excedeu o limite de pontadas de QA."
+            }
+        }
+        require(output.any { it.command == StitchCommand.STITCH }) {
+            "O gerador Satin original não gerou pontadas."
+        }
+        return output
+    }
+
+""" + pure + "\n}\n"
+        val target = generatedReferenceSatin.get().file(
+            "com/timachado/brothermatrizes/desktop/platform/DesktopReferenceSatinKernel.kt"
+        ).asFile
+        target.parentFile.mkdirs()
+        target.writeText(wrapper, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedReferenceSatin)
+
+/**
  * Converter ícones Android XML em SVG mantendo o pathData ORIGINAL, e extrair
  * a arte aprovada do Android. Copiar a transformação fotográfica de
  * app/build.gradle.kts (crop 35%, upscale bicúbico 3x, contraste e sharpen).
@@ -349,7 +450,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
-        copyAndroidLoader
+        copyAndroidLoader, copyAndroidReferenceSatin
     )
 }
 
