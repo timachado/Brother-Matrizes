@@ -166,6 +166,18 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Grade métrica do Editor (QA)
+
+O Editor agora possui uma sobreposição opcional de grade em milímetros
+(passo solicitado de 5 ou 10 mm), contorno e eixos centrais da matriz.
+As linhas respeitam as coordenadas reais (0,1 mm por unidade), zoom
+e pan do Desktop. Uma guarda limita a 80 linhas por eixo, expandindo
+o espaçamento visual automaticamente em matrizes muito grandes.
+A grade começa desligada e não modifica pontos, histórico, FLP,
+conversões ou arquivos do cliente. A paridade visual e o uso em
+PC físico ainda precisam ser homologados; não é uma ferramenta
+de alteração de pontos nem prova de precisão industrial.
+
 ## Atalhos de teclado do editor (QA)
 
 Apenas no módulo **Editor**, um clique na área de prévia permite usar
