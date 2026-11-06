@@ -1,6 +1,10 @@
 package com.timachado.brothermatrizes
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -19,6 +23,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextLayoutOptions
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
+import com.timachado.brothermatrizes.ui.theme.FioBackground
 import java.io.File
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -87,11 +92,20 @@ class BrotherNameEditorScreenshotTest {
         assertTrue(fixture.editableName != null)
         composeRule.setContent {
             BrotherMatrizesTheme(darkTheme = true) {
-                NameEditorScreen(
-                    original = fixture,
-                    referenceHoop = HoopProfile.H100X100,
-                    onBack = {}, onApply = {}
-                )
+                // MainActivity usa Scaffold(containerColor = FioBackground).
+                // A instrumentação isolada não tem Scaffold: aplicar
+                // explicitamente o MESMO fundo oficial para não produzir
+                // falso golden branco com texto quase invisível.
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = FioBackground
+                ) {
+                    NameEditorScreen(
+                        original = fixture,
+                        referenceHoop = HoopProfile.H100X100,
+                        onBack = {}, onApply = {}
+                    )
+                }
             }
         }
         composeRule.onNodeWithText("Editar nome").assertIsDisplayed()
@@ -106,6 +120,17 @@ class BrotherNameEditorScreenshotTest {
         val instrument = InstrumentationRegistry.getInstrumentation()
         val bmp = checkNotNull(instrument.uiAutomation.takeScreenshot()) {
             "Não foi possível capturar o Android real."
+        }
+        // Evitar aprovar captura de QA de fundo branco: verificar margem
+        // externa à prévia, onde o Scaffold oficial é azul-noite.
+        val edge = bmp.getPixel(4, bmp.height / 2)
+        check(
+            AndroidColor.red(edge) <= 45 &&
+                AndroidColor.green(edge) <= 70 &&
+                AndroidColor.blue(edge) <= 100
+        ) {
+            "Golden Android recusado: fundo de QA não corresponde ao " +
+                "FioBackground azul-noite do MainActivity."
         }
         val screenshot = File(instrument.targetContext.filesDir,
             "android-original-name-editor-1118.png")
