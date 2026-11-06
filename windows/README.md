@@ -447,6 +447,24 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Espelhamento individual de caminhos SVG (QA)
+
+O inspetor vetorial em **Desenhar → SVG** agora oferece
+**Espelhar H** (reflexão de X em torno do eixo vertical que passa pelo centro
+do caminho selecionado) e **Espelhar V** (reflexão de Y em torno do eixo
+horizontal central). A operação usa as próprias coordenadas SVG, preserva
+a ordem e o estado fechado dos caminhos e não toca em outros objetos.
+Cada transformação é validada contra os limites geométricos oficiais da
+importação e participa do histórico reversível de até oito operações.
+
+Os testes `DesktopSvgObjectMirrorTest` verificam reflexões exatas,
+reversibilidade (aplicar duas vezes restaura a forma), isolamento, entradas
+inválidas e Desfazer/Refazer. O teste de projeto vetorial também cobre
+espelhamento após reabertura, com novo salvamento FLP + `.bmvector`,
+leitura das pontadas resultantes e preservação byte a byte do par anterior.
+O espelhamento não representa ajustes de direção de pontos, tensão ou
+segurança da bordadeira real. **QA não comercial.**
+
 ## Escala, rotação e reabertura de caminhos SVG (QA)
 
 O inspetor **Desenhar → SVG** permite transformar apenas o caminho vetorial
