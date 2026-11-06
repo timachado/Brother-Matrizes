@@ -1356,6 +1356,52 @@ private fun DesktopScreen(
                                                 )
                                             }
                                         }
+                                    },
+                                    onDuplicate = {
+                                        val index = selectedSvgPath
+                                        if (index != null) {
+                                            runCatching {
+                                                DesktopSvgObjectCollection.duplicate(
+                                                    session.current, index
+                                                )
+                                            }.onSuccess { change ->
+                                                drawingSvgEditSession =
+                                                    session.record(change.artwork)
+                                                selectedSvgPath = change.selectedIndex
+                                                report(
+                                                    "Caminho SVG ${index + 1} duplicado " +
+                                                        "na sessão. Desfazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Duplicação SVG recusada: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onDelete = {
+                                        val index = selectedSvgPath
+                                        if (index != null) {
+                                            runCatching {
+                                                DesktopSvgObjectCollection.delete(
+                                                    session.current, index
+                                                )
+                                            }.onSuccess { change ->
+                                                drawingSvgEditSession =
+                                                    session.record(change.artwork)
+                                                selectedSvgPath = change.selectedIndex
+                                                report(
+                                                    "Caminho SVG ${index + 1} excluído " +
+                                                        "somente da sessão. Desfazer SVG disponível."
+                                                )
+                                            }.onFailure {
+                                                report(
+                                                    "Exclusão SVG recusada: ${it.message}",
+                                                    true
+                                                )
+                                            }
+                                        }
                                     }
                                 )
                                 val selected = selectedSvgPath
