@@ -55,13 +55,22 @@ jobs:
           grep -Eq '^\s*versionCode = 196\s*$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.9"' app/build.gradle.kts
           # Os testes PR da exata revisao precisam estar aprovados.
-          # Both PR validation runs must succeed for the reviewed revision.
-          for run in 42225271051 42225270862; do
-            gh api "repos/$GH_REPO/actions/runs/$run" > "/tmp/brother-1119-qa-$run.json"
-            jq -e --arg sha "529632a71c644c8d52ea79da024a5c063728d9d8" \
-              '.status=="completed" and .conclusion=="success" and .head_sha==$sha' \
-              "/tmp/brother-1119-qa-$run.json" >/dev/null
+          # Verify completed QA on the exact PR revision that was merged,
+          # including Android emulator tests. The signing workflow itself may
+          # be added after the code-only build; no untested app changes allowed.
+          gh api "repos/$GH_REPO/pulls/228" > /tmp/brother-1119-pr.json
+          jq -e '.merged == true and .base.ref == "main" and
+            .head.ref == "release/brother-1-11-9-fonts-20261106"' /tmp/brother-1119-pr.json >/dev/null
+          approved_head="$(jq -r '.head.sha' /tmp/brother-1119-pr.json)"
+          git merge-base --is-ancestor "$approved_head" HEAD
+          for workflow in brother-1118-release-build-qa.yml name-editor-qa.yml; do
+            gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?event=pull_request&branch=release%2Fbrother-1-11-9-fonts-20261106&per_page=30" > "/tmp/brother-1119-qa-$workflow.json"
+            jq -e --arg sha "$approved_head" '
+              any(.workflow_runs[]; .head_sha==$sha and
+                .status=="completed" and .conclusion=="success")
+            ' "/tmp/brother-1119-qa-$workflow.json" >/dev/null
           done
+          # Code state reviewed in QA (later additions restricted to signing).
           git merge-base --is-ancestor 529632a71c644c8d52ea79da024a5c063728d9d8 HEAD
           # Bloqueia alterações não homologadas após o build assinado.
           while IFS= read -r changed; do
