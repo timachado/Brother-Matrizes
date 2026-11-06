@@ -77,5 +77,12 @@ class NameEditorScreenshotQaTest {
         assertTrue(host.contains("reopened.editableName?.options?.text == \"Maria\""))
         assertTrue(yaml.contains("name-editor-applied-qa.png"))
         assertTrue(yaml.contains("--qa-name-editor-click-apply"))
+        assertTrue(host.contains("--qa-name-editor-keyboard-apply"))
+        assertTrue(host.contains("KeyEvent.VK_CONTROL"))
+        assertTrue(host.contains("KeyEvent.VK_N"))
+        assertTrue(host.contains("if (startInNameEditorKeyboardQa)"))
+        assertTrue(host.contains("loaded.editableName?.options?.text == expectedName"))
+        assertTrue(yaml.contains("--qa-name-editor-keyboard-apply"))
+        assertTrue(yaml.contains("name-editor-keyboard-input-qa.png"))
     }
 }

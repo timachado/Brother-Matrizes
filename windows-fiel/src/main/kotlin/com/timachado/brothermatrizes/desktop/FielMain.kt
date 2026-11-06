@@ -78,6 +78,7 @@ import kotlinx.coroutines.sync.withLock
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.awt.Toolkit
 import java.io.File
 import java.nio.file.Files
@@ -102,7 +103,9 @@ fun main(args: Array<String>) = application {
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
-    val nameEditorApplyQa = args.singleOrNull() == "--qa-name-editor-click-apply"
+    val nameEditorKeyboardQa = args.singleOrNull() == "--qa-name-editor-keyboard-apply"
+    val nameEditorApplyQa =
+        args.singleOrNull() == "--qa-name-editor-click-apply" || nameEditorKeyboardQa
     val editorCapture = nameEditorScreenshot || nameEditorScrollScreenshot || nameEditorApplyQa
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot || editorCapture
@@ -173,9 +176,43 @@ fun main(args: Array<String>) = application {
                         // sem invocar callbacks artificialmente por código.
                         // A própria tela precisa completar onApply, salvar FLP
                         // sintético via codec oficial e reabrir o projeto.
-                        val file = Path.of("build/qa/name-editor-apply-synthetic.flp")
+                        val file = Path.of(
+                            if (nameEditorKeyboardQa)
+                                "build/qa/name-editor-keyboard-synthetic.flp"
+                            else "build/qa/name-editor-apply-synthetic.flp"
+                        )
                         check(!Files.exists(file)) {
                             "Arquivo QA anterior não pode ser sobrescrito."
+                        }
+                        if (nameEditorKeyboardQa) {
+                            // O campo NameEditorScreen original fica parcialmente
+                            // visível acima do CTA fixo na janela 904×641.
+                            // Clique físico no TextField, Ctrl+A e digitação
+                            // AWT real; não atribuir draft ou onApply pelo host.
+                            robot.mouseMove(
+                                bounds.x + 230,
+                                bounds.y + bounds.height - 71
+                            )
+                            robot.mousePress(InputEvent.BUTTON1_DOWN_MASK)
+                            robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
+                            delay(400L)
+                            robot.keyPress(KeyEvent.VK_CONTROL)
+                            robot.keyPress(KeyEvent.VK_A)
+                            robot.keyRelease(KeyEvent.VK_A)
+                            robot.keyRelease(KeyEvent.VK_CONTROL)
+                            for (key in intArrayOf(KeyEvent.VK_A, KeyEvent.VK_N, KeyEvent.VK_A)) {
+                                robot.keyPress(key)
+                                robot.keyRelease(key)
+                                delay(90L)
+                            }
+                            delay(3_500L)
+                            val inputPng = File("build/qa/name-editor-keyboard-input-qa.png")
+                            inputPng.parentFile.mkdirs()
+                            check(ImageIO.write(
+                                robot.createScreenCapture(bounds), "png", inputPng
+                            ) && inputPng.length() > 10_000L) {
+                                "Não foi possível registrar a digitação QA real."
+                            }
                         }
                         robot.mouseMove(
                             bounds.x + bounds.width / 2,
@@ -188,17 +225,24 @@ fun main(args: Array<String>) = application {
                             "O clique real não acionou Aplicar nome/FLP sintético."
                         }
                         val reopened = DesktopFlpProjectFiles.open(file)
-                        check(reopened.editableName?.options?.text == "Maria" &&
+                        val expectedName = if (nameEditorKeyboardQa) "ana" else "Maria"
+                        check(reopened.editableName?.options?.text == expectedName &&
                             reopened.editableName?.original?.points?.isNotEmpty() == true) {
                             "FLP do Editor não preservou o nome editável/original."
                         }
                         val post = robot.createScreenCapture(bounds)
-                        val png = File("build/qa/name-editor-applied-qa.png")
+                        val png = File(if (nameEditorKeyboardQa)
+                            "build/qa/name-editor-keyboard-applied-qa.png"
+                        else "build/qa/name-editor-applied-qa.png")
                         check(ImageIO.write(post, "png", png) && png.length() > 10_000) {
                             "Captura do visualizador após Aplicar não foi gerada."
                         }
-                        println("BROTHER_WINDOWS_NAME_EDITOR_APPLY_MOUSE_FLP_OK " +
-                            "pontos=${reopened.points.size}")
+                        println(
+                            (if (nameEditorKeyboardQa)
+                                "BROTHER_WINDOWS_NAME_EDITOR_KEYBOARD_MOUSE_FLP_OK "
+                            else "BROTHER_WINDOWS_NAME_EDITOR_APPLY_MOUSE_FLP_OK ") +
+                                "pontos=${reopened.points.size}"
+                        )
                         exitProcess(0)
                     }
                     val beforeScroll = if (nameEditorScrollScreenshot)
@@ -247,8 +291,8 @@ fun main(args: Array<String>) = application {
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
                         val rgbColors = buildSet {
-                            for (y in 19 until screenshot.height - 19 step 19) {
-                                for (x in 19 until screenshot.width - 19 step 19) {
+                            for (y in 19 until screenshot.height - 19 step 11) {
+                                for (x in 19 until screenshot.width - 19 step 11) {
                                     add(screenshot.getRGB(x, y) and 0xFFFFFF)
                                 }
                             }
@@ -297,6 +341,7 @@ fun main(args: Array<String>) = application {
                 startInCreate = createNameScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
+                startInNameEditorKeyboardQa = nameEditorKeyboardQa,
                 monogramLaunchRequest = monogramLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
@@ -357,6 +402,7 @@ private fun FielHomeHost(
     startInCreate: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
+    startInNameEditorKeyboardQa: Boolean = false,
     monogramLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
@@ -674,16 +720,22 @@ private fun FielHomeHost(
                     onBack = { detail = ActiveDetail.VIEWER },
                     onApply = { personalized ->
                         if (startInNameEditorApplyQa) {
-                            check(personalized.editableName?.options?.text == "Maria") {
-                                "A edição QA retornou texto diferente do projeto."
+                            val expectedName =
+                                if (startInNameEditorKeyboardQa) "ana" else "Maria"
+                            check(personalized.editableName?.options?.text == expectedName) {
+                                "A edição QA não refletiu a digitação real do teclado."
                             }
-                            val qaFile = Path.of("build/qa/name-editor-apply-synthetic.flp")
+                            val qaFile = Path.of(
+                                if (startInNameEditorKeyboardQa)
+                                    "build/qa/name-editor-keyboard-synthetic.flp"
+                                else "build/qa/name-editor-apply-synthetic.flp"
+                            )
                             Files.createDirectories(qaFile.parent)
                             // Escrita CREATE_NEW; jamais tocar em projetos reais.
                             DesktopFlpProjectFiles.saveNew(personalized, qaFile)
                             val loaded = DesktopFlpProjectFiles.open(qaFile)
                             check(loaded.points == personalized.points &&
-                                loaded.editableName?.options?.text == "Maria") {
+                                loaded.editableName?.options?.text == expectedName) {
                                 "O projeto FLP não sobreviveu ao round-trip."
                             }
                         }
