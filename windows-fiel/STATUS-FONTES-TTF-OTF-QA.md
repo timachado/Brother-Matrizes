@@ -122,6 +122,42 @@ Portanto o kernel permanece **experimental, isolado de UI, clientes
 e exportação comercial** até portar o stroke-flow principal, completar
 comparação binária de pontadas e validar direitos/licenciamento.
 
+## Stroke-flow: raster e esqueleto Android (etapa isolada)
+
+Nesta revisão, o pipeline **de investigação**, ainda fora de
+`CreateNameScreen`, recebeu:
+
+1. `DesktopStrokeRasterizer`: transforma os polígonos dos glifos
+   em máscara com preenchimento EVEN_ODD e anti-alias Skia.
+   Usa a fórmula original de resolução `max(0,75, maxSpan/1500)`,
+   margem de 8 pixels e limiar de opacidade **96/255**, como
+   `buildSatinByAxis` Android. Rejeita máscaras excessivamente
+   grandes e entradas inválidas. Preserva os vazados internos.
+2. `copyAndroidStrokeSkeleton`: Gradle extrai **literalmente**
+   `thinMask` e `traceSkeleton` de
+   `ImportedFontMatrixGenerator.kt` Android, sem reimplementar
+   os critérios de afinamento, ordenação de pixels ou ligação
+   de segmentos. `DesktopStrokeSkeleton.analyze` valida
+   dimensões e bordas, e devolve as linhas do esqueleto.
+3. `DesktopStrokeSkeletonTest`: compara o código extraído à
+   fonte original, confere duas colunas desconectadas, contornos
+   com vazado, determinismo e máscaras inválidas.
+4. `DesktopStrokeRasterizerTest`: testa a máscara EVEN_ODD com
+   furo central, o cálculo de esqueleto de `O` a partir de uma
+   fonte TTF real e a preservação dos bytes de máscara de entrada.
+
+**A existência de máscaras e esqueletos NÃO produz por si uma matriz
+Satin final.** Ainda falta portar exatamente a segmentação,
+topologia e distribuição de linhas `buildStrokeFlowRows`,
+`planStrokeFlowTraversal`, `emitStrokeFlowCenterRun` e
+`emitStrokeFlowCoverage`. Também falta comparar a máscara e a
+lista de pontos com o **mesmo arquivo TTF/OTF no Android e no
+Windows**. Todas essas rotinas continuam isoladas das telas comerciais.
+
+O runner Windows compila e testa as alterações, mas CI só
+é considerada concluída depois do job do commit correspondente
+retornar `success`. A branch `main` não foi modificada.
+
 ## Portões seguintes
 
 1. **Concluir a paridade numérica** entre contornos Android e Skia
