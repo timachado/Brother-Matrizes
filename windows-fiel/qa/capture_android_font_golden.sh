@@ -15,7 +15,7 @@ if grep -Eq 'FAILURES|INSTRUMENTATION_FAILED|INSTRUMENTATION_STATUS_CODE: -2' \
   echo 'Teste Android não aprovado: cancelar referência.' >&2
   exit 1
 fi
-for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-kernel-o.tsv bm-parity-android-coverage.tsv bm-parity-android-coverage-real-o.tsv bm-parity-android-status.txt; do
+for name in bm-parity-font.ttf bm-parity-android-outline.tsv bm-parity-android-outline-maria.tsv bm-parity-android-kernel-o.tsv bm-parity-android-kernel-maria.tsv bm-parity-android-coverage.tsv bm-parity-android-coverage-real-o.tsv bm-parity-android-status.txt; do
   adb exec-out run-as com.timachado.brothermatrizes cat "files/$name" \
     > "windows-fiel/build/qa/font-parity/android/$name"
 done
@@ -43,6 +43,10 @@ kernel = (root / "bm-parity-android-kernel-o.tsv").read_text().splitlines()
 assert kernel[0].startswith("STITCHES\t")
 assert len(kernel) == int(kernel[0].split("\t")[1]) + 1
 assert sum("\tSTITCH\t" in line for line in kernel[1:]) > 20
+maria_kernel = (root / "bm-parity-android-kernel-maria.tsv").read_text().splitlines()
+assert maria_kernel[0].startswith("STITCHES\t")
+assert len(maria_kernel) == int(maria_kernel[0].split("\t")[1]) + 1
+assert sum("\tSTITCH\t" in line for line in maria_kernel[1:]) > 60
 coverage = (root / "bm-parity-android-coverage.tsv").read_text().splitlines()
 assert len(coverage) == 2 and coverage[0].startswith("SCORE\t")
 assert coverage[1] == "BLOCKED\ttrue"
