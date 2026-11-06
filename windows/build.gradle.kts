@@ -168,9 +168,23 @@ val syncOfficialFeedback by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(officialFeedbackDir)
 
+// Somente as regras públicas e JVM puras da Conta Android.
+// Login Supabase, tokens de sessão, cobrança e concessão PRO permanecem
+// exclusivamente sob autoridade do backend oficial.
+val officialAccountPublicDir = layout.buildDirectory.dir("generated/official-account-public/kotlin")
+val syncOfficialAccountPublic by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/core/account/WordPressWebStore.kt")
+        include("com/timachado/brothermatrizes/core/account/BrotherPlanBenefits.kt")
+    }
+    into(officialAccountPublicDir)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(officialAccountPublicDir)
+
 tasks.named("compileKotlin") {
     dependsOn(syncOfficialCore, extractOfficialProjectCodec,
-        extractImportedFontModel, syncOfficialSatin, syncOfficialFeedback)
+        extractImportedFontModel, syncOfficialSatin, syncOfficialFeedback,
+        syncOfficialAccountPublic)
 }
 
 dependencies {
