@@ -56,12 +56,10 @@ internal object DesktopSvgObjectCollection {
         require(direction == -1 || direction == 1) {
             "Reordenação SVG permite apenas subir ou descer uma posição."
         }
-        require(index in artwork.paths.indices &&
-            index.toLong() + direction.toLong() in artwork.paths.indices.first.toLong()..
-                artwork.paths.indices.last.toLong()) {
+        val nextIndex = index + direction
+        require(index in artwork.paths.indices && nextIndex in artwork.paths.indices) {
             "Caminho não pode ultrapassar o limite da sequência."
         }
-        val nextIndex = index + direction
         val paths = artwork.paths.toMutableList()
         val current = paths.removeAt(index)
         paths.add(nextIndex, current)
