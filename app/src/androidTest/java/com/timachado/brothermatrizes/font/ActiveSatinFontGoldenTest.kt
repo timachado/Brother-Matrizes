@@ -2,6 +2,8 @@ package com.timachado.brothermatrizes.font
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import java.io.File
@@ -67,6 +69,34 @@ class ActiveSatinFontGoldenTest {
         // Segundo cenário: palavra inteira na MESMA TTF. O Android usa
         // getRunAdvance + shaping contextual; não aceitar a soma das
         // larguras isoladas do Desktop como equivalência presumida.
+        // Comparar pontadas do motor COMERCIAL ativo em geometria O,
+        // sem publicar uma matriz: a etapa de guard permanece obrigatória
+        // para qualquer geração destinada a clientes.
+        val rails = CleanRoomSatinEngine.planContours(
+            polygons[0].map { contour ->
+                contour.map { point ->
+                    CleanRoomSatinEngine.V(point.x, point.y)
+                }
+            },
+            densityMm = .45f,
+            pullMm = .2f
+        )
+        assertTrue("A fonte O não criou trilhos Satin.",
+            rails.rails.isNotEmpty())
+        val qaStitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(
+            rails, SatinUnderlayMode.BOTH
+        )
+        assertTrue("A fonte O não produziu pontos no kernel ativo.",
+            qaStitches.count { it.command == StitchCommand.STITCH } > 20)
+        val stitchRows = mutableListOf("STITCHES\t" + qaStitches.size)
+        qaStitches.forEachIndexed { i, point ->
+            stitchRows += "P\t" + i + "\t" + point.xUnits +
+                "\t" + point.yUnits + "\t" + point.command.name +
+                "\t" + point.colorIndex
+        }
+        File(context.filesDir, "bm-parity-android-kernel-o.tsv")
+            .writeText(stitchRows.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
+
         val word = "Maria"
         val wordGeometry = AndroidSkiaOutlineExtractor.extract(
             font = font, text = word,
