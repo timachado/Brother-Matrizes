@@ -447,6 +447,30 @@ ao gerar uma nova matriz pelo motor vetorial Android. O arquivo
 SVG original não é sobrescrito. A sessão vetorial não é persistida
 como projeto editável ainda e requer homologação no Windows.
 
+## Nós editáveis e sequência de caminhos SVG (QA)
+
+No inspetor **Desenhar → SVG**, selecionar um caminho habilita um painel paginado
+de seus nós (até oito por página), com coordenadas da arte original. É possível:
+movimentar o **nó selecionado** em passos de uma unidade SVG; inserir um nó no
+ponto médio do **próximo segmento** (inclusive último→primeiro em caminho
+fechado); remover um nó sem violar os mínimos de **2 nós em caminhos abertos**
+e **3 em fechados**. No último nó de caminho aberto, inserir é bloqueado.
+Todas as operações são cópias locais validadas pelo mesmo limite SVG de
+**96 caminhos / 800 pontos por caminho / 6.000 pontos totais**; alterações
+que tornem dimensões inválidas são recusadas. O histórico SVG mantém
+Desfazer/Refazer, sem editar o arquivo original.
+
+O inspetor de caminhos também oferece **Na sequência ↑/↓**, para movimentar
+um objeto uma posição na lista de caminhos. Essa lista é fornecida ao motor
+compartilhado na próxima geração de matriz; **a ordem pode alterar a sequência
+de costura e deslocamentos**, por isso requer revisão antes de uso em máquina.
+Não se trata de z-index, reorganização de cores ou edição de objetos extraídos
+de DST/PES/JEF importados. Os testes incluem proteção de limites, preservação
+de outros caminhos, histórico e dois ciclos de abrir/salvar em **novos** pares
+FLP v11 + `.bmvector`, conferindo integridade das pontadas e arquivos
+anteriores. Interface e resultado de bordado requerem homologação presencial
+antes de distribuição comercial.
+
 ## Duplicação e exclusão reversível de objetos SVG (QA)
 
 No inspetor **Desenhar → SVG**, agora é possível **Duplicar +10 SVG** o
