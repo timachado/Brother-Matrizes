@@ -9,6 +9,7 @@ on:
       - "branding/**"
       - "windows-fiel/qa/verificar_referencia_android.py"
       - "windows-fiel/qa/capture_android_creator.sh"
+      - "windows-fiel/qa/capture_android_name_editor.sh"
       - "app/src/androidTest/java/com/timachado/brothermatrizes/BrotherCreateNameScreenshotTest.kt"
       - ".github/workflows/brother-windows-fiel-android-baseline.yml"
       - ".github/scripts/brother-premium-capture.sh"
@@ -112,5 +113,49 @@ jobs:
           path: |
             android-original-create-name-1118.png
             android-creator-original-test.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  android-golden-name-editor:
+    name: Golden Android Editor de Nomes 1.11.8 com matriz sintética
+    needs: android-reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: SDK Android 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Aceleração KVM
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Capturar tela oficial Android do Editor de Nomes
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash windows-fiel/qa/capture_android_name_editor.sh
+      - name: Reter PNG Android e log (nenhum APK comercial)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-fiel-REFERENCIA-ANDROID-NAME-EDITOR-1118
+          path: |
+            android-original-name-editor-1118.png
+            android-name-editor-original-test.log
           if-no-files-found: warn
           retention-days: 14
