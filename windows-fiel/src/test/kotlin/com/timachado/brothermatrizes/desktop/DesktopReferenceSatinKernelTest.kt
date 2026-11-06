@@ -91,6 +91,24 @@ class DesktopReferenceSatinKernelTest {
                 options().copy(satinDensityMm = 0f)
             )
         }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopReferenceSatinKernel.generate(
+                listOf(listOf(square)),
+                options().copy(satinDensityMm = 2f)
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopReferenceSatinKernel.generate(
+                listOf(listOf(square)),
+                options().copy(satinPullCompensationMm = 2f)
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DesktopReferenceSatinKernel.generate(
+                listOf(listOf(square)),
+                options().copy(style = TextStitchStyle.RUNNING)
+            )
+        }
     }
 
     @Test
