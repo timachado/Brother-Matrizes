@@ -189,14 +189,27 @@ private fun launchDesktopApp(
                 exitApplication()
             }
         }
-        var darkTheme by remember { mutableStateOf(true) }
+        val themePreferences = remember { DesktopThemePreferences() }
+        var darkTheme by remember {
+            mutableStateOf(runCatching { themePreferences.loadDark() }.getOrDefault(true))
+        }
         BrotherDesktopTheme(darkTheme = darkTheme) {
             DesktopScreen(
                 initialDocument = syntheticDocument,
                 initialDrawingQa = drawingUi || svgUi,
                 initialSvgQa = svgUi,
                 darkTheme = darkTheme,
-                onToggleTheme = { darkTheme = !darkTheme }
+                onToggleTheme = {
+                    val selected = !darkTheme
+                    darkTheme = selected
+                    runCatching { themePreferences.saveDark(selected) }.onFailure {
+                        // Falha de preferências não deve fechar o editor ou impedir
+                        // a alteração visual desta sessão Windows.
+                        System.err.println(
+                            "BROTHER_WINDOWS_THEME_PREFERENCES_WRITE_FAILED: ${it.javaClass.simpleName}"
+                        )
+                    }
+                }
             )
         }
     }
