@@ -16,6 +16,7 @@ class DesktopAccountAuthTest {
         "currentPeriodEnd":$period}"""
     private class Fake(var entitlement:String):DesktopAuthGateway {
         var down=false
+        var confirmed=true
         val calls=mutableListOf<String>()
         override fun fetch(path:String, method:String,payload:String?, token:String?):DesktopAuthReply{
             calls+=path
@@ -26,8 +27,9 @@ class DesktopAccountAuthTest {
             )
             assertEquals("token-de-teste-sem-credencial-123456789000",token)
             if(path=="/auth/v1/user")return DesktopAuthReply(
-                200,"""{"id":"12345678-aaaa-bbbb-cccc-123456789abc",
-                "email":"qa@example.com","email_confirmed_at":"2026-10-01T00:00:00Z"}"""
+                200, """{"id":"12345678-aaaa-bbbb-cccc-123456789abc",
+                "email":"qa@example.com",
+                "email_confirmed_at":${if(confirmed) "\"2026-10-01T00:00:00Z\"" else "null"}}"""
             )
             return if(down)DesktopAuthReply(503,"{}")
                 else DesktopAuthReply(200,entitlement)
@@ -80,6 +82,16 @@ class DesktopAccountAuthTest {
         fake.down=true
         assertFailsWith<IllegalStateException>{service.revalidate()}
         assertFalse(service.isSignedIn)
+    }
+    @Test fun `não aceita email não confirmado mesmo com sessão Supabase`()=runBlocking{
+        val fake=Fake(ent("pro_lifetime",true))
+        fake.confirmed=false
+        val service=DesktopAccountAuth(fake)
+        assertFailsWith<IllegalStateException>{
+            service.login("qa@example.com","senhaSeguro123")
+        }
+        assertFalse(service.isSignedIn)
+        assertEquals(null,service.current)
     }
     @Test fun `não aceita entrada malformada`()=runBlocking{
         val service=DesktopAccountAuth(Fake(ent()))

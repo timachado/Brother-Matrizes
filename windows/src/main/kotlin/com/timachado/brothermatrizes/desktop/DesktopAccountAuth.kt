@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
@@ -94,8 +95,11 @@ internal class DesktopAccountAuth(
         }
         return json.parseToJsonElement(reply.content).jsonObject
     }
-    private fun s(o: JsonObject, key: String): String =
-        (o[key] as? JsonPrimitive)?.content.orEmpty()
+    private fun s(o: JsonObject, key: String): String {
+        val value = o[key]
+        return if (value == null || value == JsonNull) ""
+        else (value as? JsonPrimitive)?.content.orEmpty()
+    }
     private fun b(o: JsonObject, key: String): Boolean =
         (o[key] as? JsonPrimitive)?.booleanOrNull == true
 

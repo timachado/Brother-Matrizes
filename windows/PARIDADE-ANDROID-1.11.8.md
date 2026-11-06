@@ -33,7 +33,7 @@ Windows esteja completo nem comercialmente homologado.
 | `ProjectLibrary` / `ProjectLibraryScreen` | Projetos, recentes, favoritos, enviados, backups e biblioteca | **Parcial** — arquivos locais, FLP, recentes, favoritos e backup/recuperação local de projeto FLP (QA); enviados, backup de conta e biblioteca remota pendentes |
 | `TelegramSearch` / `TelegramMatrixSearchScreen` | Fluxo de busca/importação e controles de conta do Android | **Pendente** |
 | `ArchiveImport` / `ArchiveExtractorScreen` | Inventário e importação segura ZIP, RAR/RAR5 e 7Z de fontes/matrizes | **Parcial** — ZIP/7Z/RAR/RAR5 seletivos DST/PES/JEF e TTF/OTF individual com consentimento, sem senha ou importação em lote; paridade total pendente |
-| `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Parcial** — acesso externo ao painel WordPress e planos oficiais, catálogo informativo sem preço, sem login nativo, sem verificação PRO e sem tokens Android |
+| `Account` / `AccountHostScreen` | Login, conta, direitos/licenciamento e configurações seguros | **Parcial** — login nativo e-mail/senha Supabase Auth apenas em RAM, identidade e licença consultadas no backend; PRO, cotas, refresh de sessão, Google OAuth e vínculo de dispositivos ainda não implementados; links WordPress preservados |
 | `Community` / `BrotherCommunityScreen` | Ajuda, comunidade, suporte e ações correspondentes | **Parcial** — grupo oficial, notas no site e feedback por WhatsApp/e-mail após clique; push Firebase, diagnóstico FCM e demais fluxos Android pendentes |
 | `Transfer` / `MachineTransferScreen` | Transferência/compartilhamento para máquina compatível | **Parcial** — validação oficial de formato/bastidor e arquivo novo escolhido para USB/pasta com SHA-256; Wi-Fi, envio direto e testes na máquina pendentes |
 | `Viewer` / `ViewerScreen` | Todas as visualizações, bastidores e modos de prévia | **Parcial** — prévia técnica e bastidores |
@@ -74,9 +74,10 @@ enquanto as ferramentas de cada área ocupam o painel lateral; as seções
 não usadas deixam de ficar empilhadas em uma única rolagem.
 
 A rota Android **Telegram** continua pendente.
-**Conta** permite apenas abrir o WordPress oficial pelo navegador e
-consultar planos informativos. Login, vínculo Supabase, cobrança e
-liberação PRO permanecem pendentes.
+**Conta** inclui login Supabase e-mail/senha de sessão somente RAM,
+consulta autenticada a `brother-entitlement` e planos WordPress.
+OAuth Google, refresh de sessão, cobrança, aplicação de direitos/cotas
+e liberação de funções PRO permanecem pendentes.
 **Comunidade** oferece somente links oficiais e preparação de feedback,
 sem Firebase/FCM, inscrição automática, conta ou notificação Windows.
 A área Transferir prepara um arquivo escolhido pelo usuário, sem
