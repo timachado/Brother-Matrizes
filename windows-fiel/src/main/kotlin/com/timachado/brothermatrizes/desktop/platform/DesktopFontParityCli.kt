@@ -22,29 +22,39 @@ fun main(args: Array<String>) {
     }
     val sha = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
-    val text = "O"
-    val geometry = DesktopSkiaGlyphGeometry.sample(
-        fontFile = font,
-        text = text,
-        targetHeightUnits = 120f,
-        spacingUnits = 3f
-    )
-    require(geometry.contoursByGlyph.size == 1 &&
-        geometry.contoursByGlyph.first().size >= 2) {
-        "O caractere O perdeu contornos no Skia Desktop."
-    }
-    val lines = mutableListOf("FONT\t" + sha + "\t" + bytes.size + "\t" + text)
-    geometry.contoursByGlyph.forEachIndexed { g, glyph ->
-        glyph.forEachIndexed { c, contour ->
-            contour.forEachIndexed { i, point ->
-                lines += "P\t" + g + "\t" + c + "\t" + i +
-                    "\t" + point.x + "\t" + point.y
+    // Medir glifo isolado e palavra inteira. Os parâmetros e a TTF
+    // são os mesmos dos casos produzidos no emulador Android.
+    for (text in listOf("O", "Maria")) {
+        val geometry = DesktopSkiaGlyphGeometry.sample(
+            fontFile = font,
+            text = text,
+            targetHeightUnits = 120f,
+            spacingUnits = 3f
+        )
+        require(geometry.contoursByGlyph.isNotEmpty()) {
+            "A fonte não gerou contornos no Skia Desktop."
+        }
+        if (text == "O") require(geometry.contoursByGlyph.size == 1 &&
+            geometry.contoursByGlyph.first().size >= 2) {
+            "A letra O perdeu o vazado interior."
+        }
+        val lines = mutableListOf("FONT\t" + sha + "\t" + bytes.size + "\t" + text)
+        geometry.contoursByGlyph.forEachIndexed { g, glyph ->
+            glyph.forEachIndexed { c, contour ->
+                contour.forEachIndexed { i, point ->
+                    lines += "P\t" + g + "\t" + c + "\t" + i +
+                        "\t" + point.x + "\t" + point.y
+                }
             }
         }
+        lines += "META\t" + (geometry.right - geometry.left) +
+            "\t" + (geometry.bottom - geometry.top) + "\tfalse"
+        val target = if (text == "O") output else
+            output.resolveSibling("bm-parity-windows-outline-maria.tsv")
+        Files.createDirectories(target.parent)
+        Files.writeString(target, lines.joinToString("\n", postfix = "\n"))
+        println("BM_FONT_PARITY_EXPORTED text=" + text + " sha256=" + sha +
+            " contours=" + geometry.contourCount)
     }
-    lines += "META\t" + (geometry.right - geometry.left) +
-        "\t" + (geometry.bottom - geometry.top) + "\tfalse"
-    Files.createDirectories(output.parent)
-    Files.writeString(output, lines.joinToString("\n", postfix = "\n"))
     println("BM_ACTIVE_SATIN_WINDOWS_OUTLINES_READY sha256=" + sha)
 }
