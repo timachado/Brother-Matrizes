@@ -166,6 +166,18 @@ botões principais. Não são apresentados como utilizáveis os serviços
 de Conta, Comunidade, Transferência e Desenho ainda pendentes.
 A adaptação não afirma paridade integral da Home ou das 16 rotas.
 
+## Clique em nós na prévia SVG (QA)
+
+A seleção de nós individuais passa a funcionar tanto pelo painel como
+pelo clique nos marcadores do canvas. O hit-test mede distância
+na viewport real em pixels, com tolerância limitada e preferência
+pelo caminho selecionado quando há sobreposição. Arrastar a partir
+de um marcador de nó não arrasta o caminho inteiro por engano.
+A seleção não altera o arquivo ou a sequência de pontadas; somente
+a edição pelo painel registra ação no histórico. Sem suporte a
+arrastar nós individualmente ou editar objetos de matrizes importadas.
+É necessário homologar o gesto com mouse real em PC físico.
+
 ## Edição de nós e reordenação vetorial (QA parcial)
 
 O editor Windows permite selecionar nós por caminho SVG, deslocar um nó de
