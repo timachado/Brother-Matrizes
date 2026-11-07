@@ -103,3 +103,20 @@ importadas ao fluxo de UI aprovado.
 necessário consultar o resultado das Actions antes de declarar QA
 concluída e a execução de um launcher Windows antes de oferecer
 novo pacote portátil.
+
+## Evidência CI — 07/11/2026
+
+- [Biblioteca validada #42390275211](https://github.com/timachado/Brother-Matrizes/actions/runs/42390275211):
+  `completed/success` na revisão `6480889`. Compilação
+  Kotlin Desktop, testes com matrizes PES/DST/JEF geradas pelo motor
+  Android, armazenamento FLP v11, TTF real do Windows validada pelo
+  Skia, prevenção de duplicatas, arquivos falsos e rollback com
+  servidor de cotas simulado. Nenhuma chamada de produção.
+- [Relatórios dos testes #13581236674](https://github.com/timachado/Brother-Matrizes/actions/runs/42390275211/artifacts/13581236674),
+  `brother-windows-validated-library-test-reports`, aproximadamente
+  3,6 KB, apenas XMLs de testes sintéticos.
+- [Portable QA #42390566337](https://github.com/timachado/Brother-Matrizes/actions/runs/42390566337):
+  este novo pipeline incluirá os validadores reais na regressão do
+  pacote completo. Seu resultado deve ser verificado antes de
+  anunciar um novo launcher para teste.
+
