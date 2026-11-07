@@ -52,7 +52,7 @@ class DesktopAccountQaScreenTest {
             "sb_publishable_bad\nnew-line",
             "sb_publishable_bad\twith-tab",
             "sb_publishable_bad with_space",
-            "sb_publishable_short"
+            "sb_publishable_x"
         )) {
             assertNull(
                 DesktopWindowsAccountQaOptIn.publicKeyFromEnvironment(
@@ -105,9 +105,7 @@ class DesktopAccountQaScreenTest {
             )
             assertEquals("Plano gratuito", ui.planName)
             assertFalse(ui.planName.contains("Pro"))
-            // An unknown plan may be server-marked true, but it must never
-            // unlock commercial operations: UI is explicitly read-only.
-            if (!pro || status != "active") assertFalse(ui.isPaidPlan)
+            assertFalse(ui.isPaidPlan)
         }
     }
 }
