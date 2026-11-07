@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -94,6 +96,7 @@ import javax.swing.JOptionPane
 import javax.swing.JDialog
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.imageio.ImageIO
+import org.jetbrains.skia.Image
 import kotlin.system.exitProcess
 
 /**
@@ -194,9 +197,22 @@ fun main(args: Array<String>) = application {
     val saveDialogQaOriginalBytes =
         if (saveDialogProtectQa) Files.readAllBytes(checkNotNull(saveDialogQaFile))
         else null
+    // O mesmo monograma PREMIUM original da versão Android é utilizado
+    // no ícone da janela e na barra de tarefas. Falhar em caso de ausência
+    // é preferível a publicar o ícone genérico do Compose Desktop.
+    val officialWindowIcon = remember {
+        val resource = "drawable/brother_bm_premium_approved.webp"
+        val imageBytes = requireNotNull(
+            Thread.currentThread().contextClassLoader.getResourceAsStream(resource)
+        ) { "Ícone premium original Brother Matrizes ausente da distribuição." }
+            .use { it.readBytes() }
+        check(imageBytes.size > 128) { "Ícone original Brother Matrizes inválido." }
+        BitmapPainter(Image.makeFromEncoded(imageBytes).toComposeImageBitmap())
+    }
     Window(
         onCloseRequest = ::exitApplication,
-        title = "Brother Matrizes — validação de fidelidade Android (QA)",
+        title = "Brother Matrizes — Windows (QA interna)",
+        icon = officialWindowIcon,
         state = WindowState(
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
