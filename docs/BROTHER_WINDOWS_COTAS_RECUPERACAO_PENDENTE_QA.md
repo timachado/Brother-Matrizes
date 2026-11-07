@@ -185,3 +185,24 @@ e
 com idempotência verificável, testes com encerramento do SO, teste de
 ACLs Windows por usuário e diário de ownership local dos arquivos
 criados. Nenhuma recuperação automática destrutiva foi ativada.
+
+## Resultado multiprocesso confirmado — 07/11/2026
+
+- [QA Windows multiprocesso #42402385047](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385047):
+  `completed/success` no commit `3a77482`. Os processos
+  Java 17 independentes validaram a recusa do segundo FileLock,
+  a sobrevivência de `RESERVE_UNKNOWN` após `destroyForcibly`
+  e a retenção de `FINALIZE_UNKNOWN` após `Runtime.halt(61)`.
+  As regressões anteriores de quota e adaptador HTTP simulado
+  também passaram. Não houve login comercial, DNS, Supabase
+  ou arquivo de cliente.
+- A primeira revisão
+  [#42402214983](https://github.com/timachado/Brother-Matrizes/actions/runs/42402214983)
+  falhou na compilação de um `assertEquals` de teste.
+  O uso do parâmetro de mensagem foi corrigido e a segunda
+  execução passou. A correção foi restrita ao teste de QA.
+- O job portátil
+  [#42402385071](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385071)
+  incorpora os testes multiprocesso ao conjunto de regressões
+  antes de gerar o launcher. A conclusão e o ZIP são confirmados
+  separadamente.
