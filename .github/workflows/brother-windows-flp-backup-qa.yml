@@ -5,6 +5,7 @@ on:
     branches:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
+      - "windows-fiel/build.gradle.kts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpBackupExporter.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpBackupRestorer.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpProjectFiles.kt"
@@ -37,6 +38,18 @@ jobs:
         run: |
           gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopFlpBackupExporterTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopFlpProjectFilesTest'
           if ($LASTEXITCODE -ne 0) { throw "Testes do backup FLP Windows falharam." }
+      - name: Verificar rotulos de backup FLP somente no codigo gerado Windows
+        shell: pwsh
+        run: |
+          $generated = "windows-fiel/build/generated/android-project-library/kotlin/com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
+          if (!(Test-Path $generated)) { throw "Biblioteca Windows nao foi gerada." }
+          $code = Get-Content $generated -Raw
+          if (!$code.Contains('"Backup FLP local"') -or !$code.Contains('"Restaurar FLP"')) {
+            throw "Rotulos locais FLP nao aparecem na Biblioteca Windows."
+          }
+          if ($code.Contains('"Backup completo"')) {
+            throw "Risco: backup parcial sendo apresentado como backup completo."
+          }
       - name: Confirmar ausencia de executavel distribuivel
         shell: pwsh
         run: |
