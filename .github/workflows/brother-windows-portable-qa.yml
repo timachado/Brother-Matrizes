@@ -10,6 +10,9 @@ on:
       - "windows-fiel/qa/preparar_recursos_android.py"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopFontCatalogScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopReadOnlyFontAnalyzer.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopReadOnlyFontAnalyzerTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGoogleProviderReadiness.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGoogleProviderReadinessTest.kt"
@@ -57,7 +60,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
@@ -94,6 +97,12 @@ jobs:
           if ($runAccount.ExitCode -ne 0) { throw "O launcher portable falhou em Minha Conta: $($runAccount.ExitCode)" }
           if (!(Test-Path $accountScreenshot) -or (Get-Item $accountScreenshot).Length -lt 10000) {
             throw "Minha Conta do launcher portable nao foi renderizada."
+          }
+          $fontsScreenshot = "windows-fiel/build/qa/fonts-windows-readonly-qa.png"
+          $runFonts = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-fonts-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runFonts.ExitCode -ne 0) { throw "O launcher portable falhou na Biblioteca de Fontes: $($runFonts.ExitCode)" }
+          if (!(Test-Path $fontsScreenshot) -or (Get-Item $fontsScreenshot).Length -lt 10000) {
+            throw "Biblioteca de Fontes não foi renderizada pelo launcher portable."
           }
           "BROTHER_WINDOWS_PORTABLE_LAUNCHER_SMOKE_OK"
       - name: Preparar pasta completa do executavel para QA (sem instalar)
@@ -176,5 +185,6 @@ jobs:
           path: |
             windows-fiel/build/qa/home-windows-original-port.png
             windows-fiel/build/qa/account-windows-readonly-qa.png
+            windows-fiel/build/qa/fonts-windows-readonly-qa.png
           if-no-files-found: warn
           retention-days: 7
