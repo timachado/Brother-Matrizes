@@ -5,10 +5,12 @@ on:
     branches:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
+      - "windows-fiel/build.gradle.kts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveInventory.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchivePreviewScreen.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveInventoryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveRar7zInventoryTest.kt"
       - "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt"
       - ".github/workflows/brother-windows-archive-inventory-qa.yml"
   workflow_dispatch:
@@ -18,7 +20,7 @@ permissions:
 
 jobs:
   metadata-only:
-    name: ZIP local sem extracao, autenticacao ou escrita
+    name: ZIP RAR 7Z sem extracao autenticacao ou escrita
     runs-on: windows-latest
     timeout-minutes: 40
     env:
@@ -46,11 +48,20 @@ jobs:
               throw "Os limites ou formatos do Android mudaram: atualizar o adaptador Windows."
             }
           }
+          $gradleAndroid = Get-Content "app/build.gradle.kts" -Raw
+          $gradleWindows = Get-Content "windows-fiel/build.gradle.kts" -Raw
+          foreach ($dependency in @('com.github.junrar:junrar:8.1.1',
+                                    'org.apache.commons:commons-compress:1.28.0',
+                                    'org.tukaani:xz:1.10')) {
+            if (!$gradleAndroid.Contains($dependency) -or !$gradleWindows.Contains($dependency)) {
+              throw "Leitor RAR/7Z diferente da versão Android: $dependency"
+            }
+          }
           "BROTHER_WINDOWS_ARCHIVE_ANDROID_CONTRACT_OK"
       - name: Compilar Windows e testar inventario ZIP sem extrair arquivos
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest'
           if ($LASTEXITCODE -ne 0) { throw "Inventario ZIP Windows falhou no QA." }
       - name: Capturar tela real de analise de ZIP no Windows com dados sinteticos
         shell: pwsh
@@ -75,4 +86,4 @@ jobs:
           if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
             throw "Instalador comercial inesperado na analise ZIP."
           }
-          "BROTHER_WINDOWS_ZIP_INVENTORY_METADATA_ONLY_QA_OK"
+          "BROTHER_WINDOWS_ZIP_RAR_7Z_INVENTORY_METADATA_ONLY_QA_OK"
