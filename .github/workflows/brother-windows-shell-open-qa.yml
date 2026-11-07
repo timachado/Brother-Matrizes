@@ -32,10 +32,13 @@ jobs:
       - name: Compilar host Compose e testar argumentos do Windows Explorer
         shell: pwsh
         run: |
-          gradle -p windows-fiel test classes --no-daemon --stacktrace `
+          gradle -p windows-fiel test --no-daemon --stacktrace `
             --tests '*DesktopLaunchDocumentTest' `
             --tests '*DesktopEmbroideryFilesTest' `
             --tests '*DesktopFlpProjectFilesTest'
+          if ($LASTEXITCODE -ne 0) { throw "Testes de abertura via Explorer falharam." }
+          gradle -p windows-fiel classes --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Compilacao do host Compose Windows falhou." }
       - name: Garantir ausência de aplicativo comercial e executável
         shell: pwsh
         run: |
