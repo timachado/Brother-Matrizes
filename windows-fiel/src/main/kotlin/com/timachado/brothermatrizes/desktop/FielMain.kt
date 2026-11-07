@@ -1193,6 +1193,12 @@ private fun FielHomeHost(
                         openDesign(design, mode, ActiveDetail.SIMULATOR)
                     }
                 )
+            } else if (area == HomeArea.ACCOUNT) {
+                // Minha Conta de QA: login somente por opt-in explícito.
+                // O preview do servidor não autoriza recursos comerciais.
+                DesktopAccountQaScreen(
+                    onBack = { area = HomeArea.HOME }
+                )
             } else if (area == HomeArea.FONTS) {
                 // Catálogo real de presets Android; importação TTF/OTF
                 // permanece sem OAuth/cota comercial homologados.
