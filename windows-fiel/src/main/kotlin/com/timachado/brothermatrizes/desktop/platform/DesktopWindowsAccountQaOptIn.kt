@@ -16,7 +16,9 @@ internal object DesktopWindowsAccountQaOptIn {
         return key.takeIf {
             it.startsWith("sb_publishable_") &&
                 it.length in 20..4096 &&
-                it.all { c -> !c.isISOControl() && !c.isWhitespace() }
+                it.all { c ->
+                    c.code in 0x21..0x7e && c != '"' && c != '\\'
+                }
         }
     }
 
