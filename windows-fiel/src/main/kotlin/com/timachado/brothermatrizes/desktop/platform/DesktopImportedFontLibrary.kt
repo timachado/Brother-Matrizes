@@ -22,7 +22,8 @@ internal data class DesktopFontRecord(
     val displayName: String,
     val fileName: String,
     val extension: String,
-    val absolutePath: String
+    val absolutePath: String,
+    val created: Boolean = false
 )
 
 internal class DesktopImportedFontLibrary(private val location: Path) {
@@ -30,7 +31,11 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
     private val validExtensions = setOf("ttf", "otf")
     private val tenHex = Regex("-[0-9a-f]{10}$")
 
-    fun importFile(sourceFile: Path, displayName: String? = null): DesktopFontRecord {
+    fun importFile(
+        sourceFile: Path,
+        displayName: String? = null,
+        beforePublish: ((fileName: String, sha256: String) -> Unit)? = null
+    ): DesktopFontRecord {
         val source = sourceFile.toAbsolutePath().normalize()
         require(!Files.isSymbolicLink(source) &&
             Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
@@ -99,15 +104,22 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
             require(validSkiaFont(temp)) {
                 "Skia recusou a fonte TTF/OTF: dados inválidos ou não suportados."
             }
+            // Persist ownership intent before the atomic publication attempt.
+            // This callback does not authorize deletion of pre-existing data.
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            beforePublish?.invoke(target.fileName.toString(), digest)
             try {
-                // A cópia fica no mesmo volume e move sem REPLACE_EXISTING.
+                // The copy stays on the same volume and must not replace
+                // a concurrent import of the same content.
                 Files.move(temp, target)
+                return record(target).copy(created = true)
             } catch (_: FileAlreadyExistsException) {
                 require(Files.readAllBytes(target).contentEquals(bytes)) {
                     "Arquivo de fonte apareceu com conteúdo divergente."
                 }
+                return record(target)
             }
-            return record(target)
         } finally {
             Files.deleteIfExists(temp)
         }
