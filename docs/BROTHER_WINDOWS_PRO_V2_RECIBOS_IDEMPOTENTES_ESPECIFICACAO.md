@@ -21,9 +21,7 @@ No protocolo antigo `brother-usage`, a reserva Pro retorna
 após perda de resposta pode produzir outra chave sem rastreabilidade;
 isso impede a reconciliação segura após crash.
 
-No protocolo Windows `reserve_v2`, a rota Pro está
-**explicitamente bloqueada com erro 503**. A reserva Free V2
-já foi testada em PostgreSQL descartável e continua separada.
+No protocolo Windows `reserve_v2`, a reserva Free continua separada e Pro retorna indisponibilidade. Na branch foi adicionado `reserve_pro_v2` com configuração server-side própria, **desativada por padrão**. A produção permanece inalterada.
 
 ## Modelo proposto (não executado)
 
@@ -105,13 +103,7 @@ Supabase CLI, ser revisada por segurança e possuir plano de
 rollback testado. O ambiente de produção não pode ser modificado
 automaticamente para cumprir este documento.
 
-**Implementação técnica neste ciclo:** helper isolado
-`pro-receipt-v2.ts` com `eligibleProPlan`,
-`reserveProReceiptV2` e `finalizeProReceiptV2`.
-A dependência confiável do entitlement e as RPCs são injetadas
-para testes offline. Nenhuma rota da Edge Function foi ativada;
-sem tabela real ou chamada ao Supabase. O fluxo Android V1 e a
-decisão Pro V2 bloqueada na Edge Function permanecem intactos.
+**Implementação técnica em QA:** helper `pro-receipt-v2.ts`, roteador puro `pro-v2-route.ts` e integração opt-in na `brother-usage/index.ts`. A configuração `BROTHER_PRO_V2_ENABLED` não foi habilitada: **sem deploy, sem tabela no Supabase e sem chamadas reais**. O Android V1 mantém o fluxo anterior.
 
 [CI Pro V2 #42408075964](https://github.com/timachado/Brother-Matrizes/actions/runs/42408075964):
 `completed/success`, verificação de tipos Deno e **10 testes
@@ -136,3 +128,25 @@ Nenhuma instalação, deploy, cobrança, notificação ou release
 - [CI #42408650490](https://github.com/timachado/Brother-Matrizes/actions/runs/42408650490): **dois jobs concluídos com sucesso**, incluindo dez testes Deno (zero falhas) e execução SQL exclusivamente no PostgreSQL descartável da CI.
 - Não houve alteração na Edge Function comercial, no projeto Supabase, na conta Pro de qualquer cliente ou no Android oficial. O endpoint Pro V2 permanece desativado.
 - **Ainda pendente para concluir o portão #2:** gerar migração com Supabase CLI, auditar RLS e compatibilidade de retornos reais de `brother-entitlement`, integrar RPCs no servidor autenticado, testar staging com planos ativos e expirados e obter autorização explícita de implantação.
+
+## Integração do endpoint sob configuração desativada — 07/11/2026
+
+A Edge Function `brother-usage` da **branch GitHub** aceita os formatos:
+
+```json
+{"action":"reserve_pro_v2","operation":"import_matrix","client_request_id":"12345678-1234-4234-8234-123456789abc"}
+```
+
+```json
+{"action":"finalize_pro_v2","operation":"import_matrix","request_key":"pro_12345678-1234-4234-8234-123456789abc","success":true}
+```
+
+Ela valida a sessão pelo Supabase `getUser`, exige e-mail confirmado e verifica a variável **`BROTHER_PRO_V2_ENABLED === "true"`** antes de chamar qualquer RPC nova. O valor ausente ou diferente de `true` devolve **503**; não existe fallback que ative Pro V2 automaticamente. **Nenhuma variável foi configurada em produção.**
+
+Para `reserve_pro_v2`, os dados de licença são obtidos pelo próprio servidor mediante GET autenticado ao `brother-entitlement`. O helper confere identidade, e-mail, estado ativo, plano e vencimento usando o relógio do servidor. A conta não fornece `planCode` no corpo da requisição. A resposta dessa autoridade é compatível com os campos previstos em `brother-entitlement/index.ts`, conforme inspeção do **código-fonte** (não é uma homologação com conta Google real).
+
+Para `finalize_pro_v2`, apenas a identidade `getUser` e a propriedade da reserva no RPC são necessárias. Isso permite confirmar o **resultado de uma reserva já existente** após o vencimento do plano, sem criar outra licença ou novo recibo.
+
+**Evidências:** [CI #42411506522](https://github.com/timachado/Brother-Matrizes/actions/runs/42411506522) aprovada com compilação de toda a Edge Function (`deno check`), **7 testes do roteador + 10 testes Pro** e testes SQL sobre PostgreSQL 16 descartável; [guarda Pro #42411509845](https://github.com/timachado/Brother-Matrizes/actions/runs/42411509845) aprovada.
+
+**Bloqueadores remanescentes do portão comercial #2:** migração oficial Supabase CLI, staging independente, grants/RLS com usuários reais de QA, validação de redirect Google Windows, revisão de segredo e variável do ambiente e aprovação separada para publicação. Nenhum destes bloqueadores foi encerrado pelos testes offline. Nenhuma versão EXE nova foi gerada neste ciclo.
