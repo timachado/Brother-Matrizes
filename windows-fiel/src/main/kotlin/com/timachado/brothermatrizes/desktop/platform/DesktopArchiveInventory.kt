@@ -118,7 +118,7 @@ internal object DesktopArchiveInventory {
             path.any { it.isISOControl() ||
                 it in "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069" }
         ) return null
-        if (packed > 0 && size / packed > MAX_RATIO) return null
+        if (packed > 0 && size > packed * MAX_RATIO) return null
         if (packed < 0) return null
 
         val base = path.substringAfterLast('/')
