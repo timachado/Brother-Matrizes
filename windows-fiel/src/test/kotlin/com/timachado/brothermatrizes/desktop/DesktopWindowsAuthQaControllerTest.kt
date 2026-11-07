@@ -5,6 +5,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopSessionRefresher
 import com.timachado.brothermatrizes.desktop.platform.DesktopTransientAuthSession
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAuthQaController
 import com.timachado.brothermatrizes.desktop.platform.DesktopSupabaseGoogleIdentityVerifier
+import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherEntitlementReader
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -143,6 +144,65 @@ class DesktopWindowsAuthQaControllerTest {
             assertFailsWith<IllegalStateException> {
                 controller.verifyGoogleAccountForQa(verifier("google"))
             }
+        }
+    }
+
+
+    @Test
+    fun accountPreviewNeverGrantsLocalRightsAndInvalidResponseClearsDpapi() = withFolder { folder ->
+        val id = "11111111-2222-4333-8444-555555555555"
+        val email = "test-account@example.invalid"
+        fun mockGet(
+            url: URL,
+            response: String,
+            status: Int = 200
+        ): HttpURLConnection = object : HttpURLConnection(url) {
+            override fun connect() = Unit
+            override fun disconnect() = Unit
+            override fun usingProxy() = false
+            override fun getResponseCode() = status
+            override fun getContentType() = "application/json"
+            override fun getInputStream(): InputStream =
+                ByteArrayInputStream(response.toByteArray(StandardCharsets.UTF_8))
+        }
+        val key = "sb_publishable_offline_test_key_1234567890"
+        val verifier = DesktopSupabaseGoogleIdentityVerifier(key) { url ->
+            assertEquals("https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/user", url.toString())
+            mockGet(
+                url,
+                """{"id":"$id","email":"$email","app_metadata":{"provider":"google"}}"""
+            )
+        }
+        var wrongSubject = false
+        val reader = DesktopBrotherEntitlementReader(key) { url ->
+            assertEquals(
+                "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-entitlement",
+                url.toString()
+            )
+            val sub = if (wrongSubject) "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" else id
+            mockGet(
+                url,
+                """{"authenticated":true,"user":{"id":"$sub","email":"$email"},"planCode":"pro_lifetime","status":"active","pro":true}"""
+            )
+        }
+        DesktopWindowsAuthQaController.open(
+            DesktopQaSignIn { DesktopTransientAuthSession(token, refresh, 3600) },
+            DesktopSessionRefresher { error("No token refresh expected") },
+            clock, folder
+        ).use { controller ->
+            controller.loginAndVerifyGoogleForQa(verifier)
+            val preview = controller.accountPreviewForQa(verifier, reader)
+            assertTrue(preview.hasServerPro)
+            assertEquals("pro_lifetime", preview.planCode)
+            // Preview deliberately does NOT implement commercial entitlement gate.
+            assertFalse(preview.toString().contains(token))
+            assertTrue(Files.exists(folder.resolve("session.v1.dpapi")))
+            wrongSubject = true
+            assertFailsWith<IllegalStateException> {
+                controller.accountPreviewForQa(verifier, reader)
+            }
+            assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+            assertFailsWith<IllegalStateException> { controller.accessTokenForQa() }
         }
     }
 
