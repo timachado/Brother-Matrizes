@@ -102,6 +102,7 @@ jobs:
           deno check supabase/functions/brother-usage/pro-receipt-v2_test.ts
           deno check supabase/functions/brother-usage/pro-v2-route.ts
           deno check supabase/functions/brother-usage/pro-v2-route_test.ts
+          deno check supabase/functions/brother-usage/index.ts
           deno test --no-check supabase/functions/brother-usage/pro-receipt-v2_test.ts
           deno test --no-check supabase/functions/brother-usage/pro-v2-route_test.ts
           echo "BROTHER_PRO_V2_TYPE_AND_FAKE_RPC_TESTS_OK"
