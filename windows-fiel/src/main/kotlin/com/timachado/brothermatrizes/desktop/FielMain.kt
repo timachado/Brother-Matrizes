@@ -64,6 +64,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
@@ -89,6 +90,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import javax.swing.JFileChooser
+import javax.swing.JOptionPane
 import javax.swing.JDialog
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.imageio.ImageIO
@@ -878,26 +880,42 @@ private fun FielHomeHost(
             }
             if (sourceChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
             val backup = sourceChooser.selectedFile.toPath().toAbsolutePath().normalize()
-            if (!backup.fileName.toString().endsWith(".zip", ignoreCase = true)) {
-                runCatching {
+            val isLocalFlpZip = backup.fileName.toString()
+                .endsWith(".zip", ignoreCase = true)
+            // Android archives require explicit informed consent. A preview
+            // alone never writes projects, fonts, quotas or account data.
+            val androidPreview = if (!isLocalFlpZip) {
+                val checked = runCatching {
                     withContext(Dispatchers.IO) {
                         DesktopAndroidBackupInspector.inspect(backup)
                     }
-                }.fold(onSuccess = { preview ->
-                    snackbar.showSnackbar(
-                        "Backup original Android reconhecido: " +
-                            preview.projectCount + " matriz(es) e " +
-                            preview.fontCount + " fonte(s). " +
-                            "Análise somente leitura. Importação completa não homologada."
-                    )
-                }, onFailure = { error ->
+                }.getOrElse { error ->
                     snackbar.showSnackbar(
                         "Backup Android recusado: " +
                             (error.message ?: "formato inválido ou incompleto")
                     )
-                })
-                return@launch
-            }
+                    return@launch
+                }
+                if (checked.projectCount !in 1..200) {
+                    snackbar.showSnackbar(
+                        "Recuperação Windows admite de 1 a 200 matrizes por backup. " +
+                            "Nenhum arquivo foi restaurado."
+                    )
+                    return@launch
+                }
+                val accepted = JOptionPane.showConfirmDialog(
+                    null,
+                    "Backup Android verificado: " + checked.projectCount +
+                        " matriz(es), " + checked.fontCount + " fonte(s).\n" +
+                        "Recuperar APENAS os projetos FLP em uma NOVA pasta?\n" +
+                        "Fontes, conta, licenças e configurações NÃO serão importadas.",
+                    "Recuperar matrizes do Android — confirmação",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+                )
+                if (accepted != JOptionPane.YES_OPTION) return@launch
+                checked
+            } else null
             val folderChooser = JFileChooser().apply {
                 dialogTitle = "Escolher pasta PAI para criar uma NOVA pasta restaurada"
                 fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
@@ -907,21 +925,35 @@ private fun FielHomeHost(
             val parent = folderChooser.selectedFile.toPath().toAbsolutePath().normalize()
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val restored = DesktopFlpBackupRestorer.restoreLocalFlpZip(
-                        backup, parent
+                    val recovered = if (androidPreview != null) {
+                        val result = DesktopAndroidProjectRecovery.restoreProjectsOnly(
+                            backup, parent
+                        )
+                        result.folder to result.restoredProjects
+                    } else {
+                        val result = DesktopFlpBackupRestorer.restoreLocalFlpZip(
+                            backup, parent
+                        )
+                        result.folder to result.importedProjects
+                    }
+                    Triple(
+                        recovered.first, recovered.second,
+                        DesktopProjectCatalog.scan(recovered.first)
                     )
-                    restored to DesktopProjectCatalog.scan(restored.folder)
                 }
-            }.fold(onSuccess = { (restored, scanned) ->
+            }.fold(onSuccess = { (newFolder, projectCount, scanned) ->
                 // No existing FLP was replaced: switch to the new folder
                 // so the recovered projects can be opened immediately.
                 catalog = scanned
-                selectedLibraryFolder = restored.folder.toString()
+                selectedLibraryFolder = newFolder.toString()
                 area = HomeArea.LIBRARY
                 detail = ActiveDetail.NONE
                 snackbar.showSnackbar(
-                    "Restaurados " + restored.importedProjects +
-                        " projeto(s) FLP em nova pasta: " + restored.folder.toString()
+                    "Recuperados " + projectCount +
+                        " projeto(s) FLP em nova pasta: " + newFolder.toString() +
+                        if (androidPreview != null)
+                            ". Fontes Android não foram importadas."
+                        else ""
                 )
             }, onFailure = { error ->
                 snackbar.showSnackbar(
