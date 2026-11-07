@@ -1193,6 +1193,13 @@ private fun FielHomeHost(
                         openDesign(design, mode, ActiveDetail.SIMULATOR)
                     }
                 )
+            } else if (area == HomeArea.FONTS) {
+                // Catálogo real de presets Android; importação TTF/OTF
+                // permanece sem OAuth/cota comercial homologados.
+                DesktopFontCatalogScreen(
+                    onBack = { area = HomeArea.HOME },
+                    onCreateName = { openCreate() }
+                )
             } else if (area == HomeArea.LIBRARY) {
                 // UI, abas, cartões e metadados copiados do Android.
                 // Apenas o catálogo de arquivos FLP local é integrado nesta QA.
