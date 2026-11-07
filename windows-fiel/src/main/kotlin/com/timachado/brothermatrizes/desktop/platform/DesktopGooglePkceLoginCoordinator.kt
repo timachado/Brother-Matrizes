@@ -4,6 +4,8 @@ import java.awt.Desktop
 import java.net.URI
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** External system browser only: never use a WebView to handle Google credentials. */
@@ -54,8 +56,16 @@ internal class DesktopGooglePkceLoginCoordinator(
             DesktopPkceLoopbackListener.open().use { callback ->
                 val loginUrl = auth.authorizationUrl(callback.handshake)
                 browser.open(loginUrl)
-                val proof = callback.awaitCallback(callbackTimeout)
-                auth.exchangeCode(proof)
+                // ServerSocket.accept is blocking: poll coroutine cancellation
+                // so an aborted QA login cannot later exchange a stale code.
+                val context = currentCoroutineContext()
+                val proof = callback.awaitCallback(callbackTimeout) {
+                    context.ensureActive()
+                }
+                context.ensureActive()
+                val session = auth.exchangeCode(proof)
+                context.ensureActive()
+                session
             }
         }
 }
