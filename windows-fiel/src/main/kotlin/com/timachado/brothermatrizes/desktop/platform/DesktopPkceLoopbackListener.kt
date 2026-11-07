@@ -24,6 +24,10 @@ import kotlin.math.min
  * Call awaitCallback from a background worker (never the Compose UI thread).
  * Caller must close this receiver on cancellation.
  */
+/** No secrets, provider error codes or personally identifying data in logs. */
+internal class DesktopOAuthLoginRejected :
+    IllegalStateException("Autenticação Google cancelada ou recusada.")
+
 internal class DesktopPkceLoopbackListener private constructor(
     private val server: ServerSocket,
     val handshake: DesktopPkceHandshake
@@ -57,6 +61,16 @@ internal class DesktopPkceLoopbackListener private constructor(
                 val result = runCatching { parseRequest(socket) }
                 val callback = result.getOrNull()
                 if (callback != null) {
+                    // A verified error callback stops the browser wait
+                    // immediately; forged or mismatched state still gets 400.
+                    val rejected = runCatching {
+                        handshake.acceptErrorCallback(callback)
+                    }.getOrDefault(false)
+                    if (rejected) {
+                        sendResponse(socket, 200,
+                            "Autenticacao Google cancelada ou recusada. Volte ao Brother Matrizes.")
+                        throw DesktopOAuthLoginRejected()
+                    }
                     val exchange = runCatching { handshake.acceptCallback(callback) }
                         .getOrNull()
                     if (exchange != null) {
