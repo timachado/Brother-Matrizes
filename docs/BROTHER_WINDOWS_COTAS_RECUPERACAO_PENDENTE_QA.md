@@ -119,3 +119,27 @@ real, além da regressão dos contratos anteriores.
 **Status:** implementação experimental somente QA. Não habilitar
 importação comercial, não consumir cotas reais, não publicar EXE,
 não fazer merge na `main` nem upload ao site da T.I. Machado.
+
+## Resultado de CI verificado — 07/11/2026
+
+- A primeira execução
+  [#42392827084](https://github.com/timachado/Brother-Matrizes/actions/runs/42392827084)
+  encontrou uma falha de regressão na mensagem de erro esperada pelo
+  gate comercial anterior. A proteção funcionou, mas o teste
+  `failedFinalizationRollsBackOnlyNewContent` detectou a diferença.
+- A mensagem pública antiga `A cota não foi sincronizada` foi
+  preservada e complementada com instrução para reconciliação.
+- A revisão corrigida
+  [#42393125582](https://github.com/timachado/Brother-Matrizes/actions/runs/42393125582)
+  terminou `completed/success` no commit `e83166c`.
+  Compilou o journal e passou os testes de interrupção, bloqueio de
+  reservas ambíguas, reinício, concorrência entre instâncias,
+  protocolo HTTPS simulado e regressão do gate comercial.
+- [Artefato de resultados #13582680060](https://github.com/timachado/Brother-Matrizes/actions/runs/42393125582/artifacts/13582680060)
+  contém exclusivamente XML de testes, sem tokens ou arquivos
+  do usuário.
+- A regressão portátil
+  [#42393169200](https://github.com/timachado/Brother-Matrizes/actions/runs/42393169200)
+  inclui estes testes na criação da APP-IMAGE. Confirmar sua
+  conclusão antes de fornecer novo ZIP de QA.
+
