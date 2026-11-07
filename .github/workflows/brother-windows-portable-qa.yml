@@ -9,6 +9,10 @@ on:
       - "windows-fiel/qa/preparar_icone_windows.py"
       - "windows-fiel/qa/preparar_recursos_android.py"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGoogleProviderReadiness.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGoogleProviderReadinessTest.kt"
       - "branding/brother_bm_launcher_safe.webp.base64"
       - ".github/workflows/brother-windows-portable-qa.yml"
   workflow_dispatch:
@@ -53,7 +57,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
