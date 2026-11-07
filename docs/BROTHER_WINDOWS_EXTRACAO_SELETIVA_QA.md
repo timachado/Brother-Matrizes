@@ -107,8 +107,14 @@ a execução dos testes.
   com o mesmo tamanho e nome, mas SHA diferente. O job da revisão
   inicial [#42388786780](https://github.com/timachado/Brother-Matrizes/actions/runs/42388786780)
   **falhou neste teste**, foi corrigido e o job final **passou**.
-- [Portátil Windows com regressão seletiva #42389191324](https://github.com/timachado/Brother-Matrizes/actions/runs/42389191324)
-  incorpora os novos testes ao empacotamento do launcher de QA.
-  A liberação de seu artefato deve ser conferida separadamente;
-  **não há importação comercial exposta na UI**.
+- [Portátil Windows com regressão seletiva #42389191324](https://github.com/timachado/Brother-Matrizes/actions/runs/42389191324):
+  `completed/success` no commit `2f071682`. Passaram os novos
+  testes junto com os anteriores, a criação da imagem APP-IMAGE com
+  runtime embutido e a execução do launcher na máquina Windows
+  do runner. **Não há importação comercial exposta na UI.**
+  Artefatos privados e temporários:
+  [pacote Windows Portable QA #13581061889](https://github.com/timachado/Brother-Matrizes/actions/runs/42389191324/artifacts/13581061889)
+  (98.222.174 bytes, launcher e runtime completos) e
+  [capturas de tela #13580882830](https://github.com/timachado/Brother-Matrizes/actions/runs/42389191324/artifacts/13580882830)
+  (237.365 bytes). Arquivos podem expirar ou requerer login no GitHub.
 
