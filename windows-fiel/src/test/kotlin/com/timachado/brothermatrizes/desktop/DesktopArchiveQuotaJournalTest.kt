@@ -6,6 +6,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveImportFactor
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveItemTransaction
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveIdempotentUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherArchiveUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
@@ -300,6 +301,108 @@ class DesktopArchiveQuotaJournalTest {
         )
         assertFailsWith<IllegalStateException> {
             gate.importOne(matrix())
+        }
+    }
+
+    @Test
+    fun gateUsesPersistedUuidForV2AndNeverInvokesLegacyReserve() = runBlocking {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val output = folder.resolve("new-v2.pes")
+            var requestId: String? = null
+            var legacyCalls = 0
+            var finalizeCalls = 0
+            val gateway = object : DesktopArchiveUsageGateway,
+                DesktopArchiveIdempotentUsageGateway {
+                override suspend fun reserve(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category
+                ): String {
+                    legacyCalls++
+                    error("Legacy reserve must NEVER be used by Windows V2")
+                }
+
+                override suspend fun reserveOnce(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category,
+                    clientRequestId: String
+                ): String {
+                    assertEquals("mock-verified-token-qa-only", accessToken)
+                    assertEquals(DesktopArchiveInventory.Category.MATRIX, category)
+                    val persisted = journal.listPending().single()
+                    assertEquals(persisted.localId, clientRequestId)
+                    assertEquals(DesktopArchiveQuotaJournal.Stage.RESERVE_UNKNOWN, persisted.stage)
+                    requestId = clientRequestId
+                    return "usage_$clientRequestId"
+                }
+
+                override suspend fun finalize(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category,
+                    requestKey: String,
+                    success: Boolean
+                ) {
+                    assertEquals("usage_$requestId", requestKey)
+                    assertTrue(success)
+                    finalizeCalls++
+                }
+            }
+            val tx = Tx(output)
+            val gate = DesktopArchiveCommercialImportGate(
+                gateway, verified, DesktopArchiveImportFactory { tx }, journal
+            )
+            val result = gate.importOne(matrix())
+            assertTrue(result.created)
+            assertEquals(0, legacyCalls)
+            assertEquals(1, finalizeCalls)
+            assertTrue(requestId != null)
+            assertTrue(journal.listPending().isEmpty())
+            Files.delete(output)
+        }
+    }
+
+    @Test
+    fun lostV2ResponseNeverGeneratesNewClientUuidOrSecondReservation() = runBlocking {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            var firstId: String? = null
+            var v2Calls = 0
+            val gateway = object : DesktopArchiveUsageGateway,
+                DesktopArchiveIdempotentUsageGateway {
+                override suspend fun reserve(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category
+                ): String = error("No legacy requests")
+                override suspend fun reserveOnce(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category,
+                    clientRequestId: String
+                ): String {
+                    v2Calls++
+                    firstId = clientRequestId
+                    assertEquals(clientRequestId, journal.listPending().single().localId)
+                    error("Response lost after remote quota transaction")
+                }
+                override suspend fun finalize(
+                    accessToken: String,
+                    category: DesktopArchiveInventory.Category,
+                    requestKey: String,
+                    success: Boolean
+                ) = error("No finalize after lost response")
+            }
+            val gate = DesktopArchiveCommercialImportGate(
+                gateway, verified,
+                DesktopArchiveImportFactory { error("No importer after lost response") },
+                journal
+            )
+            assertFailsWith<IllegalStateException> { gate.importOne(matrix()) }
+            assertEquals(1, v2Calls)
+            assertEquals(firstId, journal.listPending().single().localId)
+            assertEquals(DesktopArchiveQuotaJournal.Stage.RESERVE_UNKNOWN,
+                journal.listPending().single().stage)
+            assertFailsWith<IllegalStateException> { gate.importOne(matrix()) }
+            assertEquals(1, v2Calls)
+            assertEquals(firstId, journal.listPending().single().localId)
         }
     }
 }
