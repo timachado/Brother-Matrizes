@@ -209,7 +209,15 @@ expect_denied "select public.brother_matrizes_reserve_pro_import_v2(
  '$owner','import_matrix','99999999-9999-4999-8999-999999999999','free')"
 expect_denied "select public.brother_matrizes_finalize_pro_import_v2(
  '$owner','import_matrix','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true)"
-expect_denied "select * from public.brother_matrizes_pro_import_receipts"
+# Unlike service_role, neither public client role may read any receipt.
+for client_role in anon authenticated; do
+  if psql -X -v ON_ERROR_STOP=1 -c \
+      "SET ROLE $client_role; SELECT * FROM public.brother_matrizes_pro_import_receipts" \
+      > /tmp/brother-pro-client-denied.log 2>&1; then
+    echo "Client role $client_role unexpectedly read Pro receipts" >&2
+    exit 1
+  fi
+done
 
 # A client UUID already used in the existing Free table must be denied.
 free_uuid="abcd1234-abcd-4bcd-8bcd-123456789abc"
