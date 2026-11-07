@@ -67,7 +67,7 @@ jobs:
           echo "BROTHER_V2_DENO_IDEMPOTENT_FAKE_RPC_OK"
 
   disposable-postgres:
-    name: PostgreSQL 16 isolado: replay, concorrencia, limite mensal e privileges
+    name: "PostgreSQL 16 isolado: replay, concorrencia, limite mensal e privileges"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
