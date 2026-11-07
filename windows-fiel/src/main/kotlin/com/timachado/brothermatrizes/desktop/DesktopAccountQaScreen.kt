@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
+import com.timachado.brothermatrizes.desktop.platform.DesktopPkceRedirectPreflight
+import com.timachado.brothermatrizes.desktop.platform.DesktopRedirectAllowlistReview
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -93,6 +96,8 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
     var loopbackStatus by remember { mutableStateOf<String?>(null) }
+    var pastedAllowlist by remember { mutableStateOf("") }
+    var allowlistReview by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf("Nenhuma assinatura consultada nesta sessão.") }
 
     fun runAccountAction(action: suspend () -> DesktopAccountPresentation.VerifiedSummary?) {
@@ -213,6 +218,79 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
                 "não faz login nem libera recursos Pro.",
             color = FioTextMuted
         )
+
+        // Manual-only checklist appears exclusively in the opted-in QA screen.
+        // It never fetches the private Supabase Redirect URLs, starts Google,
+        // changes account state or declares a commercial login ready.
+        if (qaEnvironment != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Conferência manual de Redirect URLs (QA)",
+                        color = FioGold,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Copie somente as URLs permitidas em Supabase > " +
+                            "Authentication > URL Configuration. Não cole " +
+                            "chaves, códigos de acesso ou tokens.",
+                        color = FioTextMuted
+                    )
+                    Text(
+                        "Padrão candidato (ainda não homologado): " +
+                            DesktopPkceRedirectPreflight.SUPABASE_ALLOWLIST_CANDIDATE,
+                        color = FioText
+                    )
+                    OutlinedTextField(
+                        value = pastedAllowlist,
+                        onValueChange = {
+                            if (it.length <= 8192) {
+                                pastedAllowlist = it
+                                allowlistReview = null
+                            }
+                        },
+                        label = { Text("URLs copiadas do painel") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 5
+                    )
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !busy && pastedAllowlist.isNotBlank(),
+                        onClick = {
+                            val result = DesktopRedirectAllowlistReview.examine(
+                                pastedAllowlist
+                            )
+                            allowlistReview = if (result.candidatePresentInPastedText)
+                                "O padrão candidato consta da lista colada. " +
+                                    "Isso não confirma configuração ativa no servidor."
+                            else
+                                "O padrão candidato não foi encontrado na lista " +
+                                    "colada. Não houve alteração no Supabase."
+                        }
+                    ) {
+                        Text("Conferir texto localmente (sem login)")
+                    }
+                    if (allowlistReview != null) {
+                        Text(checkNotNull(allowlistReview), color = FioText)
+                    }
+                    Text(
+                        "Esta comparação é local, temporária e não comprova " +
+                            "que as URLs estão salvas no Supabase. A " +
+                            "homologação exige conferência no painel e login " +
+                            "real com conta de testes dedicada.",
+                        color = FioTextMuted
+                    )
+                }
+            }
+        }
 
         if (qaEnvironment == null) {
             Card(
