@@ -42,7 +42,7 @@ class DesktopWindowsFullGoogleQaFlowTest {
         override fun connect() = Unit
         override fun disconnect() { disconnected = true }
         override fun usingProxy() = false
-        override fun getResponseCode() = HTTP_OK
+        override fun getResponseCode() = 200
         override fun getContentType() = "application/json"
         override fun getInputStream(): InputStream =
             ByteArrayInputStream(reply.toByteArray(StandardCharsets.UTF_8))
