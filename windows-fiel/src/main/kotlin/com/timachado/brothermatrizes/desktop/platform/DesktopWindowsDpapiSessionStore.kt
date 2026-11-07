@@ -212,7 +212,7 @@ internal class DesktopWindowsDpapiSessionStore(
     override fun toString(): String = "DesktopWindowsDpapiSessionStore(redacted)"
 
     companion object {
-        private fun defaultUserDataFolder(): Path {
+        internal fun defaultUserDataFolder(): Path {
             val local = System.getenv("LOCALAPPDATA")
                 ?.takeIf { it.isNotBlank() }
                 ?: error("Perfil local Windows indisponível.")
