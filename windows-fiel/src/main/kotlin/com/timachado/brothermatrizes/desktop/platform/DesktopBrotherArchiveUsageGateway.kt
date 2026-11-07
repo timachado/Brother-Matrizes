@@ -22,13 +22,30 @@ import kotlinx.serialization.json.put
  * A public Supabase key is provided by the caller, never hardcoded here.
  * Authorization decisions are made by server JSON, not locally.
  */
+internal interface DesktopArchiveQuotaStatusReader {
+    /** Diagnostic ONLY. Never settles a quota or deletes a journal marker. */
+    suspend fun lookupKnown(
+        accessToken: String,
+        category: DesktopArchiveInventory.Category,
+        requestKey: String
+    ): DesktopArchiveQuotaStatus
+}
+
+internal data class DesktopArchiveQuotaStatus(
+    val requestKey: String,
+    val category: DesktopArchiveInventory.Category,
+    val state: State
+) {
+    enum class State { RESERVED, COMPLETED, FAILED, NOT_FOUND }
+}
+
 internal class DesktopBrotherArchiveUsageGateway(
     private val publishableKey: String,
     private val versionCode: Int,
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
     }
-) : DesktopArchiveUsageGateway {
+) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader {
     private val endpoint = URL(
         "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
     )
@@ -95,6 +112,53 @@ internal class DesktopBrotherArchiveUsageGateway(
         check(response.boolean("ok")) {
             "Servidor não confirmou a finalização da importação."
         }
+    }
+
+    /**
+     * Read-only reservation diagnostics, available in code but NOT wired to
+     * Windows UI. Requires the additive "status" action to be deployed and
+     * authenticated by the server. Only 'usage_' keys have persisted rows;
+     * ephemeral Pro keys have no queryable status.
+     *
+     * Even COMPLETED never means "remove local marker": local ownership
+     * and the success/failure intent were not persisted across the crash.
+     */
+    override suspend fun lookupKnown(
+        accessToken: String,
+        category: DesktopArchiveInventory.Category,
+        requestKey: String
+    ): DesktopArchiveQuotaStatus {
+        require(requestKey.startsWith("usage_") &&
+            reservationPattern.matches(requestKey)) {
+            "Somente reservas persistidas no servidor podem ser consultadas."
+        }
+        val operation = operationFor(category)
+        val response = post(accessToken, buildJsonObject {
+            put("action", "status")
+            put("operation", operation)
+            put("request_key", requestKey)
+        })
+        require(response.text("operation") == operation &&
+            response.text("request_key") == requestKey) {
+            "Resposta do servidor não corresponde à reserva consultada."
+        }
+        val found = response.booleanOptional("found")
+            ?: error("Resposta do estado de cota sem confirmação.")
+        if (!found) {
+            require(response["state"] == null) {
+                "Estado presente em resposta de reserva inexistente."
+            }
+            return DesktopArchiveQuotaStatus(
+                requestKey, category, DesktopArchiveQuotaStatus.State.NOT_FOUND
+            )
+        }
+        val state = when (response.text("state")) {
+            "reserved" -> DesktopArchiveQuotaStatus.State.RESERVED
+            "completed" -> DesktopArchiveQuotaStatus.State.COMPLETED
+            "failed" -> DesktopArchiveQuotaStatus.State.FAILED
+            else -> error("Servidor retornou um estado de cota desconhecido.")
+        }
+        return DesktopArchiveQuotaStatus(requestKey, category, state)
     }
 
     private fun operationFor(category: DesktopArchiveInventory.Category): String =
@@ -164,8 +228,11 @@ internal class DesktopBrotherArchiveUsageGateway(
         (this[field] as? JsonPrimitive)
             ?.takeIf { it.isString }?.content.orEmpty()
 
+    private fun JsonObject.booleanOptional(field: String): Boolean? =
+        (this[field] as? JsonPrimitive)?.booleanOrNull
+
     private fun JsonObject.boolean(field: String): Boolean =
-        (this[field] as? JsonPrimitive)?.booleanOrNull == true
+        booleanOptional(field) == true
 
     override fun toString(): String = "DesktopBrotherArchiveUsageGateway(redacted)"
 }
