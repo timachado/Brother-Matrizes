@@ -212,6 +212,98 @@ val copyAndroidMachineTransfer by tasks.registering {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedMachineTransfer)
 
 
+// Criar Desenho: UI Android original + gestos Compose de desenho livre.
+// Substituir APENAS o ActivityResult/ContentResolver Android pelo seletor
+// SVG do Windows. Os algoritmos SimpleSvgParser e VectorMatrixGenerator
+// são copiados sem alterações de core/embroidery/VectorMatrixGenerator.kt.
+val generatedDrawing = layout.buildDirectory.dir("generated/android-drawing/kotlin")
+val copyAndroidCreateDrawing by tasks.registering {
+    val input = originalAndroidCode.file("CreateDrawingScreen.kt")
+    inputs.file(input)
+    outputs.dir(generatedDrawing)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val pickerStart = "    val svgPicker ="
+        val pickerEnd = "    val freehandArtwork ="
+        val start = source.indexOf(pickerStart)
+        val end = source.indexOf(pickerEnd, start)
+        val launch = """svgPicker.launch(
+                                arrayOf(
+                                    "image/svg+xml",
+                                    "application/xml",
+                                    "text/xml"
+                                )
+                            )"""
+        val context = "    val context =\n        LocalContext.current\n\n"
+        check(start > 0 && end > start &&
+            source.split(pickerStart).size == 2 &&
+            source.split(pickerEnd).size == 2 &&
+            source.split(context).size == 2 &&
+            source.split(launch).size == 2 &&
+            source.substring(start, end).contains("SimpleSvgParser") &&
+            source.substring(start, end).contains("OpenableColumns") &&
+            source.contains("detectDragGestures(") &&
+            source.contains("VectorMatrixGenerator") &&
+            source.contains("fun CreateDrawingScreen(")
+        ) { "Criar Desenho Android mudou; revisar a ponte SVG antes do port Windows." }
+
+        val localPicker = """
+    fun requestSvgFromWindows() {
+        val selected = DesktopSvgFilePicker.chooseFromDialog() ?: return
+        selected.fold(
+            onSuccess = { picked ->
+                val parsed = SimpleSvgParser.parse(picked.name, picked.bytes)
+                importedArtwork = parsed.getOrNull()
+                importMessage = parsed.fold(
+                    onSuccess = { artwork ->
+                        artwork.label + " • " + artwork.paths.size + " caminho(s)"
+                    },
+                    onFailure = { error -> error.message ?: "SVG não suportado." }
+                )
+            },
+            onFailure = { error ->
+                importedArtwork = null
+                importMessage = error.message ?: "Não foi possível ler o SVG."
+            }
+        )
+    }
+
+"""
+        val desktop = (source.substring(0, start) + localPicker +
+            source.substring(end))
+            .replace(context, "")
+            .replace(
+                "import android.provider.OpenableColumns\n", ""
+            )
+            .replace(
+                "import androidx.activity.compose.rememberLauncherForActivityResult\n", ""
+            )
+            .replace(
+                "import androidx.activity.result.contract.ActivityResultContracts\n", ""
+            )
+            .replace("import androidx.compose.ui.platform.LocalContext\n",
+                "import com.timachado.brothermatrizes.desktop.platform.DesktopSvgFilePicker\n")
+            .replace(launch, "requestSvgFromWindows()")
+        check(!desktop.contains("android.provider.") &&
+            !desktop.contains("rememberLauncherForActivityResult") &&
+            !desktop.contains("ActivityResultContracts") &&
+            !desktop.contains("contentResolver") &&
+            !desktop.contains("svgPicker.launch") &&
+            desktop.contains("requestSvgFromWindows()") &&
+            desktop.contains("fun FreehandPad(") &&
+            desktop.contains("VectorMatrixGenerator") &&
+            desktop.contains("fun CreateDrawingScreen(")
+        ) { "Criar Desenho Windows contém ponte Android incorreta." }
+        val out = generatedDrawing.get().file(
+            "com/timachado/brothermatrizes/CreateDrawingScreen.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedDrawing)
+
+
 // Editor de Matrizes: fonte original Android mantida integralmente,
 // exceto o BackHandler de Activity (o botão Voltar e seu AlertDialog
 // permanecem idênticos). recommendedHoopFor é extraído literalmente do
@@ -1258,7 +1350,7 @@ sourceSets.getByName("main").resources.srcDir(generatedRes)
 tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
-        copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer,
+        copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
