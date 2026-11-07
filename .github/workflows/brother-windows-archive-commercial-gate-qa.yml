@@ -1,0 +1,75 @@
+name: Brother Matrizes - Windows cotas por item (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveCommercialImportGateTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopCommercialFontImportGate.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherMatrizesAccountService.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt"
+      - ".github/workflows/brother-windows-archive-commercial-gate-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quota:
+    name: Validar Google bloqueado, reserva individual e rollback sem rede
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Conferir a autoridade de quotas do Android
+        shell: pwsh
+        run: |
+          $service = Get-Content "app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherMatrizesAccountService.kt" -Raw
+          $api = Get-Content "app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherUsageClient.kt" -Raw
+          foreach ($contract in @(
+            'suspend fun authorizeImport',
+            'suspend fun finalizeImport',
+            'BrotherUsageClient.reserve(token, isFont)',
+            'BrotherUsageClient.finalize(token, isFont, requestKey, success)'
+          )) {
+            if (!$service.Contains($contract)) {
+              throw "Contrato de autorização Android mudou: $contract"
+            }
+          }
+          foreach ($token in @('"import_font"', '"import_matrix"', '"reserve"', '"finalize"', '"request_key"', '"success"')) {
+            if (!$api.Contains($token)) {
+              throw "Contrato de reserva/finalização do servidor mudou: $token"
+            }
+          }
+          $gate = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt" -Raw
+          if (!$gate.Contains('WindowsFontSessionUnavailable') -or
+              !$gate.Contains('WindowsArchiveImporterUnavailable') -or
+              !$gate.Contains('NonCancellable') -or
+              $gate.Contains('http://') -or $gate.Contains('https://')) {
+            throw "Gate Windows mudou de política fail-closed ou tentou rede."
+          }
+          "BROTHER_WINDOWS_ARCHIVE_QUOTA_CONTRACT_FAIL_CLOSED_OK"
+      - name: Testar reserva, recusa, cancelamento e reversão no Windows
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopCommercialFontImportGateTest'
+          if ($LASTEXITCODE -ne 0) { throw "A validação das quotas Windows falhou." }
+          "BROTHER_WINDOWS_ARCHIVE_QUOTA_FAKE_SERVER_TESTS_OK"
+      - name: Não gerar executável nem acessar produção para testar cotas
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador inesperado durante QA de quotas."
+          }
+          "BROTHER_WINDOWS_ARCHIVE_QUOTA_NO_PRODUCTION_NO_RELEASE_OK"
