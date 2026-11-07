@@ -1,0 +1,46 @@
+name: Brother Matrizes - Windows cotas de fontes e chaves publicas (QA)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherFontUsageGateway.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopCommercialFontImportGate.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherFontUsageGatewayTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopCommercialFontImportGateTest.kt"
+      - ".github/workflows/brother-windows-font-usage-security-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quota:
+    name: Validar cotas, segredos e reserva/finalizacao com mocks offline
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Rejeitar keys secretas, flags falsas e operações sem cota
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopGoogleProviderReadinessTest'
+          if ($LASTEXITCODE -ne 0) { throw "Autorizacao comercial Windows nao segura." }
+          "BROTHER_WINDOWS_QUOTA_GATE_FAIL_CLOSED_OK"
+      - name: Confirmar ausencia de artefatos comerciais
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Este workflow nao pode gerar instalador comercial."
+          }
+          "BROTHER_WINDOWS_QUOTA_SECURITY_OFFLINE_OK"

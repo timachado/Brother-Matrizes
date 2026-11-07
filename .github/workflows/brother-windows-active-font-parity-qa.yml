@@ -1,0 +1,105 @@
+name: Brother Matrizes - paridade TTF motor Satin ATIVO Android x Windows (QA)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - ".github/workflows/brother-windows-active-font-parity-qa.yml"
+      - "windows-fiel/qa/capture_android_font_golden.sh"
+      - "windows-fiel/qa/compare_active_font_outlines.py"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFontParityCli.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSkiaGlyphGeometry.kt"
+      - "windows-fiel/build.gradle.kts"
+      - "app/src/androidTest/java/com/timachado/brothermatrizes/font/ActiveSatinFontGoldenTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/AndroidSkiaOutlineExtractor.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/ImportedFontMatrixGenerator.kt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-golden:
+    name: Gerar Roboto e contornos do Android real (sem dados de clientes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar Android SDK 36
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Permitir aceleração do emulador QA
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Extrair Roboto e contornos pelo motor Android 1.11.8
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash windows-fiel/qa/capture_android_font_golden.sh
+      - name: Guardar mesma fonte com hash e contornos Android reais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-active-satin-ANDROID-SAME-TTF-QA
+          path: windows-fiel/build/qa/font-parity/android/
+          if-no-files-found: warn
+          retention-days: 14
+
+  windows-diff:
+    name: Comparar geometria Skia Windows com o MESMO arquivo TTF
+    runs-on: windows-latest
+    needs: android-golden
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Baixar fonte EXATAMENTE do mesmo emulador Android
+        uses: actions/download-artifact@v4
+        with:
+          name: brother-active-satin-ANDROID-SAME-TTF-QA
+          path: windows-fiel/build/qa/font-parity/android/
+      - name: Extrair contornos Windows pelo Skia
+        shell: pwsh
+        run: |
+          $input = "windows-fiel/build/qa/font-parity/android/bm-parity-font.ttf"
+          if (!(Test-Path $input)) { throw "Fonte original Android não encontrada" }
+          gradle -p windows-fiel exportFontOutlineQa --no-daemon --stacktrace
+      - name: Reprovar se geometria ativa Android for diferente da Windows
+        shell: pwsh
+        run: |
+          python windows-fiel/qa/compare_active_font_outlines.py
+      - name: Disponibilizar diagnóstico com diferenças e SHA256
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-active-satin-COMPARACAO-ANDROID-WINDOWS-QA
+          path: windows-fiel/build/qa/font-parity/
+          if-no-files-found: warn
+          retention-days: 14
+
+# Este workflow NÃO publica EXE/MSI/ZIP nem habilita fontes TTF/OTF na UI.
+# Só PASS no confronto de contornos NÃO homologa kerning nem costura.

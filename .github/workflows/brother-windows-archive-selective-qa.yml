@@ -1,0 +1,83 @@
+name: Brother Matrizes - Windows extração seletiva (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveInventory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveStager.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveSelectiveStagerTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveSelectiveImportFactoryTest.kt"
+      - ".github/workflows/brother-windows-archive-selective-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-extraction:
+    name: Extração única ZIP/7Z, verificação CRC/SHA, rollback, sem produção
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Garantir que a UI Windows não libera extração nem cotas comerciais
+        shell: pwsh
+        run: |
+          $ui = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt" -Raw
+          if ($ui.Contains('DesktopArchiveSelectiveStager') -or
+              $ui.Contains('DesktopArchiveSelectiveImportFactory') -or
+              $ui.Contains('DesktopArchiveCommercialImportGate') -or
+              $ui.Contains('DesktopBrotherArchiveUsageGateway')) {
+            throw "A UI de QA não pode habilitar importação comercial."
+          }
+          $android = Get-Content "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt" -Raw
+          foreach ($contract in @(
+            'fun extract(context: Context',
+            'LimitedOutput(stream, MAX_ENTRY, cancelled)',
+            'ArchiveFormat.ZIP -> ZipFile',
+            'ArchiveFormat.SEVEN_Z ->',
+            'ArchiveFormat.RAR ->',
+            'const val MAX_ENTRY = 24L * 1024 * 1024'
+          )) {
+            if (!$android.Contains($contract)) {
+              throw "Contrato Android de extração mudou: $contract"
+            }
+          }
+          "BROTHER_WINDOWS_SELECTIVE_NOT_CONNECTED_TO_PRODUCTION_OK"
+      - name: Testar seleção por índice, bytes, CRC, SHA, cancelamento e cota simulada
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest'
+          if ($LASTEXITCODE -ne 0) { throw "Extração seletiva isolada Windows reprovada." }
+          "BROTHER_WINDOWS_ARCHIVE_SELECTIVE_QUARANTINE_QA_OK"
+      - name: Guardar relatório de testes sem arquivos de clientes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-archive-selective-test-reports
+          path: windows-fiel/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Impedir instalador e artefatos de matrizes na QA
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador comercial inesperado."
+          }
+          if (Test-Path "windows-fiel/build/qa/real-customer-matrix") {
+            throw "A suíte não pode acessar matrizes de clientes."
+          }
+          "BROTHER_WINDOWS_NO_RELEASE_NO_CUSTOMER_FILES_OK"

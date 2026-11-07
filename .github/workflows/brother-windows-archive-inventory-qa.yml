@@ -1,0 +1,119 @@
+name: Brother Matrizes - Windows ZIP read-only inventory (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveInventory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchivePreviewScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveInventoryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveRar7zInventoryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveRealRarFixturesTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt"
+      - ".github/workflows/brother-windows-archive-inventory-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-only:
+    name: ZIP RAR 7Z sem extracao autenticacao ou escrita
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Confirmar contrato de limites e formatos Android
+        shell: pwsh
+        run: |
+          $official = Get-Content "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt" -Raw
+          foreach ($token in @("MAX_ARCHIVE = 128L * 1024 * 1024", "MAX_ENTRY = 24L * 1024 * 1024",
+                               "MAX_TOTAL = 256L * 1024 * 1024", "MAX_ENTRIES = 300", "MAX_DEPTH = 8",
+                               '"PES", "DST", "JEF"', '"TTF", "OTF"')) {
+            if (!$official.Contains($token)) {
+              throw "Os limites ou formatos do Android mudaram: atualizar o adaptador Windows."
+            }
+          }
+          $gradleAndroid = Get-Content "app/build.gradle.kts" -Raw
+          $gradleWindows = Get-Content "windows-fiel/build.gradle.kts" -Raw
+          foreach ($dependency in @('com.github.junrar:junrar:8.1.1',
+                                    'org.apache.commons:commons-compress:1.28.0',
+                                    'org.tukaani:xz:1.10')) {
+            if (!$gradleAndroid.Contains($dependency) -or !$gradleWindows.Contains($dependency)) {
+              throw "Leitor RAR/7Z diferente da versão Android: $dependency"
+            }
+          }
+          "BROTHER_WINDOWS_ARCHIVE_ANDROID_CONTRACT_OK"
+      - name: Baixar RAR4 e RAR5 autenticos do junrar e verificar hashes Git
+        shell: pwsh
+        run: |
+          # Fonte de teste publica, fixa por commit. Nunca usar RAR de cliente.
+          # SHA de blob Git conhecida; downloads adulterados interrompem a CI.
+          $upstream = "51ea7dc09262bd56cd191159acddea31bee65c5b"
+          $root = "windows-fiel/build/qa/rar-fixtures"
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $cases = @(
+            @{ Name = "rar4.rar"; Blob = "4cde363a7fe70d217316f83d9ff3cd65adb1b5fa"; Size = 123 },
+            @{ Name = "rar5.rar"; Blob = "bf6839769eb7d0c6622f5cc0b2504ebb5beffe4e"; Size = 130 }
+          )
+          foreach ($case in $cases) {
+            $name = $case.Name
+            $file = Join-Path $root $name
+            $url = "https://raw.githubusercontent.com/junrar/junrar/$upstream/src/test/resources/com/github/junrar/$name"
+            Invoke-WebRequest -Uri $url -OutFile $file -MaximumRedirection 3 -TimeoutSec 30
+            $actualSize = (Get-Item $file).Length
+            if ($actualSize -ne $case.Size) {
+              throw "RAR upstream ${name}: tamanho divergente."
+            }
+            $hash = ((& git hash-object --no-filters $file) | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or $hash -ne $case.Blob) {
+              throw "RAR upstream ${name}: SHA-1 Git do blob divergente."
+            }
+          }
+          $absolute = (Resolve-Path $root).Path
+          "BROTHER_RAR_FIXTURE_DIR=$absolute" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BROTHER_WINDOWS_RAR_REAL_FIXTURES_PINNED_AND_HASH_VERIFIED"
+      - name: Compilar Windows e testar inventario ZIP sem extrair arquivos
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveRealRarFixturesTest'
+          if ($LASTEXITCODE -ne 0) { throw "Inventario ZIP/RAR/7Z Windows falhou no QA." }
+      - name: Capturar tela real de analise de ZIP no Windows com dados sinteticos
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-archive-qa" --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Tela de analise ZIP nao abriu no Windows." }
+          $png = "windows-fiel/build/qa/archive-inventory-windows-qa.png"
+          if (!(Test-Path $png) -or (Get-Item $png).Length -lt 10000) {
+            throw "Captura da tela de inventario ZIP ausente ou incompleta."
+          }
+      - name: Guardar captura apenas para QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-archive-inventory-qa-screenshot
+          path: windows-fiel/build/qa/archive-inventory-windows-qa.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Garantir nenhuma distribuicao comercial pela QA
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador comercial inesperado na analise ZIP."
+          }
+          "BROTHER_WINDOWS_ZIP_RAR_7Z_INVENTORY_METADATA_ONLY_QA_OK"
