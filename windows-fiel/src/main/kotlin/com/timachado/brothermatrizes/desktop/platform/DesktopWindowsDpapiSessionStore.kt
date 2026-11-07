@@ -89,7 +89,7 @@ internal class DesktopWindowsDpapiSessionStore(
             "Sessão não pode ser persistida."
         }
         validateStorageDirectory(create = true)
-        require(!Files.exists(file, LinkOption.NOFOLLOW_LINKS) ||
+        check(!Files.exists(file, LinkOption.NOFOLLOW_LINKS) ||
             Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
             "Arquivo de sessão inesperado."
         }
