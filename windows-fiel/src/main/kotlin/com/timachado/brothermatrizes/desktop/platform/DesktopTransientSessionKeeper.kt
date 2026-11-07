@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.desktop.platform
 
 import java.time.Clock
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 
 /** Callback adapter: keep HTTP refresh separate from in-memory session state. */
@@ -55,6 +56,10 @@ internal class DesktopTransientSessionKeeper(
                     }
                     current = rotated
                     expiresAt = clock.instant().plusSeconds(rotated.expiresInSeconds.toLong())
+                } catch (cancelled: CancellationException) {
+                    current = null
+                    expiresAt = null
+                    throw cancelled
                 } catch (_: Exception) {
                     // Reuse is unsafe if refresh succeeded remotely but reply was lost.
                     current = null
