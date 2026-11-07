@@ -25,6 +25,23 @@
 5. Não compartilhar client secret, service role, tokens OAuth, certificados, credenciais ou cookies no chat, GitHub, logs ou no ZIP. O aplicativo usa apenas chave `sb_publishable_...` fornecida em runtime QA autorizado.
 6. Somente após confirmar de modo explícito a allowlist, realizar login Google numa instalação Windows de QA com **conta autorizada de teste**. Verificar estado PKCE, local loopback, resposta `getUser`, origem Google, renovação, logout, DPAPI e cancelamento, sem usar conta de cliente.
 
+## Verificação local em Windows autorizado (sem alterar produção)
+
+O executável QA anterior permanece fechado por padrão. Para disponibilizar a opção de diagnóstico no Windows, o responsável pela homologação deve usar **somente uma chave publicável** já existente e ativa do projeto. Não inserir secret keys.
+
+Em uma sessão temporária do PowerShell, a partir da pasta portátil **completa**:
+
+```powershell
+$env:BROTHER_WINDOWS_QA_GOOGLE_AUTH = "enabled"
+$env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY = "<CHAVE_PUBLICAVEL_DO_PROJETO>"
+.\BrotherMatrizesQA.exe
+# Ao finalizar os testes, limpe o ambiente da sessão:
+Remove-Item Env:BROTHER_WINDOWS_QA_GOOGLE_AUTH -ErrorAction SilentlyContinue
+Remove-Item Env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY -ErrorAction SilentlyContinue
+```
+
+Na aba **Minha Conta**, utilizar **Verificar provedor Google (sem login)**. O retorno indica somente se `external.google` está ativo no endpoint público. Não abrir login de contas reais antes de a configuração de callback estar autorizada e testada. O aplicativo não grava essa chave em arquivos nem exibe a chave em logs.
+
 ## Importação TTF/OTF — portão comercial
 
 A interface Fontes permanece **somente leitura**. O `brother-usage` valida JWT e reserva no servidor a operação `import_font`. A operação completa deverá respeitar:
