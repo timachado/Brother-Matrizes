@@ -28,17 +28,29 @@ import java.util.Locale
 internal class DesktopArchiveValidatedLibrarySinkFactory(
     private val projectFolder: Path,
     private val fontFolder: Path
-) : DesktopArchiveValidatedSinkFactory {
-    override suspend fun begin(item: DesktopArchiveInventory.Item): DesktopArchiveValidatedSink {
+) : DesktopArchiveOwnershipAwareSinkFactory {
+    override suspend fun begin(item: DesktopArchiveInventory.Item): DesktopArchiveValidatedSink =
+        beginInternal(item, null)
+
+    override suspend fun beginWithEvidence(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder
+    ): DesktopArchiveValidatedSink = beginInternal(item, recorder)
+
+    private fun beginInternal(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder?
+    ): DesktopArchiveValidatedSink {
         require(item.extension in when (item.category) {
             DesktopArchiveInventory.Category.MATRIX -> setOf("PES", "DST", "JEF")
             DesktopArchiveInventory.Category.FONT -> setOf("TTF", "OTF")
         }) { "Formato não permitido nesta categoria." }
-        return LibraryTransaction(item)
+        return LibraryTransaction(item, recorder)
     }
 
     private inner class LibraryTransaction(
-        private val item: DesktopArchiveInventory.Item
+        private val item: DesktopArchiveInventory.Item,
+        private val recorder: DesktopArchiveOutputEvidenceRecorder?
     ) : DesktopArchiveValidatedSink {
         private var owned: Path? = null
         private var expectedDigest: String? = null
@@ -94,6 +106,8 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 "O FLP não preservou as pontadas ou o formato original."
             }
             val digest = sha256(bytes)
+            // Journal must have durable intent BEFORE CREATE_NEW.
+            recorder?.beforePublish(fileName, digest)
 
             // Take ownership ONLY after CREATE_NEW succeeds. Immediately
             // marking ownership lets rollback remove a partially written file.
@@ -114,6 +128,7 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 "Não foi possível verificar a matriz gravada na Biblioteca."
             }
             complete = true
+            recorder?.afterVerified(fileName, digest)
             return DesktopArchiveImportCommit(true, fileName)
         }
 
@@ -140,9 +155,10 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 report.testedGlyphs > 0) { "Fonte rejeitada pelo motor de contornos." }
 
             val library = DesktopImportedFontLibrary(destination)
-            val known = library.list().mapTo(HashSet()) { it.id }
-            val result = library.importFile(source, item.displayName)
-            if (result.id in known) {
+            val result = library.importFile(source, item.displayName) { name, digest ->
+                recorder?.beforePublish(name, digest)
+            }
+            if (!result.created) {
                 return DesktopArchiveImportCommit(false, null)
             }
             val newPath = Path.of(result.absolutePath)
@@ -151,8 +167,10 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 !Files.isSymbolicLink(newPath)
             ) { "Fonte foi armazenada fora da biblioteca autorizada." }
             owned = newPath
-            expectedDigest = sha256(Files.readAllBytes(newPath))
+            val digest = sha256(Files.readAllBytes(newPath))
+            expectedDigest = digest
             complete = true
+            recorder?.afterVerified(result.id, digest)
             return DesktopArchiveImportCommit(true, result.id)
         }
 
