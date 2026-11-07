@@ -58,6 +58,25 @@ homologação comercial deverá preservar a autorização individual e
 as regras de cobrança do Android, além de testes com documentos
 explicitamente autorizados pelo cliente.
 
+## Resultado de QA verificado — 07/11/2026
+
+- [Windows ZIP #42381695195](https://github.com/timachado/Brother-Matrizes/actions/runs/42381695195):
+  `completed/success` na revisão `eb97467`. Inclui validação do
+  contrato de limites Android, compilação da tela, testes de
+  inventário sem extração e captura no Windows runner.
+- [Captura QA #13577594303](https://github.com/timachado/Brother-Matrizes/actions/runs/42381695195/artifacts/13577594303),
+  arquivo `brother-windows-archive-inventory-qa-screenshot`
+  (18.556 bytes). O conteúdo é sintético e não usa documentos de clientes.
+- Os primeiros jobs de inventário falharam na compilação por uma
+  referência a `archivePreview` e `archiveError` antes de sua
+  declaração em `FielMain.kt`. A ordem foi corrigida na revisão
+  `eb97467` e o pipeline final passou. Nenhuma falha foi ignorada.
+- A criação da imagem portátil com o novo inventário é verificada
+  separadamente por
+  [Windows portátil #42381808212](https://github.com/timachado/Brother-Matrizes/actions/runs/42381808212).
+  Sua conclusão e artefato devem ser conferidos antes de comunicar
+  um novo ZIP de QA.
+
 ## Situação de liberação
 
 Somente QA. Não fazer merge na `main`, upload no site, envio em grupos,
