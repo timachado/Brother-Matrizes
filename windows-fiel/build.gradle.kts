@@ -188,8 +188,8 @@ val copyAndroidMachineTransfer by tasks.registering {
                 "Gera o arquivo validado e abre os apps compatíveis do Android. Quando a bordadeira oferecer protocolo Wi-Fi direto suportado, ele poderá ser conectado aqui sem trocar o fluxo.",
                 "Salve um arquivo validado e abra-o manualmente no software da bordadeira. Não existe conexão Wi-Fi direta nesta versão Windows."
             )
-            .replace("Wi-Fi / app da máquina", "Exportar para app da máquina")
             .replace("Enviar via Wi-Fi / app", "Salvar arquivo para app da máquina")
+            .replace("Wi-Fi / app da máquina", "Exportar para app da máquina")
             .replace("✓ Pronta para enviar", "✓ Pronta para exportar")
             .replace("⚠ Corrija antes de enviar", "⚠ Corrija antes de exportar")
 
