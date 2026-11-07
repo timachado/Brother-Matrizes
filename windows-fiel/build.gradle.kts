@@ -449,6 +449,62 @@ val copyAndroidProjectCodec by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedProjectCodec)
 
+// Portable Android ZIP backup codecs: copy ORIGINAL pure Kotlin algorithms.
+// Do NOT port Android Context/ProjectStore/ImportedFontStore or any write paths.
+// This enables read-only validation of historical and complete Android backups.
+val generatedBackupCodecs = layout.buildDirectory.dir("generated/android-backup-codecs/kotlin")
+val copyAndroidBackupCodecs by tasks.registering {
+    val projectFile = originalAndroidCode.file("core/project/ProjectBackup.kt")
+    val completeFile = originalAndroidCode.file("core/project/CompleteLibraryBackup.kt")
+    inputs.files(projectFile, completeFile)
+    outputs.dir(generatedBackupCodecs)
+    doLast {
+        val projectSource = projectFile.asFile.readText(Charsets.UTF_8)
+            .replace("\r\n", "\n")
+        val completeSource = completeFile.asFile.readText(Charsets.UTF_8)
+            .replace("\r\n", "\n")
+        val projectBoundary = "\nobject ProjectBackupStore {"
+        val completeBoundary = "\nobject CompleteLibraryBackupStore {"
+        check(projectSource.contains("object ProjectBackupCodec {") &&
+            completeSource.contains("object CompleteLibraryBackupCodec {") &&
+            projectSource.split(projectBoundary).size == 2 &&
+            completeSource.split(completeBoundary).size == 2 &&
+            completeSource.contains("BROTHER_MATRIZES_COMPLETE_BACKUP") &&
+            projectSource.contains("BROTHER_MATRIZES_BACKUP") &&
+            completeSource.contains("ProjectBackupCodec.decode(")
+        ) { "Contrato de backup Android mudou; adaptação Windows bloqueada." }
+
+        val projectCode = projectSource.substringBefore(projectBoundary)
+            .replace("import android.content.Context\n", "")
+        val completeCode = completeSource.substringBefore(completeBoundary)
+            .replace("import android.content.Context\n", "")
+            .replace(
+                "import com.timachado.brothermatrizes.core.storage.AtomicFileWriter\n", ""
+            )
+            .replace("import com.timachado.brothermatrizes.font.ImportedFontStore\n", "")
+            .replace("import java.io.File\n", "")
+        check(!projectCode.contains("import android.") &&
+            !completeCode.contains("import android.") &&
+            !completeCode.contains("ImportedFontStore") &&
+            !projectCode.contains("object ProjectBackupStore") &&
+            !completeCode.contains("object CompleteLibraryBackupStore") &&
+            projectCode.trimEnd().endsWith("}") &&
+            completeCode.trimEnd().endsWith("}")
+        ) { "Backup Android portátil requer revisão técnica." }
+
+        val destination = generatedBackupCodecs.get()
+            .dir("com/timachado/brothermatrizes/core/project").asFile
+        destination.mkdirs()
+        destination.resolve("ProjectBackupCodec.kt").writeText(
+            projectCode.trimEnd() + "\n", Charsets.UTF_8
+        )
+        destination.resolve("CompleteLibraryBackupCodec.kt").writeText(
+            completeCode.trimEnd() + "\n", Charsets.UTF_8
+        )
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedBackupCodecs)
+
 // Importação DST/PES/JEF: copiar a implementação REAL de EmbroideryLoader
 // (loadBytes, sniff de formato e parsers originais); retirar APENAS o método
 // Android ContentResolver/Uri e os helpers de streams Android.
@@ -1139,7 +1195,7 @@ tasks.named("compileKotlin") {
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
-        copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
+        copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
         copyAndroidStrokeEmitter, copyAndroidActiveSatin
     )
