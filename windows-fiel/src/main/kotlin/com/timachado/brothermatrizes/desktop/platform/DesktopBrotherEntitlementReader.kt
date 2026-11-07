@@ -30,10 +30,11 @@ internal class DesktopBrotherEntitlementReader(
     private val publishableKey: String,
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
-    }
+    },
+    private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
     private val endpoint = URL(
-        "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-entitlement"
+        "https://$projectRef.supabase.co/functions/v1/brother-entitlement"
     )
     private val paid = setOf(
         "pro_monthly", "pro_yearly", "pro_lifetime", "pro_lifetime_launch", "trial"
@@ -45,8 +46,11 @@ internal class DesktopBrotherEntitlementReader(
             publishableKey.all { it.code in 0x21..0x7e && it != '"' && it != '\\' }) {
             "Use somente uma chave pública Supabase."
         }
+        require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
+            "Referência Supabase inválida."
+        }
         check(endpoint.protocol == "https" &&
-            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.host == "$projectRef.supabase.co" &&
             endpoint.port == -1 && endpoint.userInfo == null &&
             endpoint.path == "/functions/v1/brother-entitlement" &&
             endpoint.query == null && endpoint.ref == null) {
