@@ -49,3 +49,19 @@ e
 **Bloqueios da versão comercial:** autenticação Google e cotas TTF/OTF,
 rotas ainda incompletas, aparelho de bordado real, homologação de
 arquivos de clientes autorizados, assinatura e distribuição.
+
+## Resultado verificado — 07/11/2026
+
+- [Workflow Windows Criar Desenho #42380552922](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552922):
+  `completed/success` no commit `cc0493b`. Compilação da UI oficial
+  Android adaptada, testes `DesktopSvgFilePickerTest` com SVG válido,
+  motor de pontos, extensão/tamanho, symlinks, documentos malformados,
+  DOCTYPE/entidades externas; tela real capturada pelo runner Windows.
+- [Captura de QA #13577133921](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552922/artifacts/13577133921):
+  `brother-windows-create-drawing-qa-screenshot`, 14.291 bytes.
+- Os cenários não homologam suporte integral a SVG arbitrário,
+  desenho com mesa digitalizadora, compatibilidade em PC de usuário
+  ou abertura física de uma matriz pela bordadeira.
+- A geração do novo launcher portátil (APP-IMAGE) possui verificação
+  independente em [workflow Portátil QA #42380552935](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552935);
+  a liberação de seu novo artefato exige o resultado `success`.
