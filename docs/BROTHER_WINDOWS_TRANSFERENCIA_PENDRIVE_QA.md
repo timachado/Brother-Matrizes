@@ -52,3 +52,22 @@ recurso de transferência Wi-Fi direta.
 **Critério comercial:** não liberar como conexão direta com máquina,
 nem divulgar EXE final até aceitação de interoperabilidade física,
 revisão da assinatura e conclusão das demais rotas Android.
+
+## Evidência verificada de CI — 07/11/2026
+
+- Workflow [Windows transferência #42379221205](https://github.com/timachado/Brother-Matrizes/actions/runs/42379221205):
+  `completed/success` na revisão `a010a32`. Incluiu compilação
+  do componente Android adaptado, `DesktopMachineTransferFileTest`,
+  validação de textos Windows e screenshot real no runner.
+- Captura interna de QA:
+  [artefato #13576792377](https://github.com/timachado/Brother-Matrizes/actions/runs/42379221205/artifacts/13576792377)
+  (`brother-windows-machine-transfer-qa-screenshot`, 22.406 bytes).
+- A geração do pacote portátil completo também recebeu teste
+  `DesktopMachineTransferFileTest` e captura `--capture-machine-transfer-qa`.
+  A execução correspondente é
+  [Windows portátil #42379402966](https://github.com/timachado/Brother-Matrizes/actions/runs/42379402966).
+  **Conferir o status desse job antes de afirmar que o novo ZIP foi aprovado.**
+
+Essas evidências não validam conectividade com bordadeira física,
+dispositivos removíveis específicos, licenças, importação de fontes,
+funcionamento de transferência Wi-Fi/USB direta, nem distribuição comercial.
