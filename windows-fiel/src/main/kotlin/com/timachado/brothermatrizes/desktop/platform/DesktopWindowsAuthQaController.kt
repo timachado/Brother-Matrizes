@@ -42,6 +42,17 @@ internal class DesktopWindowsAuthQaController private constructor(
         keeper.tokenForIsolatedQa()
     }
 
+    /**
+     * Read-only identity check against Supabase Auth.
+     * Does not mean that the account has Pro access or import quotas.
+     * No desktop UI or commercial gate uses this QA-only method.
+     */
+    suspend fun verifyGoogleAccountForQa(
+        verifier: DesktopSupabaseGoogleIdentityVerifier
+    ): DesktopVerifiedGoogleIdentity = exclusive {
+        verifier.verifyGoogleIdentity(keeper.tokenForIsolatedQa())
+    }
+
     suspend fun logout(): Unit = exclusive {
         keeper.clear()
     }
