@@ -165,6 +165,61 @@ class DesktopWindowsFullGoogleQaFlowTest {
         }
 
     @Test
+    fun qaFactoryOpensOfflineRestoresGoogleAndNeverAutoLaunchesBrowser() =
+        windowsTemp { folder ->
+            val workers = mutableListOf<Thread>()
+            val errors = mutableListOf<Throwable>()
+            val requests = mutableListOf<String>()
+            val connector: (URL) -> HttpURLConnection = { url ->
+                requests += url.path
+                when (url.path) {
+                    "/auth/v1/token" -> HttpFake(
+                        url,
+                        """{"access_token":"$access","refresh_token":"$refresh","expires_in":3600,"token_type":"bearer"}"""
+                    )
+                    "/auth/v1/user" -> HttpFake(
+                        url, """{"id":"$uid","email":"$email","app_metadata":{"provider":"google"}}"""
+                    )
+                    "/functions/v1/brother-entitlement" -> HttpFake(
+                        url,
+                        """{"authenticated":true,"user":{"id":"$uid","email":"$email"},"planCode":"free","pro":false,"status":"active"}"""
+                    )
+                    else -> error("Unexpected network request in offline QA")
+                }
+            }
+            DesktopWindowsGoogleQaEnvironment.openForQa(
+                publishableKey = key,
+                folder = folder,
+                browser = browser("code=offline_factory_auth_code", workers, errors),
+                connectionFactory = connector
+            ).use { first ->
+                assertTrue(requests.isEmpty()) // opt-in, never autologin
+                assertFalse(first.restoreAndVerify())
+                assertEquals(uid, first.signIn().userId)
+                assertEquals("free", first.accountPreview().planCode)
+                assertFalse(first.accountPreview().hasServerPro)
+                assertTrue(Files.exists(folder.resolve("session.v1.dpapi")))
+            }
+            DesktopWindowsGoogleQaEnvironment.openForQa(
+                publishableKey = key,
+                folder = folder,
+                browser = DesktopExternalBrowser {
+                    error("Restoring DPAPI must not launch a new browser")
+                },
+                connectionFactory = connector
+            ).use { restarted ->
+                val before = requests.count { it == "/auth/v1/token" }
+                assertTrue(restarted.restoreAndVerify())
+                assertEquals(before, requests.count { it == "/auth/v1/token" })
+                assertEquals("free", restarted.accountPreview().planCode)
+                restarted.logout()
+                assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+                assertFalse(restarted.restoreAndVerify())
+            }
+            joinWorkers(workers, errors)
+        }
+
+    @Test
     fun denialCannotExchangeCodeOrPersistTokens() = windowsTemp { folder ->
         val workers = mutableListOf<Thread>()
         val errors = mutableListOf<Throwable>()
