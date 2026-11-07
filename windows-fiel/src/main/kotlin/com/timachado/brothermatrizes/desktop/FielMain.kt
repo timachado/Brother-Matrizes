@@ -41,6 +41,7 @@ import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.CreateNameScreen
+import com.timachado.brothermatrizes.CreateDrawingScreen
 import com.timachado.brothermatrizes.ConverterScreen
 import com.timachado.brothermatrizes.EditorScreen
 import com.timachado.brothermatrizes.NameEditorScreen
@@ -119,6 +120,7 @@ fun main(args: Array<String>) = application {
     val accountScreenshot = args.singleOrNull() == "--capture-account-qa"
     val fontsScreenshot = args.singleOrNull() == "--capture-fonts-qa"
     val transferScreenshot = args.singleOrNull() == "--capture-machine-transfer-qa"
+    val drawingScreenshot = args.singleOrNull() == "--capture-create-drawing-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
     val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
@@ -139,7 +141,7 @@ fun main(args: Array<String>) = application {
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot ||
             editorCapture || fileChooserQa || saveDialogQa ||
-                accountScreenshot || fontsScreenshot || transferScreenshot
+                accountScreenshot || fontsScreenshot || transferScreenshot || drawingScreenshot
     // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
     // As capturas QA continuam aceitando somente suas flags explícitas.
     val launchDocument = if (screenshotMode) null
@@ -226,7 +228,7 @@ fun main(args: Array<String>) = application {
                 wideScreenshot -> DpSize(920.dp, 680.dp)
                 editorCapture || fileChooserQa || saveDialogQa ||
                     accountScreenshot || fontsScreenshot ||
-                    transferScreenshot -> DpSize(920.dp, 680.dp)
+                    transferScreenshot || drawingScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -234,11 +236,13 @@ fun main(args: Array<String>) = application {
         // Menu desktop não modifica a hierarquia original Compose Android.
         // Desabilitado durante capturas golden para manter a mesma viewport.
         var monogramLaunchRequest by remember { mutableIntStateOf(0) }
+        var drawingLaunchRequest by remember { mutableIntStateOf(0) }
         var libraryFolderRequest by remember { mutableIntStateOf(0) }
         if (!screenshotMode) {
             MenuBar {
                 Menu("Criar") {
                     Item("Monograma", onClick = { monogramLaunchRequest++ })
+                    Item("Desenho / SVG", onClick = { drawingLaunchRequest++ })
                 }
                 Menu("Biblioteca") {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
@@ -590,7 +594,7 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    if (editorCapture || transferScreenshot) {
+                    if (editorCapture || transferScreenshot || drawingScreenshot) {
                         // Telas de detalhe usam tela cheia sem barra inferior.
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
@@ -619,6 +623,7 @@ fun main(args: Array<String>) = application {
                         accountScreenshot -> "account-windows-readonly-qa.png"
                         fontsScreenshot -> "fonts-windows-readonly-qa.png"
                         transferScreenshot -> "machine-transfer-windows-qa.png"
+                        drawingScreenshot -> "create-drawing-windows-qa.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
@@ -636,6 +641,7 @@ fun main(args: Array<String>) = application {
                             accountScreenshot -> "BROTHER_WINDOWS_ACCOUNT_SCREENSHOT_OK "
                             fontsScreenshot -> "BROTHER_WINDOWS_FONTS_SCREENSHOT_OK "
                             transferScreenshot -> "BROTHER_WINDOWS_MACHINE_TRANSFER_SCREENSHOT_OK "
+                            drawingScreenshot -> "BROTHER_WINDOWS_CREATE_DRAWING_SCREENSHOT_OK "
                             else -> "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK "
                         }) +
                             "${bounds.width}x${bounds.height}"
@@ -653,6 +659,7 @@ fun main(args: Array<String>) = application {
                 startInAccountQa = accountScreenshot,
                 startInFontsQa = fontsScreenshot,
                 startInTransferQa = transferScreenshot,
+                startInDrawingQa = drawingScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
@@ -664,6 +671,7 @@ fun main(args: Array<String>) = application {
                 startInSaveDialogProtectQa = saveDialogProtectQa,
                 startInSaveDialogOriginalBytes = saveDialogQaOriginalBytes,
                 monogramLaunchRequest = monogramLaunchRequest,
+                drawingLaunchRequest = drawingLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
         }
@@ -681,7 +689,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -724,6 +732,7 @@ private fun FielHomeHost(
     startInAccountQa: Boolean = false,
     startInFontsQa: Boolean = false,
     startInTransferQa: Boolean = false,
+    startInDrawingQa: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
@@ -735,6 +744,7 @@ private fun FielHomeHost(
     startInSaveDialogProtectQa: Boolean = false,
     startInSaveDialogOriginalBytes: ByteArray? = null,
     monogramLaunchRequest: Int = 0,
+    drawingLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
     var area by remember {
@@ -752,10 +762,17 @@ private fun FielHomeHost(
             when {
                 startInNameEditorQa -> ActiveDetail.NAME_EDITOR
                 startInTransferQa -> ActiveDetail.TRANSFER
+                startInDrawingQa -> ActiveDetail.DRAWING
                 startInSaveDialogQaFile != null -> ActiveDetail.VIEWER
                 else -> ActiveDetail.NONE
             }
         )
+    }
+    LaunchedEffect(drawingLaunchRequest) {
+        if (drawingLaunchRequest > 0) {
+            area = HomeArea.CREATE
+            detail = ActiveDetail.DRAWING
+        }
     }
     LaunchedEffect(monogramLaunchRequest) {
         if (monogramLaunchRequest > 0) {
@@ -820,7 +837,8 @@ private fun FielHomeHost(
                 // initial state and never read extra customer documents.
                 val normalStartup = !disableRecentRecovery &&
                     !startInCreate && !startInAccountQa &&
-                    !startInFontsQa && !startInNameEditorQa && !startInTransferQa &&
+                    !startInFontsQa && !startInNameEditorQa &&
+                    !startInTransferQa && !startInDrawingQa &&
                     startInChooserQaFile == null &&
                     startInLaunchDocument == null &&
                     startInSaveDialogQaFile == null
@@ -1448,6 +1466,26 @@ private fun FielHomeHost(
                         activeDesign = edited
                         hoop = edited.hoopProfile ?: HoopProfile.H100X100
                         detail = ActiveDetail.VIEWER
+                    }
+                )
+            } else if (detail == ActiveDetail.DRAWING) {
+                // Tela CreateDrawingScreen Compose original Android, com
+                // gestos de mouse e seletor SVG local Windows. O desenho
+                // continua usando VectorMatrixGenerator oficial.
+                CreateDrawingScreen(
+                    onBack = {
+                        detail = ActiveDetail.NONE
+                        area = HomeArea.HOME
+                    },
+                    onCreate = { design ->
+                        openDesign(
+                            design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER
+                        )
+                    },
+                    onSimulate = { design ->
+                        openDesign(
+                            design, EmbroideryDisplayMode.SOLID, ActiveDetail.SIMULATOR
+                        )
                     }
                 )
             } else if (detail == ActiveDetail.MONOGRAM) {
