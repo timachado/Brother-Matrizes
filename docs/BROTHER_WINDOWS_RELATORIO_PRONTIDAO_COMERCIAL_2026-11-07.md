@@ -63,7 +63,7 @@ Evidências:
 | Nº | Portão | Situação 07/11/2026 | Evidência necessária para fechar |
 |---:|---|---|---|
 | 1 | Reserva gratuita V2 em staging e implantação controlada | **QA isolada aprovada; implantação pendente** | Migração oficial revisada, RLS/grants auditados, protocolo V1 Android intacto, testes de concorrência em staging, rollback planejado e implantação separadamente autorizada. |
-| 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: recibos e RPCs Pro V2 aprovados em PostgreSQL descartável; staging e implantação pendentes** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
+| 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: recibos e RPCs QA aprovados; Edge Function integrada sob flag desativada; staging e implantação pendentes** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
 | 3 | Finalização de cota e reconciliação remota idempotente | **Parcial: journal e status de reserva em QA** | Decisão de sucesso/falha gravada server-side e recuperável, consulta autenticada de tentativas sem resposta, resposta repetida sem dupla cobrança, testes de perda de conexão e contratos Free/Pro. |
 | 4 | Diário de propriedade e recuperação de arquivos após falhas | **Parcial: rollback no processo e FileLock** | Journal de ownership persistido antes de salvar matriz/fonte, gravar em pasta temporária privada, commit durável, recuperação sem apagar arquivos alheios, simulações de corte de energia e concorrência entre processos. |
 | 5 | Login Google Windows e licenciamento real | **QA simulada, homologação real pendente** | Redirect allowlist confirmada no Supabase, navegador externo + PKCE + DPAPI + getUser em conta exclusiva de QA, logout/expiração, vínculo da identidade com entitlement real, sem tokens em claro. |
@@ -88,7 +88,7 @@ Evidências:
 
 - A função SQL V2 está **apenas em documentação**, não é uma migração
   aplicada; a Edge Function da produção não foi atualizada.
-- Pro V2 não possui recibo idempotente; permanece desativado.
+- Pro V2 possui recibo idempotente **somente no SQL de QA**; a integração da Edge Function na branch permanece desativada por padrão, sem migração/endpoint de produção.
 - Não existe comprovação de login OAuth Google real com callback
   de loopback aprovado no painel Supabase.
 - A versão Windows ainda não comprova paridade completa com as
@@ -110,5 +110,15 @@ em QA real; isso deve ser explicitamente informado.
 - [GitHub Actions #42408650490](https://github.com/timachado/Brother-Matrizes/actions/runs/42408650490): **dois jobs aprovados**, incluindo PostgreSQL 16 descartável e Deno (10 testes, zero falhas).
 - Implementadas [tabela RLS e funções SQL QA](../qa/sql/brother_pro_v2_receipts_ephemeral.sql) de reserva/finalização Pro, com replay por UUIDv4, quatro conexões concorrentes e decisão imutável quando a finalização é repetida.
 - O [script SQL isolado](../.github/scripts/brother_pro_v2_ephemeral_pg.sh) também verifica recusa de outra conta, operação, plano, reserva expirada, acesso de anon/authenticated e colisão entre chaves Free/Pro.
-- O código **não** está conectado à Edge Function comercial; nenhuma migração Supabase foi criada ou aplicada. Falta integrar a autoridade de licenças e homologar em staging antes de implantar.
+- Na branch, a Edge Function agora possui integração Pro V2 **sob flag `BROTHER_PRO_V2_ENABLED` desativada por padrão**; nenhuma migração Supabase foi criada ou aplicada. Falta homologação ponta a ponta em staging antes de implantar.
 - **Contagem comercial inalterada: 9 portões abertos, zero homologados.**
+
+## Avanço de integração autenticada Pro V2 — 07/11/2026
+
+- Verificados os campos reais **definidos no código** de `brother-entitlement`: `authenticated`, `user.id`, `user.email`, `pro`, `status`, `planCode`, `currentPeriodEnd` e `trialRemainingSeconds`. Não foi consultado nem alterado dado de clientes.
+- A Edge Function `brother-usage/index.ts` passou a conter rotas **`reserve_pro_v2`** e **`finalize_pro_v2`**, exigindo `getUser(token)`, e-mail confirmado e a configuração server-side **`BROTHER_PRO_V2_ENABLED === "true"`**. Sem essa configuração, ambas retornam indisponibilidade antes de solicitar qualquer cota.
+- `reserve_pro_v2` verifica a autoridade real de licenças pelo serviço `brother-entitlement` e chama a RPC Pro V2 somente para conta/UUID/operação confirmados. `finalize_pro_v2` confere recibo já criado mesmo que a assinatura tenha expirado, sem conceder novo plano.
+- [CI integrada #42411506522](https://github.com/timachado/Brother-Matrizes/actions/runs/42411506522): **dois jobs aprovados**, `deno check` da **Edge Function inteira**, sete testes da rota, dez testes de licenciamento Pro isolados e PostgreSQL 16 descartável com RLS, locks e finalização idempotente.
+- [CI da guarda e roteamento #42411509845](https://github.com/timachado/Brother-Matrizes/actions/runs/42411509845): `completed/success`, nenhum servidor real ou conta Pro utilizado.
+- **Portão #2 continua aberto.** A função foi preparada e compilada na branch; não foram criadas/aplicadas migrações Supabase nem ativadas variáveis, deploy, cobrança ou publicação comercial. O comportamento real de staging e a homologação Google Windows seguem pendentes.
+- **Contagem do relatório inalterada: 9 portões comerciais abertos e 0 homologados**.
