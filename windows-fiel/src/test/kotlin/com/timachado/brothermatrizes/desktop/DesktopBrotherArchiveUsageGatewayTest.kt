@@ -261,4 +261,79 @@ class DesktopBrotherArchiveUsageGatewayTest {
             assertFalse(connection.instanceFollowRedirects)
         }
     }
+
+    @Test
+    fun reserveV2SendsPersistedClientUuidAndReturnsIdenticalQuotaKey() = runBlocking {
+        val id = "12345678-1234-4234-8234-123456789abc"
+        for ((category, operation) in listOf(
+            DesktopArchiveInventory.Category.MATRIX to "import_matrix",
+            DesktopArchiveInventory.Category.FONT to "import_font"
+        )) {
+            for (replay in listOf(false, true)) {
+                val connection = FakeConnection(
+                    expectedEndpoint, 200, "application/json",
+                    """{"allowed":true,"operation":"$operation","request_key":"usage_$id","state":"reserved","replayed":$replay,"remaining":null}"""
+                )
+                val result = client(connection).reserveOnce(token, category, id)
+                assertEquals("usage_$id", result)
+                val request = connection.request()
+                assertEquals("reserve_v2", request["action"]?.jsonPrimitive?.content)
+                assertEquals(operation, request["operation"]?.jsonPrimitive?.content)
+                assertEquals(id, request["client_request_id"]?.jsonPrimitive?.content)
+                assertEquals(3, request.keys.size)
+                assertFalse(connection.instanceFollowRedirects)
+                assertTrue(connection.disconnected)
+            }
+        }
+    }
+
+    @Test
+    fun reserveV2RejectsMalformedIdsBeforeAnyNetwork() = runBlocking {
+        var attempts = 0
+        val gateway = DesktopBrotherArchiveUsageGateway(publishable, 195) {
+            attempts++
+            error("No real or simulated call allowed")
+        }
+        for (id in listOf(
+            "", "usage_12345678-1234-4234-8234-123456789abc",
+            "12345678-1234-1234-8234-123456789abc",
+            "12345678-1234-4234-8234-123456789abc\nInjected: true",
+            "12345678-1234-4234-8234-123456789abx"
+        )) {
+            assertFailsWith<IllegalArgumentException> {
+                gateway.reserveOnce(token, DesktopArchiveInventory.Category.MATRIX, id)
+            }
+        }
+        assertEquals(0, attempts)
+    }
+
+    @Test
+    fun reserveV2CannotTrustForgedOrUnconfirmedServerReceipt() = runBlocking {
+        val id = "12345678-1234-4234-8234-123456789abc"
+        val badReplies = listOf(
+            """{"allowed":true,"operation":"import_font","request_key":"usage_$id","state":"reserved","replayed":false}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"usage_00000000-0000-4000-8000-000000000000","state":"reserved","replayed":false}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"pro_$id","state":"reserved","replayed":false}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"usage_$id","state":"completed","replayed":true}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"usage_$id","state":"reserved"}""",
+            """{"allowed":false,"operation":"import_matrix","request_key":"usage_$id","state":"reserved","replayed":true}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"usage_$id","state":"reserved","replayed":"true"}"""
+        )
+        for (body in badReplies) {
+            val conn = FakeConnection(expectedEndpoint, 200, "application/json", body)
+            assertFailsWith<Exception> {
+                client(conn).reserveOnce(token, DesktopArchiveInventory.Category.MATRIX, id)
+            }
+            assertTrue(conn.disconnected)
+        }
+        for (code in listOf(400, 403, 409, 503)) {
+            val conn = FakeConnection(
+                expectedEndpoint, code, "application/json",
+                """{"message":"not authorized"}"""
+            )
+            assertFailsWith<Exception> {
+                client(conn).reserveOnce(token, DesktopArchiveInventory.Category.MATRIX, id)
+            }
+        }
+    }
 }
