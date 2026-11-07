@@ -68,6 +68,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
+import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
@@ -802,12 +803,31 @@ private fun FielHomeHost(
         } else {
             val remembered = selectedLibraryFolder
             if (remembered != null) {
+                // Startup recovery is only for normal Windows launches.
+                // QA captures and shell-file openings retain their exact
+                // initial state and never read extra customer documents.
+                val normalStartup = !startInCreate && !startInAccountQa &&
+                    !startInFontsQa && !startInNameEditorQa &&
+                    startInChooserQaFile == null &&
+                    startInLaunchDocument == null &&
+                    startInSaveDialogQaFile == null
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        DesktopProjectCatalog.scan(Path.of(remembered))
+                        val scanned = DesktopProjectCatalog.scan(Path.of(remembered))
+                        val recovered = if (normalStartup)
+                            DesktopRecentProjectRecovery.mostRecentValid(
+                                scanned, initialData.recents
+                            ) else null
+                        scanned to recovered
                     }
-                }.onSuccess { scanned ->
+                }.onSuccess { (scanned, recovered) ->
                     catalog = scanned
+                    if (recovered != null && activeDesign == null &&
+                        area == HomeArea.HOME && detail == ActiveDetail.NONE) {
+                        // Display last-opened FLP in Android's original Home
+                        // Recent card; keep every project file untouched.
+                        activeDesign = recovered.design
+                    }
                 }.onFailure {
                     snackbar.showSnackbar(
                         "Reabra a pasta FLP da Biblioteca: " +
