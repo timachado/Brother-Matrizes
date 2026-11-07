@@ -95,3 +95,16 @@ Todos os diagnósticos continuam com
 **Situação comercial:** etapa #3 avança em QA, mas permanece
 ABERTA. Contagem total: **9 portões comerciais abertos / 0
 homologados**. `main`, Android e Supabase produção inalterados.
+
+## Resultados executados no GitHub Actions
+
+- [CI de status Pro V2 #42412652537](https://github.com/timachado/Brother-Matrizes/actions/runs/42412652537):
+  **dois jobs `completed/success`**. Deno compilou a Edge
+  Function completa e passou os testes com base simulada.
+  Windows passou os testes de HTTP falso, Pro V2 e journal, sem
+  acesso a Supabase real.
+- [Relatórios XML Windows #13589947316](https://github.com/timachado/Brother-Matrizes/actions/runs/42412652537/artifacts/13589947316):
+  arquivo sintético de testes, sem tokens nem matrizes de clientes.
+- [Portable QA #42412612723](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723)
+  executa regressão prioritária e APP-IMAGE. O resultado final
+  da imagem Windows deve ser confirmado separadamente.
