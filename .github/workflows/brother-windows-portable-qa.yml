@@ -19,6 +19,8 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaJournalTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaMultiprocessTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaProcessProbe.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveSelectiveStagerTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveSelectiveImportFactoryTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchivePreviewScreen.kt"
@@ -83,7 +85,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
@@ -167,7 +169,7 @@ jobs:
             "Envio para maquina: exportacao manual em arquivo/pendrive. Sem Wi-Fi/USB direto ou teste em bordadeira."
             "Criar desenho: SVG local e desenho livre Android em QA; sem garantia de SVG complexo ou teste em cliente."
             "Extrator: leitura ZIP RAR RAR5 7Z. Validação Android PES DST JEF/FLP e Skia TTF isolados em QA, sem importação comercial na interface."
-            "Cotas: journal local de tentativas pendentes e lock entre processos testados em QA. Sem OAuth homologado nem reconciliação automática de servidor."
+            "Cotas: journal local de pendências, lock em JVMs independentes e encerramento forçado testados em QA. Sem OAuth homologado nem reconciliação automática."
             "Codigo: feature/windows-fiel-android-1-11-8-20261106"
             "Commit: $env:GITHUB_SHA"
             "SHA256 BrotherMatrizesQA.exe: $hash"
