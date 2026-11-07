@@ -132,11 +132,11 @@ class DesktopArchiveSelectiveStagerTest {
             zip(archive, listOf("bordado.dst" to byteArrayOf(1, 2, 3, 4, 5)))
             val expected = DesktopArchiveInventory.inspect(archive)
             val item = expected.entries.single()
-            val before = Files.readAllBytes(archive)
-            val offset = before.indexOfFirst { it == 3.toByte() }
-            assertTrue(offset >= 0)
-            before[offset] = 8
-            Files.write(archive, before)
+            val sizeBefore = Files.size(archive)
+            // Rebuild the archive with identical entry path and payload length.
+            // The contents differ, therefore the SHA-256 must differ.
+            zip(archive, listOf("bordado.dst" to byteArrayOf(1, 2, 3, 4, 6)))
+            assertEquals(sizeBefore, Files.size(archive))
             assertFailsWith<IllegalArgumentException> {
                 DesktopArchiveSelectiveStager.extract(
                     archive, expected, item, stagingParent = stageRoot
