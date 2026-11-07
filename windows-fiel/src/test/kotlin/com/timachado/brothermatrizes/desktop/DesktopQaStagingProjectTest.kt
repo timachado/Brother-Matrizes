@@ -105,10 +105,10 @@ class DesktopQaStagingProjectTest {
             "sb_publishable_bad\\\\slash",
             "sb_publishable_unicode_ç",
             "sb_publishable_newline\\r\\nInjected",
-            "sb_publishable_short"
+            "sb_publishable_x"
         )) {
             val env = enabled + ("BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY" to key)
-            if (key == "sb_publishable_short") {
+            if (key == "sb_publishable_x") {
                 // Length check below the minimum, just like commercial client.
                 assertNull(DesktopWindowsAccountQaOptIn.publicKeyFromEnvironment(env))
             } else {
