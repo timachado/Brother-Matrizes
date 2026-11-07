@@ -176,8 +176,9 @@ internal class DesktopArchiveCommercialImportGate(
                 "A importação não retornou o identificador do novo item."
             }
             if (recordsOwnership && committed.created) {
-                check(pending?.output?.verifiedNew == true &&
-                    pending?.output?.fileName == committed.itemId) {
+                check(checkNotNull(journal).verifiedOutputMatches(
+                    checkNotNull(pending), checkNotNull(committed.itemId)
+                )) {
                     "Saída criada sem confirmação persistida no journal."
                 }
             }
