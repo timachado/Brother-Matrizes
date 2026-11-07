@@ -9,6 +9,7 @@ import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveCommercialImportGate
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveSelectiveImportFactory
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveValidatedLibrarySinkFactory
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
@@ -286,4 +287,90 @@ class DesktopArchiveValidatedLibrarySinkTest {
             Files.deleteIfExists(root)
         }
     }
+    @Test
+    fun endToEndMatrixPersistsOwnershipEvidenceBeforeFinishingQuota() = runBlocking {
+        val root = Files.createTempDirectory("bm-output-evidence-matrix-")
+        val projects = Files.createDirectory(root.resolve("projects"))
+        val fonts = Files.createDirectory(root.resolve("fonts"))
+        val records = Files.createDirectory(root.resolve("journal"))
+        val archive = root.resolve("matrix.zip")
+        try {
+            val source = originalName()
+            zipped(archive, "Colecao/matriz.pes",
+                MatrixConverter.convert(source, "PES").getOrThrow().bytes)
+            val preview = DesktopArchiveInventory.inspect(archive)
+            val journal = DesktopArchiveQuotaJournal(records)
+            val usage = Usage()
+            val gate = DesktopArchiveCommercialImportGate(
+                usage, qaSession,
+                DesktopArchiveSelectiveImportFactory(archive, preview,
+                    DesktopArchiveValidatedLibrarySinkFactory(projects, fonts)),
+                journal
+            )
+            val receipt = gate.importOne(preview.entries.single())
+            assertTrue(receipt.created)
+            assertEquals(listOf(true), usage.finished)
+            assertTrue(journal.listPending().isEmpty())
+            val target = projects.resolve(checkNotNull(receipt.itemId))
+            assertTrue(Files.isRegularFile(target))
+            assertTrue(DesktopEmbroideryFiles.open(target).points.isNotEmpty())
+            val duplicate = gate.importOne(preview.entries.single())
+            assertFalse(duplicate.created)
+            assertEquals(listOf(true, false), usage.finished)
+            assertTrue(journal.listPending().isEmpty())
+        } finally {
+            Files.deleteIfExists(archive)
+            cleanDir(projects)
+            cleanDir(fonts)
+            cleanDir(records)
+            Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
+    fun lostFinalizationKeepsVerifiedOwnershipMarkerWithoutDeletingExistingContent() = runBlocking {
+        val root = Files.createTempDirectory("bm-output-evidence-unknown-")
+        val projects = Files.createDirectory(root.resolve("projects"))
+        val fonts = Files.createDirectory(root.resolve("fonts"))
+        val records = Files.createDirectory(root.resolve("journal"))
+        val archive = root.resolve("new.zip")
+        val existing = projects.resolve("existing.flp")
+        try {
+            Files.write(existing, byteArrayOf(1, 2, 3, 4))
+            val original = Files.readAllBytes(existing)
+            zipped(archive, "matrix.dst",
+                MatrixConverter.convert(originalName(), "DST").getOrThrow().bytes)
+            val preview = DesktopArchiveInventory.inspect(archive)
+            val usage = Usage(denyFinalization = true)
+            val journal = DesktopArchiveQuotaJournal(records)
+            val gate = DesktopArchiveCommercialImportGate(
+                usage, qaSession,
+                DesktopArchiveSelectiveImportFactory(archive, preview,
+                    DesktopArchiveValidatedLibrarySinkFactory(projects, fonts)),
+                journal
+            )
+            assertFailsWith<IllegalStateException> {
+                gate.importOne(preview.entries.single())
+            }
+            val pending = journal.listPending().single()
+            assertEquals(DesktopArchiveQuotaJournal.Stage.FINALIZE_UNKNOWN, pending.stage)
+            assertEquals(true, pending.output?.verifiedNew)
+            assertTrue(pending.output?.fileName?.endsWith(".flp") == true)
+            assertTrue(pending.output?.sha256?.length == 64)
+            assertFalse(Files.exists(projects.resolve(checkNotNull(pending.output).fileName)))
+            assertContentEquals(original, Files.readAllBytes(existing))
+            assertFailsWith<IllegalStateException> {
+                journal.acquireLease().use {
+                    journal.begin(preview.entries.single())
+                }
+            }
+        } finally {
+            Files.deleteIfExists(archive)
+            cleanDir(projects)
+            cleanDir(fonts)
+            cleanDir(records)
+            Files.deleteIfExists(root)
+        }
+    }
+
 }
