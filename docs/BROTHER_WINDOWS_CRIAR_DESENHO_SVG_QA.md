@@ -64,4 +64,11 @@ arquivos de clientes autorizados, assinatura e distribuição.
   ou abertura física de uma matriz pela bordadeira.
 - A geração do novo launcher portátil (APP-IMAGE) possui verificação
   independente em [workflow Portátil QA #42380552935](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552935);
-  a liberação de seu novo artefato exige o resultado `success`.
+  **Resultado verificado:** `completed/success` na revisão `cc0493b`.
+  O launcher portátil `BrotherMatrizesQA.exe` foi executado no
+  Windows runner e passou nas telas Home, Conta, Fontes, Enviar e
+  Criar Desenho. Artefatos privados temporários:
+  [pacote QA #13577308082](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552935/artifacts/13577308082)
+  (ZIP com launcher e runtime, ~95 MB) e
+  [capturas #13577920939](https://github.com/timachado/Brother-Matrizes/actions/runs/42380552935/artifacts/13577920939).
+  Nenhum instalador comercial, release público ou upload no site foi feito.
