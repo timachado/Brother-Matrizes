@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop.platform
 
 import java.io.Closeable
+import java.nio.file.Path
 import java.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -68,9 +69,10 @@ internal class DesktopWindowsAuthQaController private constructor(
         fun open(
             signIn: DesktopQaSignIn,
             refresher: DesktopSessionRefresher,
-            clock: Clock = Clock.systemUTC()
+            clock: Clock = Clock.systemUTC(),
+            folder: Path = DesktopWindowsDpapiSessionStore.defaultUserDataFolder()
         ): DesktopWindowsAuthQaController {
-            val runtime = DesktopWindowsLockedSessionRuntime.open(clock = clock)
+            val runtime = DesktopWindowsLockedSessionRuntime.open(folder = folder, clock = clock)
             return try {
                 DesktopWindowsAuthQaController(
                     runtime, signIn, runtime.createKeeper(refresher, clock)
