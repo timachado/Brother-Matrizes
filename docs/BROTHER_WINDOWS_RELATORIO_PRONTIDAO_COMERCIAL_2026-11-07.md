@@ -145,3 +145,19 @@ em QA real; isso deve ser explicitamente informado.
   intenção de finalização, recuperação transacional de arquivos
   com ownership e homologação em staging com contas autorizadas.
 - **Contagem comercial preservada: 9/9 etapas abertas, 0 homologadas.**
+
+## Resultado final da recuperação de status Pro V2
+
+- [CI de status #42412652537](https://github.com/timachado/Brother-Matrizes/actions/runs/42412652537):
+  **2/2 jobs aprovados**; Deno executou 20 testes de status
+  (10 do Gratuito e 10 do Pro V2), sem falhas. Kotlin/Windows
+  compilou os testes HTTP e journal sem dados comerciais.
+- [Portable QA #42412612723](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723):
+  **success**; conjunto prioritário de testes, criação da APP-IMAGE,
+  execução do launcher e capturas no Windows.
+  [ZIP portátil QA #13590541211](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723/artifacts/13590541211)
+  e [capturas #13589164810](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723/artifacts/13589164810).
+- [Documentação técnica da reconciliação](BROTHER_WINDOWS_RECUPERACAO_STATUS_PRO_V2_QA.md).
+- **Faltam 9 portões comerciais**. A etapa #3 avançou tecnicamente,
+  mas não foi homologada; não foram executados deployment Supabase,
+  migração SQL, login Google real, cobrança ou publicação no site.
