@@ -99,9 +99,12 @@ Android, permissões comerciais, contas reais ou servidores:
 - Testes de regressão cobrem cancelamento sem troca de tokens e
   encerramento da porta, cabeçalho travado e callback legítimo posterior.
 
-**Estado:** mudanças registradas nos commits `b2f957d`, `c581a20`,
-`8a92553` e `8c966cf`. Commit registrado não equivale a CI aprovado.
-Exigir `success` no workflow OAuth/DPAPI antes da homologação.
+**QA automatizada aprovada em 07/11/2026:** commits `b2f957d`,
+`c581a20`, `8a92553` e `8c966cf`, workflow OAuth/DPAPI
+[#42374911265](https://github.com/timachado/Brother-Matrizes/actions/runs/42374911265)
+`completed/success` no commit `8c966cf`. O job Windows compilou e executou
+os testes OAuth, rede falsa, refresh, DPAPI e regressão de callback local.
+Isso comprova apenas QA automatizada, não autenticação com Google real.
 
 Permanecem bloqueados: login Google real, validação de Redirect URLs
 no dashboard, autorização comercial, publicação do EXE e alterações
