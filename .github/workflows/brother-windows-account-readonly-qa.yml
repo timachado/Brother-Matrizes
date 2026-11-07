@@ -10,6 +10,8 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGoogleProviderReadiness.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopPkceLoopbackSelfTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopPkceLoopbackSelfTestTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGoogleProviderReadinessTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreenTest.kt"
@@ -36,7 +38,7 @@ jobs:
       - name: Provar que opt-in e seguro e assinatura somente leitura
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAccountQaScreenTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopGoogleProviderReadinessTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAccountQaScreenTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest'
           if ($LASTEXITCODE -ne 0) { throw "QA de Minha Conta Windows falhou." }
       - name: Capturar Minha Conta real em Compose Desktop sem identidade pessoal
         shell: pwsh
