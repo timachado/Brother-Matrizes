@@ -31,6 +31,12 @@ internal class DesktopSupabaseGooglePkceClient(
     },
     private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
+    // Preserve the original (key) { fakeHttp } test/QA call sites.
+    constructor(
+        publishableKey: String,
+        openConnection: (URL) -> HttpURLConnection
+    ) : this(publishableKey, openConnection, "dwpcddiramxlhavdmmyn")
+
     private val origin = "https://$projectRef.supabase.co"
     private val tokenEndpoint = URL(origin + "/auth/v1/token?grant_type=pkce")
     private val refreshEndpoint = URL(origin + "/auth/v1/token?grant_type=refresh_token")
