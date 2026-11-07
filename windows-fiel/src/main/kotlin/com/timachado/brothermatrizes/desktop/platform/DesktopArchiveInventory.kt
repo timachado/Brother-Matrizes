@@ -1,5 +1,8 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import com.github.junrar.Archive
+import com.github.junrar.ArchiveOptions
+import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -8,12 +11,13 @@ import java.util.Locale
 import java.util.zip.ZipFile
 
 /**
- * Read-only Windows inventory of a user-selected local ZIP.
+ * Read-only Windows inventory of user-selected local ZIP, 7Z or RAR/RAR5.
  *
  * Limits and compatible types mirror Android SafeArchiveExtractor. This class
  * deliberately does not extract, import, persist, charge quotas, open files
  * inside the archive, or invent authorization for commercial tools.
- * RAR and 7Z require separate, licensed and authenticated adapters.
+ * Uses the same third-party metadata readers already in the Android app.
+ * Password protected archives are not supported by this read-only UI.
  */
 internal object DesktopArchiveInventory {
     private const val MAX_ARCHIVE = 128L * 1024L * 1024L
@@ -24,6 +28,7 @@ internal object DesktopArchiveInventory {
     private const val MAX_RATIO = 1000L
 
     enum class Category { MATRIX, FONT }
+    enum class Format { ZIP, RAR, SEVEN_Z }
 
     data class Item(
         val index: Int,
@@ -39,7 +44,8 @@ internal object DesktopArchiveInventory {
         val entries: List<Item>,
         val incompatibleCount: Int,
         val scannedCount: Int,
-        val uncompressedBytes: Long
+        val uncompressedBytes: Long,
+        val format: Format = Format.ZIP
     ) {
         val matrixCount get() = entries.count { it.category == Category.MATRIX }
         val fontCount get() = entries.count { it.category == Category.FONT }
@@ -47,62 +53,134 @@ internal object DesktopArchiveInventory {
 
     fun inspect(chosenArchive: Path): Preview {
         val archive = chosenArchive.toAbsolutePath().normalize()
-        require(archive.fileName.toString().lowercase(Locale.ROOT).endsWith(".zip")) {
-            "Esta etapa Windows aceita somente arquivos .zip."
+        val extension = archive.fileName.toString()
+            .substringAfterLast('.', "").lowercase(Locale.ROOT)
+        require(extension in setOf("zip", "rar", "7z")) {
+            "Selecione um arquivo .zip, .rar ou .7z."
         }
         require(!Files.isSymbolicLink(archive) &&
             !Files.isSymbolicLink(archive.parent) &&
             Files.isRegularFile(archive, LinkOption.NOFOLLOW_LINKS)) {
-            "Selecione um ZIP local regular, sem link simbólico."
+            "Selecione um pacote local regular, sem link simbólico."
         }
         require(Files.size(archive) in 1..MAX_ARCHIVE) {
-            "O ZIP precisa ter até 128 MB."
+            "O pacote precisa ter até 128 MB."
         }
+
+        // Match the original Android magic-byte checks. An extension alone
+        // is never evidence that a package uses the asserted format.
+        val header = Files.newInputStream(
+            archive, LinkOption.NOFOLLOW_LINKS
+        ).use { it.readNBytes(8) }
+        val format = identify(header)
+        require(
+            (extension == "zip" && format == Format.ZIP) ||
+                (extension == "rar" && format == Format.RAR) ||
+                (extension == "7z" && format == Format.SEVEN_Z)
+        ) { "Extensão e assinatura do pacote não coincidem." }
 
         val names = HashSet<String>()
         val items = ArrayList<Item>()
         var scanned = 0
         var incompatible = 0
         var total = 0L
-        ZipFile(archive.toFile()).use { zip ->
-            val entries = zip.entries()
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
-                val index = scanned++
-                require(scanned <= MAX_ENTRIES) {
-                    "O ZIP excede o máximo de 300 entradas."
-                }
-                if (entry.isDirectory) continue
 
-                val size = entry.size
-                require(size in 0..MAX_ENTRY) {
-                    "Entrada do ZIP sem tamanho válido ou maior que 24 MB."
-                }
-                require(total <= MAX_TOTAL - size) {
-                    "O ZIP excede 256 MB descompactados."
-                }
-                total += size
+        fun review(
+            entryName: String?,
+            sizeBytes: Long,
+            packedSize: Long,
+            isDirectory: Boolean
+        ) {
+            val index = scanned++
+            require(scanned <= MAX_ENTRIES) {
+                "O pacote excede o máximo de 300 entradas."
+            }
+            if (isDirectory) return
+            require(sizeBytes in 0..MAX_ENTRY) {
+                "Entrada sem tamanho válido ou maior que 24 MB."
+            }
+            require(total <= MAX_TOTAL - sizeBytes) {
+                "O pacote excede 256 MB descompactados."
+            }
+            total += sizeBytes
 
-                val candidate = candidate(index, entry.name, size, entry.compressedSize)
-                val folded = candidate?.let {
-                    Normalizer.normalize(it.entryName, Normalizer.Form.NFC)
-                        .lowercase(Locale.ROOT)
+            val candidate = candidate(
+                index, entryName.orEmpty(), sizeBytes, packedSize
+            )
+            val folded = candidate?.let {
+                Normalizer.normalize(it.entryName, Normalizer.Form.NFC)
+                    .lowercase(Locale.ROOT)
+            }
+            if (candidate == null || !names.add(checkNotNull(folded))) {
+                incompatible++
+            } else {
+                items += candidate
+            }
+        }
+
+        when (format) {
+            Format.ZIP -> ZipFile(archive.toFile()).use { zip ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    review(entry.name, entry.size, entry.compressedSize, entry.isDirectory)
                 }
-                if (candidate == null || !names.add(checkNotNull(folded))) {
-                    incompatible++
-                } else {
-                    items += candidate
+            }
+            Format.SEVEN_Z -> SevenZFile.builder()
+                .setFile(archive.toFile())
+                .setMaxMemoryLimitKiB(32768)
+                .get().use { seven ->
+                    // Metadata-only; never call getInputStream, read or extract.
+                    for (entry in seven.entries) {
+                        review(entry.name, entry.size, -1L, entry.isDirectory)
+                    }
+                }
+            Format.RAR -> Archive(
+                archive.toFile(),
+                ArchiveOptions.builder()
+                    .maxDictionarySize(32L * 1024L * 1024L)
+                    .build()
+            ).use { rar ->
+                // Metadata-only; never call extractFile or uncompress.
+                for (entry in rar.fileHeaders) {
+                    review(
+                        entry.fileName, entry.fullUnpackSize, -1L,
+                        entry.isDirectory
+                    )
                 }
             }
         }
-        require(scanned > 0) { "O ZIP não contém entradas." }
+        require(scanned > 0) { "O pacote não contém entradas." }
         return Preview(
             archiveName = archive.fileName.toString(),
             entries = items,
             incompatibleCount = incompatible,
             scannedCount = scanned,
-            uncompressedBytes = total
+            uncompressedBytes = total,
+            format = format
         )
+    }
+
+    private fun identify(header: ByteArray): Format {
+        if (header.size >= 4 &&
+            header.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4B, 0x03, 0x04))
+        ) return Format.ZIP
+        if (header.size >= 6 &&
+            header.copyOfRange(0, 6).contentEquals(byteArrayOf(
+                0x37, 0x7A, 0xBC.toByte(), 0xAF.toByte(), 0x27, 0x1C
+            ))
+        ) return Format.SEVEN_Z
+        if (header.size >= 7 &&
+            header.copyOfRange(0, 7).contentEquals(byteArrayOf(
+                0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00
+            ))
+        ) return Format.RAR
+        if (header.size >= 8 &&
+            header.copyOfRange(0, 8).contentEquals(byteArrayOf(
+                0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00
+            ))
+        ) return Format.RAR
+        error("Formato não reconhecido. Use ZIP, RAR/RAR5 ou 7Z.")
     }
 
     private fun candidate(
