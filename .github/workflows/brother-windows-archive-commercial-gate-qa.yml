@@ -6,6 +6,8 @@ on:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherArchiveUsageGateway.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherArchiveUsageGatewayTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveCommercialImportGateTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopCommercialFontImportGate.kt"
       - "app/src/main/java/com/timachado/brothermatrizes/core/account/BrotherMatrizesAccountService.kt"
@@ -59,11 +61,18 @@ jobs:
               $gate.Contains('http://') -or $gate.Contains('https://')) {
             throw "Gate Windows mudou de política fail-closed ou tentou rede."
           }
+          $http = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherArchiveUsageGateway.kt" -Raw
+          if (!$http.Contains('https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage') -or
+              !$http.Contains('instanceFollowRedirects = false') -or
+              !$http.Contains('connection.disconnect()') -or
+              $http.Contains('sb_secret_')) {
+            throw "O adaptador HTTP de cotas Windows alterou o contrato de segurança."
+          }
           "BROTHER_WINDOWS_ARCHIVE_QUOTA_CONTRACT_FAIL_CLOSED_OK"
       - name: Testar reserva, recusa, cancelamento e reversão no Windows
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopCommercialFontImportGateTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest'
           if ($LASTEXITCODE -ne 0) { throw "A validação das quotas Windows falhou." }
           "BROTHER_WINDOWS_ARCHIVE_QUOTA_FAKE_SERVER_TESTS_OK"
       - name: Não gerar executável nem acessar produção para testar cotas
