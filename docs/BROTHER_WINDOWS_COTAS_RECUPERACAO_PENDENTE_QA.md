@@ -148,8 +148,40 @@ não fazer merge na `main` nem upload ao site da T.I. Machado.
   [capturas reais #13582192905](https://github.com/timachado/Brother-Matrizes/actions/runs/42393169200/artifacts/13582192905)
   (237.365 bytes). Os artefatos são temporários e podem exigir
   autenticação no GitHub.
-- Os testes de lock executados em CI usam duas instâncias do objeto
-  dentro do **mesmo processo JVM**, exercitando o FileLock do Windows.
-  A homologação com dois processos independentes, encerramento forçado
-  e ACL por usuário ainda está pendente.
+- A primeira suíte exercitou duas instâncias no **mesmo processo JVM**.
+  A suíte adicional `DesktopArchiveQuotaMultiprocessTest` agora
+  inicia **processos Java 17 independentes** no Windows runner,
+  testa a exclusão entre processos e provoca `destroyForcibly`
+  e `Runtime.halt(61)`. Após a interrupção, outro processo
+  deve encontrar a reserva pendente e bloquear novas tentativas.
+  Não há conexão de rede, cobrança de quotas ou arquivo de cliente.
+  Este teste **não equivale a queda de energia**, validação das ACLs
+  ou homologação em computadores dos clientes.
 
+
+## Teste de múltiplos processos e encerramento forçado
+
+Os novos arquivos `DesktopArchiveQuotaProcessProbe.kt` e
+`DesktopArchiveQuotaMultiprocessTest.kt` executam JVMs independentes
+via `ProcessBuilder`, usando o classpath de teste fornecido pelo
+Gradle e sempre uma pasta temporária isolada.
+
+1. Um processo adquire `FileLock` e escreve `RESERVE_UNKNOWN`.
+2. Uma segunda JVM tenta adquirir o mesmo lock e deve ser rejeitada.
+3. O primeiro processo é encerrado com `destroyForcibly`,
+   sem executar os blocos `finally` ou fechar voluntariamente
+   a transação. A terceira JVM verifica que o bloqueio do SO foi
+   liberado, mas a reserva **continua pendente** e `begin` falha.
+4. Outro cenário escreve `FINALIZE_UNKNOWN` e encerra imediatamente
+   com `Runtime.halt(61)`. Uma JVM recém-iniciada encontra a chave
+   de reserva intacta, sem tentar outra cobrança ou finalização.
+
+Executados em:
+[workflow de recuperação](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-archive-recovery-qa.yml)
+e
+[QA portátil Windows](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-portable-qa.yml).
+
+**Limites remanescentes:** consulta de status de reserva no servidor
+com idempotência verificável, testes com encerramento do SO, teste de
+ACLs Windows por usuário e diário de ownership local dos arquivos
+criados. Nenhuma recuperação automática destrutiva foi ativada.
