@@ -72,6 +72,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecov
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracker
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
@@ -121,6 +122,7 @@ fun main(args: Array<String>) = application {
     val fontsScreenshot = args.singleOrNull() == "--capture-fonts-qa"
     val transferScreenshot = args.singleOrNull() == "--capture-machine-transfer-qa"
     val drawingScreenshot = args.singleOrNull() == "--capture-create-drawing-qa"
+    val archiveScreenshot = args.singleOrNull() == "--capture-archive-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
     val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
@@ -141,7 +143,8 @@ fun main(args: Array<String>) = application {
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot ||
             editorCapture || fileChooserQa || saveDialogQa ||
-                accountScreenshot || fontsScreenshot || transferScreenshot || drawingScreenshot
+                accountScreenshot || fontsScreenshot || transferScreenshot ||
+                drawingScreenshot || archiveScreenshot
     // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
     // As capturas QA continuam aceitando somente suas flags explícitas.
     val launchDocument = if (screenshotMode) null
@@ -228,7 +231,8 @@ fun main(args: Array<String>) = application {
                 wideScreenshot -> DpSize(920.dp, 680.dp)
                 editorCapture || fileChooserQa || saveDialogQa ||
                     accountScreenshot || fontsScreenshot ||
-                    transferScreenshot || drawingScreenshot -> DpSize(920.dp, 680.dp)
+                    transferScreenshot || drawingScreenshot ||
+                    archiveScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -238,6 +242,7 @@ fun main(args: Array<String>) = application {
         var monogramLaunchRequest by remember { mutableIntStateOf(0) }
         var drawingLaunchRequest by remember { mutableIntStateOf(0) }
         var libraryFolderRequest by remember { mutableIntStateOf(0) }
+        var archiveLaunchRequest by remember { mutableIntStateOf(0) }
         if (!screenshotMode) {
             MenuBar {
                 Menu("Criar") {
@@ -246,6 +251,7 @@ fun main(args: Array<String>) = application {
                 }
                 Menu("Biblioteca") {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
+                    Item("Analisar pacote ZIP (somente leitura)…", onClick = { archiveLaunchRequest++ })
                 }
             }
         }
@@ -594,7 +600,7 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    if (editorCapture || transferScreenshot || drawingScreenshot) {
+                    if (editorCapture || transferScreenshot || drawingScreenshot || archiveScreenshot) {
                         // Telas de detalhe usam tela cheia sem barra inferior.
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
@@ -624,6 +630,7 @@ fun main(args: Array<String>) = application {
                         fontsScreenshot -> "fonts-windows-readonly-qa.png"
                         transferScreenshot -> "machine-transfer-windows-qa.png"
                         drawingScreenshot -> "create-drawing-windows-qa.png"
+                        archiveScreenshot -> "archive-inventory-windows-qa.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
@@ -642,6 +649,7 @@ fun main(args: Array<String>) = application {
                             fontsScreenshot -> "BROTHER_WINDOWS_FONTS_SCREENSHOT_OK "
                             transferScreenshot -> "BROTHER_WINDOWS_MACHINE_TRANSFER_SCREENSHOT_OK "
                             drawingScreenshot -> "BROTHER_WINDOWS_CREATE_DRAWING_SCREENSHOT_OK "
+                            archiveScreenshot -> "BROTHER_WINDOWS_ARCHIVE_PREVIEW_SCREENSHOT_OK "
                             else -> "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK "
                         }) +
                             "${bounds.width}x${bounds.height}"
@@ -660,6 +668,7 @@ fun main(args: Array<String>) = application {
                 startInFontsQa = fontsScreenshot,
                 startInTransferQa = transferScreenshot,
                 startInDrawingQa = drawingScreenshot,
+                startInArchiveQa = archiveScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
@@ -672,6 +681,7 @@ fun main(args: Array<String>) = application {
                 startInSaveDialogOriginalBytes = saveDialogQaOriginalBytes,
                 monogramLaunchRequest = monogramLaunchRequest,
                 drawingLaunchRequest = drawingLaunchRequest,
+                archiveLaunchRequest = archiveLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest
             )
         }
@@ -689,7 +699,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -733,6 +743,7 @@ private fun FielHomeHost(
     startInFontsQa: Boolean = false,
     startInTransferQa: Boolean = false,
     startInDrawingQa: Boolean = false,
+    startInArchiveQa: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
@@ -745,6 +756,7 @@ private fun FielHomeHost(
     startInSaveDialogOriginalBytes: ByteArray? = null,
     monogramLaunchRequest: Int = 0,
     drawingLaunchRequest: Int = 0,
+    archiveLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
     var area by remember {
@@ -763,10 +775,19 @@ private fun FielHomeHost(
                 startInNameEditorQa -> ActiveDetail.NAME_EDITOR
                 startInTransferQa -> ActiveDetail.TRANSFER
                 startInDrawingQa -> ActiveDetail.DRAWING
+                startInArchiveQa -> ActiveDetail.ARCHIVE_PREVIEW
                 startInSaveDialogQaFile != null -> ActiveDetail.VIEWER
                 else -> ActiveDetail.NONE
             }
         )
+    }
+    LaunchedEffect(archiveLaunchRequest) {
+        if (archiveLaunchRequest > 0) {
+            archivePreview = null
+            archiveError = null
+            area = HomeArea.LIBRARY
+            detail = ActiveDetail.ARCHIVE_PREVIEW
+        }
     }
     LaunchedEffect(drawingLaunchRequest) {
         if (drawingLaunchRequest > 0) {
@@ -789,6 +810,32 @@ private fun FielHomeHost(
     var displayMode by remember { mutableStateOf(EmbroideryDisplayMode.SOLID) }
     var hoop by remember { mutableStateOf(HoopProfile.H100X100) }
     var showConnections by remember { mutableStateOf(false) }
+    // Archive QA is metadata-only and intentionally never persists selected
+    // archive names, contents, passwords or per-item commercial reservations.
+    var archiveBusy by remember { mutableStateOf(false) }
+    var archiveError by remember { mutableStateOf<String?>(null) }
+    var archivePreview by remember {
+        mutableStateOf<DesktopArchiveInventory.Preview?>(
+            if (startInArchiveQa)
+                DesktopArchiveInventory.Preview(
+                    "QA-arquivo-sintetico.zip",
+                    entries = listOf(
+                        DesktopArchiveInventory.Item(
+                            0, "Colecao/flor.pes", "flor.pes", "PES", 8192,
+                            DesktopArchiveInventory.Category.MATRIX
+                        ),
+                        DesktopArchiveInventory.Item(
+                            1, "Fontes/letra.ttf", "letra.ttf", "TTF", 4096,
+                            DesktopArchiveInventory.Category.FONT
+                        )
+                    ),
+                    incompatibleCount = 1,
+                    scannedCount = 3,
+                    uncompressedBytes = 13_312
+                )
+            else null
+        )
+    }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var catalog by remember { mutableStateOf<DesktopProjectCatalog.ScanResult?>(null) }
@@ -838,7 +885,7 @@ private fun FielHomeHost(
                 val normalStartup = !disableRecentRecovery &&
                     !startInCreate && !startInAccountQa &&
                     !startInFontsQa && !startInNameEditorQa &&
-                    !startInTransferQa && !startInDrawingQa &&
+                    !startInTransferQa && !startInDrawingQa && !startInArchiveQa &&
                     startInChooserQaFile == null &&
                     startInLaunchDocument == null &&
                     startInSaveDialogQaFile == null
@@ -918,6 +965,35 @@ private fun FielHomeHost(
                     "Não foi possível ler a pasta FLP: ${error.message}"
                 )
             })
+        }
+    }
+
+    fun analyzeArchiveOnly() {
+        if (archiveBusy) return
+        scope.launch {
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Analisar pacote ZIP — somente leitura"
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Pacote de matrizes ZIP (*.zip)", "zip"
+                )
+            }
+            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            archiveBusy = true
+            archivePreview = null
+            archiveError = null
+            try {
+                val inspected = withContext(Dispatchers.IO) {
+                    DesktopArchiveInventory.inspect(selected)
+                }
+                archivePreview = inspected
+            } catch (failure: Exception) {
+                archiveError = failure.message ?: "Arquivo ZIP inválido."
+            } finally {
+                archiveBusy = false
+            }
         }
     }
 
@@ -1466,6 +1542,19 @@ private fun FielHomeHost(
                         activeDesign = edited
                         hoop = edited.hoopProfile ?: HoopProfile.H100X100
                         detail = ActiveDetail.VIEWER
+                    }
+                )
+            } else if (detail == ActiveDetail.ARCHIVE_PREVIEW) {
+                DesktopArchivePreviewScreen(
+                    preview = archivePreview,
+                    busy = archiveBusy,
+                    error = archiveError,
+                    onChooseZip = { analyzeArchiveOnly() },
+                    onBack = {
+                        archivePreview = null
+                        archiveError = null
+                        detail = ActiveDetail.NONE
+                        area = HomeArea.LIBRARY
                     }
                 )
             } else if (detail == ActiveDetail.DRAWING) {
