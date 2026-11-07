@@ -20,7 +20,8 @@ import java.util.zip.ZipFile
 internal object DesktopAndroidBackupInspector {
     private const val MAX_COMPRESSED_BYTES = 192L * 1024L * 1024L
     private const val MAX_UNCOMPRESSED_BYTES = 192L * 1024L * 1024L
-    private const val MAX_ENTRIES = 204
+    private const val MAX_FULL_ENTRIES = 202 // manifest + nested projects + 200 fonts
+    private const val MAX_PROJECTS_ENTRIES = 5001 // manifest + up to 5000 FLP
 
     enum class Kind { ANDROID_COMPLETE, ANDROID_PROJECTS_ONLY }
 
@@ -51,8 +52,10 @@ internal object DesktopAndroidBackupInspector {
         // into memory. ZipInputStream alone may accept a truncated archive
         // whose central directory is missing entirely.
         ZipFile(file.toFile()).use { archive ->
-            val entries = archive.entries().toList()
-            require(entries.size in 1..MAX_ENTRIES) {
+            val entries = archive.entries().asSequence().toList()
+            val limit = if (name.endsWith(".brother_matrizes-fullbackup"))
+                MAX_FULL_ENTRIES else MAX_PROJECTS_ENTRIES
+            require(entries.size in 1..limit) {
                 "Backup contém itens demais ou está vazio."
             }
             val seen = HashSet<String>()
