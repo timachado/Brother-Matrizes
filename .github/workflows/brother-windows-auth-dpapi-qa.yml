@@ -11,6 +11,7 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Session*.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Pkce*.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGooglePkceLoginCoordinatorTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsFullGoogleQaFlowTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAuthQaController.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGoogleIdentityVerifier.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
@@ -53,6 +54,7 @@ jobs:
             --tests '*DesktopTransientSessionKeeperTest' `
             --tests '*DesktopSupabaseGooglePkceClientTest' `
             --tests '*DesktopGooglePkceLoginCoordinatorTest' `
+            --tests '*DesktopWindowsFullGoogleQaFlowTest' `
             --tests '*DesktopPkceHandshakeTest' `
             --tests '*DesktopPkceLoopbackListenerTest'
       - name: Garantir que QA nao criou executavel comercial
