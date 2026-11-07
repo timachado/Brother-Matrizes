@@ -10,8 +10,11 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopOpenTypeFontNames.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaJournalTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveValidatedLibrarySinkTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopImportedFontLibraryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOpenTypeFontNamesTest.kt"
       - ".github/workflows/brother-windows-archive-recovery-qa.yml"
   push:
     branches:
@@ -22,8 +25,11 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopOpenTypeFontNames.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaJournalTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveValidatedLibrarySinkTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopImportedFontLibraryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOpenTypeFontNamesTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaMultiprocessTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaProcessProbe.kt"
       - "windows-fiel/build.gradle.kts"
@@ -75,7 +81,7 @@ jobs:
       - name: Testar reinicio e cancelamento com quotas simuladas e lock em JVMs independentes
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopImportedFontLibraryTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest'
           if ($LASTEXITCODE -ne 0) { throw "Journal de recuperacao Windows falhou." }
           "BROTHER_WINDOWS_DURABLE_RECOVERY_MULTIPROCESS_CRASH_QA_OK"
       - name: Guardar apenas resultados de testes
