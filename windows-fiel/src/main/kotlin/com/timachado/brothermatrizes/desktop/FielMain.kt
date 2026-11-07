@@ -62,6 +62,7 @@ import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
+import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
@@ -861,6 +862,54 @@ private fun FielHomeHost(
         }
     }
 
+    fun restoreLocalFlpProjects() {
+        scope.launch {
+            // Only local FLP ZIP archives exported by DesktopFlpBackupExporter.
+            // The Android .brother_matrizes-fullbackup format is NOT supported.
+            val sourceChooser = JFileChooser().apply {
+                dialogTitle = "Abrir backup ZIP local de projetos FLP (não é backup Android)"
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Projetos FLP em ZIP local (*.zip)", "zip"
+                )
+            }
+            if (sourceChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val backup = sourceChooser.selectedFile.toPath().toAbsolutePath().normalize()
+            val folderChooser = JFileChooser().apply {
+                dialogTitle = "Escolher pasta PAI para criar uma NOVA pasta restaurada"
+                fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                selectedFile = catalog?.folder?.toFile()
+            }
+            if (folderChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val parent = folderChooser.selectedFile.toPath().toAbsolutePath().normalize()
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val restored = DesktopFlpBackupRestorer.restoreLocalFlpZip(
+                        backup, parent
+                    )
+                    restored to DesktopProjectCatalog.scan(restored.folder)
+                }
+            }.fold(onSuccess = { (restored, scanned) ->
+                // No existing FLP was replaced: switch to the new folder
+                // so the recovered projects can be opened immediately.
+                catalog = scanned
+                selectedLibraryFolder = restored.folder.toString()
+                area = HomeArea.LIBRARY
+                detail = ActiveDetail.NONE
+                snackbar.showSnackbar(
+                    "Restaurados " + restored.importedProjects +
+                        " projeto(s) FLP em nova pasta: " + restored.folder.toString()
+                )
+            }, onFailure = { error ->
+                snackbar.showSnackbar(
+                    "Restauração FLP cancelada: " +
+                        (error.message ?: "backup inválido ou inacessível")
+                )
+            })
+        }
+    }
+
     LaunchedEffect(libraryFolderRequest) {
         if (libraryFolderRequest > 0) chooseLibraryFolder()
     }
@@ -1303,7 +1352,7 @@ private fun FielHomeHost(
                     onDeleteSent = { informNotPorted("Histórico de envios") },
                     onClearSent = { informNotPorted("Limpeza de envios") },
                     onBackup = { backupLocalFlpProjects() },
-                    onRestore = { informNotPorted("Restauração da Biblioteca") },
+                    onRestore = { restoreLocalFlpProjects() },
                     onFonts = { area = HomeArea.FONTS },
                     onSearchMatrices = { informNotPorted("Pesquisa Telegram") },
                     onRequireGoogle = { area = HomeArea.ACCOUNT }
