@@ -46,6 +46,34 @@ Na `ArchiveExtractorScreen.kt` do Android:
   implementável somente após homologar extração seletiva, validadores
   reais de PES/DST/JEF/TTF/OTF, destino e rollback.
 
+## Cliente HTTPS preparado, mas desativado no aplicativo
+
+O adaptador `DesktopBrotherArchiveUsageGateway` foi criado de acordo
+com `BrotherUsageClient` Android. Não existe instância desse cliente
+ativada por `FielMain.kt` ou pela tela de análise; todos os seus métodos
+dependem de uma chamada explícita por um gate com sessão homologada.
+
+- Único endpoint HTTPS permitido:
+  `https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage`.
+- Chave `sb_publishable_...` é injetada em runtime, sem chave de
+  serviço, senha ou segredo embutidos no repositório.
+- Requisições `POST` com corpo JSON `action=reserve/finalize`,
+  `operation=import_matrix/import_font`, e, na finalização, chave e
+  resultado de sucesso, como no Android.
+- Envia a versão do aplicativo explicitamente; impede redirecionamentos,
+  aplica timeouts de conexão/leitura de 20 segundos, valida JSON e
+  respostas HTTP 200, limita corpo da resposta a 65.536 caracteres
+  e encerra conexões.
+- As decisões de autorização, assinatura e cotas permanecem
+  exclusivamente no servidor. Nenhum contador local é usado.
+- `DesktopBrotherArchiveUsageGatewayTest` simula
+  `HttpURLConnection` em memória, validando requisições e respostas
+  de sucesso/falha, sem DNS, conexão externa ou consumo de quotas.
+
+**Atenção:** isto é preparação de infraestrutura, não autorização para
+conectar a aplicação Windows à produção. A sessão Google real do Windows
+e a extração seletiva ainda estão bloqueadas.
+
 ## QA isolada e limites
 
 `DesktopArchiveCommercialImportGateTest` executa as reservas em memória,
