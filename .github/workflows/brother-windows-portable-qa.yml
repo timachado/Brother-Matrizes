@@ -1,9 +1,9 @@
 name: Brother Matrizes - Windows executavel portable interno (QA)
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/windows-fiel-android-1-11-8-20261106
+      - main
     paths:
       - "windows-fiel/build.gradle.kts"
       - "windows-fiel/qa/preparar_icone_windows.py"
