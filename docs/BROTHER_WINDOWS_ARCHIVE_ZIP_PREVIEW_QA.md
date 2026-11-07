@@ -123,3 +123,24 @@ e
 
 A autorização comercial **por item** e o registro/finalização da cota
 permanecem bloqueios obrigatórios para qualquer importação futura.
+
+## Evidência CI de ZIP/RAR/7Z — 07/11/2026
+
+- [Inventário Windows #42385223806](https://github.com/timachado/Brother-Matrizes/actions/runs/42385223806):
+  `completed/success`, após corrigir a validação do tamanho comprimido
+  não informado no leitor 7Z/RAR, preservando a regra do Android. Os
+  testes de 7Z sintético real e os testes anteriores de ZIP passaram.
+  Captura de QA (somente dados sintéticos):
+  [#13579092825](https://github.com/timachado/Brother-Matrizes/actions/runs/42385223806/artifacts/13579092825).
+- [Portable Windows #42385223821](https://github.com/timachado/Brother-Matrizes/actions/runs/42385223821):
+  `completed/success`; testes prioritários, geração de APP-IMAGE,
+  execução do launcher e capturas de tela realizados no Windows runner.
+  Artefatos privados temporários:
+  [pacote portátil QA #13579775101](https://github.com/timachado/Brother-Matrizes/actions/runs/42385223821/artifacts/13579775101)
+  (~98 MB, launcher e runtime completos) e
+  [capturas #13579860000](https://github.com/timachado/Brother-Matrizes/actions/runs/42385223821/artifacts/13579860000).
+- O QA não contém arquivo RAR autêntico: a biblioteca de listagem RAR
+  compilou, mas a leitura positiva em RAR/RAR5 real ainda é pendente.
+  Também não houve teste em equipamento de bordado, conta comercial ou
+  documento de cliente. Sem distribuição, merge na main ou publicação
+  no site da T.I. Machado.
