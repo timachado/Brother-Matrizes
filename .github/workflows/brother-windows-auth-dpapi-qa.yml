@@ -13,8 +13,10 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGooglePkceLoginCoordinatorTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAuthQaController.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGoogleIdentityVerifier.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsAuthQaControllerTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSupabaseGoogleIdentityVerifierTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
       - "windows-fiel/build.gradle.kts"
       - ".github/workflows/brother-windows-auth-dpapi-qa.yml"
   workflow_dispatch:
@@ -45,6 +47,7 @@ jobs:
           gradle -p windows-fiel test --no-daemon --stacktrace `
             --tests '*DesktopWindowsAuthQaControllerTest' `
             --tests '*DesktopSupabaseGoogleIdentityVerifierTest' `
+            --tests '*DesktopBrotherEntitlementReaderTest' `
             --tests '*DesktopWindowsDpapiSessionStoreTest' `
             --tests '*DesktopWindowsLockedSessionRuntimeTest' `
             --tests '*DesktopTransientSessionKeeperTest' `
