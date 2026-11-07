@@ -140,6 +140,16 @@ não fazer merge na `main` nem upload ao site da T.I. Machado.
   do usuário.
 - A regressão portátil
   [#42393169200](https://github.com/timachado/Brother-Matrizes/actions/runs/42393169200)
-  inclui estes testes na criação da APP-IMAGE. Confirmar sua
-  conclusão antes de fornecer novo ZIP de QA.
+  terminou `completed/success` no commit `365ff6f`, com testes
+  prioritários aprovados, APP-IMAGE Windows gerada e launcher
+  executado no runner. Artefatos de QA, sem publicação comercial:
+  [Portable QA #13582008393](https://github.com/timachado/Brother-Matrizes/actions/runs/42393169200/artifacts/13582008393)
+  (98.251.671 bytes, ~98 MB, launcher e runtime completos) e
+  [capturas reais #13582192905](https://github.com/timachado/Brother-Matrizes/actions/runs/42393169200/artifacts/13582192905)
+  (237.365 bytes). Os artefatos são temporários e podem exigir
+  autenticação no GitHub.
+- Os testes de lock executados em CI usam duas instâncias do objeto
+  dentro do **mesmo processo JVM**, exercitando o FileLock do Windows.
+  A homologação com dois processos independentes, encerramento forçado
+  e ACL por usuário ainda está pendente.
 
