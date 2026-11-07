@@ -6,6 +6,7 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.text.Normalizer
 import java.util.Locale
 import java.util.zip.ZipFile
@@ -45,7 +46,11 @@ internal object DesktopArchiveInventory {
         val incompatibleCount: Int,
         val scannedCount: Int,
         val uncompressedBytes: Long,
-        val format: Format = Format.ZIP
+        val format: Format = Format.ZIP,
+        // Binding for a user-selected archive: a same-name or same-size
+        // replacement cannot silently be imported in a later transaction.
+        // Legacy synthetic screen QA previews intentionally have no hash.
+        val archiveSha256: String? = null
     ) {
         val matrixCount get() = entries.count { it.category == Category.MATRIX }
         val fontCount get() = entries.count { it.category == Category.FONT }
@@ -73,6 +78,7 @@ internal object DesktopArchiveInventory {
             archive, LinkOption.NOFOLLOW_LINKS
         ).use { it.readNBytes(8) }
         val format = identify(header)
+        val sourceSha = sha256(archive)
         require(
             (extension == "zip" && format == Format.ZIP) ||
                 (extension == "rar" && format == Format.RAR) ||
@@ -157,8 +163,34 @@ internal object DesktopArchiveInventory {
             incompatibleCount = incompatible,
             scannedCount = scanned,
             uncompressedBytes = total,
-            format = format
+            format = format,
+            archiveSha256 = sourceSha
         )
+    }
+
+    internal fun sha256(file: Path): String {
+        require(!Files.isSymbolicLink(file) &&
+            Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) &&
+            Files.size(file) in 1..MAX_ARCHIVE) {
+            "Pacote original alterado ou acima de 128 MB."
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS).use { input ->
+            val buffer = ByteArray(16384)
+            var total = 0L
+            while (true) {
+                val received = input.read(buffer)
+                if (received < 0) break
+                if (received == 0) continue
+                total += received
+                check(total <= MAX_ARCHIVE) { "O pacote mudou durante a leitura." }
+                digest.update(buffer, 0, received)
+            }
+            require(total > 0) { "Pacote vazio." }
+        }
+        return digest.digest().joinToString("") { b ->
+            "%02x".format(b.toInt() and 0xff)
+        }
     }
 
     private fun identify(header: ByteArray): Format {
