@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { readKnownImportStatus } from "./read-status.ts";
 import { reserveImportV2 } from "./reserve-v2.ts";
 import { handleProV2 } from "./pro-v2-route.ts";
+import { readProReceiptStatusV2 } from "./read-pro-status-v2.ts";
 import type { TrustedEntitlement } from "./pro-receipt-v2.ts";
 
 /**
@@ -42,11 +43,11 @@ Deno.serve(async (req: Request) => {
       ? ["action", "operation"]
       : ["reserve_v2", "reserve_pro_v2"].includes(parsed.action)
         ? ["action", "operation", "client_request_id"]
-        : parsed.action === "status"
+        : ["status", "status_pro_v2"].includes(parsed.action)
           ? ["action", "operation", "request_key"]
           : ["action", "operation", "request_key", "success"];
     if (!["reserve", "reserve_v2", "reserve_pro_v2", "finalize",
-      "finalize_pro_v2", "status"].includes(parsed.action) ||
+      "finalize_pro_v2", "status", "status_pro_v2"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
       !operations.has(parsed.operation) ||
@@ -64,6 +65,10 @@ Deno.serve(async (req: Request) => {
       (parsed.action === "finalize_pro_v2" &&
         (typeof parsed.success !== "boolean" ||
           typeof parsed.request_key !== "string" ||
+          !/^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+            .test(parsed.request_key))) ||
+      (parsed.action === "status_pro_v2" &&
+        (typeof parsed.request_key !== "string" ||
           !/^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
             .test(parsed.request_key))))
       throw Error("invalid");
@@ -94,9 +99,28 @@ Deno.serve(async (req: Request) => {
   // staging, and Windows journal have been independently homologated.
   const proV2Enabled = Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true";
   if (typeof payload.action === "string" &&
-      ["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&
+      ["reserve_pro_v2", "finalize_pro_v2", "status_pro_v2"].includes(payload.action) &&
       !proV2Enabled) {
     return reply({ message: "Recibos Pro V2 ainda não habilitados para homologação." }, 503);
+  }
+
+  // Read-only Pro V2 receipt diagnostic. Does not require a currently
+  // active entitlement: existing receipts survive expiry and revocation.
+  // No insert, finalize or local cleanup. Owner/op scoped DB SELECT.
+  if (payload.action === "status_pro_v2") {
+    const status = await readProReceiptStatusV2({
+      authenticatedUserId: user.id,
+      operation: payload.operation as "import_font" | "import_matrix",
+      requestKey: payload.request_key as string,
+    }, async (requestId, verifiedUserId, operation) => {
+      return await admin.from("brother_matrizes_pro_import_receipts")
+        .select("state")
+        .eq("request_id", requestId)
+        .eq("user_id", verifiedUserId)
+        .eq("operation", operation)
+        .maybeSingle();
+    });
+    return reply(status.body, status.status);
   }
 
   // A persisted Pro receipt may be finalized even after its subscription
