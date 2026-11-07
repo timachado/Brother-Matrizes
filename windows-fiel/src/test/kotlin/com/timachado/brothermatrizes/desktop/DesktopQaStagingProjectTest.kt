@@ -101,7 +101,7 @@ class DesktopQaStagingProjectTest {
         for (key in listOf(
             "sb_secret_not_allowed",
             "sb_publishable_invalid key with space",
-            "sb_publishable_bad\\"quoted",
+            "sb_publishable_bad\"quoted",
             "sb_publishable_bad\\\\slash",
             "sb_publishable_unicode_ç",
             "sb_publishable_newline\\r\\nInjected",
