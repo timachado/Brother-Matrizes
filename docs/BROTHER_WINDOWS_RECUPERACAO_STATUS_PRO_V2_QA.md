@@ -139,3 +139,39 @@ homologados**. `main`, Android e Supabase produção inalterados.
   para QA. A aprovação de compilação e testes corresponde ao workflow
   do commit mais recente, a verificar. Nenhum EXE comercial,
   merge, migração, instalação ou alteração no Supabase de produção.
+
+## Diagnóstico local de recuperação sem mutação — 07/11/2026
+
+Foi acrescentado `DesktopArchiveQuotaReadOnlyDiagnostic` à branch Windows
+(QA somente; **não integrado à UI**). A implementação:
+
+- mantém um `FileLock` durante a leitura do journal e da eventual
+  consulta de estado, evitando modificação concorrente da evidência;
+- não tenta autenticação, HTTP ou consulta de cota quando não há
+  registro pendente ou quando o recibo Pro V1 não tem identidade
+  remotamente comprovável;
+- consulta apenas a chave `FREE_V2`/`PRO_V2` derivada do protocolo
+  persistido ou um recibo `usage_` legado comprovado; toda consulta
+  depende de um token injetado explicitamente para QA;
+- trata falha de rede, token inválido ou sessão revogada como
+  `SERVER_STATUS_UNAVAILABLE`, conservando o marcador e o bloqueio;
+- propaga cancelamento, rejeita servidor de chave/categoria divergente
+  e nunca invoca `reserve`, `finalize`, exclusão, rollback ou
+  qualquer resolução automática de conta/benefício.
+
+Foram acrescentados quatro testes sintéticos em
+`DesktopArchiveQuotaReadOnlyDiagnosticTest` e sua execução no
+workflow de recuperação e no workflow de status. [CI de recuperação
+Windows](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-archive-recovery-qa.yml).
+
+**Evidência anterior confirmada:** a revisão de journal e autenticação
+[#42416830438](https://github.com/timachado/Brother-Matrizes/actions/runs/42416830438)
+teve conclusão `success`. O novo código de diagnóstico só poderá ser
+descrito como testado depois da conclusão de seu próprio CI.
+
+**Portão comercial permanece aberto:** ainda são necessários Auth Redirect
+URLs homologados em ambiente isolado, conta Google de testes, SQL/Edge
+V2 autorizados em staging, leitura de arquivos locais com ownership
+conferido após desligamento brusco e cobertura física/funcional Windows.
+Nenhum desses requisitos pode ser substituído por status remoto ou
+resultado de teste automatizado. 0 de 9 portões homologados.
