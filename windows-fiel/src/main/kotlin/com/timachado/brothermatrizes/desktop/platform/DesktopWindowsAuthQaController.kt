@@ -76,6 +76,28 @@ internal class DesktopWindowsAuthQaController private constructor(
         }
     }
 
+    /**
+     * Read-only commercial preview: verify Google identity with Supabase Auth,
+     * then match that user to server-issued WordPress/WooCommerce entitlement.
+     * Does NOT implement DesktopVerifiedFontSession or release a commercial gate.
+     */
+    suspend fun accountPreviewForQa(
+        identityVerifier: DesktopSupabaseGoogleIdentityVerifier,
+        entitlementReader: DesktopBrotherEntitlementReader
+    ): DesktopServerAccountSnapshot = exclusive {
+        try {
+            val token = keeper.tokenForIsolatedQa()
+            val identity = identityVerifier.verifyGoogleIdentity(token)
+            entitlementReader.readOnlyAccount(identity, token)
+        } catch (cancelled: CancellationException) {
+            keeper.clear()
+            throw cancelled
+        } catch (_: Exception) {
+            keeper.clear()
+            error("Não foi possível verificar sua assinatura. Entre novamente.")
+        }
+    }
+
     suspend fun logout(): Unit = exclusive {
         keeper.clear()
     }
