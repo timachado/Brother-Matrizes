@@ -33,6 +33,12 @@ internal object DesktopPkceLoopbackSelfTest {
                 "O retorno não ficou restrito ao loopback local."
             }
 
+            check(DesktopPkceRedirectPreflight.generatedRedirectHasExpectedShape(
+                listener.redirectUri
+            )) {
+                "O retorno local não corresponde ao contrato OAuth Windows."
+            }
+
             val syntheticCode = "bm-local-qa-code"
             val target = listener.redirectUri.rawPath + "?" +
                 listener.redirectUri.rawQuery
