@@ -116,7 +116,12 @@ internal class DesktopArchiveCommercialImportGate(
         // Persist RESERVE_UNKNOWN BEFORE making the network call. Even a
         // timeout may mean the server processed the request; never blindly
         // repeat reserve after a crash.
-        var pending = journal?.begin(item)
+        val protocol = if (usage is DesktopArchiveIdempotentUsageGateway)
+            usage.reservationProtocol
+        else DesktopArchiveQuotaJournal.ReservationProtocol.LEGACY_UNKNOWN
+        // Persist the protocol before reserveOnce; never infer Pro V2 from
+        // a returned pro_ key after an ambiguous server response.
+        var pending = journal?.begin(item, protocol)
         val reservation = if (usage is DesktopArchiveIdempotentUsageGateway) {
             // The same UUIDv4 was persisted by journal.begin BEFORE network.
             // A lost first HTTP response can be diagnosed without minting
