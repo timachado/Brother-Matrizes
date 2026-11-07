@@ -78,11 +78,11 @@ jobs:
             Invoke-WebRequest -Uri $url -OutFile $file -MaximumRedirection 3 -TimeoutSec 30
             $actualSize = (Get-Item $file).Length
             if ($actualSize -ne $case.Size) {
-              throw "RAR upstream $name: tamanho divergente."
+              throw "RAR upstream ${name}: tamanho divergente."
             }
             $hash = ((& git hash-object --no-filters $file) | Out-String).Trim()
             if ($LASTEXITCODE -ne 0 -or $hash -ne $case.Blob) {
-              throw "RAR upstream $name: SHA-1 Git do blob divergente."
+              throw "RAR upstream ${name}: SHA-1 Git do blob divergente."
             }
           }
           $absolute = (Resolve-Path $root).Path
