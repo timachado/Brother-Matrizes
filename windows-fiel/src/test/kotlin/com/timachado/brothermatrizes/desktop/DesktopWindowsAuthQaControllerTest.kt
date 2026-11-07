@@ -4,6 +4,12 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopQaSignIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopSessionRefresher
 import com.timachado.brothermatrizes.desktop.platform.DesktopTransientAuthSession
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAuthQaController
+import com.timachado.brothermatrizes.desktop.platform.DesktopSupabaseGoogleIdentityVerifier
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -86,4 +92,49 @@ class DesktopWindowsAuthQaControllerTest {
             assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
         }
     }
+
+    @Test
+    fun onlyServerConfirmedGoogleIdentityPassesQaValidation() = withFolder { folder ->
+        val id = "11111111-2222-4333-8444-555555555555"
+        val email = "verified-qa@example.invalid"
+        fun verifier(provider: String): DesktopSupabaseGoogleIdentityVerifier {
+            val json = """{"id":"$id","email":"$email","app_metadata":{"provider":"$provider"}}"""
+            return DesktopSupabaseGoogleIdentityVerifier(
+                "sb_publishable_offline_test_key_1234567890"
+            ) { url ->
+                assertEquals(
+                    "https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/user",
+                    url.toString()
+                )
+                object : HttpURLConnection(url) {
+                    override fun connect() = Unit
+                    override fun disconnect() = Unit
+                    override fun usingProxy() = false
+                    override fun getResponseCode() = 200
+                    override fun getContentType() = "application/json"
+                    override fun getInputStream(): InputStream =
+                        ByteArrayInputStream(json.toByteArray(StandardCharsets.UTF_8))
+                }
+            }
+        }
+        DesktopWindowsAuthQaController.open(
+            DesktopQaSignIn { DesktopTransientAuthSession(token, refresh, 3600) },
+            DesktopSessionRefresher { error("No network refresh expected") },
+            clock, folder
+        ).use { controller ->
+            controller.login()
+            assertFailsWith<IllegalStateException> {
+                controller.verifyGoogleAccountForQa(verifier("email"))
+            }
+            val identity = controller.verifyGoogleAccountForQa(verifier("google"))
+            assertEquals(id, identity.userId)
+            assertEquals(email, identity.email)
+            assertFalse(identity.toString().contains(email))
+            controller.logout()
+            assertFailsWith<IllegalStateException> {
+                controller.verifyGoogleAccountForQa(verifier("google"))
+            }
+        }
+    }
+
 }
