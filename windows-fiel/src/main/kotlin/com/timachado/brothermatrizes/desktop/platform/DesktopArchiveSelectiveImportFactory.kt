@@ -28,6 +28,29 @@ internal fun interface DesktopArchiveValidatedSinkFactory {
     suspend fun begin(item: DesktopArchiveInventory.Item): DesktopArchiveValidatedSink
 }
 
+/** Evidential callback: persist intent BEFORE publication, verify only AFTER checking bytes. */
+internal interface DesktopArchiveOutputEvidenceRecorder {
+    fun beforePublish(fileName: String, sha256: String)
+    fun afterVerified(fileName: String, sha256: String)
+}
+
+internal interface DesktopArchiveOwnershipAwareSinkFactory :
+    DesktopArchiveValidatedSinkFactory {
+    suspend fun beginWithEvidence(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder
+    ): DesktopArchiveValidatedSink
+}
+
+internal interface DesktopArchiveOwnershipAwareImportFactory :
+    DesktopArchiveImportFactory {
+    val supportsDurableOwnership: Boolean
+    suspend fun beginWithEvidence(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder
+    ): DesktopArchiveItemTransaction
+}
+
 /**
  * Used only when injected explicitly into DesktopArchiveCommercialImportGate
  * with a verified session, a server quota adapter, and a verified sink.
@@ -38,10 +61,27 @@ internal class DesktopArchiveSelectiveImportFactory(
     private val expectedPreview: DesktopArchiveInventory.Preview,
     private val validatedSinkFactory: DesktopArchiveValidatedSinkFactory,
     private val cancelled: () -> Boolean = { false }
-) : DesktopArchiveImportFactory {
+) : DesktopArchiveOwnershipAwareImportFactory {
+    override val supportsDurableOwnership: Boolean
+        get() = validatedSinkFactory is DesktopArchiveOwnershipAwareSinkFactory
+
+    override suspend fun beginWithEvidence(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder
+    ): DesktopArchiveItemTransaction {
+        check(supportsDurableOwnership) {
+            "O destino não oferece comprovante de gravação durável."
+        }
+        return beginInternal(item, recorder)
+    }
 
     override suspend fun begin(
         item: DesktopArchiveInventory.Item
+    ): DesktopArchiveItemTransaction = beginInternal(item, null)
+
+    private suspend fun beginInternal(
+        item: DesktopArchiveInventory.Item,
+        recorder: DesktopArchiveOutputEvidenceRecorder?
     ): DesktopArchiveItemTransaction {
         require(expectedPreview.archiveSha256 != null &&
             expectedPreview.entries.contains(item)) {
@@ -49,7 +89,10 @@ internal class DesktopArchiveSelectiveImportFactory(
         }
         // The gate calls begin ONLY after reserve (never from preview UI).
         // Sink construction must not write user files.
-        val sink = validatedSinkFactory.begin(item)
+        val sink = if (recorder != null) {
+            (validatedSinkFactory as DesktopArchiveOwnershipAwareSinkFactory)
+                .beginWithEvidence(item, recorder)
+        } else validatedSinkFactory.begin(item)
         return object : DesktopArchiveItemTransaction {
             override suspend fun apply(): DesktopArchiveImportCommit {
                 val callerContext = currentCoroutineContext()
