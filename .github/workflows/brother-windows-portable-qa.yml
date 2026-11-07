@@ -6,6 +6,10 @@ on:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
       - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/qa/preparar_icone_windows.py"
+      - "windows-fiel/qa/preparar_recursos_android.py"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "branding/brother_bm_launcher_safe.webp.base64"
       - ".github/workflows/brother-windows-portable-qa.yml"
   workflow_dispatch:
 
@@ -32,6 +36,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Gerar ICO do mesmo monograma do launcher Android original
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw "Pillow QA nao pode ser instalado." }
+          python windows-fiel/qa/preparar_icone_windows.py --out windows-fiel/build/qa/brand/brother_matrizes.ico
+          if ($LASTEXITCODE -ne 0) { throw "O icone premium Android nao pode ser convertido." }
+          $ico = "windows-fiel/build/qa/brand/brother_matrizes.ico"
+          if (!(Test-Path $ico) -or (Get-Item $ico).Length -lt 1024) {
+            throw "Arquivo ICO de marca Brother Matrizes ausente ou incompleto."
+          }
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
@@ -90,7 +108,7 @@ jobs:
             "BROTHER MATRIZES WINDOWS - PACOTE INTERNO DE QA"
             "Esta NAO e a versao comercial. Nao publicar em site, grupo ou clientes."
             "Extraia TODA a pasta. Execute BrotherMatrizesQA.exe dentro dela."
-            "Inclui runtime Java. Nao e um instalador, nao cria atalhos nem associa arquivos."
+            "Inclui runtime Java e monograma premium original Android; nao cria atalhos nem associa arquivos."
             "Google OAuth real, importacao TTF/OTF e recursos comerciais ainda nao homologados."
             "Codigo: feature/windows-fiel-android-1-11-8-20261106"
             "Commit: $env:GITHUB_SHA"
@@ -98,6 +116,17 @@ jobs:
           ) | Set-Content -Path (Join-Path $inside "LEIA-ME-QA.txt") -Encoding utf8
           if (!(Test-Path (Join-Path $inside "runtime"))) {
             throw "A copia de QA perdeu o runtime Java."
+          }
+          $icoPackaged = @(Get-ChildItem -LiteralPath $inside -Recurse -Filter "*.ico" -File)
+          if ($icoPackaged.Count -eq 0) {
+            throw "Icone ICO da marca original nao foi incluido na imagem portable."
+          }
+          $sourceIco = "windows-fiel/build/qa/brand/brother_matrizes.ico"
+          $expectedHash = (Get-FileHash -Algorithm SHA256 $sourceIco).Hash
+          if (!($icoPackaged | Where-Object {
+              (Get-FileHash -Algorithm SHA256 $_.FullName).Hash -eq $expectedHash
+          })) {
+            throw "O ICO empacotado nao corresponde aos bytes do monograma Android."
           }
       - name: Publicar SOMENTE artifact privado de Actions por 7 dias
         uses: actions/upload-artifact@v4
