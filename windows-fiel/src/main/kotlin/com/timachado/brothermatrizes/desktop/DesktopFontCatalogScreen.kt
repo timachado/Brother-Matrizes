@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,16 +19,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
+import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import javax.swing.JFileChooser
+import javax.swing.filechooser.FileNameExtensionFilter
 import kotlinx.coroutines.withContext
 
 /**
@@ -45,6 +52,42 @@ internal fun DesktopFontCatalogScreen(
         mutableStateOf<DesktopReadOnlyFontCatalog.Snapshot?>(null)
     }
     var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var isAnalyzing by remember { mutableStateOf(false) }
+    var analysis by remember {
+        mutableStateOf<DesktopReadOnlyFontAnalyzer.Report?>(null)
+    }
+    var analysisError by remember { mutableStateOf<String?>(null) }
+
+    fun analyzeExternalFontReadOnly() {
+        if (isAnalyzing) return
+        val chooser = JFileChooser().apply {
+            dialogTitle = "Analisar TTF/OTF sem importar fonte (QA)"
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isAcceptAllFileFilterUsed = false
+            fileFilter = FileNameExtensionFilter("Fontes TTF/OTF", "ttf", "otf")
+        }
+        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
+        val selected = chooser.selectedFile.toPath()
+        isAnalyzing = true
+        analysis = null
+        analysisError = null
+        scope.launch {
+            try {
+                analysis = withContext(Dispatchers.IO) {
+                    DesktopReadOnlyFontAnalyzer.inspect(selected)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                analysisError =
+                    "Fonte recusada ou incompatível. Verifique o formato TTF/OTF " +
+                        "e o limite de 12 MB. Nenhum arquivo foi importado."
+            } finally {
+                isAnalyzing = false
+            }
+        }
+    }
 
     LaunchedEffect(reader) {
         val result = withContext(Dispatchers.IO) { runCatching { reader.snapshot() } }
@@ -95,6 +138,62 @@ internal fun DesktopFontCatalogScreen(
                             "Essa operação permanece indisponível nesta versão Windows de QA.",
                         color = FioText
                     )
+                }
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = { analyzeExternalFontReadOnly() },
+                enabled = !isAnalyzing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (isAnalyzing)
+                    "Analisando contornos…" else "Analisar arquivo TTF/OTF (sem importar)")
+            }
+            Text(
+                "Diagnóstico de leitura e glifos pelo Skia; não gera pontadas, " +
+                    "não registra fontes e não utiliza cotas comerciais.",
+                color = FioTextMuted
+            )
+        }
+        if (analysisError != null) {
+            item { Text(checkNotNull(analysisError), color = FioGold) }
+        }
+        if (analysis != null) {
+            val report = checkNotNull(analysis)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt)
+                ) {
+                    Column(
+                        Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            "Análise local — nenhuma importação",
+                            color = FioGold,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text("Família: " + report.familyName, color = FioText)
+                        Text("Arquivo: " + report.sourceName, color = FioTextMuted)
+                        Text(
+                            "Formato: " + report.format +
+                                " · " + (report.byteSize / 1024) + " KB",
+                            color = FioTextMuted
+                        )
+                        Text(
+                            "Glifos testados: " + report.testedGlyphs +
+                                " · contornos visíveis: " + report.visibleOutlines +
+                                " · ausentes: " + report.missingGlyphs,
+                            color = FioTextMuted
+                        )
+                        Text(
+                            "Leitura de contornos não significa que a geração Satin " +
+                                "ou a licença comercial estejam homologadas.",
+                            color = FioTextMuted
+                        )
+                    }
                 }
             }
         }
