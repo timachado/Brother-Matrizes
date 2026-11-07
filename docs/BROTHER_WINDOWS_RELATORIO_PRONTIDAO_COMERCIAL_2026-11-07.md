@@ -44,12 +44,26 @@ Evidências:
 - [Relatório V2](BROTHER_WINDOWS_RESERVA_IDEMPOTENTE_V2_RESULTADOS_QA.md)
 - [OAuth Windows](BROTHER_WINDOWS_OAUTH_GOOGLE_HOMOLOGACAO_QA.md)
 
+## Atualização de engenharia — recibos Pro V2
+
+- Implementado helper isolado
+  `supabase/functions/brother-usage/pro-receipt-v2.ts`.
+- [CI de recibos Pro V2 #42408075964](https://github.com/timachado/Brother-Matrizes/actions/runs/42408075964):
+  `completed/success`, **10 testes Deno aprovados** com banco
+  e autoridade de licença simulados. O servidor comercial **não**
+  importa esse helper e mantém Pro V2 desabilitado.
+- O portão comercial #2 permanece **aberto** até existir uma
+  tabela durável de recibos Pro e RPCs de reserva/finalização
+  idempotentes testadas em PostgreSQL descartável e staging, bem
+  como auditoria de privilégios e implantação autorizada.
+- Contagem inalterada: **9 portões abertos / 0 homologados**.
+
 ## Nove portões de conclusão
 
 | Nº | Portão | Situação 07/11/2026 | Evidência necessária para fechar |
 |---:|---|---|---|
 | 1 | Reserva gratuita V2 em staging e implantação controlada | **QA isolada aprovada; implantação pendente** | Migração oficial revisada, RLS/grants auditados, protocolo V1 Android intacto, testes de concorrência em staging, rollback planejado e implantação separadamente autorizada. |
-| 2 | Idempotência e recibos duráveis do plano Pro | **Pendente** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
+| 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: contratos Pro V2 offline testados; persistência SQL ainda pendente** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
 | 3 | Finalização de cota e reconciliação remota idempotente | **Parcial: journal e status de reserva em QA** | Decisão de sucesso/falha gravada server-side e recuperável, consulta autenticada de tentativas sem resposta, resposta repetida sem dupla cobrança, testes de perda de conexão e contratos Free/Pro. |
 | 4 | Diário de propriedade e recuperação de arquivos após falhas | **Parcial: rollback no processo e FileLock** | Journal de ownership persistido antes de salvar matriz/fonte, gravar em pasta temporária privada, commit durável, recuperação sem apagar arquivos alheios, simulações de corte de energia e concorrência entre processos. |
 | 5 | Login Google Windows e licenciamento real | **QA simulada, homologação real pendente** | Redirect allowlist confirmada no Supabase, navegador externo + PKCE + DPAPI + getUser em conta exclusiva de QA, logout/expiração, vínculo da identidade com entitlement real, sem tokens em claro. |
