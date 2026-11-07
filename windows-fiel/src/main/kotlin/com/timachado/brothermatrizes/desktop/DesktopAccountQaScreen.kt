@@ -90,6 +90,7 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
         mutableStateOf<DesktopAccountPresentation.VerifiedSummary?>(null)
     }
     var busy by remember { mutableStateOf(false) }
+    var googleProviderStatus by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf("Nenhuma assinatura consultada nesta sessão.") }
 
     fun runAccountAction(action: suspend () -> DesktopAccountPresentation.VerifiedSummary?) {
@@ -189,6 +190,40 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
                 }
             }
         } else {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        try {
+                            val state = qaEnvironment.googleProviderReadiness()
+                            googleProviderStatus =
+                                if (state.googleProviderEnabled)
+                                    "Provedor Google ativo no Supabase."
+                                else
+                                    "Provedor Google desativado no Supabase."
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            googleProviderStatus =
+                                "Não foi possível verificar o provedor Google."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            ) { Text("Verificar provedor Google (sem login)") }
+
+            if (googleProviderStatus != null) {
+                Text(checkNotNull(googleProviderStatus), color = FioText)
+            }
+            Text(
+                "A verificação do provedor não confirma a lista de URLs " +
+                    "de retorno OAuth nem autoriza importações TTF/OTF.",
+                color = FioTextMuted
+            )
+
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
