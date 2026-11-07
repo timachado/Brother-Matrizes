@@ -60,3 +60,17 @@ de porting/homologação separada.
 
 As execuções devem ser consultadas antes de marcar a alteração como
 aprovada; a existência de um link não significa resultado positivo.
+
+## Primeiro resultado verificado de CI — 07/11/2026
+
+- [Windows FLP/Biblioteca #42377148148](https://github.com/timachado/Brother-Matrizes/actions/runs/42377148148)
+  terminou `completed/success` no commit `44b6777`, incluindo
+  `DesktopRecentProjectRecoveryTest` e
+  `DesktopLibraryActivityStoreTest`.
+- A alteração posterior `5496b38` desliga explicitamente a recuperação
+  automática em todos os modos de screenshot de QA. Sua revisão completa
+  depende das execuções específicas da mesma revisão:
+  [FLP #42377281275](https://github.com/timachado/Brother-Matrizes/actions/runs/42377281275),
+  [Home #42377281288](https://github.com/timachado/Brother-Matrizes/actions/runs/42377281288)
+  e [portátil interno #42377281318](https://github.com/timachado/Brother-Matrizes/actions/runs/42377281318).
+- **Não interpretar builds antigos como homologação da última revisão.**
