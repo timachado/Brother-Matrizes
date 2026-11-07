@@ -8,6 +8,9 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/Desktop*Session*.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/Desktop*Pkce*.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGooglePkceLoginCoordinator.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopRedirectAllowlistReview.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopRedirectAllowlistReviewTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Session*.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Pkce*.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGooglePkceLoginCoordinatorTest.kt"
@@ -58,6 +61,7 @@ jobs:
             --tests '*DesktopWindowsFullGoogleQaFlowTest' `
             --tests '*DesktopPkceHandshakeTest' `
             --tests '*DesktopPkceRedirectPreflightTest' `
+            --tests '*DesktopRedirectAllowlistReviewTest' `
             --tests '*DesktopPkceLoopbackListenerTest'
       - name: Garantir que QA nao criou executavel comercial
         shell: pwsh
