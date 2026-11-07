@@ -263,6 +263,70 @@ class DesktopBrotherArchiveUsageGatewayTest {
     }
 
     @Test
+    fun persistedProV2StatusUsesDedicatedReadOnlyActionWithoutFinalizing() = runBlocking {
+        val key = "pro_12345678-1234-4234-8234-123456789abc"
+        for ((category, op) in listOf(
+            DesktopArchiveInventory.Category.MATRIX to "import_matrix",
+            DesktopArchiveInventory.Category.FONT to "import_font"
+        )) {
+            for ((state, expected) in listOf(
+                "reserved" to DesktopArchiveQuotaStatus.State.RESERVED,
+                "completed" to DesktopArchiveQuotaStatus.State.COMPLETED,
+                "failed" to DesktopArchiveQuotaStatus.State.FAILED
+            )) {
+                val response = """{"found":true,"operation":"$op","request_key":"$key","state":"$state"}"""
+                val connection = FakeConnection(
+                    expectedEndpoint, 200, "application/json", response
+                )
+                val result = client(connection).lookupKnown(token, category, key)
+                assertEquals(expected, result.state)
+                assertEquals(key, result.requestKey)
+                assertEquals(category, result.category)
+                val fields = connection.request()
+                assertEquals("status_pro_v2", fields["action"]?.jsonPrimitive?.content)
+                assertEquals(op, fields["operation"]?.jsonPrimitive?.content)
+                assertEquals(key, fields["request_key"]?.jsonPrimitive?.content)
+                assertEquals(3, fields.keys.size)
+                assertTrue(connection.disconnected)
+                assertFalse(connection.instanceFollowRedirects)
+            }
+        }
+    }
+
+    @Test
+    fun proV2StatusMissingForeignOrUnknownIsNeverTreatedAsPermission() = runBlocking {
+        val key = "pro_12345678-1234-4234-8234-123456789abc"
+        val connection = FakeConnection(
+            expectedEndpoint, 200, "application/json",
+            """{"found":false,"operation":"import_matrix","request_key":"$key"}"""
+        )
+        val missing = client(connection).lookupKnown(
+            token, DesktopArchiveInventory.Category.MATRIX, key
+        )
+        assertEquals(DesktopArchiveQuotaStatus.State.NOT_FOUND, missing.state)
+        assertEquals("status_pro_v2",
+            connection.request()["action"]?.jsonPrimitive?.content)
+
+        val wrongReplies = listOf(
+            """{"found":true,"operation":"import_font","request_key":"$key","state":"completed"}""",
+            """{"found":true,"operation":"import_matrix","request_key":"pro_00000000-0000-4000-8000-000000000000","state":"completed"}""",
+            """{"found":true,"operation":"import_matrix","request_key":"$key","state":"refunded"}""",
+            """{"found":false,"operation":"import_matrix","request_key":"$key","state":"failed"}""",
+            """{"found":"true","operation":"import_matrix","request_key":"$key","state":"completed"}""",
+            """{"found":true,"operation":"import_matrix","request_key":"$key"}"""
+        )
+        for (body in wrongReplies) {
+            val connection2 = FakeConnection(expectedEndpoint, 200, "application/json", body)
+            assertFailsWith<Exception> {
+                client(connection2).lookupKnown(
+                    token, DesktopArchiveInventory.Category.MATRIX, key
+                )
+            }
+            assertTrue(connection2.disconnected)
+        }
+    }
+
+    @Test
     fun reserveV2SendsPersistedClientUuidAndReturnsIdenticalQuotaKey() = runBlocking {
         val id = "12345678-1234-4234-8234-123456789abc"
         for ((category, operation) in listOf(
