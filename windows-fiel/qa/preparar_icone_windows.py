@@ -27,11 +27,17 @@ def create_icon(output: Path) -> None:
         raise ValueError("A arte premium original do Android não é WebP.")
     image = Image.open(BytesIO(source))
     image.load()
-    if image.width < 256 or image.height < 256 or image.width != image.height:
-        raise ValueError("O ícone oficial deve ser quadrado e >=256px.")
+    if image.width < 64 or image.height < 64:
+        raise ValueError("O ícone oficial original é pequeno demais para gerar ICO.")
     if image.format != "WEBP":
         raise ValueError("Conteúdo não é a imagem WebP Android aprovada.")
+    # O launcher Android fornece uma arte com margem e resolução variável.
+    # Para ICO 256px, ampliar SEM recortar ou redesenhar o monograma.
     original = image.convert("RGBA")
+    edge = max(256, image.width, image.height)
+    canvas = Image.new("RGBA", (edge, edge), (0, 0, 0, 0))
+    canvas.alpha_composite(original, ((edge - image.width) // 2, (edge - image.height) // 2))
+    original = canvas
     output.parent.mkdir(parents=True, exist_ok=True)
     original.save(
         output,
