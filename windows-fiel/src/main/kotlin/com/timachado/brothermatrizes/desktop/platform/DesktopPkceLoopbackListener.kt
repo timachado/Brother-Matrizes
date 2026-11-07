@@ -36,7 +36,10 @@ internal class DesktopPkceLoopbackListener private constructor(
     val port: Int get() = server.localPort
     val redirectUri: URI get() = handshake.redirectUri
 
-    fun awaitCallback(timeout: Duration = Duration.ofMinutes(5)): DesktopPkceExchange {
+    fun awaitCallback(
+        timeout: Duration = Duration.ofMinutes(5),
+        checkActive: () -> Unit = {}
+    ): DesktopPkceExchange {
         require(!timeout.isNegative && !timeout.isZero &&
             timeout <= Duration.ofMinutes(5)) {
             "Tempo limite OAuth inválido."
@@ -44,10 +47,11 @@ internal class DesktopPkceLoopbackListener private constructor(
         val budgetNanos = timeout.toNanos()
         val started = System.nanoTime()
         while (true) {
+            checkActive()
             val remaining = budgetNanos - (System.nanoTime() - started)
             check(remaining > 0) { "Tempo de autenticação esgotado." }
             server.soTimeout = min(
-                3_000L, maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining))
+                300L, maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining))
             ).toInt()
             val peer = try {
                 server.accept()
@@ -55,10 +59,15 @@ internal class DesktopPkceLoopbackListener private constructor(
                 continue
             }
             peer.use { socket ->
+                checkActive()
                 socket.soTimeout = min(
-                    3_000L, maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining))
+                    300L, maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining))
                 ).toInt()
-                val result = runCatching { parseRequest(socket) }
+                // Reject slow or incomplete local HTTP requests on an absolute
+                // deadline, even when individual bytes keep arriving.
+                val requestDeadline = System.nanoTime() + min(remaining, 3_000_000_000L)
+                val result = runCatching { parseRequest(socket, requestDeadline) }
+                checkActive()
                 val callback = result.getOrNull()
                 if (callback != null) {
                     // A verified error callback stops the browser wait
@@ -74,6 +83,7 @@ internal class DesktopPkceLoopbackListener private constructor(
                     val exchange = runCatching { handshake.acceptCallback(callback) }
                         .getOrNull()
                     if (exchange != null) {
+                        checkActive()
                         sendResponse(socket, 200, "Autenticacao recebida. Volte ao Brother Matrizes.")
                         return exchange
                     }
@@ -83,12 +93,12 @@ internal class DesktopPkceLoopbackListener private constructor(
         }
     }
 
-    private fun parseRequest(socket: Socket): URI {
+    private fun parseRequest(socket: Socket, requestDeadline: Long): URI {
         require(socket.inetAddress.isLoopbackAddress) {
             "Conexão não local rejeitada."
         }
         val input = BufferedInputStream(socket.getInputStream())
-        val startLine = readLineLimited(input, 4096)
+        val startLine = readLineLimited(input, 4096, requestDeadline)
         val tokens = startLine.split(' ')
         require(tokens.size == 3 && tokens[0] == "GET" &&
             tokens[2] == "HTTP/1.1") {
@@ -104,7 +114,7 @@ internal class DesktopPkceLoopbackListener private constructor(
         var host: String? = null
         var consumed = startLine.length + 2
         while (true) {
-            val header = readLineLimited(input, 4096)
+            val header = readLineLimited(input, 4096, requestDeadline)
             consumed += header.length + 2
             require(consumed <= 8192) { "Cabeçalhos HTTP grandes demais." }
             if (header.isEmpty()) break
@@ -131,9 +141,16 @@ internal class DesktopPkceLoopbackListener private constructor(
         return URI("http://127.0.0.1:" + port + target)
     }
 
-    private fun readLineLimited(input: BufferedInputStream, maxChars: Int): String {
+    private fun readLineLimited(
+        input: BufferedInputStream,
+        maxChars: Int,
+        requestDeadline: Long
+    ): String {
         val out = StringBuilder()
         while (out.length <= maxChars) {
+            check(System.nanoTime() - requestDeadline < 0) {
+                "Tempo de leitura HTTP esgotado."
+            }
             val next = input.read()
             require(next >= 0) { "Conexão HTTP incompleta." }
             if (next == '\n'.code) {
