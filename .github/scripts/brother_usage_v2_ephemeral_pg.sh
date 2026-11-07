@@ -32,7 +32,11 @@ assert "NÃO EXECUTAR" in doc
 body=doc.split("```sql\n",1)[1].split("\n```",1)[0]
 assert body.count("CREATE OR REPLACE FUNCTION")==1
 assert "GRANT EXECUTE" in body and "TO service_role;" in body
-assert "DROP TABLE" not in body and "TRUNCATE" not in body
+sql_without_comments="\\n".join(line for line in body.splitlines()
+                               if not line.lstrip().startswith("--"))
+import re
+assert not re.search(r"\\b(DROP\\s+TABLE|TRUNCATE|DELETE\\s+FROM)\\b",
+                     sql_without_comments, re.I)
 Path("/tmp/brother_v2_sql_review_qa.sql").write_text(body)
 PY
 psql -X -v ON_ERROR_STOP=1 -f /tmp/brother_v2_sql_review_qa.sql
