@@ -37,7 +37,9 @@ internal class DesktopGoogleProviderReadiness(
     init {
         require(publishableKey.startsWith("sb_publishable_") &&
             publishableKey.length in 20..4096 &&
-            publishableKey.all { c -> !c.isISOControl() && !c.isWhitespace() }) {
+            publishableKey.all { c ->
+                c.code in 0x21..0x7e && c != '"' && c != '\\'
+            }) {
             "A consulta exige chave Supabase pública, nunca secreta."
         }
         require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
