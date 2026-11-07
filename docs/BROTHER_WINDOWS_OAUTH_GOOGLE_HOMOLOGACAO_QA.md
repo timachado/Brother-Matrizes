@@ -136,3 +136,32 @@ Próximo gate manual e restrito: [Auth URL Configuration](https://supabase.com/d
 sem alterar Site URL nem callbacks Android. Padrão proposto precisa
 ser validado com a allowlist e teste com conta dedicada de QA antes
 do Google real e da distribuição comercial.
+
+## Revisão manual assistida da allowlist — 07/11/2026
+
+Como as APIs autorizadas não expõem as **Auth Redirect URLs**, o acesso
+ao dashboard requer uma sessão autenticada do proprietário. O
+conector de navegador disponível não estava conectado e nenhuma
+identidade Supabase foi usada para contornar esse limite.
+
+Foi implementado um validador local somente para a tela **Minha Conta
+QA**, visível quando há opt-in explícito do Windows:
+
+- O responsável pode copiar do painel Supabase **apenas as URLs**
+  existentes e colá-las temporariamente no campo de diagnóstico.
+- `DesktopRedirectAllowlistReview` confere igualdade exata do padrão
+  candidato com `\?` escapado; padrões mais amplos não passam.
+- O texto não é salvo, transmitido, enviado ao servidor ou registrado
+  em logs; limite de entrada de 8192 caracteres.
+- A interface declara que uma coincidência na lista colada **não**
+  confirma que o padrão esteja salvo, ativo, aceito pelo Supabase
+  ou homologado por login Google real.
+- `DesktopRedirectAllowlistReviewTest` cobre caso positivo,
+  endereços semelhantes, wildcard amplo, conteúdo vazio e excesso
+  de tamanho. Os workflows OAuth/DPAPI e Minha Conta receberam
+  esses testes e a compilação da UI.
+
+**Aguardando checagem de CI:** a existência dos commits não comprova
+o resultado dos testes. Ainda é necessária conferência autenticada
+do dashboard, teste com conta QA e aceite explícito da paridade
+funcional antes de distribuir o Windows comercial.
