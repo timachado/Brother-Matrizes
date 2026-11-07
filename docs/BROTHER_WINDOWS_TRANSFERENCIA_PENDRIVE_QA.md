@@ -66,7 +66,13 @@ revisão da assinatura e conclusão das demais rotas Android.
   `DesktopMachineTransferFileTest` e captura `--capture-machine-transfer-qa`.
   A execução correspondente é
   [Windows portátil #42379402966](https://github.com/timachado/Brother-Matrizes/actions/runs/42379402966).
-  **Conferir o status desse job antes de afirmar que o novo ZIP foi aprovado.**
+  **Resultado verificado:** `completed/success` no commit `15a3ed8`.
+  O pipeline executou o launcher portátil real e capturou a Home,
+  Minha Conta, Fontes e a tela Enviar para a máquina. Artefatos privados
+  de QA: [pacote #13576674453](https://github.com/timachado/Brother-Matrizes/actions/runs/42379402966/artifacts/13576674453)
+  (aprox. 95 MB) e
+  [capturas #13577630166](https://github.com/timachado/Brother-Matrizes/actions/runs/42379402966/artifacts/13577630166).
+  Retenção limitada do GitHub Actions; sem release ou publicação no site.
 
 Essas evidências não validam conectividade com bordadeira física,
 dispositivos removíveis específicos, licenças, importação de fontes,
