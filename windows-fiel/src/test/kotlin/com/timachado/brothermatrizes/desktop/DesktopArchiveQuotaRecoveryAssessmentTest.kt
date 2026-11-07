@@ -152,10 +152,8 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
         try {
             val journal = DesktopArchiveQuotaJournal(folder)
             val stage = journal.acquireLease().use {
-                journal.reserved(
-                    journal.begin(item),
-                    "pro_12345678-1234-4234-8234-123456789abc"
-                )
+                val begun = journal.begin(item)
+                journal.reserved(begun, "pro_${begun.localId}")
             }
             for ((state, finding) in listOf(
                 DesktopArchiveQuotaStatus.State.RESERVED to
@@ -169,7 +167,7 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
             )) {
                 val assessment = DesktopArchiveQuotaRecoveryAssessment.inspect(
                     stage, DesktopArchiveQuotaStatus(
-                        "pro_12345678-1234-4234-8234-123456789abc",
+                        "pro_${stage.localId}",
                         DesktopArchiveInventory.Category.MATRIX, state
                     )
                 )
@@ -181,6 +179,24 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
                 assertFailsWith<IllegalStateException> {
                     journal.acquireLease().use { journal.begin(item) }
                 }
+            }
+            // Legacy Pro V1 also minted UUIDv4, but it was independent of
+            // the local journal ID. A syntactically valid key is NOT proof.
+            val legacy = stage.copy(
+                reservationKey = "pro_00000000-0000-4000-8000-000000000000"
+            )
+            assertEquals(
+                DesktopArchiveQuotaRecoveryAssessment.Finding.NO_SERVER_KEY,
+                DesktopArchiveQuotaRecoveryAssessment.inspect(legacy, null).finding
+            )
+            assertFailsWith<IllegalArgumentException> {
+                DesktopArchiveQuotaRecoveryAssessment.inspect(
+                    legacy, DesktopArchiveQuotaStatus(
+                        "pro_00000000-0000-4000-8000-000000000000",
+                        DesktopArchiveInventory.Category.MATRIX,
+                        DesktopArchiveQuotaStatus.State.COMPLETED
+                    )
+                )
             }
             assertFailsWith<IllegalArgumentException> {
                 DesktopArchiveQuotaRecoveryAssessment.inspect(
