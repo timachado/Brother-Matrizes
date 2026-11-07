@@ -63,6 +63,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
@@ -864,18 +865,39 @@ private fun FielHomeHost(
 
     fun restoreLocalFlpProjects() {
         scope.launch {
-            // Only local FLP ZIP archives exported by DesktopFlpBackupExporter.
-            // The Android .brother_matrizes-fullbackup format is NOT supported.
+            // FLP ZIP local is restored into a new folder. Original Android
+            // backups are only inspected; fonts/projects are NOT imported.
             val sourceChooser = JFileChooser().apply {
-                dialogTitle = "Abrir backup ZIP local de projetos FLP (não é backup Android)"
+                dialogTitle = "Restaurar FLP local ou analisar backup original Android"
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
                 fileFilter = FileNameExtensionFilter(
-                    "Projetos FLP em ZIP local (*.zip)", "zip"
+                    "FLP local ZIP ou backup Android", "zip",
+                    "brother_matrizes-fullbackup", "brother_matrizes-backup"
                 )
             }
             if (sourceChooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
             val backup = sourceChooser.selectedFile.toPath().toAbsolutePath().normalize()
+            if (!backup.fileName.toString().endsWith(".zip", ignoreCase = true)) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        DesktopAndroidBackupInspector.inspect(backup)
+                    }
+                }.fold(onSuccess = { preview ->
+                    snackbar.showSnackbar(
+                        "Backup original Android reconhecido: " +
+                            preview.projectCount + " matriz(es) e " +
+                            preview.fontCount + " fonte(s). " +
+                            "Análise somente leitura. Importação completa não homologada."
+                    )
+                }, onFailure = { error ->
+                    snackbar.showSnackbar(
+                        "Backup Android recusado: " +
+                            (error.message ?: "formato inválido ou incompleto")
+                    )
+                })
+                return@launch
+            }
             val folderChooser = JFileChooser().apply {
                 dialogTitle = "Escolher pasta PAI para criar uma NOVA pasta restaurada"
                 fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
