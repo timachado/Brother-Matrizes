@@ -10,7 +10,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Adaptador Windows isolado para o mesmo contrato brother-usage do Android.
@@ -68,7 +67,7 @@ internal class DesktopBrotherFontUsageGateway(
         success: Boolean
     ) {
         require(keyPattern.matches(requestKey)) { "Reserva de fonte inválida." }
-        val payload = """{"action":"finalize","operation":"import_font","request_key":"\$requestKey","success":\$success}"""
+        val payload = """{"action":"finalize","operation":"import_font","request_key":"$requestKey","success":$success}"""
         val body = post(accessToken, payload)
         check(body.bool("ok")) {
             "A confirmação de uso da fonte não foi aceita pelo servidor."
@@ -92,14 +91,14 @@ internal class DesktopBrotherFontUsageGateway(
                 conn.setRequestProperty("Accept", "application/json")
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.setRequestProperty("apikey", publishableKey)
-                conn.setRequestProperty("Authorization", "Bearer \$accessToken")
+                conn.setRequestProperty("Authorization", "Bearer $accessToken")
                 conn.setRequestProperty("X-Brother-App-Version-Code", appVersionCode.toString())
                 conn.outputStream.use {
                     it.write(jsonBody.toByteArray(Charsets.UTF_8))
                 }
                 val status = conn.responseCode
                 check(status == HttpURLConnection.HTTP_OK) {
-                    "Servidor de cotas indisponível (HTTP \$status)."
+                    "Servidor de cotas indisponível (HTTP $status)."
                 }
                 val mime = conn.contentType.orEmpty()
                     .substringBefore(';').trim().lowercase()
