@@ -1138,6 +1138,7 @@ dependencies {
     implementation(compose.material3)
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-jvm:0.1.23")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("net.java.dev.jna:jna-platform:5.19.1") // Windows DPAPI (current user, never machine scope)
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
