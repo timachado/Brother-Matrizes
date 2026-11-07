@@ -116,7 +116,12 @@ novo pacote portátil.
   `brother-windows-validated-library-test-reports`, aproximadamente
   3,6 KB, apenas XMLs de testes sintéticos.
 - [Portable QA #42390566337](https://github.com/timachado/Brother-Matrizes/actions/runs/42390566337):
-  este novo pipeline incluirá os validadores reais na regressão do
-  pacote completo. Seu resultado deve ser verificado antes de
-  anunciar um novo launcher para teste.
+  `completed/success` no commit `5a7b8db`. Todos os testes
+  prioritários incluindo os validadores reais passaram; imagem
+  portátil Windows criada, launcher iniciado e capturas reais das
+  telas concluídas no Windows runner. Artefatos privados temporários:
+  [Brother Matrizes Windows Portable QA #13581755216](https://github.com/timachado/Brother-Matrizes/actions/runs/42390566337/artifacts/13581755216)
+  (98.233.121 bytes, launcher e runtime em pasta completa) e
+  [capturas Windows #13581287164](https://github.com/timachado/Brother-Matrizes/actions/runs/42390566337/artifacts/13581287164).
+  **Nenhuma importação comercial foi ativada ou publicada.**
 
