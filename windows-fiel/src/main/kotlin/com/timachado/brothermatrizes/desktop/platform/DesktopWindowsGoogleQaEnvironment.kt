@@ -17,7 +17,8 @@ import java.time.Duration
 internal class DesktopWindowsGoogleQaEnvironment private constructor(
     private val account: DesktopWindowsAuthQaController,
     private val identityVerifier: DesktopSupabaseGoogleIdentityVerifier,
-    private val entitlementReader: DesktopBrotherEntitlementReader
+    private val entitlementReader: DesktopBrotherEntitlementReader,
+    private val googleProviderReadiness: DesktopGoogleProviderReadiness
 ) : Closeable {
 
     suspend fun signIn(): DesktopVerifiedGoogleIdentity =
@@ -33,6 +34,10 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
     /** Server verified but informational; never grants importing privileges. */
     suspend fun accountPreview(): DesktopServerAccountSnapshot =
         account.accountPreviewForQa(identityVerifier, entitlementReader)
+
+    /** Public /auth/v1/settings: does not log in or verify redirect URLs. */
+    suspend fun googleProviderReadiness(): DesktopGoogleProviderReadiness.Snapshot =
+        googleProviderReadiness.checkPublicGoogleProvider()
 
     suspend fun logout() {
         account.logout()
@@ -77,8 +82,11 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
                 clock = clock,
                 folder = folder
             )
+            val readiness = DesktopGoogleProviderReadiness(
+                publishableKey, connectionFactory
+            )
             return DesktopWindowsGoogleQaEnvironment(
-                account, identity, entitlement
+                account, identity, entitlement, readiness
             )
         }
     }
