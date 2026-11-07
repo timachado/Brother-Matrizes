@@ -1,10 +1,13 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.Locale
 import javax.swing.JFileChooser
+import javax.xml.XMLConstants
+import javax.xml.parsers.DocumentBuilderFactory
 import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
@@ -46,6 +49,25 @@ internal object DesktopSvgFilePicker {
         require(bytes.size.toLong() in 1..MAX_BYTES) {
             "O SVG mudou durante a leitura ou excede 2 MB."
         }
+        validateSafeXml(bytes)
         return Selected(file.fileName.toString(), bytes)
+    }
+
+    /**
+     * JDK parser is configured fail-closed. SVG can contain XML entities or
+     * external DTDs; the Android parser alone uses best-effort feature flags.
+     * Here a missing secure feature rejects the document before Android's
+     * original SimpleSvgParser receives it.
+     */
+    private fun validateSafeXml(bytes: ByteArray) {
+        val factory = DocumentBuilderFactory.newInstance()
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        factory.isExpandEntityReferences = false
+        factory.isXIncludeAware = false
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
+        factory.newDocumentBuilder().parse(ByteArrayInputStream(bytes))
     }
 }
