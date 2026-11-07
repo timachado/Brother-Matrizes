@@ -106,6 +106,28 @@ class DesktopBrotherEntitlementReaderTest {
     }
 
     @Test
+    fun rejectsQuotedAuthenticatedFlagAndNeverTreatsQuotedProAsPaid() = runBlocking {
+        // JSON primitive text is not a native boolean even if its text is "true".
+        for (forged in listOf("\"true\"", "\"false\"", "null", "1")) {
+            val unauthorized = FakeConnection(endpoint, 200, "application/json",
+                json(plan = "pro_lifetime", pro = "true", authenticated = forged))
+            val reader = DesktopBrotherEntitlementReader(key) { unauthorized }
+            assertFailsWith<IllegalStateException> {
+                reader.readOnlyAccount(account, token)
+            }
+            assertTrue(unauthorized.disconnected)
+
+            val untrustedPlan = FakeConnection(endpoint, 200, "application/json",
+                json(plan = "pro_lifetime", pro = forged, authenticated = "true"))
+            val second = DesktopBrotherEntitlementReader(key) { untrustedPlan }
+            val snapshot = second.readOnlyAccount(account, token)
+            assertFalse(snapshot.hasServerPro)
+            assertEquals("free", snapshot.planCode)
+            assertTrue(untrustedPlan.disconnected)
+        }
+    }
+
+    @Test
     fun doesNotConfuseInactiveOrUnconfirmedSubscriptionsWithPaidAccess() = runBlocking {
         val connection = FakeConnection(
             endpoint, 200, "application/json", json(
