@@ -69,6 +69,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspec
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
+import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracker
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
@@ -841,6 +842,29 @@ private fun FielHomeHost(
         }
     }
 
+    suspend fun registerOpenedOrSavedFlp(file: Path) {
+        val selectedFolderSnapshot = selectedLibraryFolder ?: return
+        val tracked = runCatching {
+            withContext(Dispatchers.IO) {
+                DesktopLibraryRecentTracker.refreshIfInLibrary(
+                    selectedFolderSnapshot, file
+                )
+            }
+        }.getOrElse { error ->
+            snackbar.showSnackbar(
+                "A Biblioteca não foi atualizada: " +
+                    (error.message ?: "pasta FLP indisponível")
+            )
+            return
+        }
+        if (tracked != null && selectedLibraryFolder == selectedFolderSnapshot) {
+            catalog = tracked.catalog
+            recentProjectIds = DesktopLibraryRecentTracker.putFirst(
+                tracked.id, recentProjectIds
+            )
+        }
+    }
+
     fun chooseLibraryFolder() {
         scope.launch {
             val chooser = JFileChooser().apply {
@@ -1101,7 +1125,9 @@ private fun FielHomeHost(
                             "Seleção do Salvar como diferente da cópia QA."
                         }
                     }
-                    DesktopFlpProjectFiles.saveNew(design, selected)
+                    withContext(Dispatchers.IO) {
+                        DesktopFlpProjectFiles.saveNew(design, selected)
+                    }
                 }.onSuccess { file ->
                     if (startInSaveDialogQaFile != null && !startInSaveDialogProtectQa) {
                         val reopened = DesktopFlpProjectFiles.open(file)
@@ -1114,6 +1140,7 @@ private fun FielHomeHost(
                             StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
                         )
                     }
+                    registerOpenedOrSavedFlp(file)
                     snackbar.showSnackbar("Projeto FLP salvo: ${file.fileName}")
                 }.onFailure { error ->
                     if (startInSaveDialogProtectQa &&
@@ -1149,16 +1176,19 @@ private fun FielHomeHost(
                 }
             }
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
                 runCatching {
-                    val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
                     if (startInChooserQaFile != null) {
                         check(selected == startInChooserQaFile) {
                             "O seletor abriu arquivo diferente da cópia isolada de QA."
                         }
                     }
-                    DesktopEmbroideryFiles.open(selected)
+                    withContext(Dispatchers.IO) {
+                        DesktopEmbroideryFiles.open(selected)
+                    }
                 }.onSuccess { design ->
                     openDesign(design, displayMode, ActiveDetail.VIEWER)
+                    registerOpenedOrSavedFlp(selected)
                     if (startInChooserQaFile != null) {
                         val selectedExtension =
                             startInChooserQaFile.fileName.toString().substringAfterLast('.')
@@ -1204,6 +1234,7 @@ private fun FielHomeHost(
                 }
             }.fold(onSuccess = { design ->
                 openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER)
+                registerOpenedOrSavedFlp(startInLaunchDocument)
                 snackbar.showSnackbar("Matriz aberta: ${startInLaunchDocument.fileName}")
             }, onFailure = {
                 snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
