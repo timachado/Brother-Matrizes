@@ -25,7 +25,8 @@ internal fun interface DesktopSessionRefresher {
 internal class DesktopTransientSessionKeeper(
     private val refresh: DesktopSessionRefresher,
     private val clock: Clock = Clock.systemUTC(),
-    private val vault: DesktopProtectedSessionVault? = null
+    private val vault: DesktopProtectedSessionVault? = null,
+    private val sessionGuard: () -> Unit = {}
 ) {
     private val lock = Mutex()
     private var current: DesktopTransientAuthSession? = null
@@ -34,6 +35,7 @@ internal class DesktopTransientSessionKeeper(
     suspend fun install(session: DesktopTransientAuthSession) {
         lock.lock()
         try {
+            sessionGuard()
             current = null
             expiresAt = null
             require(session.expiresInSeconds in 1..86_400) {
@@ -53,6 +55,7 @@ internal class DesktopTransientSessionKeeper(
     suspend fun restoreFromProtectedStorage(): Boolean {
         lock.lock()
         try {
+            sessionGuard()
             current = null
             expiresAt = null
             val snapshot = vault?.load() ?: return false
@@ -72,6 +75,7 @@ internal class DesktopTransientSessionKeeper(
     suspend fun tokenForIsolatedQa(): String {
         lock.lock()
         try {
+            sessionGuard()
             val previous = checkNotNull(current) {
                 "Entre novamente na sua conta."
             }
@@ -102,6 +106,8 @@ internal class DesktopTransientSessionKeeper(
                     error("Não foi possível renovar a sessão. Entre novamente.")
                 }
             }
+            // A revoked exclusive OS lease must never expose a cached token.
+            sessionGuard()
             return checkNotNull(current).accessToken
         } finally {
             lock.unlock()
@@ -111,6 +117,7 @@ internal class DesktopTransientSessionKeeper(
     suspend fun clear() {
         lock.lock()
         try {
+            sessionGuard()
             current = null
             expiresAt = null
             vault?.clear()
