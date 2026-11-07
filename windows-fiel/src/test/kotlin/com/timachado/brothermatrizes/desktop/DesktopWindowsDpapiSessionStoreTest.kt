@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopTransientAuthSession
+import com.timachado.brothermatrizes.desktop.platform.DesktopTransientSessionKeeper
+import com.timachado.brothermatrizes.desktop.platform.DesktopSessionRefresher
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsDpapiSessionStore
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -10,6 +12,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Comparator
 import org.junit.jupiter.api.Assumptions.assumeTrue
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -128,4 +131,30 @@ class DesktopWindowsDpapiSessionStoreTest {
         assertFailsWith<IllegalStateException> { vault.load() }
         assertFailsWith<IllegalStateException> { vault.clear() }
     }
+
+    @Test
+    fun encryptedVaultRestoresKeeperAfterRestartAndLogoutClearsFile() = withFolder { folder ->
+        runBlocking {
+            val vault = DesktopWindowsDpapiSessionStore(folder, clock)
+            val initial = DesktopTransientSessionKeeper(
+                DesktopSessionRefresher { error("Unexpected network") }, clock, vault
+            )
+            initial.install(DesktopTransientAuthSession(access, refresh, 3600))
+            val sessionFile = folder.resolve("session.v1.dpapi")
+            val diskBytes = Files.readAllBytes(sessionFile)
+            assertFalse(diskBytes.toString(Charsets.ISO_8859_1).contains(refresh))
+
+            val rebooted = DesktopTransientSessionKeeper(
+                DesktopSessionRefresher { error("No refresh expected") }, clock, vault
+            )
+            assertTrue(rebooted.restoreFromProtectedStorage())
+            assertEquals(access, rebooted.tokenForIsolatedQa())
+            assertFalse(rebooted.toString().contains(refresh))
+            rebooted.clear()
+            assertFalse(Files.exists(sessionFile))
+            assertFalse(rebooted.restoreFromProtectedStorage())
+            assertFailsWith<IllegalStateException> { rebooted.tokenForIsolatedQa() }
+        }
+    }
+
 }
