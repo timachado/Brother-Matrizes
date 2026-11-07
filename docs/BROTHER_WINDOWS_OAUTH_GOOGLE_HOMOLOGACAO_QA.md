@@ -35,9 +35,13 @@ URLs do Auth**. É proibido pressupor que o callback desktop esteja liberado.
   verificar compatibilidade do retorno loopback com porta efêmera e
   `bm_state`. Uma expressão **candidata, ainda não homologada** para a
   allowlist é:
-  `http://127.0.0.1:*/brother-matrizes/auth?bm_state=*`
-  **Não aplicar automaticamente**. Validar correspondência com o mecanismo
-  de globs e com o formato **exato** do redirect gerado no teste real.
+  `http://127.0.0.1:*/brother-matrizes/auth\?bm_state=*`
+  **Não aplicar automaticamente**. O `?` literal está escapado
+  (`\?`) porque a documentação do Supabase define `?` sem escape como
+  curinga de um único caractere. O `*` da porta e do `bm_state` segue
+  sendo um candidato de allowlist, não uma confirmação remota.
+  Validar correspondência com o mecanismo de globs e com o formato
+  **exato** do redirect gerado no teste real.
 - Não alterar `Site URL` ou redirecionamentos Android aprovados. Não usar
   wildcard abrangente fora de `127.0.0.1` e do caminho da aplicação.
 - O redirect registrado no **Google Cloud Console** é o callback HTTPS
@@ -109,3 +113,24 @@ Isso comprova apenas QA automatizada, não autenticação com Google real.
 Permanecem bloqueados: login Google real, validação de Redirect URLs
 no dashboard, autorização comercial, publicação do EXE e alterações
 à versão Android oficial.
+
+## Preflight offline de redirect — 07/11/2026
+
+- Consulta de leitura `GET /auth/v1/settings` com chave **publicável**:
+  o endpoint real informou `external.google: true`.
+- `get_project` retornou `ACTIVE_HEALTHY`. Não se alterou
+  OAuth, allowlist, domínio, senha, banco, usuário ou projeto.
+- O conector Supabase não fornece leitura de Auth Redirect URLs;
+  o estado da allowlist **continua desconhecido**.
+- `DesktopPkceRedirectPreflight` exige URI HTTP estritamente em
+  `127.0.0.1`, porta efêmera, caminho fixo e `bm_state` de 43
+  caracteres Base64URL. O autoteste local invoca esse contrato.
+- `DesktopPkceRedirectPreflightTest` tem casos negativos de host,
+  protocolo, porta, caminho, parâmetros adicionais e fragmento.
+- O workflow OAuth/DPAPI Windows foi configurado para executar essa
+  suíte; **não afirmar sucesso até conferir o resultado do Actions**.
+
+Próximo gate manual e restrito: [Auth URL Configuration](https://supabase.com/dashboard/project/dwpcddiramxlhavdmmyn/auth/url-configuration),
+sem alterar Site URL nem callbacks Android. Padrão proposto precisa
+ser validado com a allowlist e teste com conta dedicada de QA antes
+do Google real e da distribuição comercial.
