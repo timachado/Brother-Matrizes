@@ -3,6 +3,7 @@ package com.timachado.brothermatrizes.desktop
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceExchange
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceHandshake
 import com.timachado.brothermatrizes.desktop.platform.DesktopSupabaseGooglePkceClient
+import com.timachado.brothermatrizes.desktop.platform.DesktopTransientAuthSession
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -149,4 +150,72 @@ class DesktopSupabaseGooglePkceClientTest {
         }
         assertEquals(0, calls)
     }
+
+    @Test
+    fun refreshRotatesTransientTokensWithoutStoringOrLeakingThem() = runBlocking {
+        val rotatedAccess = "offline_new_access_token_12345678"
+        val rotatedRefresh = "offline_new_refresh_token_12345678"
+        val fake = FakeConnection(
+            URL("https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/token?grant_type=refresh_token"),
+            response = """{"access_token":"$rotatedAccess","refresh_token":"$rotatedRefresh","expires_in":1800,"token_type":"bearer"}"""
+        )
+        var requests = 0
+        val client = DesktopSupabaseGooglePkceClient(key) { url ->
+            requests++
+            assertEquals(
+                "https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/token?grant_type=refresh_token",
+                url.toString()
+            )
+            fake
+        }
+        val previous = DesktopTransientAuthSession(access, refresh, 1)
+        val next = client.refreshSession(previous)
+        assertEquals(1, requests)
+        assertEquals(rotatedAccess, next.accessToken)
+        assertEquals(rotatedRefresh, next.refreshToken)
+        assertEquals(1800, next.expiresInSeconds)
+        assertEquals(access, previous.accessToken)
+        assertEquals(refresh, previous.refreshToken)
+        assertTrue(fake.closed)
+        val body = Json.parseToJsonElement(fake.body()) as JsonObject
+        assertEquals(refresh, body["refresh_token"]?.jsonPrimitive?.content)
+        assertEquals(1, body.size)
+        assertFalse(fake.body().contains(access))
+        assertFalse(next.toString().contains(rotatedAccess))
+        assertFalse(next.toString().contains(rotatedRefresh))
+    }
+
+    @Test
+    fun refreshRejectsInvalidTokenAndServerErrorsFailClosed() = runBlocking {
+        var called = 0
+        val client = DesktopSupabaseGooglePkceClient(key) {
+            called++
+            error("Unexpected network")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            client.refreshSession(DesktopTransientAuthSession(access, "short", 300))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            client.refreshSession(DesktopTransientAuthSession(access, "bad\r\ntoken", 300))
+        }
+        assertEquals(0, called)
+
+        for ((status, mime, json) in listOf(
+            Triple(401, "application/json", """{"message":"invalid refresh token"}"""),
+            Triple(200, "text/html", "<html>no</html>"),
+            Triple(200, "application/json", """{"access_token":"$access","token_type":"bearer","expires_in":600}""")
+        )) {
+            val fake = FakeConnection(
+                URL("https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/token?grant_type=refresh_token"),
+                status = status, mime = mime, response = json
+            )
+            val rejected = DesktopSupabaseGooglePkceClient(key) { fake }
+            val failure = assertFailsWith<Exception> {
+                rejected.refreshSession(DesktopTransientAuthSession(access, refresh, 1))
+            }
+            assertTrue(fake.closed)
+            assertFalse(failure.message.orEmpty().contains(refresh))
+        }
+    }
+
 }
