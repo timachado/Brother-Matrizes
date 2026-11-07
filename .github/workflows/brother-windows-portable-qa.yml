@@ -159,6 +159,18 @@ jobs:
           if (!(Test-Path $archiveScreenshot) -or (Get-Item $archiveScreenshot).Length -lt 10000) {
             throw "Tela Analisar ZIP nao foi renderizada no launcher portable."
           }
+          $createNameScreenshot = "windows-fiel/build/qa/create-name-windows-original-port.png"
+          $runCreateName = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-create-name-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runCreateName.ExitCode -ne 0) { throw "O launcher portable falhou em Criar Nome." }
+          if (!(Test-Path $createNameScreenshot) -or (Get-Item $createNameScreenshot).Length -lt 10000) {
+            throw "Tela Criar Nome não renderizada no launcher portable."
+          }
+          $nameEditorScreenshot = "windows-fiel/build/qa/name-editor-windows-original-port.png"
+          $runNameEditor = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-name-editor-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runNameEditor.ExitCode -ne 0) { throw "O launcher portable falhou no Editor de Nomes." }
+          if (!(Test-Path $nameEditorScreenshot) -or (Get-Item $nameEditorScreenshot).Length -lt 10000) {
+            throw "Editor de Nomes não renderizado no launcher portable."
+          }
           "BROTHER_WINDOWS_PORTABLE_LAUNCHER_SMOKE_OK"
       - name: Preparar pasta completa do executavel para QA (sem instalar)
         shell: pwsh
@@ -250,5 +262,7 @@ jobs:
             windows-fiel/build/qa/machine-transfer-windows-qa.png
             windows-fiel/build/qa/create-drawing-windows-qa.png
             windows-fiel/build/qa/archive-inventory-windows-qa.png
+            windows-fiel/build/qa/create-name-windows-original-port.png
+            windows-fiel/build/qa/name-editor-windows-original-port.png
           if-no-files-found: warn
           retention-days: 7
