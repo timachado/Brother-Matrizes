@@ -96,7 +96,7 @@ class DesktopArchiveSelectiveImportFactoryTest {
             val preview = DesktopArchiveInventory.inspect(zip)
             val usage = FakeUsage()
             val factory = DesktopArchiveSelectiveImportFactory(
-                zip, preview, sink(target) { assertEquals(1, usage.reserveCount) }
+                zip, preview, sink(target, { assertEquals(1, usage.reserveCount) })
             )
             val denied = DesktopArchiveCommercialImportGate(
                 usage = usage, importer = factory
@@ -143,7 +143,7 @@ class DesktopArchiveSelectiveImportFactoryTest {
             val gate = DesktopArchiveCommercialImportGate(
                 usage, verified,
                 DesktopArchiveSelectiveImportFactory(zip, preview,
-                    sink(target) { assertEquals(1, usage.reserveCount) }
+                    sink(target, { assertEquals(1, usage.reserveCount) })
                 )
             )
             assertFailsWith<IllegalStateException> {
@@ -170,7 +170,7 @@ class DesktopArchiveSelectiveImportFactoryTest {
             archive(zip, "SYNTHETIC-DST-QA".toByteArray())
             val preview = DesktopArchiveInventory.inspect(zip)
             val usage = FakeUsage()
-            val factory = DesktopArchiveSelectiveImportFactory(zip, preview, sink(target) {})
+            val factory = DesktopArchiveSelectiveImportFactory(zip, preview, sink(target, { }))
             // Same legitimate entry name and size; new bytes invalidate SHA.
             archive(zip, "SYNTHETIC-DST-QB".toByteArray())
             val gate = DesktopArchiveCommercialImportGate(usage, verified, factory)
