@@ -1217,8 +1217,19 @@ tasks.test { useJUnitPlatform() }
 compose.desktop {
     application {
         mainClass = "com.timachado.brothermatrizes.desktop.FielMainKt"
-        // Sem targetFormats, jpackage, release ou instaladores nesta etapa.
-        // A Home deve ser comparada visualmente antes de empacotar Windows.
+        // SOMENTE imagem portable de QA, sem EXE de instalador ou MSI.
+        // createDistributable usa jpackage --type app-image: launcher Windows
+        // + runtime JRE numa pasta movível; não modifica o registro.
+        // Nenhum targetFormats é ativado e não existe release comercial.
+        nativeDistributions {
+            packageName = "BrotherMatrizesQA"
+            packageVersion = "0.0.1"
+            description = "Brother Matrizes Windows - validacao interna QA"
+            vendor = "T.I. Machado Solucoes em Tecnologia"
+            // Mantém AWT/Swing (JFileChooser), JNA/DPAPI, Skia e TLS.
+            // A redução de módulos fica para análise jdeps posterior.
+            includeAllModules = true
+        }
     }
 }
 
