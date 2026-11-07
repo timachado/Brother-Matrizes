@@ -46,6 +46,23 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14"
+      - name: Verificar isolamento da conta e leitura estrita de direitos
+        shell: pwsh
+        run: |
+          $ui = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt" -Raw
+          if ($ui.Contains('DesktopArchiveCommercialImportGate') -or
+              $ui.Contains('DesktopBrotherArchiveUsageGateway')) {
+            throw "A tela Windows QA conectou uma importação comercial sem homologação."
+          }
+          $reader = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt" -Raw
+          foreach ($needle in @('conn.requestMethod = "GET"', 'nativeBoolean("pro")',
+              'nativeBoolean("authenticated")', 'if (value.isString) null')) {
+            if (!$reader.Contains($needle)) { throw "Contrato de leitura segura perdido: $needle" }
+          }
+          if ($reader.Contains('conn.requestMethod = "POST"')) {
+            throw "Leitura de assinatura passou a efetuar operação de escrita."
+          }
+          "BROTHER_WINDOWS_ACCOUNT_READ_ONLY_FAIL_CLOSED_OK"
       - name: Executar testes Windows OAuth, rede fake, concorrencia e DPAPI nativo
         shell: pwsh
         run: |
