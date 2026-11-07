@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
@@ -21,6 +23,8 @@ on:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
@@ -87,7 +91,7 @@ jobs:
       - name: Testar reinicio e cancelamento com quotas simuladas e lock em JVMs independentes
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest'
           if ($LASTEXITCODE -ne 0) { throw "Journal de recuperacao Windows falhou." }
           "BROTHER_WINDOWS_DURABLE_RECOVERY_MULTIPROCESS_CRASH_QA_OK"
       - name: Guardar apenas resultados de testes
