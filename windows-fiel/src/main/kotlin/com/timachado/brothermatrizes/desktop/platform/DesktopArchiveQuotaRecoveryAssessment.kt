@@ -36,9 +36,16 @@ internal object DesktopArchiveQuotaRecoveryAssessment {
             pending.reservationKey.startsWith("pro_")) {
             "Registro local inválido."
         }
-        // Lost reserve response: the server minted an UNKNOWN key.
-        // No known key can be queried, and probing a different key is unsafe.
-        if (pending.reservationKey == null || pending.reservationKey.startsWith("pro_")) {
+        // Without a persisted remote key, older journal records cannot
+        // prove whether the attempt used V1 or V2. Never guess a key.
+        // Legacy Pro V1 generated ephemeral UUIDs (not necessarily v4),
+        // so only explicitly recognizable v4 Pro receipts are diagnostic.
+        val proV2Key = Regex(
+            "^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        )
+        if (pending.reservationKey == null ||
+            (pending.reservationKey.startsWith("pro_") &&
+                !proV2Key.matches(pending.reservationKey))) {
             require(server == null) {
                 "Estado remoto não pode ser associado à tentativa local."
             }
