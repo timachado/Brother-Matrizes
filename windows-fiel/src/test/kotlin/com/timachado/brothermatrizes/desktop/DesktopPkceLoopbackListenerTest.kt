@@ -153,4 +153,36 @@ class DesktopPkceLoopbackListenerTest {
         }
     }
 
+
+    @Test
+    fun stalledLocalHttpHeadersAreRejectedWithoutConsumingPkceState() {
+        DesktopPkceLoopbackListener.open().use { listener ->
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val future = executor.submit<String> {
+                    listener.awaitCallback(Duration.ofSeconds(15)).authorizationCode
+                }
+                val target = listener.redirectUri.rawPath + "?" +
+                    listener.redirectUri.rawQuery + "&code=after_stall"
+                val refused = Socket("127.0.0.1", listener.port).use { socket ->
+                    socket.soTimeout = 5_000
+                    val incomplete = "GET " + target + " HTTP/1.1\r\n" +
+                        "Host: 127.0.0.1:" + listener.port + "\r\n" +
+                        "X-Stalled: "
+                    socket.getOutputStream().write(
+                        incomplete.toByteArray(StandardCharsets.US_ASCII)
+                    )
+                    socket.getInputStream().readBytes().toString(Charsets.UTF_8)
+                }
+                assertTrue(refused.startsWith("HTTP/1.1 400 Bad Request"))
+                assertFalse(refused.contains("after_stall"))
+                assertFalse(future.isDone)
+                assertTrue(request(listener.port, target).startsWith("HTTP/1.1 200 OK"))
+                assertEquals("after_stall", future.get(5, TimeUnit.SECONDS))
+            } finally {
+                listener.close()
+                executor.shutdownNow()
+            }
+        }
+    }
 }
