@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaStatus
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherArchiveUsageGateway
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -169,5 +170,95 @@ class DesktopBrotherArchiveUsageGatewayTest {
             )
         }
         assertEquals(0, opened)
+    }
+
+    @Test
+    fun knownReservationStatusIsReadOnlyAndScopedToCategoryAndKey() = runBlocking {
+        for ((category, operation) in listOf(
+            DesktopArchiveInventory.Category.MATRIX to "import_matrix",
+            DesktopArchiveInventory.Category.FONT to "import_font"
+        )) {
+            for ((wireState, expected) in listOf(
+                "reserved" to DesktopArchiveQuotaStatus.State.RESERVED,
+                "completed" to DesktopArchiveQuotaStatus.State.COMPLETED,
+                "failed" to DesktopArchiveQuotaStatus.State.FAILED
+            )) {
+                val reply = """{"found":true,"operation":"$operation","request_key":"$validReservation","state":"$wireState"}"""
+                val connection = FakeConnection(expectedEndpoint, 200, "application/json", reply)
+                val gateway = client(connection)
+                val status = gateway.lookupKnown(token, category, validReservation)
+                assertEquals(expected, status.state)
+                assertEquals(category, status.category)
+                assertEquals(validReservation, status.requestKey)
+                val request = connection.request()
+                assertEquals("status", request["action"]?.jsonPrimitive?.content)
+                assertEquals(operation, request["operation"]?.jsonPrimitive?.content)
+                assertEquals(validReservation, request["request_key"]?.jsonPrimitive?.content)
+                assertEquals(3, request.keys.size)
+                assertTrue(connection.disconnected)
+            }
+        }
+    }
+
+    @Test
+    fun unknownReservationIsNotMistakenForConfirmedFailureOrPermission() = runBlocking {
+        val connection = FakeConnection(
+            expectedEndpoint, 200, "application/json",
+            """{"found":false,"operation":"import_matrix","request_key":"$validReservation"}"""
+        )
+        val result = client(connection).lookupKnown(
+            token, DesktopArchiveInventory.Category.MATRIX, validReservation
+        )
+        assertEquals(DesktopArchiveQuotaStatus.State.NOT_FOUND, result.state)
+    }
+
+    @Test
+    fun statusRefusesProAndForgedKeysBeforeAnyHttpConnection() = runBlocking {
+        var opened = 0
+        val gateway = DesktopBrotherArchiveUsageGateway(publishable, 195) {
+            opened++
+            error("No network requests accepted")
+        }
+        for (key in listOf(
+            "pro_12345678-1234-1234-1234-123456789abc",
+            "usage_12345678-1234-1234-1234-123456789abx",
+            "usage_00000000-0000-0000-0000-000000000000" + "\r\nX: a",
+            "usage_trusted_local",
+            ""
+        )) {
+            assertFailsWith<IllegalArgumentException> {
+                gateway.lookupKnown(token, DesktopArchiveInventory.Category.MATRIX, key)
+            }
+        }
+        assertEquals(0, opened)
+    }
+
+    @Test
+    fun statusRejectsMismatchedOwnerEvidenceStateOrFailedNetwork() = runBlocking {
+        val invalid = listOf(
+            Triple(200, "application/json",
+                """{"found":true,"operation":"import_font","request_key":"$validReservation","state":"completed"}"""),
+            Triple(200, "application/json",
+                """{"found":true,"operation":"import_matrix","request_key":"usage_00000000-0000-0000-0000-000000000000","state":"completed"}"""),
+            Triple(200, "application/json",
+                """{"found":true,"operation":"import_matrix","request_key":"$validReservation","state":"charged_unverified"}"""),
+            Triple(200, "application/json",
+                """{"found":false,"operation":"import_matrix","request_key":"$validReservation","state":"completed"}"""),
+            Triple(200, "application/json",
+                """{"operation":"import_matrix","request_key":"$validReservation","state":"completed"}"""),
+            Triple(503, "application/json", """{"message":"service unavailable"}"""),
+            Triple(200, "text/html", "<html>not a status</html>"),
+            Triple(302, "application/json", """{"found":true}""")
+        )
+        for ((code, mime, body) in invalid) {
+            val connection = FakeConnection(expectedEndpoint, code, mime, body)
+            assertFailsWith<Exception> {
+                client(connection).lookupKnown(
+                    token, DesktopArchiveInventory.Category.MATRIX, validReservation
+                )
+            }
+            assertTrue(connection.disconnected)
+            assertFalse(connection.instanceFollowRedirects)
+        }
     }
 }
