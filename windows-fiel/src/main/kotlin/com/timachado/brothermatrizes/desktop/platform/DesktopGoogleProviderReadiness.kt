@@ -22,7 +22,8 @@ internal class DesktopGoogleProviderReadiness(
     private val publishableKey: String,
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
-    }
+    },
+    private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
     data class Snapshot(
         val googleProviderEnabled: Boolean,
@@ -30,7 +31,7 @@ internal class DesktopGoogleProviderReadiness(
     )
 
     private val endpoint = URL(
-        "https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/settings"
+        "https://$projectRef.supabase.co/auth/v1/settings"
     )
 
     init {
@@ -39,8 +40,11 @@ internal class DesktopGoogleProviderReadiness(
             publishableKey.all { c -> !c.isISOControl() && !c.isWhitespace() }) {
             "A consulta exige chave Supabase pública, nunca secreta."
         }
+        require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
+            "Referência Supabase inválida."
+        }
         require(endpoint.protocol == "https" &&
-            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.host == "$projectRef.supabase.co" &&
             endpoint.port == -1 && endpoint.userInfo == null &&
             endpoint.path == "/auth/v1/settings" &&
             endpoint.query == null && endpoint.ref == null) {
