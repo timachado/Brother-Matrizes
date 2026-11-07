@@ -102,6 +102,34 @@ class DesktopAndroidBackupInspectorTest {
         }
 
     @Test
+    fun historicalProjectBackupRejectsUnexpectedFontEntriesAndNeverImportsThem() =
+        withFolder { dir ->
+            val legacy = ProjectBackupCodec.encode(listOf(syntheticProject()))
+            val original = java.util.zip.ZipInputStream(legacy.inputStream()).use { archive ->
+                buildList {
+                    while (true) {
+                        val entry = archive.nextEntry ?: break
+                        add(entry.name to archive.readBytes())
+                        archive.closeEntry()
+                    }
+                }
+            }
+            val file = dir.resolve("historico.brother_matrizes-backup")
+            ZipOutputStream(Files.newOutputStream(file)).use { out ->
+                for ((name, bytes) in original +
+                    ("fonts/unexpected.ttf" to byteArrayOf(0, 1, 0, 0, 1, 2))) {
+                    out.putNextEntry(ZipEntry(name))
+                    out.write(bytes)
+                    out.closeEntry()
+                }
+            }
+            assertFailsWith<IllegalArgumentException> {
+                DesktopAndroidBackupInspector.inspect(file)
+            }
+            Files.list(dir).use { assertEquals(1L, it.count()) }
+        }
+
+    @Test
     fun rejectsUnexpectedNestedEntriesEvenWithValidManifestAndProjectBackup() =
         withFolder { dir ->
             val full = CompleteLibraryBackupCodec.encode(
