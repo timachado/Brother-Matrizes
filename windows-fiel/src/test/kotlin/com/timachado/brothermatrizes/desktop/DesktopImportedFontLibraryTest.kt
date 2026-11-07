@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFontLibrary
+import com.timachado.brothermatrizes.desktop.platform.DesktopOpenTypeFontNames
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -38,7 +39,9 @@ class DesktopImportedFontLibraryTest {
             assertTrue(imported.fileName.matches(
                 Regex("Fonte_de_teste-[a-f0-9]{10}\\.ttf")
             ))
-            assertEquals("Fonte de teste", imported.displayName)
+            val metadataName = DesktopOpenTypeFontNames.readDisplayName(fontSource.toFile())
+            assertEquals(metadataName ?: "Fonte de teste", imported.displayName)
+            assertTrue(imported.displayName.isNotBlank())
             assertContentEquals(original, Files.readAllBytes(Path.of(imported.absolutePath)))
             assertContentEquals(original, Files.readAllBytes(fontSource))
             assertEquals(listOf(imported), library.list())
