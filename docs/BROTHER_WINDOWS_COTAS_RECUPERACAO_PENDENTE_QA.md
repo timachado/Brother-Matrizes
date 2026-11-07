@@ -203,6 +203,16 @@ criados. Nenhuma recuperação automática destrutiva foi ativada.
   execução passou. A correção foi restrita ao teste de QA.
 - O job portátil
   [#42402385071](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385071)
-  incorpora os testes multiprocesso ao conjunto de regressões
-  antes de gerar o launcher. A conclusão e o ZIP são confirmados
-  separadamente.
+  terminou `completed/success` no commit `3a77482`, incorporando
+  os testes multiprocesso à regressão completa. O GitHub Actions
+  criou a imagem portátil Windows, iniciou o launcher e capturou
+  as telas na própria máquina Windows de QA.
+  Artefatos temporários privados:
+  [Portable QA #13586735160](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385071/artifacts/13586735160)
+  (98.251.686 bytes, launcher e runtime completos) e
+  [capturas #13585604870](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385071/artifacts/13585604870)
+  (237.365 bytes). Podem exigir login no GitHub e expirar.
+- [Relatórios da suíte multiprocesso #13586285984](https://github.com/timachado/Brother-Matrizes/actions/runs/42402385047/artifacts/13586285984)
+  contêm XMLs de testes, sem matrizes ou tokens de clientes.
+- Esta é uma **imagem interna QA**, sem login OAuth comercial,
+  cobrança de quotas ou importação comercial habilitados.
