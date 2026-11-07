@@ -70,7 +70,13 @@ internal class DesktopGoogleProviderReadiness(
                 as? JsonObject ?: error("Configuração pública inválida.")
             val external = body["external"] as? JsonObject
                 ?: error("Lista pública de provedores indisponível.")
-            val google = (external["google"] as? JsonPrimitive)?.booleanOrNull
+            val googleValue = external["google"] as? JsonPrimitive
+                ?: error("Status do Google ausente da configuração.")
+            // A string "true" não equivale ao literal JSON true.
+            check(!googleValue.isString) {
+                "Tipo inesperado para configuração do provedor Google."
+            }
+            val google = googleValue.booleanOrNull
                 ?: error("Status do Google ausente da configuração.")
             Snapshot(googleProviderEnabled = google)
         } finally {
