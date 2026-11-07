@@ -8,6 +8,7 @@ import java.text.Normalizer
 import java.util.Locale
 import java.util.UUID
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 
 /**
  * Restores ONLY flat, local FLP ZIP archives (DesktopFlpBackupExporter).
@@ -40,6 +41,15 @@ internal object DesktopFlpBackupRestorer {
         require(!Files.isSymbolicLink(parent) &&
             Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS)) {
             "Selecione uma pasta de destino real, sem link simbólico."
+        }
+
+        // ZipInputStream validates each entry's CRC, but does NOT require a
+        // complete central directory. Reject truncated and malformed ZIPs
+        // before creating even the temporary staging folder.
+        ZipFile(archive.toFile()).use { index ->
+            require(index.size() in 1..MAX_PROJECTS) {
+                "Backup FLP vazio, incompleto ou com excesso de projetos."
+            }
         }
 
         // Never unzip directly in the user's original project folder.
