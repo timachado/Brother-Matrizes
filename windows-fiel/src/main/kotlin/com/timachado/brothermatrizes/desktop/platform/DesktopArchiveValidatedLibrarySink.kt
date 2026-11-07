@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop.platform
 
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
 import com.timachado.brothermatrizes.core.project.ProjectCodec
 import java.nio.ByteBuffer
 import java.nio.file.Files
@@ -42,7 +43,6 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
         private var owned: Path? = null
         private var expectedDigest: String? = null
         private var complete = false
-        private var fontLibrary: DesktopImportedFontLibrary? = null
 
         override suspend fun validateAndStore(
             privateExtractedFile: Path
@@ -84,7 +84,7 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
             // The original import format is retained in the filename, and
             // points are stored as FLP via the official Android codec.
             if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-                return duplicateMatrix(target, design.points)
+                return duplicateMatrix(target, design)
             }
 
             val bytes = ProjectCodec.encode(design)
@@ -102,9 +102,11 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
             ).use { channel ->
                 owned = target
                 expectedDigest = digest
-                while (channel.write(ByteBuffer.wrap(bytes)).let { it >= 0 }) {
-                    // This block is replaced below with proper ByteBuffer.
-                    break
+                val buffer = ByteBuffer.wrap(bytes)
+                while (buffer.hasRemaining()) {
+                    check(channel.write(buffer) > 0) {
+                        "Gravação FLP interrompida antes do final."
+                    }
                 }
             }
             require(Files.readAllBytes(target).contentEquals(bytes) &&
@@ -117,13 +119,15 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
 
         private fun duplicateMatrix(
             target: Path,
-            expectedPoints: List<com.timachado.brothermatrizes.core.embroidery.StitchPoint>
+            expectedDesign: EmbroideryDesign
         ): DesktopArchiveImportCommit {
             require(!Files.isSymbolicLink(target) &&
                 Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
                 "Colisão em arquivo de projeto existente."
             }
-            require(DesktopFlpProjectFiles.open(target).points == expectedPoints) {
+            val previous = DesktopFlpProjectFiles.open(target)
+            require(previous.points == expectedDesign.points &&
+                previous.format.equals(expectedDesign.format, ignoreCase = true)) {
                 "O destino existente contém outra matriz. Nada foi substituído."
             }
             return DesktopArchiveImportCommit(false, null)
@@ -136,7 +140,6 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 report.testedGlyphs > 0) { "Fonte rejeitada pelo motor de contornos." }
 
             val library = DesktopImportedFontLibrary(destination)
-            fontLibrary = library
             val known = library.list().mapTo(HashSet()) { it.id }
             val result = library.importFile(source, item.displayName)
             if (result.id in known) {
