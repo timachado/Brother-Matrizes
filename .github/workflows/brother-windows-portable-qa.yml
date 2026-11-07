@@ -37,6 +37,13 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopReadOnlyFontAnalyzer.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopReadOnlyFontAnalyzerTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopQaStagingProject.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGooglePkceClient.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGoogleIdentityVerifier.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopQaStagingProjectTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsFullGoogleQaFlowTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGoogleProviderReadiness.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopPkceLoopbackSelfTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopPkceLoopbackSelfTestTest.kt"
@@ -83,6 +90,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Validar QA sem credencial comercial e com staging obrigatório
+        shell: pwsh
+        run: |
+          $guard = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt" -Raw
+          $qa = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt" -Raw
+          if (!$guard.Contains('BROTHER_WINDOWS_QA_STAGING_PROJECT_REF') -or
+              !$guard.Contains('DesktopQaStagingProject.isolated(ref)') -or
+              !$qa.Contains('projectRef = target.ref') -or
+              !$qa.Contains('qa-staging-')) {
+            throw "Autenticação Windows QA perdeu a separação do Supabase comercial."
+          }
+          if ($env:BROTHER_WINDOWS_QA_GOOGLE_AUTH -ne "disabled") {
+            throw "O pacote portátil QA deve ser executado sem autenticação ativa por padrão."
+          }
+          "BROTHER_WINDOWS_QA_STAGING_ISOLATION_OK"
       - name: Gerar ICO do mesmo monograma do launcher Android original
         shell: pwsh
         run: |
@@ -97,7 +119,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopImportedFontLibraryTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopQaStagingProjectTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopImportedFontLibraryTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
