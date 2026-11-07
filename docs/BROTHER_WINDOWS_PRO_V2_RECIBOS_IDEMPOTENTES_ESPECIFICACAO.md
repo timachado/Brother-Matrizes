@@ -1,0 +1,112 @@
+# Brother Matrizes Windows — especificação dos recibos Pro V2
+
+**Situação:** arquitetura proposta, sem implementação comercial, sem
+migração, sem ativação de plano e sem alterações na produção.  
+**Vinculado ao portão comercial #2:** [Relatório de prontidão 07/11/2026](BROTHER_WINDOWS_RELATORIO_PRONTIDAO_COMERCIAL_2026-11-07.md).  
+**Código fonte:** PR #226, branch Windows QA.
+
+## Contrato atual observado
+
+A Edge Function `brother-entitlement` responde ao usuário autenticado
+com o plano efetivo confirmado pelo servidor. O acesso Pro inclui:
+`trial` (não financeiro), `pro_monthly`, `pro_yearly`,
+`pro_lifetime` e `pro_lifetime_launch`. A decisão comercial
+continua pertencendo à autoridade de assinaturas, incluindo
+eventos WooCommerce/Efí, concessões do proprietário e trial
+com horário do banco. **Não reutilizar detalhes de pagamento**
+como identificadores de importação.
+
+No protocolo antigo `brother-usage`, a reserva Pro retorna
+`pro_<UUID>` sem gravar recibo durável. A mesma tentativa refeita
+após perda de resposta pode produzir outra chave sem rastreabilidade;
+isso impede a reconciliação segura após crash.
+
+No protocolo Windows `reserve_v2`, a rota Pro está
+**explicitamente bloqueada com erro 503**. A reserva Free V2
+já foi testada em PostgreSQL descartável e continua separada.
+
+## Modelo proposto (não executado)
+
+Uma tabela **dedicada de recibos operacionais Pro**, sem
+colunas de cobrança ou autorização de compra:
+
+- `request_id UUID PRIMARY KEY`: UUIDv4 aleatório, persistido
+  no Windows antes do primeiro envio;
+- `user_id UUID NOT NULL` e
+  `operation TEXT NOT NULL` com valores
+  `import_font` / `import_matrix`;
+- `state`: `reserved`, `completed`, `failed`;
+- `entitlement_type` com o código de plano confirmado na
+  solicitação pelo `brother-entitlement`, somente para auditoria;
+- `created_at`, `expires_at`, `finalized_at` gerados
+  e verificados **pelo servidor**;
+- `finalize_success` nullable boolean persistindo o resultado
+  decidido pela transação, sem permitir mudança posterior;
+- registro de ID da tentativa e versão do protocolo, sem
+  access token, refresh token, e-mail, nome, pedido, valores,
+  credenciais ou dados de matriz.
+
+**O recibo Pro não concede acesso Pro**. A autoridade de
+assinatura precisa validar identidade e direito ativo antes
+de criar nova reserva. Nenhum dado enviado pelo Windows
+pode alterar o plano da conta ou criar trial.
+
+## Regras de segurança obrigatórias
+
+1. Autenticar o bearer e vincular `user_id` a
+   `getUser`. Exigir e-mail confirmado/Google conforme
+   contrato oficial.
+2. Verificar o plano Pro ativo e a identidade do resultado
+   do `brother-entitlement` **antes de criar um novo recibo**.
+   Tratamento da revogação/trial expirado falha fechado.
+3. Inserir recibo no PostgreSQL sob lock transacional e
+   constraint única do `request_id`; mesma UUID, mesmo
+   usuário e operação retorna mesma chave, sem segunda linha.
+4. UUID já usado com outra conta/operação não revela dados
+   nem permite importação.
+5. Replay de `completed`, `failed` ou `reserved`
+   expirado não autoriza nova gravação nem reabre o recibo.
+6. `finalize` com resultado igual previamente confirmado
+   pode devolver confirmação idempotente. Resultado oposto
+   não altera o recibo nem autoriza apagar arquivo.
+7. Usar um endpoint autenticado com credenciais apenas
+   server-side e RPC com privilégios mínimos; negar execução
+   direta a `anon`/`authenticated` quando a RPC aceita
+   `p_user_id`. Auditar RLS/grants.
+8. O fluxo Android V1 permanece inalterado até que o
+   contrato Pro V2 seja homologado e implantado de forma
+   separada.
+9. Nenhuma recuperação automática exclui arquivos após
+   resultado remoto sem journal de ownership local (#4).
+
+## Testes obrigatórios antes da implementação comercial
+
+- Queda de resposta após inserção e repetição da mesma UUID;
+  **exatamente uma linha de recibo**.
+- Duas JVMs e dois requests HTTP simultâneos de mesma conta/UUID;
+  mesma chave, nenhum direito duplicado.
+- Assinatura ativa, cancelada, revogada, trial expirado e
+  entitlement temporariamente indisponível.
+- Conta diferente/ operação diferente tentando reutilizar a UUID;
+  resposta bloqueada sem vazamento de dados.
+- Finalizar sucesso, falha, repetição igual, repetição contrária
+  e resposta perdida após persistência.
+- Falha do banco, perda de internet, dupla instância e
+  encerramento forçado durante a transação.
+- Preservação do acesso Android V1, do contador gratuito e
+  da lógica de planos; sem compra, renovação ou upgrade na QA.
+
+## Política de execução e critérios de aceite
+
+Até que todos os critérios sejam comprovados em banco PostgreSQL
+descartável e posteriormente em staging autorizado, o portão #2
+permanece **ABERTO**. Toda futura migração deverá vir do
+Supabase CLI, ser revisada por segurança e possuir plano de
+rollback testado. O ambiente de produção não pode ser modificado
+automaticamente para cumprir este documento.
+
+**Próxima implementação técnica recomendada:** helper puro
+`reserveProV2` com DB simulado, verificação de entitlement
+injetada e testes negativos; depois SQL de staging para os
+recibos e `finalize` idempotente. Nenhuma instalação, deploy,
+notificação ou release é autorizada por esta especificação.
