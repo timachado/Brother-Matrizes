@@ -112,6 +112,11 @@ internal class DesktopArchiveCommercialImportGate(
         check(usage !is DesktopBrotherArchiveUsageGateway || journal != null) {
             "O serviço comercial exige registro durável de reservas."
         }
+        check(usage !is DesktopBrotherArchiveUsageGateway ||
+            (importer is DesktopArchiveOwnershipAwareImportFactory &&
+                importer.supportsDurableOwnership)) {
+            "O serviço comercial exige rastreamento durável da saída local."
+        }
 
         // Persist RESERVE_UNKNOWN BEFORE making the network call. Even a
         // timeout may mean the server processed the request; never blindly
@@ -146,11 +151,35 @@ internal class DesktopArchiveCommercialImportGate(
         var transaction: DesktopArchiveItemTransaction? = null
         var committed: DesktopArchiveImportCommit? = null
         var importError: Throwable? = null
+        val recordsOwnership = pending != null &&
+            importer is DesktopArchiveOwnershipAwareImportFactory &&
+            importer.supportsDurableOwnership
+        val recorder = object : DesktopArchiveOutputEvidenceRecorder {
+            override fun beforePublish(fileName: String, sha256: String) {
+                pending = checkNotNull(journal).declareOutput(
+                    checkNotNull(pending), fileName, sha256
+                )
+            }
+            override fun afterVerified(fileName: String, sha256: String) {
+                pending = checkNotNull(journal).verifyOutput(
+                    checkNotNull(pending), fileName, sha256
+                )
+            }
+        }
         try {
-            transaction = importer.begin(item)
+            transaction = if (recordsOwnership) {
+                (importer as DesktopArchiveOwnershipAwareImportFactory)
+                    .beginWithEvidence(item, recorder)
+            } else importer.begin(item)
             committed = transaction.apply()
             require(!committed.created || !committed.itemId.isNullOrBlank()) {
                 "A importação não retornou o identificador do novo item."
+            }
+            if (recordsOwnership && committed.created) {
+                check(pending?.output?.verifiedNew == true &&
+                    pending?.output?.fileName == committed.itemId) {
+                    "Saída criada sem confirmação persistida no journal."
+                }
             }
         } catch (error: Throwable) {
             importError = error
