@@ -69,11 +69,12 @@ internal object WindowsArchiveImporterUnavailable : DesktopArchiveImportFactory 
 internal class DesktopArchiveCommercialImportGate(
     private val usage: DesktopArchiveUsageGateway,
     private val verifiedSession: DesktopVerifiedFontSession = WindowsFontSessionUnavailable,
-    private val importer: DesktopArchiveImportFactory = WindowsArchiveImporterUnavailable
+    private val importer: DesktopArchiveImportFactory = WindowsArchiveImporterUnavailable,
+    // Optional for isolated legacy QA tests. MANDATORY with real HTTP gateway.
+    // Production UI still does not instantiate the import gate.
+    private val journal: DesktopArchiveQuotaJournal? = null
 ) {
     private companion object {
-        // Serializes all instances within the same Windows process, avoiding
-        // simultaneous duplicate reservations and conflicting rollbacks.
         val transactionLock = Mutex()
         val serverReservation = Regex(
             "^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -82,50 +83,75 @@ internal class DesktopArchiveCommercialImportGate(
 
     suspend fun importOne(item: DesktopArchiveInventory.Item): DesktopArchiveImportCommit =
         transactionLock.withLock {
-            // Validate metadata before contacting the server, but do NOT
-            // read or extract the archived item before authorization.
-            require(item.entryName.isNotBlank() && item.displayName.isNotBlank() &&
-                item.sizeBytes in 0..(24L * 1024L * 1024L) &&
-                item.extension in when (item.category) {
-                    DesktopArchiveInventory.Category.MATRIX -> setOf("PES", "DST", "JEF")
-                    DesktopArchiveInventory.Category.FONT -> setOf("TTF", "OTF")
-                }
-            ) { "Item do pacote inválido para importação." }
-
-            // Offline Windows and QA accounts intentionally fail here.
-            val token = verifiedSession.accessToken()
-            check(token.isNotBlank()) { "Sessão Google verificada necessária." }
-            // A verified account is insufficient if the real archive importer
-            // is not yet installed: do not create a server reservation just
-            // to reject an unavailable Windows feature afterwards.
-            check(importer !== WindowsArchiveImporterUnavailable) {
-                "Importação Windows ainda não homologada; nenhuma cota foi reservada."
-            }
-
-            val reservation = usage.reserve(token, item.category)
-            check(serverReservation.matches(reservation)) {
-                "Reserva de importação inválida retornada pelo servidor."
-            }
-
-            var transaction: DesktopArchiveItemTransaction? = null
-            var committed: DesktopArchiveImportCommit? = null
-            var importError: Throwable? = null
+            val lease = journal?.acquireLease()
             try {
-                transaction = importer.begin(item)
-                committed = transaction.apply()
-                require(!committed.created ||
-                    !committed.itemId.isNullOrBlank()) {
-                    "A importação não retornou o identificador do novo item."
-                }
-            } catch (error: Throwable) {
-                importError = error
+                importLocked(item)
+            } finally {
+                lease?.close()
             }
+        }
 
-            // Even cancellation must attempt to settle a reserved quota.
-            // No retry here: duplicate finalize calls require server-side
-            // idempotency and reconciliation, not a speculative local debit.
-            val serverSuccess = importError == null && committed?.created == true
-            var syncError: Throwable? = null
+    private suspend fun importLocked(
+        item: DesktopArchiveInventory.Item
+    ): DesktopArchiveImportCommit {
+        require(item.entryName.isNotBlank() && item.displayName.isNotBlank() &&
+            item.sizeBytes in 0..(24L * 1024L * 1024L) &&
+            item.extension in when (item.category) {
+                DesktopArchiveInventory.Category.MATRIX -> setOf("PES", "DST", "JEF")
+                DesktopArchiveInventory.Category.FONT -> setOf("TTF", "OTF")
+            }
+        ) { "Item do pacote inválido para importação." }
+
+        val token = verifiedSession.accessToken()
+        check(token.isNotBlank()) { "Sessão Google verificada necessária." }
+        check(importer !== WindowsArchiveImporterUnavailable) {
+            "Importação Windows ainda não homologada; nenhuma cota foi reservada."
+        }
+        // It must be IMPOSSIBLE to attach a live quota adapter without an
+        // explicit crash journal. The normal Windows UI has neither.
+        check(usage !is DesktopBrotherArchiveUsageGateway || journal != null) {
+            "O serviço comercial exige registro durável de reservas."
+        }
+
+        // Persist RESERVE_UNKNOWN BEFORE making the network call. Even a
+        // timeout may mean the server processed the request; never blindly
+        // repeat reserve after a crash.
+        var pending = journal?.begin(item)
+        val reservation = usage.reserve(token, item.category)
+        check(serverReservation.matches(reservation)) {
+            "Reserva de importação inválida retornada pelo servidor."
+        }
+        if (pending != null) {
+            pending = checkNotNull(journal).reserved(pending, reservation)
+        }
+
+        var transaction: DesktopArchiveItemTransaction? = null
+        var committed: DesktopArchiveImportCommit? = null
+        var importError: Throwable? = null
+        try {
+            transaction = importer.begin(item)
+            committed = transaction.apply()
+            require(!committed.created || !committed.itemId.isNullOrBlank()) {
+                "A importação não retornou o identificador do novo item."
+            }
+        } catch (error: Throwable) {
+            importError = error
+        }
+
+        val serverSuccess = importError == null && committed?.created == true
+        var syncError: Throwable? = null
+
+        // Persist FINALIZE_UNKNOWN BEFORE sending finalize. A response
+        // lost AFTER the server ACK must not trigger an unverified retry.
+        try {
+            if (pending != null) {
+                pending = checkNotNull(journal).finalizing(pending)
+            }
+        } catch (error: Throwable) {
+            syncError = error
+        }
+
+        if (syncError == null) {
             withContext(NonCancellable) {
                 try {
                     usage.finalize(token, item.category, reservation, serverSuccess)
@@ -133,34 +159,56 @@ internal class DesktopArchiveCommercialImportGate(
                     syncError = error
                 }
             }
-
-            if (importError != null || syncError != null) {
-                var cleanupError: Throwable? = null
-                withContext(NonCancellable) {
-                    if (transaction != null) {
-                        try {
-                            transaction.rollback()
-                        } catch (error: Throwable) {
-                            cleanupError = error
-                        }
-                    }
-                }
-
-                if (syncError != null) {
-                    val error = IllegalStateException(
-                        "A cota não foi sincronizada. Importação bloqueada; " +
-                            "verifique o estado no servidor antes de repetir.",
-                        syncError
-                    )
-                    importError?.let(error::addSuppressed)
-                    cleanupError?.let(error::addSuppressed)
-                    throw error
-                }
-                val error = checkNotNull(importError)
-                cleanupError?.let(error::addSuppressed)
-                throw error
-            }
-
-            checkNotNull(committed) { "A importação não produziu resultado válido." }
         }
+
+        if (syncError == null && importError == null) {
+            // Server answered successfully. If deleting the local journal
+            // fails, leave the marker pending for MANUAL reconciliation.
+            if (pending != null) checkNotNull(journal).completed(pending)
+            return checkNotNull(committed) {
+                "A importação não produziu resultado válido."
+            }
+        }
+
+        // If server acknowledged 'false', mark cleanup needed. If the
+        // server response is unknown, keep FINALIZE_UNKNOWN unchanged.
+        var cleanupRecordError: Throwable? = null
+        if (syncError == null && pending != null) {
+            try {
+                pending = checkNotNull(journal).needsCleanup(pending)
+            } catch (error: Throwable) {
+                cleanupRecordError = error
+            }
+        }
+
+        var cleanupError: Throwable? = null
+        withContext(NonCancellable) {
+            if (transaction != null) {
+                try {
+                    transaction.rollback()
+                } catch (error: Throwable) {
+                    cleanupError = error
+                }
+            }
+        }
+        if (syncError == null &&
+            cleanupRecordError == null &&
+            cleanupError == null &&
+            pending != null
+        ) {
+            checkNotNull(journal).completed(pending)
+        }
+
+        if (syncError != null || cleanupRecordError != null || cleanupError != null) {
+            val error = IllegalStateException(
+                "Quota ou reversão não confirmada. Operação bloqueada para " +
+                    "reconciliação manual com o servidor; não tente importar novamente.",
+                syncError ?: cleanupRecordError ?: cleanupError
+            )
+            importError?.let(error::addSuppressed)
+            cleanupError?.takeIf { it !== error.cause }?.let(error::addSuppressed)
+            throw error
+        }
+        throw checkNotNull(importError)
+    }
 }
