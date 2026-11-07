@@ -1,0 +1,119 @@
+name: Brother Matrizes - Windows executavel portable interno (QA)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - ".github/workflows/brother-windows-portable-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-windows-portable-qa
+  cancel-in-progress: true
+
+jobs:
+  app-image:
+    name: Compilar launcher Windows + JRE portable, sem instalador
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Compilar testes locais prioritarios sem dados comerciais
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest'
+          if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
+      - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel createDistributable --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Compose createDistributable falhou." }
+          $root = "windows-fiel/build/compose/binaries"
+          if (!(Test-Path $root)) { throw "Imagem de aplicativo Windows ausente." }
+          $launchers = @(Get-ChildItem $root -Recurse -File -Filter "BrotherMatrizesQA.exe" -ErrorAction Stop)
+          if ($launchers.Count -ne 1) { throw "Era esperado exatamente um launcher de QA; encontrados: $($launchers.Count)" }
+          $exe = $launchers[0]
+          $appDir = $exe.DirectoryName
+          if (!(Test-Path (Join-Path $appDir "app"))) { throw "JAR/recursos portables nao incluidos." }
+          if (!(Test-Path (Join-Path $appDir "runtime"))) { throw "Runtime Java embutido nao encontrado." }
+          if ((Get-Item $exe.FullName).Length -lt 10000) { throw "Launcher Windows incompleto." }
+          if (@(Get-ChildItem $root -Recurse -File -Filter "*.msi").Count -gt 0) {
+            throw "A QA nao pode produzir instalador MSI."
+          }
+          "BROTHER_WINDOWS_APP_IMAGE_LAUNCHER_OK " + $exe.FullName
+          "BM_PORTABLE_EXE=$($exe.FullName)" >> $env:GITHUB_ENV
+          "BM_PORTABLE_DIR=$appDir" >> $env:GITHUB_ENV
+      - name: Executar launcher portable e capturar Home no proprio Windows
+        shell: pwsh
+        run: |
+          $working = (Resolve-Path "windows-fiel").Path
+          $home = "windows-fiel/build/qa/home-windows-original-port.png"
+          $account = "windows-fiel/build/qa/account-windows-readonly-qa.png"
+          $runHome = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-home-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runHome.ExitCode -ne 0) { throw "O launcher portable falhou na Home: $($runHome.ExitCode)" }
+          if (!(Test-Path $home) -or (Get-Item $home).Length -lt 10000) {
+            throw "A Home do launcher portable nao foi renderizada."
+          }
+          $runAccount = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-account-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runAccount.ExitCode -ne 0) { throw "O launcher portable falhou em Minha Conta: $($runAccount.ExitCode)" }
+          if (!(Test-Path $account) -or (Get-Item $account).Length -lt 10000) {
+            throw "Minha Conta do launcher portable nao foi renderizada."
+          }
+          "BROTHER_WINDOWS_PORTABLE_LAUNCHER_SMOKE_OK"
+      - name: Preparar pasta completa do executavel para QA (sem instalar)
+        shell: pwsh
+        run: |
+          $base = "windows-fiel/build/qa/portable"
+          New-Item -ItemType Directory -Force -Path $base | Out-Null
+          Copy-Item -LiteralPath $env:BM_PORTABLE_DIR -Destination $base -Recurse -Force
+          $name = Split-Path $env:BM_PORTABLE_DIR -Leaf
+          $inside = Join-Path $base $name
+          if (!(Test-Path (Join-Path $inside "BrotherMatrizesQA.exe"))) {
+            throw "O launcher nao esta no ZIP QA."
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 (Join-Path $inside "BrotherMatrizesQA.exe")).Hash
+          @(
+            "BROTHER MATRIZES WINDOWS - PACOTE INTERNO DE QA"
+            "Esta NAO e a versao comercial. Nao publicar em site, grupo ou clientes."
+            "Extraia TODA a pasta. Execute BrotherMatrizesQA.exe dentro dela."
+            "Inclui runtime Java. Nao e um instalador, nao cria atalhos nem associa arquivos."
+            "Google OAuth real, importacao TTF/OTF e recursos comerciais ainda nao homologados."
+            "Codigo: feature/windows-fiel-android-1-11-8-20261106"
+            "Commit: $env:GITHUB_SHA"
+            "SHA256 BrotherMatrizesQA.exe: $hash"
+          ) | Set-Content -Path (Join-Path $inside "LEIA-ME-QA.txt") -Encoding utf8
+          if (!(Test-Path (Join-Path $inside "runtime"))) {
+            throw "A copia de QA perdeu o runtime Java."
+          }
+      - name: Publicar SOMENTE artifact privado de Actions por 7 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Windows-PORTABLE-QA-NÃO-COMERCIAL
+          path: windows-fiel/build/qa/portable/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+      - name: Anexar capturas do launcher portable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Windows-Portable-QA-Screenshots
+          path: |
+            windows-fiel/build/qa/home-windows-original-port.png
+            windows-fiel/build/qa/account-windows-readonly-qa.png
+          if-no-files-found: warn
+          retention-days: 7
