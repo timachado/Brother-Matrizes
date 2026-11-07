@@ -6,10 +6,12 @@ on:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpBackupExporter.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpBackupRestorer.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFlpProjectFiles.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopProjectCatalog.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopFlpBackupExporterTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopFlpBackupRestorerTest.kt"
       - ".github/workflows/brother-windows-flp-backup-qa.yml"
   workflow_dispatch:
 
@@ -33,7 +35,7 @@ jobs:
       - name: Provar backup ZIP local, sem sobrescrita nem restauracao
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopFlpBackupExporterTest' --tests '*DesktopFlpProjectFilesTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopFlpBackupExporterTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopFlpProjectFilesTest'
           if ($LASTEXITCODE -ne 0) { throw "Testes do backup FLP Windows falharam." }
       - name: Confirmar ausencia de executavel distribuivel
         shell: pwsh
