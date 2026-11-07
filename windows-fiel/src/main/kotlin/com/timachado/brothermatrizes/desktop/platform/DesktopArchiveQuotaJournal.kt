@@ -44,7 +44,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
 
     /** A file's safe relative identity, never an absolute customer path. */
     data class OutputEvidence(
-        val fileName: String,
+        val fileNameSha256: String,
         val sha256: String,
         val verifiedNew: Boolean = false
     )
@@ -165,7 +165,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             "Identidade do destino não está autorizada."
         }
         return advance(previous, previous.copy(
-            output = OutputEvidence(fileName, sha256)
+            output = OutputEvidence(fileNameHash(fileName), sha256)
         ))
     }
 
@@ -176,7 +176,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
         }
         check(previous.stage == Stage.RESERVED &&
             !evidence.verifiedNew &&
-            evidence.fileName == fileName &&
+            evidence.fileNameSha256 == fileNameHash(fileName) &&
             evidence.sha256 == sha256) {
             "Verificação não corresponde à saída declarada."
         }
@@ -184,6 +184,15 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             output = evidence.copy(verifiedNew = true)
         ))
     }
+
+    fun verifiedOutputMatches(previous: Pending, fileName: String): Boolean =
+        previous.output?.verifiedNew == true &&
+            previous.output.fileNameSha256 == fileNameHash(fileName)
+
+    private fun fileNameHash(fileName: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(fileName.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     fun finalizing(previous: Pending): Pending {
         check(previous.stage == Stage.RESERVED) { "Quota não estava reservada." }
@@ -273,7 +282,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             put("protocol", entry.protocol.name)
             val output = entry.output
             if (output != null) {
-                put("outputFile", output.fileName)
+                put("outputNameHash", output.fileNameSha256)
                 put("outputSha256", output.sha256)
                 put("outputVerifiedNew", output.verifiedNew)
             }
@@ -338,10 +347,10 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             }
         }
         val output = if (version == "3") {
-            val name = parsed["outputFile"]?.jsonPrimitive?.content
-            if (name == null) {
+            val nameHash = parsed["outputNameHash"]?.jsonPrimitive?.content
+            if (nameHash == null) {
                 check(parsed["outputSha256"] == null &&
-                    parsed["outputVerifiedNew"] == null) {
+                    parsed["outputVerifiedNew"] == null && parsed["outputFile"] == null) {
                     "Evidência de saída incompleta."
                 }
                 null
@@ -352,16 +361,10 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
                     verified in setOf("true", "false")) {
                     "Evidência de saída inválida."
                 }
-                val allowedName = when (DesktopArchiveInventory.Category.valueOf(str("category"))) {
-                    DesktopArchiveInventory.Category.MATRIX ->
-                        Regex("archive-(pes|dst|jef)-[0-9a-f]{64}\\.flp")
-                    DesktopArchiveInventory.Category.FONT ->
-                        Regex("[A-Za-z0-9._-]+-[0-9a-f]{10}\\.(ttf|otf)")
+                require(nameHash.matches(Regex("[0-9a-f]{64}"))) {
+                    "Identificador opaco da saída inválido."
                 }
-                require(name.length <= 160 && allowedName.matches(name)) {
-                    "Nome de arquivo no journal não autorizado."
-                }
-                OutputEvidence(name, digestOut, verified == "true")
+                OutputEvidence(nameHash, digestOut, verified == "true")
             }
         } else null
         val createdAt = str("createdAtMillis").toLong()
