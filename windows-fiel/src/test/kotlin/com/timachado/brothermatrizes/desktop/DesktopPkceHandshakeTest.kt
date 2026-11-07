@@ -102,4 +102,49 @@ class DesktopPkceHandshakeTest {
             }
         }
     }
+
+    @Test
+    fun verifiedGoogleDenialConsumesAttemptWithoutExposingProviderMessage() {
+        val flow = DesktopPkceHandshake.start(54321, clock)
+        val error = URI(
+            flow.redirectUri.toString() +
+                "&error=access_denied&error_description=User%20denied%20access"
+        )
+        assertTrue(flow.acceptErrorCallback(error, fixed.plusSeconds(5)))
+        assertFailsWith<IllegalStateException> {
+            flow.acceptCallback(
+                URI(flow.redirectUri.toString() + "&code=late_code"),
+                fixed.plusSeconds(6)
+            )
+        }
+        assertFalse(flow.toString().contains("User denied access"))
+    }
+
+    @Test
+    fun malformedErrorCallbacksCannotCancelValidGoogleLogin() {
+        val flow = DesktopPkceHandshake.start(54322, clock)
+        val valid = flow.redirectUri.toString()
+        val wrong = listOf(
+            valid.replace(flow.state, "not_the_state") + "&error=access_denied",
+            valid + "&error=access_denied&error=server_error",
+            valid + "&error=access_denied&code=forged_code",
+            valid + "&error=access_denied&evil=1",
+            valid + "&error=%0Ainvalid",
+            valid + "&error=access_denied&error_description=%0D%0Ainjected",
+            valid + "&error=",
+            valid.replace("127.0.0.1", "localhost") + "&error=access_denied"
+        )
+        for (candidate in wrong) {
+            assertFailsWith<IllegalArgumentException> {
+                flow.acceptErrorCallback(URI(candidate), fixed.plusSeconds(1))
+            }
+        }
+        val success = URI(valid + "&code=legitimate_code")
+        assertFalse(flow.acceptErrorCallback(success, fixed.plusSeconds(2)))
+        assertEquals(
+            "legitimate_code",
+            flow.acceptCallback(success, fixed.plusSeconds(3)).authorizationCode
+        )
+    }
+
 }
