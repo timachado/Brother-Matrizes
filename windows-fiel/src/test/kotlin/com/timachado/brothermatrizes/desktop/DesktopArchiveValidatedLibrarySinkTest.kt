@@ -81,7 +81,7 @@ class DesktopArchiveValidatedLibrarySinkTest {
             windowsFonts.resolve("arial.ttf"),
             windowsFonts.resolve("segoeui.ttf"),
             Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-        ).firstOrNull(Files::isRegularFile)
+        ).firstOrNull { Files.isRegularFile(it) }
             ?: error("Runner has no accessible public TTF font fixture.")
     }
 
