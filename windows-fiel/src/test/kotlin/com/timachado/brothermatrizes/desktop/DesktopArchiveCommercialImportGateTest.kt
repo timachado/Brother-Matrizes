@@ -113,6 +113,21 @@ class DesktopArchiveCommercialImportGateTest {
     }
 
     @Test
+    fun verifiedSessionWithUnavailableArchiveImporterDoesNotReserveQuota() = runBlocking {
+        val usage = FakeUsage()
+        val gate = DesktopArchiveCommercialImportGate(
+            usage = usage,
+            verifiedSession = verifiedSession
+        )
+        val error = assertFailsWith<IllegalStateException> {
+            gate.importOne(matrix())
+        }
+        assertTrue(error.message.orEmpty().contains("nenhuma cota foi reservada"))
+        assertTrue(usage.reserved.isEmpty())
+        assertTrue(usage.finalized.isEmpty())
+    }
+
+    @Test
     fun rejectsInvalidMetadataBeforeAnyAuthOrQuotaCall() = runBlocking {
         val usage = FakeUsage()
         var authCalls = 0
