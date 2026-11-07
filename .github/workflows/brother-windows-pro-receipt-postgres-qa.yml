@@ -9,6 +9,9 @@ on:
       - ".github/scripts/brother_pro_v2_ephemeral_pg.sh"
       - "supabase/functions/brother-usage/pro-receipt-v2.ts"
       - "supabase/functions/brother-usage/pro-receipt-v2_test.ts"
+      - "supabase/functions/brother-usage/pro-v2-route.ts"
+      - "supabase/functions/brother-usage/pro-v2-route_test.ts"
+      - "supabase/functions/brother-usage/index.ts"
       - ".github/workflows/brother-windows-pro-receipt-postgres-qa.yml"
   workflow_dispatch:
 
@@ -75,8 +78,14 @@ jobs:
           main=Path("supabase/functions/brother-usage/index.ts").read_text()
           helper=Path("supabase/functions/brother-usage/pro-receipt-v2.ts").read_text()
           sql=Path("qa/sql/brother_pro_v2_receipts_ephemeral.sql").read_text()
-          assert "pro-receipt-v2.ts" not in main
-          assert "Reserva idempotente Pro ainda não homologada." in main
+          assert 'import { handleProV2 } from "./pro-v2-route.ts"' in main
+          assert 'Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true"' in main
+          assert 'if (["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&' in main
+          assert 'handleProV2({' in main
+          assert 'admin.rpc("brother_matrizes_reserve_pro_import_v2", args)' in main
+          assert '"brother_matrizes_finalize_pro_import_v2", args' in main
+          assert 'admin.auth.getUser(token)' in main
+          assert 'Reserva idempotente Pro ainda não homologada.' in main
           assert "admin.rpc(\"brother_matrizes_reserve_import\"" in main
           assert "admin.rpc(\"brother_matrizes_finalize_import\"" in main
           assert sql.startswith("-- QA / disposable PostgreSQL ONLY.")
@@ -91,5 +100,8 @@ jobs:
         run: |
           deno check supabase/functions/brother-usage/pro-receipt-v2.ts
           deno check supabase/functions/brother-usage/pro-receipt-v2_test.ts
+          deno check supabase/functions/brother-usage/pro-v2-route.ts
+          deno check supabase/functions/brother-usage/pro-v2-route_test.ts
           deno test --no-check supabase/functions/brother-usage/pro-receipt-v2_test.ts
+          deno test --no-check supabase/functions/brother-usage/pro-v2-route_test.ts
           echo "BROTHER_PRO_V2_TYPE_AND_FAKE_RPC_TESTS_OK"
