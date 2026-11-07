@@ -201,7 +201,7 @@ fun main(args: Array<String>) = application {
     // no ícone da janela e na barra de tarefas. Falhar em caso de ausência
     // é preferível a publicar o ícone genérico do Compose Desktop.
     val officialWindowIcon = remember {
-        val resource = "drawable/brother_bm_premium_approved.webp"
+        val resource = "drawable/brother_bm_launcher_safe.webp"
         val imageBytes = requireNotNull(
             Thread.currentThread().contextClassLoader.getResourceAsStream(resource)
         ) { "Ícone premium original Brother Matrizes ausente da distribuição." }
