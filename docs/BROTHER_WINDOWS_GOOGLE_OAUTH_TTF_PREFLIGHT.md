@@ -47,6 +47,8 @@ Na aba **Minha Conta**, utilizar **Verificar provedor Google (sem login)**. O re
 A interface Fontes permanece **somente leitura**. O `brother-usage` valida JWT e reserva no servidor a operação `import_font`. A operação completa deverá respeitar:
 
 - identidade Google confirmada pelo servidor e sessão válida;
+- cliente Windows `DesktopBrotherFontUsageGateway` exige uma chave `sb_publishable_...` (nunca `sb_secret_...`, `service_role` ou JWT privado) e recusa espaços/caracteres de controle; a configuração não deve embutir segredos na distribuição;
+- campos `allowed` na reserva e `ok` na finalização devem ser **booleanos JSON verdadeiros**. A string `"true"` não autoriza operações;
 - `reserve(import_font)` antes de ler/importar a fonte externa;
 - nome/assinatura TTF/OTF e tamanho verificados, sem links simbólicos;
 - `finalize(success=true)` apenas quando um arquivo novo é efetivamente criado;
