@@ -42,6 +42,19 @@ Remove-Item Env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY -ErrorAction Silentl
 
 Na aba **Minha Conta**, utilizar **Verificar provedor Google (sem login)**. O retorno indica somente se `external.google` está ativo no endpoint público. Não abrir login de contas reais antes de a configuração de callback estar autorizada e testada. O aplicativo não grava essa chave em arquivos nem exibe a chave em logs.
 
+## Autoteste do retorno local sem credenciais
+
+Na tela **Minha Conta**, o botão **Testar retorno local OAuth (sem Google)** fica disponível mesmo sem chave Supabase. Ele só inicia após clique explícito e:
+
+1. Abre temporariamente um servidor vinculado exclusivamente a `127.0.0.1` na porta local efêmera.
+2. Envia um callback **fictício** com estado incorreto, exigindo HTTP 400 sem encerrar a sessão de escuta.
+3. Envia um segundo callback fictício com o estado correto e verifica HTTP 200, proteção `no-store` e entrega única do código sintético.
+4. Fecha a porta local e a thread temporária mesmo quando há erro.
+
+O diagnóstico **não abre navegador**, **não acessa Google/Supabase**, não solicita dados pessoais, não grava tokens, não usa cotas e não importa fontes. Um resultado aprovado confirma **somente** o funcionamento do callback local neste PC — **não confirma que o Supabase aceite a Redirect URL**. Esse último ponto continua exigindo verificação administrativa no Dashboard e login de QA explicitamente autorizado.
+
+Os testes automatizados `DesktopPkceLoopbackSelfTestTest` executam o mesmo fluxo em socket real no runner Windows, junto com `DesktopPkceLoopbackListenerTest`, e são exigidos antes da geração do EXE portátil.
+
 ## Importação TTF/OTF — portão comercial
 
 A interface Fontes permanece **somente leitura**. O `brother-usage` valida JWT e reserva no servidor a operação `import_font`. A operação completa deverá respeitar:
