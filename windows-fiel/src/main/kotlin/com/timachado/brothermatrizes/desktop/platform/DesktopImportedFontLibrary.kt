@@ -22,8 +22,13 @@ internal data class DesktopFontRecord(
     val displayName: String,
     val fileName: String,
     val extension: String,
-    val absolutePath: String,
-    val created: Boolean = false
+    val absolutePath: String
+)
+
+/** Transient import outcome; never part of the persisted library record. */
+internal data class DesktopFontImportResult(
+    val record: DesktopFontRecord,
+    val created: Boolean
 )
 
 internal class DesktopImportedFontLibrary(private val location: Path) {
@@ -31,11 +36,14 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
     private val validExtensions = setOf("ttf", "otf")
     private val tenHex = Regex("-[0-9a-f]{10}$")
 
-    fun importFile(
+    fun importFile(sourceFile: Path, displayName: String? = null): DesktopFontRecord =
+        importFileWithResult(sourceFile, displayName).record
+
+    fun importFileWithResult(
         sourceFile: Path,
         displayName: String? = null,
         beforePublish: ((fileName: String, sha256: String) -> Unit)? = null
-    ): DesktopFontRecord {
+    ): DesktopFontImportResult {
         val source = sourceFile.toAbsolutePath().normalize()
         require(!Files.isSymbolicLink(source) &&
             Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
@@ -81,7 +89,7 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
                 require(Files.readAllBytes(existing).contentEquals(bytes)) {
                     "Identificador de fonte duplicado com conteúdo diferente."
                 }
-                return record(existing)
+                return DesktopFontImportResult(record(existing), false)
             }
         }
         val target = root.resolve("$base-$hash.$extension")
@@ -93,7 +101,7 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
                 Files.readAllBytes(target).contentEquals(bytes)) {
                 "Identificador de fonte duplicado com conteúdo diferente."
             }
-            return record(target)
+            return DesktopFontImportResult(record(target), false)
         }
 
         // Validar a fonte no Skia, o mesmo motor de renderização do
@@ -113,12 +121,12 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
                 // The copy stays on the same volume and must not replace
                 // a concurrent import of the same content.
                 Files.move(temp, target)
-                return record(target).copy(created = true)
+                return DesktopFontImportResult(record(target), true)
             } catch (_: FileAlreadyExistsException) {
                 require(Files.readAllBytes(target).contentEquals(bytes)) {
                     "Arquivo de fonte apareceu com conteúdo divergente."
                 }
-                return record(target)
+                return DesktopFontImportResult(record(target), false)
             }
         } finally {
             Files.deleteIfExists(temp)
