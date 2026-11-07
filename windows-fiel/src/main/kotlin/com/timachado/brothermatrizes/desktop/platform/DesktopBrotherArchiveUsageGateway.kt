@@ -161,25 +161,30 @@ internal class DesktopBrotherArchiveUsageGateway(
 
     /**
      * Read-only reservation diagnostics, available in code but NOT wired to
-     * Windows UI. Requires the additive "status" action to be deployed and
-     * authenticated by the server. Only 'usage_' keys have persisted rows;
-     * ephemeral Pro keys have no queryable status.
+     * Windows UI. Usage keys call "status"; UUIDv4 Pro V2 keys call
+     * "status_pro_v2" (gated/undeployed). Legacy ephemeral Pro V1 keys
+     * are NOT queryable.
      *
-     * Even COMPLETED never means "remove local marker": local ownership
-     * and the success/failure intent were not persisted across the crash.
+     * COMPLETED/FAILED/NOT_FOUND never authorize local journal removal:
+     * ownership and the persisted finalization intent remain unverified.
      */
     override suspend fun lookupKnown(
         accessToken: String,
         category: DesktopArchiveInventory.Category,
         requestKey: String
     ): DesktopArchiveQuotaStatus {
-        require(requestKey.startsWith("usage_") &&
-            reservationPattern.matches(requestKey)) {
-            "Somente reservas persistidas no servidor podem ser consultadas."
+        val proV2 = requestKey.startsWith("pro_")
+        val proV2Format = Regex(
+            "^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        )
+        require(reservationPattern.matches(requestKey) &&
+            ((proV2 && proV2Format.matches(requestKey)) ||
+                requestKey.startsWith("usage_"))) {
+            "Somente reservas persistidas do Gratuito ou Pro V2 podem ser consultadas."
         }
         val operation = operationFor(category)
         val response = post(accessToken, buildJsonObject {
-            put("action", "status")
+            put("action", if (proV2) "status_pro_v2" else "status")
             put("operation", operation)
             put("request_key", requestKey)
         })
