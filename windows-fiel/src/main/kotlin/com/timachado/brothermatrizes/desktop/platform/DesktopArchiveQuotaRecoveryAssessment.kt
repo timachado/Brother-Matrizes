@@ -36,16 +36,18 @@ internal object DesktopArchiveQuotaRecoveryAssessment {
             pending.reservationKey.startsWith("pro_")) {
             "Registro local inválido."
         }
-        // Without a persisted remote key, older journal records cannot
-        // prove whether the attempt used V1 or V2. Never guess a key.
-        // Legacy Pro V1 generated ephemeral UUIDs (not necessarily v4),
-        // so only explicitly recognizable v4 Pro receipts are diagnostic.
-        val proV2Key = Regex(
-            "^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        )
+        // Legacy Pro V1 also used crypto.randomUUID(), so UUIDv4 alone
+        // CANNOT prove an idempotent receipt. Pro V2 must be bound to the
+        // UUIDv4 persisted by journal.begin BEFORE network. A legacy random
+        // Pro key will not match that independent local UUID. Never infer
+        // authority, finalize remotely or delete files from this result.
+        val proV2Key = pending.reservationKey?.startsWith("pro_") == true &&
+            pending.reservationKey == "pro_${pending.localId}" &&
+            pending.localId.matches(Regex(
+                "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            ))
         if (pending.reservationKey == null ||
-            (pending.reservationKey.startsWith("pro_") &&
-                !proV2Key.matches(pending.reservationKey))) {
+            (pending.reservationKey.startsWith("pro_") && !proV2Key)) {
             require(server == null) {
                 "Estado remoto não pode ser associado à tentativa local."
             }
