@@ -103,3 +103,22 @@ antes de qualquer ativação. O mutex protege apenas um processo e não garante
 isolamento entre múltiplas instâncias Windows.
 
 Nenhuma alteração em `main`, Android oficial, Supabase ou site.
+
+## Evidências de CI — 07/11/2026
+
+- [QA de cotas por item #42387069810](https://github.com/timachado/Brother-Matrizes/actions/runs/42387069810):
+  `completed/success`, contrato inicial de reserva/finalização
+  por categoria e testes de concorrência, rollback e cancelamento.
+- [QA com importador indisponível #42387277527](https://github.com/timachado/Brother-Matrizes/actions/runs/42387277527):
+  `completed/success`, incluindo a garantia adicional de **nenhuma
+  reserva de cota** quando o importador Windows está desativado.
+- [QA cliente HTTP de cotas #42387502531](https://github.com/timachado/Brother-Matrizes/actions/runs/42387502531):
+  `completed/success`. Validação offline do `POST` ao endpoint
+  `brother-usage` com categoria correta, chave pública, cabeçalhos,
+  versão, sucesso/falha, ausência de redirects, token inválido,
+  respostas malformadas, oversized e HTTP de erro, usando conexões
+  `HttpURLConnection` inteiramente simuladas.
+- O resultado **não** é homologação Google OAuth, quota de produção
+  ou extração de arquivos de cliente. Nenhuma requisição real ao
+  serviço de cotas foi feita neste QA.
+
