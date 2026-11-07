@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { readKnownImportStatus } from "./read-status.ts";
 
 /**
  * Brother Matrizes — import allowance, not a commerce authority.
@@ -81,27 +82,19 @@ Deno.serve(async (req: Request) => {
   // not supported. Lost reserve responses without a key require a separate
   // future idempotent client-request protocol, not guesswork.
   if (payload.action === "status") {
-    const requestId = (payload.request_key as string).slice("usage_".length);
-    const { data, error } = await admin.from("brother_matrizes_import_usage")
-      .select("state")
-      .eq("request_id", requestId)
-      .eq("user_id", user.id)
-      .eq("operation", payload.operation)
-      .maybeSingle();
-    if (error) return reply({ message: "Estado da reserva indisponível." }, 503);
-    if (!data) {
-      return reply({
-        found: false, operation: payload.operation,
-        request_key: payload.request_key,
-      });
-    }
-    if (!["reserved", "completed", "failed"].includes(data.state)) {
-      return reply({ message: "Estado desconhecido: revisão manual obrigatória." }, 503);
-    }
-    return reply({
-      found: true, operation: payload.operation,
-      request_key: payload.request_key, state: data.state,
+    const result = await readKnownImportStatus({
+      userId: user.id,
+      operation: payload.operation as "import_matrix" | "import_font",
+      requestKey: payload.request_key as string,
+    }, async (requestId, verifiedUserId, operation) => {
+      return await admin.from("brother_matrizes_import_usage")
+        .select("state")
+        .eq("request_id", requestId)
+        .eq("user_id", verifiedUserId)
+        .eq("operation", operation)
+        .maybeSingle();
     });
+    return reply(result.body, result.status);
   }
 
   // Reuse the current entitlement authority: never duplicate or fabricate
