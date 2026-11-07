@@ -34,6 +34,8 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaProcessProbe.kt"
       - "windows-fiel/build.gradle.kts"
       - ".github/workflows/brother-windows-archive-recovery-qa.yml"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
   workflow_dispatch:
 
 permissions:
@@ -77,11 +79,15 @@ jobs:
           foreach ($secret in @('"accessToken"', '"bearerToken"', '"clientSecret"', '"refreshToken"')) {
             if ($code.Contains($secret)) { throw "Journal tentou persistir credencial: $secret" }
           }
+          $reader = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt" -Raw
+          foreach ($required in @('conn.requestMethod = "GET"', 'nativeBoolean("pro")', 'nativeBoolean("authenticated")', 'if (value.isString) null')) {
+            if (!$reader.Contains($required)) { throw "Falha no contrato de leitura de conta: $required" }
+          }
           "BROTHER_WINDOWS_DURABLE_QUOTA_JOURNAL_FAIL_CLOSED_OK"
       - name: Testar reinicio e cancelamento com quotas simuladas e lock em JVMs independentes
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest'
           if ($LASTEXITCODE -ne 0) { throw "Journal de recuperacao Windows falhou." }
           "BROTHER_WINDOWS_DURABLE_RECOVERY_MULTIPROCESS_CRASH_QA_OK"
       - name: Guardar apenas resultados de testes
