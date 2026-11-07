@@ -95,6 +95,12 @@ internal class DesktopArchiveCommercialImportGate(
             // Offline Windows and QA accounts intentionally fail here.
             val token = verifiedSession.accessToken()
             check(token.isNotBlank()) { "Sessão Google verificada necessária." }
+            // A verified account is insufficient if the real archive importer
+            // is not yet installed: do not create a server reservation just
+            // to reject an unavailable Windows feature afterwards.
+            check(importer !== WindowsArchiveImporterUnavailable) {
+                "Importação Windows ainda não homologada; nenhuma cota foi reservada."
+            }
 
             val reservation = usage.reserve(token, item.category)
             check(serverReservation.matches(reservation)) {
