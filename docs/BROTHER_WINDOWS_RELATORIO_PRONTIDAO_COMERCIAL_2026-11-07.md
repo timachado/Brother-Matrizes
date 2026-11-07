@@ -64,7 +64,7 @@ Evidências:
 |---:|---|---|---|
 | 1 | Reserva gratuita V2 em staging e implantação controlada | **QA isolada aprovada; implantação pendente** | Migração oficial revisada, RLS/grants auditados, protocolo V1 Android intacto, testes de concorrência em staging, rollback planejado e implantação separadamente autorizada. |
 | 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: recibos e RPCs QA aprovados; Edge Function integrada sob flag desativada; staging e implantação pendentes** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
-| 3 | Finalização de cota e reconciliação remota idempotente | **Parcial: journal e status de reserva em QA** | Decisão de sucesso/falha gravada server-side e recuperável, consulta autenticada de tentativas sem resposta, resposta repetida sem dupla cobrança, testes de perda de conexão e contratos Free/Pro. |
+| 3 | Finalização de cota e reconciliação remota idempotente | **Parcial: journal, status Free e status Pro V2 read-only em QA; reconciliação automática ainda bloqueada** | Decisão de sucesso/falha gravada server-side e recuperável, consulta autenticada de tentativas sem resposta, resposta repetida sem dupla cobrança, testes de perda de conexão e contratos Free/Pro. |
 | 4 | Diário de propriedade e recuperação de arquivos após falhas | **Parcial: rollback no processo e FileLock** | Journal de ownership persistido antes de salvar matriz/fonte, gravar em pasta temporária privada, commit durável, recuperação sem apagar arquivos alheios, simulações de corte de energia e concorrência entre processos. |
 | 5 | Login Google Windows e licenciamento real | **QA simulada, homologação real pendente** | Redirect allowlist confirmada no Supabase, navegador externo + PKCE + DPAPI + getUser em conta exclusiva de QA, logout/expiração, vínculo da identidade com entitlement real, sem tokens em claro. |
 | 6 | Paridade funcional/visual de todas as 16 rotas Android e integração comercial na UI | **Parcial: telas principais existentes** | Checklist por rota visual, navegação, ações reais, operações e estados; fluxos FontLibrary/ArchiveImport/Account/TelegramSearch/Community e outras diferenças implementados; importação e licença conectadas só após portões 1–5; aprovação do proprietário. |
@@ -122,3 +122,26 @@ em QA real; isso deve ser explicitamente informado.
 - [CI da guarda e roteamento #42411509845](https://github.com/timachado/Brother-Matrizes/actions/runs/42411509845): `completed/success`, nenhum servidor real ou conta Pro utilizado.
 - **Portão #2 continua aberto.** A função foi preparada e compilada na branch; não foram criadas/aplicadas migrações Supabase nem ativadas variáveis, deploy, cobrança ou publicação comercial. O comportamento real de staging e a homologação Google Windows seguem pendentes.
 - **Contagem do relatório inalterada: 9 portões comerciais abertos e 0 homologados**.
+
+## Evolução de engenharia — diagnóstico Pro V2 após falha
+
+- Implementado endpoint `status_pro_v2` **na branch** de
+  `brother-usage`, protegido por `getUser(token)`, e-mail
+  verificado e `BROTHER_PRO_V2_ENABLED === "true"`. Falta a
+  tabela em staging/produção; o código não está publicado.
+- O `SELECT` usa `request_id`, `user_id` e `operation`
+  fornecidos pelo contexto autenticado e lê somente `state`.
+  Não reserva, finaliza, devolve cobrança ou concede assinatura.
+- No Windows, `lookupKnown` aceita recibos `usage_` e `pro_UUIDv4`.
+  `DesktopArchiveQuotaRecoveryAssessment` só trata um recibo Pro
+  como potencial V2 quando `reservationKey == "pro_" + localId`
+  do journal. Recibos Pro V1 também podem ser UUIDv4, mas não
+  correspondem ao UUID do journal.
+- O diagnóstico de `reserved`, `completed`, `failed` ou
+  `not_found` **mantém o journal e bloqueia novas reservas**.
+  Não há exclusão de matrizes nem finalização automática.
+- [Relatório de QA do status Pro V2](BROTHER_WINDOWS_RECUPERACAO_STATUS_PRO_V2_QA.md).
+- Conclusão comercial #3 ainda exige o journal de protocolo e de
+  intenção de finalização, recuperação transacional de arquivos
+  com ownership e homologação em staging com contas autorizadas.
+- **Contagem comercial preservada: 9/9 etapas abertas, 0 homologadas.**
