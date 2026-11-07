@@ -117,3 +117,18 @@ mantendo compatibilidade total com o Android atual:
 **Não foram aplicadas migrações nem executadas RPCs com efeito.**
 As assinaturas SQL da produção foram somente consultadas.
 Não usar esta revisão para cobrar/consumir cotas de clientes.
+
+## Evidência de CI — 07/11/2026
+
+- [Contrato de status #42403888861](https://github.com/timachado/Brother-Matrizes/actions/runs/42403888861):
+  `completed/success` no commit `a345b48`, com dois jobs
+  aprovados: Deno com base em memória/sem permissões externas,
+  e Kotlin/Windows com HTTP simulado e journal imutável.
+- [Resultados XML Windows #13586169484](https://github.com/timachado/Brother-Matrizes/actions/runs/42403888861/artifacts/13586169484).
+- [Regressão portátil #42404005897](https://github.com/timachado/Brother-Matrizes/actions/runs/42404005897)
+  inclui o novo diagnóstico entre os testes obrigatórios do
+  launcher Windows. A conclusão e os artefatos são confirmados
+  em verificação separada.
+- Nada foi implantado no serviço de produção, Android oficial
+  ou servidor de licenciamento: estes resultados se referem
+  exclusivamente ao código da branch e à QA simulada.
