@@ -651,6 +651,7 @@ fun main(args: Array<String>) = application {
                 startInNameEditorCtrlAQa = nameEditorCtrlAQa,
                 startInChooserQaFile = chooserQaFile,
                 startInLaunchDocument = launchDocument,
+                disableRecentRecovery = screenshotMode,
                 startInSaveDialogQaFile = saveDialogQaFile,
                 startInSaveDialogProtectQa = saveDialogProtectQa,
                 startInSaveDialogOriginalBytes = saveDialogQaOriginalBytes,
@@ -720,6 +721,7 @@ private fun FielHomeHost(
     startInNameEditorCtrlAQa: Boolean = false,
     startInChooserQaFile: Path? = null,
     startInLaunchDocument: Path? = null,
+    disableRecentRecovery: Boolean = false,
     startInSaveDialogQaFile: Path? = null,
     startInSaveDialogProtectQa: Boolean = false,
     startInSaveDialogOriginalBytes: ByteArray? = null,
@@ -806,7 +808,8 @@ private fun FielHomeHost(
                 // Startup recovery is only for normal Windows launches.
                 // QA captures and shell-file openings retain their exact
                 // initial state and never read extra customer documents.
-                val normalStartup = !startInCreate && !startInAccountQa &&
+                val normalStartup = !disableRecentRecovery &&
+                    !startInCreate && !startInAccountQa &&
                     !startInFontsQa && !startInNameEditorQa &&
                     startInChooserQaFile == null &&
                     startInLaunchDocument == null &&
