@@ -115,7 +115,7 @@ class DesktopWindowsDpapiSessionStoreTest {
         val restored = assertNotNull(vault.load())
         assertEquals(rotated, restored.session.refreshToken)
         assertEquals(at.plusSeconds(1800), restored.expiresAt)
-        assertEquals(1, Files.list(folder).use { it.count() })
+        assertEquals(1L, Files.list(folder).use { it.count() })
     }
 
     @Test
