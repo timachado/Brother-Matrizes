@@ -7,7 +7,10 @@ on:
     paths:
       - "windows-fiel/build.gradle.kts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopAndroidBackupInspector.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopAndroidProjectRecovery.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAndroidBackupInspectorTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAndroidProjectRecoveryTest.kt"
       - "app/src/main/java/com/timachado/brothermatrizes/core/project/CompleteLibraryBackup.kt"
       - "app/src/main/java/com/timachado/brothermatrizes/core/project/ProjectBackup.kt"
       - ".github/workflows/brother-windows-android-backup-preview-qa.yml"
@@ -30,11 +33,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14"
-      - name: Validar codecs de backup Android e inspeção de histórico/completo
+      - name: Validar codecs Android, inspeção e recuperação FLP sem fontes
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidBackupInspectorTest' --tests '*AndroidProjectLibraryParityTest' --tests '*DesktopFlpBackupRestorerTest'
-          if ($LASTEXITCODE -ne 0) { throw "Compatibilidade de backups Android não homologada." }
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidBackupInspectorTest' --tests '*DesktopAndroidProjectRecoveryTest' --tests '*AndroidProjectLibraryParityTest' --tests '*DesktopFlpBackupRestorerTest'
+          if ($LASTEXITCODE -ne 0) { throw "Compatibilidade ou recuperação de backup Android não homologada." }
       - name: Garantir fonte Android intocada e arquivos Windows gerados
         shell: pwsh
         run: |
