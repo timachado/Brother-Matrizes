@@ -47,7 +47,8 @@ jobs:
           # The Pro V2 helper is deliberately not wired to the live function.
           assert 'import { handleProV2 } from "./pro-v2-route.ts"' in server
           assert 'Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true"' in server
-          assert 'if (["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&' in server
+          assert 'typeof payload.action === "string"' in server
+          assert '["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action)' in server
           assert 'Reserva idempotente Pro ainda não homologada.' in server
           assert 'payload.action === "reserve_v2"' in server
           assert 'admin.rpc("brother_matrizes_reserve_import"' in server
