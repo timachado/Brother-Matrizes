@@ -146,6 +146,72 @@ val copyAndroidVisualization by tasks.registering(Sync::class) {
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedViewer)
 
 
+// Enviar para a máquina: reutilizar a TELA OFICIAL Android sem copiar
+// nenhuma implementação anterior de Windows. Somente callbacks de
+// filesystem e textos de instrução específicos de Android mudam aqui.
+// O fluxo não declara Wi-Fi, pendrive detectado ou bordadeira conectada.
+val generatedMachineTransfer = layout.buildDirectory.dir("generated/android-machine-transfer/kotlin")
+val copyAndroidMachineTransfer by tasks.registering {
+    val input = originalAndroidCode.file("MachineTransferScreen.kt")
+    inputs.file(input)
+    outputs.dir(generatedMachineTransfer)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        check(
+            source.contains("fun MachineTransferScreen(") &&
+                source.contains("MachineTransferValidator") &&
+                source.contains("validation.ready") &&
+                source.contains("onUsbOtg: (String) -> Unit") &&
+                source.contains("onWifi: (String) -> Unit") &&
+                source.contains("onUsbOtg(\n                            format\n                        )") &&
+                source.contains("onWifi(\n                            format\n                        )") &&
+                source.contains("Conecte o pendrive ao celular.") &&
+                source.contains("Gera o arquivo validado e abre os apps compatíveis do Android.")
+        ) { "Fluxo de envio Android alterado: revisar contrato antes do Windows." }
+
+        val desktop = source
+            .replace("onUsbOtg: (String) -> Unit", "onUsbOtg: (String, HoopProfile) -> Unit")
+            .replace("onWifi: (String) -> Unit", "onWifi: (String, HoopProfile) -> Unit")
+            .replace(
+                "onUsbOtg(\n                            format\n                        )",
+                "onUsbOtg(format, hoop)"
+            )
+            .replace(
+                "onWifi(\n                            format\n                        )",
+                "onWifi(format, hoop)"
+            )
+            .replace(
+                "Conecte o pendrive ao celular. O Android abrirá o seletor de arquivos; escolha o armazenamento USB como destino.",
+                "Conecte o pendrive ao PC. Selecione o arquivo de destino no Windows. O app exporta a matriz; não detecta nem envia diretamente à bordadeira."
+            )
+            .replace(
+                "Gera o arquivo validado e abre os apps compatíveis do Android. Quando a bordadeira oferecer protocolo Wi-Fi direto suportado, ele poderá ser conectado aqui sem trocar o fluxo.",
+                "Salve um arquivo validado e abra-o manualmente no software da bordadeira. Não existe conexão Wi-Fi direta nesta versão Windows."
+            )
+            .replace("Wi-Fi / app da máquina", "Exportar para app da máquina")
+            .replace("Enviar via Wi-Fi / app", "Salvar arquivo para app da máquina")
+            .replace("✓ Pronta para enviar", "✓ Pronta para exportar")
+            .replace("⚠ Corrija antes de enviar", "⚠ Corrija antes de exportar")
+
+        check(
+            !desktop.contains("Conecte o pendrive ao celular.") &&
+                !desktop.contains("apps compatíveis do Android") &&
+                desktop.contains("fun MachineTransferScreen(") &&
+                desktop.contains("onUsbOtg(format, hoop)") &&
+                desktop.contains("onWifi(format, hoop)") &&
+                desktop.contains("MachineTransferValidator") &&
+                desktop.contains("não detecta nem envia diretamente")
+        ) { "Transferência Windows não pode prometer envio direto nem perder o validador." }
+        val out = generatedMachineTransfer.get().file(
+            "com/timachado/brothermatrizes/MachineTransferScreen.kt"
+        ).asFile
+        out.parentFile.mkdirs()
+        out.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedMachineTransfer)
+
+
 // Editor de Matrizes: fonte original Android mantida integralmente,
 // exceto o BackHandler de Activity (o botão Voltar e seu AlertDialog
 // permanecem idênticos). recommendedHoopFor é extraído literalmente do
@@ -1192,7 +1258,7 @@ sourceSets.getByName("main").resources.srcDir(generatedRes)
 tasks.named("processResources") { dependsOn(prepareOriginalAssets) }
 tasks.named("compileKotlin") {
     dependsOn(
-        copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization,
+        copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
         copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
