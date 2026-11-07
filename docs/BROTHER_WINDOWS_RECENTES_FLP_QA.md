@@ -97,3 +97,16 @@ aprovada; a existência de um link não significa resultado positivo.
 A lista de recentes fora da pasta selecionada e a sincronização
 de projetos com armazenamento de nuvem não foram implementadas aqui.
 Essa mudança não altera assinaturas, cotas ou autenticação comercial.
+
+## Validação da integração Abrir/Salvar/Biblioteca — 07/11/2026
+
+A revisão `9be3845`, que inclui `DesktopLibraryRecentTracker`,
+a integração da UI e `DesktopLibraryRecentTrackerTest`, passou pelo
+[GitHub Actions FLP/Biblioteca #42378267773](https://github.com/timachado/Brother-Matrizes/actions/runs/42378267773)
+com resultado `completed/success`. O job executou os testes de
+biblioteca, recentes, exportação/restauração FLP, integridade dos dados
+e verificações para não criar um instalador comercial.
+
+A compilação visual da Home e a criação do novo pacote portátil QA
+são execuções separadas; exigem resultados próprios antes de qualquer
+alegação de aprovação do pacote completo.
