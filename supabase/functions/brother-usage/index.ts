@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { readKnownImportStatus } from "./read-status.ts";
+import { reserveImportV2 } from "./reserve-v2.ts";
 
 /**
  * Brother Matrizes — import allowance, not a commerce authority.
@@ -37,10 +38,12 @@ Deno.serve(async (req: Request) => {
     payload = parsed;
     const validKeys = parsed.action === "reserve"
       ? ["action", "operation"]
-      : parsed.action === "status"
+      : parsed.action === "reserve_v2"
+        ? ["action", "operation", "client_request_id"]
+        : parsed.action === "status"
         ? ["action", "operation", "request_key"]
         : ["action", "operation", "request_key", "success"];
-    if (!["reserve", "finalize", "status"].includes(parsed.action) ||
+    if (!["reserve", "reserve_v2", "finalize", "status"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
       !operations.has(parsed.operation) ||
@@ -50,7 +53,11 @@ Deno.serve(async (req: Request) => {
       (parsed.action === "status" &&
         (typeof parsed.request_key !== "string" ||
           !/^usage_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-            .test(parsed.request_key))))
+            .test(parsed.request_key))) ||
+      (parsed.action === "reserve_v2" &&
+        (typeof parsed.client_request_id !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+            .test(parsed.client_request_id))))
       throw Error("invalid");
   } catch {
     return reply({ message: "Solicitação de importação inválida." }, 400);
@@ -116,6 +123,25 @@ Deno.serve(async (req: Request) => {
         .includes(body.planCode);
   } catch {
     return reply({ message: "Não foi possível verificar sua licença. Confira a internet e tente novamente." }, 503);
+  }
+
+  // Additive Windows-only free quota V2. Authentication, active
+  // entitlement verification and EMAIL checks above remain mandatory.
+  // No RPC is applied or deployed by a GitHub branch commit.
+  //
+  // PRO V2 remains deliberately disabled: its legacy pro_UUID receipts
+  // are ephemeral and cannot be safely deduplicated without new
+  // server-persisted receipts. Android V1 Pro is left untouched.
+  if (payload.action === "reserve_v2") {
+    if (isPro) return reply({
+      message: "Reserva idempotente Pro ainda não homologada.",
+    }, 503);
+    const response = await reserveImportV2({
+      authenticatedUserId: user.id,
+      operation: payload.operation as "import_font" | "import_matrix",
+      clientRequestId: payload.client_request_id as string,
+    }, async args => await admin.rpc("brother_matrizes_reserve_import_v2", args));
+    return reply(response.body, response.status);
   }
 
   if (payload.action === "reserve" && isPro) {
