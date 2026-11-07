@@ -28,20 +28,24 @@ internal class DesktopSupabaseGooglePkceClient(
     private val publishableKey: String,
     private val openConnection: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
-    }
+    },
+    private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
-    private val origin = "https://dwpcddiramxlhavdmmyn.supabase.co"
+    private val origin = "https://$projectRef.supabase.co"
     private val tokenEndpoint = URL(origin + "/auth/v1/token?grant_type=pkce")
     private val refreshEndpoint = URL(origin + "/auth/v1/token?grant_type=refresh_token")
 
     init {
         require(publishableKey.startsWith("sb_publishable_") &&
             publishableKey.length in 20..4096 &&
-            publishableKey.none { it.isISOControl() }) {
+            publishableKey.all { it.code in 0x21..0x7e && it != '"' && it != '\\' }) {
             "Use somente uma chave pública Supabase válida, nunca secret/service_role."
         }
+        require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
+            "Referência Supabase inválida."
+        }
         check(tokenEndpoint.protocol == "https" &&
-            tokenEndpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            tokenEndpoint.host == "$projectRef.supabase.co" &&
             tokenEndpoint.port == -1 && tokenEndpoint.userInfo == null) {
             "Servidor de autenticação inesperado."
         }
@@ -119,7 +123,7 @@ internal class DesktopSupabaseGooglePkceClient(
     ): DesktopTransientAuthSession = withContext(Dispatchers.IO) {
         // Fixed trusted Supabase host and exact approved token grant types.
         require(endpoint.protocol == "https" &&
-            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.host == "$projectRef.supabase.co" &&
             endpoint.port == -1 &&
             endpoint.userInfo == null &&
             endpoint.path == "/auth/v1/token" &&
