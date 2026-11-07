@@ -42,6 +42,13 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
      */
     enum class ReservationProtocol { LEGACY_UNKNOWN, FREE_V2, PRO_V2 }
 
+    /** A file's safe relative identity, never an absolute customer path. */
+    data class OutputEvidence(
+        val fileName: String,
+        val sha256: String,
+        val verifiedNew: Boolean = false
+    )
+
     data class Pending(
         val localId: String,
         val category: DesktopArchiveInventory.Category,
@@ -49,7 +56,8 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
         val reservationKey: String?,
         val stage: Stage,
         val createdAtMillis: Long,
-        val protocol: ReservationProtocol = ReservationProtocol.LEGACY_UNKNOWN
+        val protocol: ReservationProtocol = ReservationProtocol.LEGACY_UNKNOWN,
+        val output: OutputEvidence? = null
     )
 
     internal class Lease(private val channel: FileChannel, private val lock: FileLock) :
@@ -134,6 +142,49 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
         ))
     }
 
+    /**
+     * Before any new library file is published, record its deterministic
+     * basename and expected content hash. A crash leaves evidence, not
+     * permission to delete, finalize or retry any server operation.
+     */
+    fun declareOutput(previous: Pending, fileName: String, sha256: String): Pending {
+        check(previous.stage == Stage.RESERVED && previous.output == null) {
+            "Saída não pode ser declarada neste estado."
+        }
+        require(sha256.matches(Regex("[0-9a-f]{64}"))) {
+            "Hash de saída inválido."
+        }
+        val allowed = when (previous.category) {
+            DesktopArchiveInventory.Category.MATRIX ->
+                Regex("archive-(pes|dst|jef)-[0-9a-f]{64}\\.flp")
+            DesktopArchiveInventory.Category.FONT ->
+                Regex("[A-Za-z0-9._-]+-[0-9a-f]{10}\\.(ttf|otf)")
+        }
+        require(fileName.length <= 160 && allowed.matches(fileName) &&
+            fileName != "." && fileName != "..") {
+            "Identidade do destino não está autorizada."
+        }
+        return advance(previous, previous.copy(
+            output = OutputEvidence(fileName, sha256)
+        ))
+    }
+
+    /** Called only after a new output's bytes and codec were verified. */
+    fun verifyOutput(previous: Pending, fileName: String, sha256: String): Pending {
+        val evidence = checkNotNull(previous.output) {
+            "Saída sem declaração durável."
+        }
+        check(previous.stage == Stage.RESERVED &&
+            !evidence.verifiedNew &&
+            evidence.fileName == fileName &&
+            evidence.sha256 == sha256) {
+            "Verificação não corresponde à saída declarada."
+        }
+        return advance(previous, previous.copy(
+            output = evidence.copy(verifiedNew = true)
+        ))
+    }
+
     fun finalizing(previous: Pending): Pending {
         check(previous.stage == Stage.RESERVED) { "Quota não estava reservada." }
         return advance(previous, previous.copy(stage = Stage.FINALIZE_UNKNOWN))
@@ -212,7 +263,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             }
         }
         val text = buildJsonObject {
-            put("version", 2)
+            put("version", 3)
             put("localId", entry.localId)
             put("category", entry.category.name)
             put("entrySha256", entry.entrySha256)
@@ -220,6 +271,12 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             put("stage", entry.stage.name)
             put("createdAtMillis", entry.createdAtMillis)
             put("protocol", entry.protocol.name)
+            val output = entry.output
+            if (output != null) {
+                put("outputFile", output.fileName)
+                put("outputSha256", output.sha256)
+                put("outputVerifiedNew", output.verifiedNew)
+            }
         }.toString().toByteArray(Charsets.UTF_8)
         check(text.size in 1..4096) { "Registro de quota acima do limite." }
 
@@ -253,7 +310,7 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             parsed[key]?.jsonPrimitive?.content
                 ?: error("Journal sem campo obrigatório: $key")
         val version = str("version")
-        check(version == "1" || version == "2") {
+        check(version == "1" || version == "2" || version == "3") {
             "Versão do journal não suportada."
         }
         // The legacy schema never recorded protocol identity: do not
@@ -280,6 +337,33 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
                 "Recibo não coincide com protocolo e UUID persistidos."
             }
         }
+        val output = if (version == "3") {
+            val name = parsed["outputFile"]?.jsonPrimitive?.content
+            if (name == null) {
+                check(parsed["outputSha256"] == null &&
+                    parsed["outputVerifiedNew"] == null) {
+                    "Evidência de saída incompleta."
+                }
+                null
+            } else {
+                val digestOut = str("outputSha256")
+                val verified = parsed["outputVerifiedNew"]?.jsonPrimitive?.content
+                require(digestOut.matches(Regex("[0-9a-f]{64}")) &&
+                    verified in setOf("true", "false")) {
+                    "Evidência de saída inválida."
+                }
+                val allowedName = when (DesktopArchiveInventory.Category.valueOf(str("category"))) {
+                    DesktopArchiveInventory.Category.MATRIX ->
+                        Regex("archive-(pes|dst|jef)-[0-9a-f]{64}\\.flp")
+                    DesktopArchiveInventory.Category.FONT ->
+                        Regex("[A-Za-z0-9._-]+-[0-9a-f]{10}\\.(ttf|otf)")
+                }
+                require(name.length <= 160 && allowedName.matches(name)) {
+                    "Nome de arquivo no journal não autorizado."
+                }
+                OutputEvidence(name, digestOut, verified == "true")
+            }
+        } else null
         val createdAt = str("createdAtMillis").toLong()
         require(createdAt > 0) { "Journal contém data inválida." }
         return Pending(
@@ -289,7 +373,8 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             reservationKey = key,
             stage = Stage.valueOf(str("stage")),
             createdAtMillis = createdAt,
-            protocol = protocol
+            protocol = protocol,
+            output = output
         )
     }
 
