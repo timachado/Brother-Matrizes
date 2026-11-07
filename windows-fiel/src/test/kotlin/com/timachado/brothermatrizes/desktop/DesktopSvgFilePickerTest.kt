@@ -83,6 +83,31 @@ class DesktopSvgFilePickerTest {
     }
 
     @Test
+    fun rejectsMalformedXmlDoctypeAndExternalEntityWithoutAccessingAnyResource() {
+        val folder = Files.createTempDirectory("bm-drawing-xxe-")
+        val svg = folder.resolve("malicious.svg")
+        try {
+            val attacks = listOf(
+                "<svg><path d='M 0 0'></svg",
+                "<!DOCTYPE svg [<!ENTITY external SYSTEM 'file:///does-not-exist'>]>" +
+                    "<svg xmlns='http://www.w3.org/2000/svg'>&external;</svg>",
+                "<!DOCTYPE svg SYSTEM 'https://example.invalid/evil.dtd'>" +
+                    "<svg xmlns='http://www.w3.org/2000/svg'/>"
+            )
+            for (attempt in attacks) {
+                Files.writeString(svg, attempt)
+                kotlin.test.assertFailsWith<Exception> {
+                    DesktopSvgFilePicker.readVerified(svg)
+                }
+                assertEquals(attempt, Files.readString(svg))
+            }
+        } finally {
+            Files.deleteIfExists(svg)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun doesNotReadSymbolicLinkAsSvg() {
         val folder = Files.createTempDirectory("bm-drawing-symlink-")
         val target = folder.resolve("real.svg")
