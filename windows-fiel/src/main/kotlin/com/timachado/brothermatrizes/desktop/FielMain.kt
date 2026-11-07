@@ -63,6 +63,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
+import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -123,8 +124,12 @@ fun main(args: Array<String>) = application {
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot ||
             editorCapture || fileChooserQa || saveDialogQa
-    require(args.isEmpty() || screenshotMode) {
-        "Argumentos inválidos. Use apenas um modo de captura QA autorizado."
+    // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
+    // As capturas QA continuam aceitando somente suas flags explícitas.
+    val launchDocument = if (screenshotMode) null
+        else DesktopLaunchDocument.requestedPath(args)
+    require(args.isEmpty() || screenshotMode || launchDocument != null) {
+        "Argumentos inválidos. Abra um FLP, DST, PES ou JEF válido."
     }
     val chooserQaFormat = when {
         openPesChooserQa -> "PES"
@@ -612,6 +617,7 @@ fun main(args: Array<String>) = application {
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
                 startInNameEditorCtrlAQa = nameEditorCtrlAQa,
                 startInChooserQaFile = chooserQaFile,
+                startInLaunchDocument = launchDocument,
                 startInSaveDialogQaFile = saveDialogQaFile,
                 startInSaveDialogProtectQa = saveDialogProtectQa,
                 startInSaveDialogOriginalBytes = saveDialogQaOriginalBytes,
@@ -678,6 +684,7 @@ private fun FielHomeHost(
     startInNameEditorKeyboardQa: Boolean = false,
     startInNameEditorCtrlAQa: Boolean = false,
     startInChooserQaFile: Path? = null,
+    startInLaunchDocument: Path? = null,
     startInSaveDialogQaFile: Path? = null,
     startInSaveDialogProtectQa: Boolean = false,
     startInSaveDialogOriginalBytes: ByteArray? = null,
@@ -979,6 +986,24 @@ private fun FielHomeHost(
                     snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
                 }
             }
+        }
+    }
+
+    // Windows Explorer / Open With passes a local document as argv[0].
+    // No dialog is needed. Validate using the Android codecs off the UI thread.
+    // A failed open never mutates source files or unlocks commercial features.
+    LaunchedEffect(startInLaunchDocument) {
+        if (startInLaunchDocument != null) {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    DesktopEmbroideryFiles.open(startInLaunchDocument)
+                }
+            }.fold(onSuccess = { design ->
+                openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER)
+                snackbar.showSnackbar("Matriz aberta: ${startInLaunchDocument.fileName}")
+            }, onFailure = {
+                snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
+            })
         }
     }
 
