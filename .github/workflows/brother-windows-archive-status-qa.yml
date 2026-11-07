@@ -12,6 +12,8 @@ on:
       - "supabase/functions/brother-usage/read-pro-status-v2_test.ts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherArchiveUsageGateway.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaRecoveryAssessment.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherArchiveUsageGatewayTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaRecoveryAssessmentTest.kt"
       - ".github/workflows/brother-windows-archive-status-qa.yml"
@@ -103,7 +105,7 @@ jobs:
       - name: Testar status HTTP simulado, estados desconhecidos e protecao contra recarga
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaJournalTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest'
           if ($LASTEXITCODE -ne 0) { throw "Status de quota Windows reprovado." }
           "BROTHER_WINDOWS_KNOWN_RESERVATION_READ_ONLY_QA_OK"
       - name: Anexar apenas XMLs sinteticos da QA
