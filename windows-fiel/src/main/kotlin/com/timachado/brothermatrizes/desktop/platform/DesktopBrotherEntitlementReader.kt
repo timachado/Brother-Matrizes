@@ -42,7 +42,7 @@ internal class DesktopBrotherEntitlementReader(
     init {
         require(publishableKey.startsWith("sb_publishable_") &&
             publishableKey.length in 20..4096 &&
-            publishableKey.none { it.isISOControl() }) {
+            publishableKey.all { it.code in 0x21..0x7e && it != '"' && it != '\\' }) {
             "Use somente uma chave pública Supabase."
         }
         check(endpoint.protocol == "https" &&
