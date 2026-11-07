@@ -32,6 +32,7 @@ internal class DesktopSupabaseGooglePkceClient(
 ) {
     private val origin = "https://dwpcddiramxlhavdmmyn.supabase.co"
     private val tokenEndpoint = URL(origin + "/auth/v1/token?grant_type=pkce")
+    private val refreshEndpoint = URL(origin + "/auth/v1/token?grant_type=refresh_token")
 
     init {
         require(publishableKey.startsWith("sb_publishable_") &&
@@ -96,42 +97,73 @@ internal class DesktopSupabaseGooglePkceClient(
                 )
             ).toString()
 
-            val conn = openConnection(tokenEndpoint)
-            try {
-                conn.requestMethod = "POST"
-                conn.doOutput = true
-                conn.connectTimeout = 20_000
-                conn.readTimeout = 20_000
-                conn.instanceFollowRedirects = false
-                conn.useCaches = false
-                conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.setRequestProperty("apikey", publishableKey)
-                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                check(conn.responseCode == HttpURLConnection.HTTP_OK) {
-                    "Supabase não confirmou a autenticação."
-                }
-                val mime = conn.contentType.orEmpty()
-                    .substringBefore(';').trim().lowercase()
-                check(mime == "application/json" || mime.endsWith("+json")) {
-                    "Resposta de autenticação inesperada."
-                }
-                val json = Json.parseToJsonElement(readBounded(conn.inputStream))
-                require(json is JsonObject) { "Resposta de autenticação inválida." }
-                val access = json.text("access_token")
-                val refresh = json.text("refresh_token")
-                val tokenType = json.text("token_type")
-                val expires = (json["expires_in"] as? JsonPrimitive)?.intOrNull
-                check(tokenType.equals("bearer", ignoreCase = true) &&
-                    expires != null && expires in 1..86_400 &&
-                    access.isValidToken() && refresh.isValidToken()) {
-                    "Supabase retornou uma sessão inválida."
-                }
-                DesktopTransientAuthSession(access, refresh, expires)
-            } finally {
-                conn.disconnect()
-            }
+            requestToken(tokenEndpoint, payload)
         }
+
+    /**
+     * Roda a rotação oficial do refresh token; devolve NOVA sessão transitória.
+     * Cabe ao futuro gerenciador de sessão serializar rotações e persistir
+     * apenas com armazenamento Windows protegido, nunca em texto puro.
+     */
+    suspend fun refreshSession(previous: DesktopTransientAuthSession): DesktopTransientAuthSession {
+        require(previous.refreshToken.isValidToken()) { "Refresh token inválido." }
+        return requestToken(
+            refreshEndpoint,
+            JsonObject(mapOf("refresh_token" to JsonPrimitive(previous.refreshToken))).toString()
+        )
+    }
+
+    private suspend fun requestToken(
+        endpoint: URL,
+        payload: String
+    ): DesktopTransientAuthSession = withContext(Dispatchers.IO) {
+        // Fixed trusted Supabase host and exact approved token grant types.
+        require(endpoint.protocol == "https" &&
+            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.port == -1 &&
+            endpoint.userInfo == null &&
+            endpoint.path == "/auth/v1/token" &&
+            endpoint.query in setOf("grant_type=pkce", "grant_type=refresh_token")) {
+            "Servidor de sessão inesperado."
+        }
+        val conn = openConnection(endpoint)
+        try {
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 20_000
+            conn.instanceFollowRedirects = false
+            conn.useCaches = false
+            conn.setRequestProperty("Accept", "application/json")
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            conn.setRequestProperty("apikey", publishableKey)
+            conn.outputStream.use {
+                it.write(payload.toByteArray(Charsets.UTF_8))
+            }
+            check(conn.responseCode == HttpURLConnection.HTTP_OK) {
+                "Supabase não confirmou a autenticação."
+            }
+            val mime = conn.contentType.orEmpty()
+                .substringBefore(';').trim().lowercase()
+            check(mime == "application/json" || mime.endsWith("+json")) {
+                "Resposta de autenticação inesperada."
+            }
+            val json = Json.parseToJsonElement(readBounded(conn.inputStream))
+            require(json is JsonObject) { "Resposta de autenticação inválida." }
+            val access = json.text("access_token")
+            val refresh = json.text("refresh_token")
+            val tokenType = json.text("token_type")
+            val expires = (json["expires_in"] as? JsonPrimitive)?.intOrNull
+            check(tokenType.equals("bearer", ignoreCase = true) &&
+                expires != null && expires in 1..86_400 &&
+                access.isValidToken() && refresh.isValidToken()) {
+                "Supabase retornou uma sessão inválida."
+            }
+            DesktopTransientAuthSession(access, refresh, expires)
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     private fun String.isValidToken(): Boolean =
         length in 16..8192 && all { it.code in 0x21..0x7e && it != '"' && it != '\\' }
