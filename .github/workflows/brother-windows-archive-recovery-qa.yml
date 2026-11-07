@@ -63,7 +63,7 @@ jobs:
             'RESERVE_UNKNOWN', 'FINALIZE_UNKNOWN', 'CLEANUP_UNKNOWN',
             'StandardCopyOption.ATOMIC_MOVE', 'channel.force(true)',
             'channel.tryLock()', 'entrySha256', 'reservationKey',
-            'outputSha256', 'outputFile', 'outputVerifiedNew', 'declareOutput',
+            'outputSha256', 'outputNameHash', 'outputVerifiedNew', 'declareOutput',
             'verifyOutput'
           )) {
             if (!$code.Contains($required)) { throw "Journal perdeu garantia: $required" }
