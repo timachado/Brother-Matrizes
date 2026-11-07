@@ -355,9 +355,11 @@ class DesktopArchiveValidatedLibrarySinkTest {
             val pending = journal.listPending().single()
             assertEquals(DesktopArchiveQuotaJournal.Stage.FINALIZE_UNKNOWN, pending.stage)
             assertEquals(true, pending.output?.verifiedNew)
-            assertTrue(pending.output?.fileName?.endsWith(".flp") == true)
+            assertTrue(pending.output?.fileNameSha256?.matches(Regex("[0-9a-f]{64}")) == true)
             assertTrue(pending.output?.sha256?.length == 64)
-            assertFalse(Files.exists(projects.resolve(checkNotNull(pending.output).fileName)))
+            // The newly created file was rolled back in-process; only the
+            // existing customer's file remains, no blind crash cleanup.
+            assertEquals(listOf(existing), Files.list(projects).use { it.toList() })
             assertContentEquals(original, Files.readAllBytes(existing))
             assertFailsWith<IllegalStateException> {
                 journal.acquireLease().use {
