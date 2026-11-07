@@ -53,10 +53,11 @@ class DesktopArchiveQuotaMultiprocessTest {
                 "Child JVM timed out in $action."
             }
             val result = process.exitValue()
-            assertEquals(expectCode, result) {
-                "Child JVM failed in $action. " +
-                    "Log: " + Files.readString(log).takeLast(4000)
-            }
+            assertEquals(
+                expectCode, result,
+                "Child JVM failed in $action. Log: " +
+                    Files.readString(log).takeLast(4000)
+            )
         } finally {
             if (process.isAlive) {
                 process.destroyForcibly()
