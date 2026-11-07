@@ -1363,6 +1363,14 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation("com.github.EmbroidePy.EmbroideryIO:embroideryio-jvm:0.1.23")
+    // Mesmas bibliotecas de leitura de metadados RAR/7Z do Android 1.11.8.
+    // Somente análise QA: não extrair nem importar arquivos sem licença/cota.
+    // Revisar os termos de redistribuição do junrar/UnRAR antes de release.
+    implementation("com.github.junrar:junrar:8.1.1")
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("org.tukaani:xz:1.10")
+    implementation("commons-io:commons-io:2.20.0")
+    implementation("org.apache.commons:commons-lang3:3.18.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("net.java.dev.jna:jna-platform:5.19.1") // Windows DPAPI (current user, never machine scope)
     testImplementation(kotlin("test-junit5"))
