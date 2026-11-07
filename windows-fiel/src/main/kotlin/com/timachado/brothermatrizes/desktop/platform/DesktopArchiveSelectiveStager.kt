@@ -41,7 +41,8 @@ internal object DesktopArchiveSelectiveStager {
         archive: Path,
         expected: DesktopArchiveInventory.Preview,
         item: DesktopArchiveInventory.Item,
-        cancelled: () -> Boolean = { false }
+        cancelled: () -> Boolean = { false },
+        stagingParent: Path? = null // QA: test cleanup inside an isolated temporary folder
     ): Staged {
         // Synthetic screenshot previews have no fingerprint and can NEVER
         // become inputs to selective extraction or a quota transaction.
@@ -64,7 +65,16 @@ internal object DesktopArchiveSelectiveStager {
             "O conteúdo do pacote mudou. Analise-o novamente."
         }
 
-        val stageDir = Files.createTempDirectory("brother-archive-private-")
+        val stageDir = if (stagingParent == null) {
+            Files.createTempDirectory("brother-archive-private-")
+        } else {
+            val root = stagingParent.toAbsolutePath().normalize()
+            require(!Files.isSymbolicLink(root) &&
+                Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+                "Área de teste temporária inválida."
+            }
+            Files.createTempDirectory(root, "brother-archive-private-")
+        }
         var file: Path? = null
         var completed = false
         try {
