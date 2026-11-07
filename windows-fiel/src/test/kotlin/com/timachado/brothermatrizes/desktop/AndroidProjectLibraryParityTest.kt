@@ -26,8 +26,16 @@ class AndroidProjectLibraryParityTest {
             "build/generated/android-project-library/kotlin/com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
         )).replace("\r\n", "\n")
         val anchor = "    val recentProjects ="
-        assertEquals(original.substringAfter(anchor), generated.substringAfter(anchor),
-            "Layout e callbacks da Biblioteca Android foram modificados.")
+        // Only two deliberate Windows-specific labels may differ: the
+        // Desktop backup does NOT include the Android fonts/settings.
+        val expected = original.substringAfter(anchor)
+            .replace("\"Backup completo\"", "\"Backup FLP local\"")
+            .replace("\"Restaurar\"", "\"Restaurar FLP\"")
+        assertEquals(expected, generated.substringAfter(anchor),
+            "Layout e callbacks da Biblioteca Android foram modificados além dos rótulos FLP.")
+        assertTrue(generated.contains("\"Backup FLP local\""))
+        assertTrue(generated.contains("\"Restaurar FLP\""))
+        assertTrue(!generated.contains("\"Backup completo\""))
         assertTrue(generated.contains("fun ProjectLibraryScreen("))
         assertTrue(!generated.contains("RarExternalOpener"))
         assertTrue(!generated.contains("BrotherMatrizesAccountService"))
