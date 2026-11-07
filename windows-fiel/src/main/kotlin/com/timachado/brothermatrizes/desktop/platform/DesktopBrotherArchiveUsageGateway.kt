@@ -61,11 +61,18 @@ internal class DesktopBrotherArchiveUsageGateway(
     private val versionCode: Int,
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
-    }
+    },
+    private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader,
     DesktopArchiveIdempotentUsageGateway {
+    constructor(
+        publishableKey: String,
+        versionCode: Int,
+        connectionFactory: (URL) -> HttpURLConnection
+    ) : this(publishableKey, versionCode, connectionFactory, "dwpcddiramxlhavdmmyn")
+
     private val endpoint = URL(
-        "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
+        "https://$projectRef.supabase.co/functions/v1/brother-usage"
     )
     private val reservationPattern = Regex(
         "^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -78,8 +85,11 @@ internal class DesktopBrotherArchiveUsageGateway(
             "Somente a chave pública Supabase é permitida no cliente Windows."
         }
         require(versionCode in 1..10_000_000) { "Versão Android oficial inválida." }
+        require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
+            "Referência Supabase inválida."
+        }
         check(endpoint.protocol == "https" &&
-            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.host == "$projectRef.supabase.co" &&
             endpoint.port == -1 && endpoint.userInfo == null &&
             endpoint.path == "/functions/v1/brother-usage" &&
             endpoint.query == null && endpoint.ref == null) {
