@@ -51,6 +51,12 @@ jobs:
           # CI NEVER executes the draft SQL or invokes the production database.
           print("BROTHER_V2_NO_MIGRATION_NO_PRODUCTION_OK")
           PY
+      - name: Validar tipagem TypeScript do contrato idempotente e testes
+        shell: bash
+        run: |
+          deno check supabase/functions/brother-usage/reserve-v2.ts
+          deno check supabase/functions/brother-usage/reserve-v2_test.ts
+          echo "BROTHER_V2_DENO_TYPE_CHECK_OK"
       - name: Simular a mesma UUID e primeira resposta perdida, sem rede
         shell: bash
         run: |
