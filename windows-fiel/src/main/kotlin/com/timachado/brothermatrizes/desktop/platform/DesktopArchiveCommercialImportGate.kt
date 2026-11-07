@@ -201,8 +201,9 @@ internal class DesktopArchiveCommercialImportGate(
 
         if (syncError != null || cleanupRecordError != null || cleanupError != null) {
             val error = IllegalStateException(
-                "Quota ou reversão não confirmada. Operação bloqueada para " +
-                    "reconciliação manual com o servidor; não tente importar novamente.",
+                "A cota não foi sincronizada. Reversão ou quota sem confirmação; " +
+                    "operação bloqueada para reconciliação manual com o servidor. " +
+                    "Não tente importar novamente.",
                 syncError ?: cleanupRecordError ?: cleanupError
             )
             importError?.let(error::addSuppressed)
