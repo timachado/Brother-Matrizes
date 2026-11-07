@@ -36,13 +36,20 @@ import kotlinx.serialization.json.put
 internal class DesktopArchiveQuotaJournal(private val location: Path) {
     enum class Stage { RESERVE_UNKNOWN, RESERVED, FINALIZE_UNKNOWN, CLEANUP_UNKNOWN }
 
+    /**
+     * Persisted BEFORE the first HTTP attempt. Legacy V1 has no reliable
+     * protocol evidence, especially for ephemeral Pro receipt UUIDs.
+     */
+    enum class ReservationProtocol { LEGACY_UNKNOWN, FREE_V2, PRO_V2 }
+
     data class Pending(
         val localId: String,
         val category: DesktopArchiveInventory.Category,
         val entrySha256: String,
         val reservationKey: String?,
         val stage: Stage,
-        val createdAtMillis: Long
+        val createdAtMillis: Long,
+        val protocol: ReservationProtocol = ReservationProtocol.LEGACY_UNKNOWN
     )
 
     internal class Lease(private val channel: FileChannel, private val lock: FileLock) :
@@ -85,7 +92,10 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
      * Intended to be called only while holding acquireLease().
      * An old or partially written marker blocks NEW server reservations.
      */
-    fun begin(item: DesktopArchiveInventory.Item): Pending {
+    fun begin(
+        item: DesktopArchiveInventory.Item,
+        protocol: ReservationProtocol = ReservationProtocol.LEGACY_UNKNOWN
+    ): Pending {
         check(listPending().isEmpty()) {
             "Há uma importação anterior sem reconciliação. Nenhuma nova cota foi solicitada."
         }
@@ -103,7 +113,8 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             entrySha256 = digest,
             reservationKey = null,
             stage = Stage.RESERVE_UNKNOWN,
-            createdAtMillis = System.currentTimeMillis()
+            createdAtMillis = System.currentTimeMillis(),
+            protocol = protocol
         )
         write(entry, existing = false)
         return entry
@@ -112,6 +123,11 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
     fun reserved(previous: Pending, key: String): Pending {
         require(keyFormat.matches(key)) { "Reserva retornada inválida." }
         check(previous.stage == Stage.RESERVE_UNKNOWN) { "Transição de quota inválida." }
+        check(when (previous.protocol) {
+            ReservationProtocol.LEGACY_UNKNOWN -> true
+            ReservationProtocol.FREE_V2 -> key == "usage_${previous.localId}"
+            ReservationProtocol.PRO_V2 -> key == "pro_${previous.localId}"
+        }) { "Resposta da reserva não corresponde ao protocolo persistido." }
         return advance(previous, previous.copy(
             reservationKey = key,
             stage = Stage.RESERVED
@@ -196,13 +212,14 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             }
         }
         val text = buildJsonObject {
-            put("version", 1)
+            put("version", 2)
             put("localId", entry.localId)
             put("category", entry.category.name)
             put("entrySha256", entry.entrySha256)
             put("reservationKey", entry.reservationKey ?: "")
             put("stage", entry.stage.name)
             put("createdAtMillis", entry.createdAtMillis)
+            put("protocol", entry.protocol.name)
         }.toString().toByteArray(Charsets.UTF_8)
         check(text.size in 1..4096) { "Registro de quota acima do limite." }
 
@@ -235,7 +252,14 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
         fun str(key: String): String =
             parsed[key]?.jsonPrimitive?.content
                 ?: error("Journal sem campo obrigatório: $key")
-        check(str("version") == "1") { "Versão do journal não suportada." }
+        val version = str("version")
+        check(version == "1" || version == "2") {
+            "Versão do journal não suportada."
+        }
+        // The legacy schema never recorded protocol identity: do not
+        // reinterpret a V1 Pro UUID as a durable Pro V2 receipt.
+        val protocol = if (version == "1") ReservationProtocol.LEGACY_UNKNOWN
+            else ReservationProtocol.valueOf(str("protocol"))
         val id = str("localId")
         require(id.matches(Regex("[0-9a-f-]{36}")) &&
             runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false)) {
@@ -247,6 +271,15 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
         }
         val key = str("reservationKey").ifBlank { null }
         require(key == null || keyFormat.matches(key)) { "Journal contém reserva inválida." }
+        if (protocol != ReservationProtocol.LEGACY_UNKNOWN) {
+            require(id.matches(Regex(
+                "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            ))) { "Protocolo V2 exige UUIDv4 local." }
+            val prefix = if (protocol == ReservationProtocol.FREE_V2) "usage_" else "pro_"
+            require(key == null || key == prefix + id) {
+                "Recibo não coincide com protocolo e UUID persistidos."
+            }
+        }
         val createdAt = str("createdAtMillis").toLong()
         require(createdAt > 0) { "Journal contém data inválida." }
         return Pending(
@@ -255,7 +288,8 @@ internal class DesktopArchiveQuotaJournal(private val location: Path) {
             entrySha256 = digest,
             reservationKey = key,
             stage = Stage.valueOf(str("stage")),
-            createdAtMillis = createdAt
+            createdAtMillis = createdAt,
+            protocol = protocol
         )
     }
 
