@@ -62,6 +62,65 @@ internal class DesktopPkceHandshake private constructor(
         return DesktopPkceExchange(code, verifier)
     }
 
+    /**
+     * A matching OAuth error terminates this one-shot attempt without consuming
+     * authorization codes or exposing provider-supplied descriptions. Wrong
+     * state, unknown keys and malformed callbacks cannot terminate the flow.
+     *
+     * Only query-string errors reach a loopback HTTP server; URI fragments
+     * are never sent in HTTP requests and may instead lead to timeout.
+     */
+    @Synchronized
+    fun acceptErrorCallback(
+        callback: URI,
+        now: Instant = Instant.now()
+    ): Boolean {
+        check(!used) { "Login já concluído; inicie uma nova autenticação." }
+        check(!now.isBefore(startedAt) &&
+            Duration.between(startedAt, now) <= Duration.ofMinutes(5)) {
+            "A autorização expirou; inicie um novo login."
+        }
+        require(callback.scheme == "http" &&
+            callback.host == "127.0.0.1" &&
+            callback.port == redirectUri.port &&
+            callback.rawUserInfo == null &&
+            callback.path == redirectUri.path &&
+            callback.rawFragment == null) {
+            "Destino de retorno OAuth inválido."
+        }
+        val query = callback.rawQuery ?: return false
+        if (!query.split('&').any { it.startsWith("error=") }) return false
+        require(query.length <= 4096) { "Retorno OAuth grande demais." }
+        val fields = mutableMapOf<String, String>()
+        for (pair in query.split('&')) {
+            val at = pair.indexOf('=')
+            require(at > 0) { "Parâmetro de erro OAuth inválido." }
+            val key = pair.substring(0, at)
+            require(key in setOf("bm_state", "error", "error_code", "error_description") &&
+                key !in fields) {
+                "Parâmetros de erro OAuth inválidos."
+            }
+            val value = URLDecoder.decode(
+                pair.substring(at + 1), StandardCharsets.UTF_8
+            )
+            require(value.length in 1..2048 &&
+                value.none { it.isISOControl() }) {
+                "Valor de erro OAuth inválido."
+            }
+            fields[key] = value
+        }
+        val actual = fields["bm_state"].orEmpty()
+        require(MessageDigest.isEqual(
+            actual.toByteArray(StandardCharsets.UTF_8),
+            state.toByteArray(StandardCharsets.UTF_8)
+        )) { "Estado OAuth não corresponde à solicitação iniciada." }
+        require(fields.getValue("error").matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+            "Código de erro OAuth inválido."
+        }
+        used = true
+        return true
+    }
+
     private fun parseQuery(raw: String?): Map<String, String> {
         require(!raw.isNullOrBlank() && raw.length <= 4096) {
             "Retorno OAuth sem parâmetros ou grande demais."
