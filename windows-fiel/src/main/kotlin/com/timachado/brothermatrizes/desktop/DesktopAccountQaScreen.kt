@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -91,6 +92,7 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
     }
     var busy by remember { mutableStateOf(false) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
+    var loopbackStatus by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf("Nenhuma assinatura consultada nesta sessão.") }
 
     fun runAccountAction(action: suspend () -> DesktopAccountPresentation.VerifiedSummary?) {
@@ -165,6 +167,52 @@ internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
                 Text(info, color = FioTextMuted)
             }
         }
+
+        // Local-only OAuth diagnostics work even when no Supabase key or
+        // Google QA session is configured. This button never opens a browser.
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy,
+            onClick = {
+                scope.launch {
+                    busy = true
+                    loopbackStatus = null
+                    try {
+                        val result = DesktopPkceLoopbackSelfTest.verify()
+                        loopbackStatus =
+                            if (result.localListenerAvailable &&
+                                result.forgedStateRejected &&
+                                result.validLocalRoundTrip)
+                                "Retorno local Windows aprovado: porta loopback, " +
+                                    "proteção de estado e callback de teste."
+                            else
+                                "Retorno local Windows não validado."
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        loopbackStatus =
+                            "O retorno local OAuth não pôde ser testado neste PC. " +
+                                "Verifique as permissões de rede local."
+                    } finally {
+                        busy = false
+                    }
+                }
+            }
+        ) {
+            Text(
+                if (busy) "Testando retorno local…" else
+                    "Testar retorno local OAuth (sem Google)"
+            )
+        }
+        if (loopbackStatus != null) {
+            Text(checkNotNull(loopbackStatus), color = FioText)
+        }
+        Text(
+            "Este diagnóstico utiliza somente 127.0.0.1 e códigos fictícios. " +
+                "Não verifica as Redirect URLs no Supabase, " +
+                "não faz login nem libera recursos Pro.",
+            color = FioTextMuted
+        )
 
         if (qaEnvironment == null) {
             Card(
