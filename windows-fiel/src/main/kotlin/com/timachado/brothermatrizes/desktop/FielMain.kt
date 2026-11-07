@@ -61,6 +61,7 @@ import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
+import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
@@ -819,6 +820,47 @@ private fun FielHomeHost(
         }
     }
 
+    fun backupLocalFlpProjects() {
+        val chosen = catalog?.folder
+        if (chosen == null) {
+            scope.launch {
+                snackbar.showSnackbar(
+                    "Primeiro selecione uma pasta de projetos FLP no menu Biblioteca."
+                )
+            }
+            return
+        }
+        scope.launch {
+            // Unlike Android's full backup, this exports LOCAL FLP projects
+            // only; no TTF/OTF, device settings or account data are included.
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Backup dos projetos FLP locais (não inclui fontes)"
+                selectedFile = File("Brother-Matrizes-projetos-FLP.zip")
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Backup local de projetos FLP (*.zip)", "zip"
+                )
+            }
+            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    DesktopFlpBackupExporter.exportLocalFlp(chosen, selected)
+                }
+            }.fold(onSuccess = { result ->
+                snackbar.showSnackbar(
+                    "Backup local FLP criado: ${result.exportedProjects} projeto(s). " +
+                        "Fontes, conta e configurações não estão incluídas."
+                )
+            }, onFailure = { error ->
+                snackbar.showSnackbar(
+                    "Backup local FLP não criado: ${error.message ?: "erro de acesso"}"
+                )
+            })
+        }
+    }
+
     LaunchedEffect(libraryFolderRequest) {
         if (libraryFolderRequest > 0) chooseLibraryFolder()
     }
@@ -1260,11 +1302,11 @@ private fun FielHomeHost(
                     },
                     onDeleteSent = { informNotPorted("Histórico de envios") },
                     onClearSent = { informNotPorted("Limpeza de envios") },
-                    onBackup = { informNotPorted("Backup da Biblioteca") },
+                    onBackup = { backupLocalFlpProjects() },
                     onRestore = { informNotPorted("Restauração da Biblioteca") },
                     onFonts = { area = HomeArea.FONTS },
                     onSearchMatrices = { informNotPorted("Pesquisa Telegram") },
-                    onRequireGoogle = { informNotPorted("Conta Google Windows") }
+                    onRequireGoogle = { area = HomeArea.ACCOUNT }
                 )
             } else if (area == HomeArea.HOME) {
                 // Fonte original HomeScreen.kt do Android, não uma recriação.
