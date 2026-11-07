@@ -62,7 +62,7 @@ class DesktopGoogleProviderReadinessTest {
             "sb_secret_never_publish",
             "service_role_1234567890",
             "anon",
-            "sb_publishable_short",
+            "sb_publishable_x",
             "sb_publishable_broken\nvalue",
             "sb_publishable_broken with spaces"
         )) {
