@@ -35,10 +35,11 @@ internal class DesktopSupabaseGoogleIdentityVerifier(
     private val publishableKey: String,
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
-    }
+    },
+    private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
     private val endpoint = URL(
-        "https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/user"
+        "https://$projectRef.supabase.co/auth/v1/user"
     )
     private val uuid = Regex(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
@@ -48,11 +49,14 @@ internal class DesktopSupabaseGoogleIdentityVerifier(
     init {
         require(publishableKey.startsWith("sb_publishable_") &&
             publishableKey.length in 20..4096 &&
-            publishableKey.none { it.isISOControl() }) {
+            publishableKey.all { it.code in 0x21..0x7e && it != '"' && it != '\\' }) {
             "Use somente uma chave pública Supabase."
         }
+        require(projectRef.matches(Regex("[a-z0-9]{20}"))) {
+            "Referência Supabase inválida."
+        }
         check(endpoint.protocol == "https" &&
-            endpoint.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            endpoint.host == "$projectRef.supabase.co" &&
             endpoint.port == -1 && endpoint.userInfo == null &&
             endpoint.path == "/auth/v1/user" &&
             endpoint.query == null && endpoint.ref == null) {
