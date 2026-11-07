@@ -44,14 +44,15 @@ internal object WindowsExternalBrowser : DesktopExternalBrowser {
  */
 internal class DesktopGooglePkceLoginCoordinator(
     private val auth: DesktopSupabaseGooglePkceClient,
-    private val browser: DesktopExternalBrowser = WindowsExternalBrowser
+    private val browser: DesktopExternalBrowser = WindowsExternalBrowser,
+    private val callbackTimeout: Duration = Duration.ofMinutes(5)
 ) {
     suspend fun signInForIsolatedQa(): DesktopTransientAuthSession =
         withContext(Dispatchers.IO) {
             DesktopPkceLoopbackListener.open().use { callback ->
                 val loginUrl = auth.authorizationUrl(callback.handshake)
                 browser.open(loginUrl)
-                val proof = callback.awaitCallback(Duration.ofMinutes(5))
+                val proof = callback.awaitCallback(callbackTimeout)
                 auth.exchangeCode(proof)
             }
         }
