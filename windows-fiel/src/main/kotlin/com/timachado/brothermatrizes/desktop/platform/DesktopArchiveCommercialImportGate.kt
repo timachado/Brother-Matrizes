@@ -117,7 +117,20 @@ internal class DesktopArchiveCommercialImportGate(
         // timeout may mean the server processed the request; never blindly
         // repeat reserve after a crash.
         var pending = journal?.begin(item)
-        val reservation = usage.reserve(token, item.category)
+        val reservation = if (usage is DesktopArchiveIdempotentUsageGateway) {
+            // The same UUIDv4 was persisted by journal.begin BEFORE network.
+            // A lost first HTTP response can be diagnosed without minting
+            // another quota request ID. No automatic retries after crashes.
+            val persisted = checkNotNull(pending) {
+                "Reserva V2 exige journal durável antes de conectar."
+            }
+            usage.reserveOnce(token, item.category, persisted.localId)
+        } else {
+            // Existing fake gateways and the Android V1 protocol keep
+            // their behavior. The concrete Windows HTTP gateway implements
+            // reserveOnce and can no longer use legacy reserve here.
+            usage.reserve(token, item.category)
+        }
         check(serverReservation.matches(reservation)) {
             "Reserva de importação inválida retornada pelo servidor."
         }
