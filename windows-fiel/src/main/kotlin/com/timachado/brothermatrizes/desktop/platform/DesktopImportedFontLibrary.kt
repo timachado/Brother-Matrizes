@@ -206,9 +206,13 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
         val name = file.fileName.toString()
         require(isSafeId(name)) { "Nome da fonte inválido." }
         val stem = name.substringBeforeLast(".")
-        val displayName = stem.replace(tenHex, "")
+        val fallbackName = stem.replace(tenHex, "")
             .replace('_', ' ').replace('-', ' ').trim()
             .ifBlank { "Fonte importada" }
+        // Same OpenType name-table preference as the Android 1.11.9 baseline.
+        // File ID/path remain unchanged; fallback stays deterministic.
+        val displayName = DesktopOpenTypeFontNames.readDisplayName(file.toFile())
+            ?: fallbackName
         return DesktopFontRecord(
             id = name, displayName = displayName, fileName = name,
             extension = name.substringAfterLast(".").lowercase(Locale.ROOT),
