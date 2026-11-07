@@ -9,14 +9,22 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
+import java.net.ConnectException
 import java.net.Socket
 import java.net.URI
 import java.net.URL
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -118,6 +126,40 @@ class DesktopGooglePkceLoginCoordinatorTest {
         }
         assertFailsWith<IllegalArgumentException> {
             WindowsExternalBrowser.open(URI("https://user@dwpcddiramxlhavdmmyn.supabase.co/auth/v1/authorize"))
+        }
+    }
+
+    @Test
+    fun cancelledBrowserLoginStopsLocalListenerWithoutExchangingCredentials() = runBlocking {
+        val callbackPort = AtomicInteger(-1)
+        val exchanged = AtomicBoolean(false)
+        val client = DesktopSupabaseGooglePkceClient(testKey) { _ ->
+            exchanged.set(true)
+            error("A QA cancelada nunca deve realizar a troca PKCE.")
+        }
+        val browser = DesktopExternalBrowser { authorizationUrl ->
+            val rawRedirect = authorizationUrl.rawQuery.split('&')
+                .single { it.startsWith("redirect_to=") }
+                .substringAfter('=')
+            val redirect = URI(URLDecoder.decode(rawRedirect, StandardCharsets.UTF_8))
+            assertEquals("127.0.0.1", redirect.host)
+            callbackPort.set(redirect.port)
+            // Deliberately do not deliver a callback: simulate a cancelled login.
+        }
+        val signIn = async(Dispatchers.IO) {
+            DesktopGooglePkceLoginCoordinator(
+                client, browser, Duration.ofMinutes(5)
+            ).signInForIsolatedQa()
+        }
+        withTimeout(5_000) {
+            while (callbackPort.get() == -1) delay(10)
+        }
+        signIn.cancelAndJoin()
+        assertTrue(signIn.isCancelled)
+        assertFalse(exchanged.get())
+        assertTrue(callbackPort.get() in 1024..65535)
+        assertFailsWith<ConnectException> {
+            Socket("127.0.0.1", callbackPort.get()).use { }
         }
     }
 }
