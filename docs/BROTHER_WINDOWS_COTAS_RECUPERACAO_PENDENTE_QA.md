@@ -1,0 +1,121 @@
+# Brother Matrizes Windows — registro durável e reconciliação de cotas (QA isolada)
+
+**Origem oficial:** Android comercial 1.11.8 — contratos
+`BrotherMatrizesAccountService.authorizeImport/finalizeImport` e
+`BrotherUsageClient.reserve/finalize`.
+
+**Código:** `windows-fiel/`, branch
+`feature/windows-fiel-android-1-11-8-20261106`,
+[PR #226](https://github.com/timachado/Brother-Matrizes/pull/226).
+Não modificar `main`, aplicativo Android, servidor Supabase nem site.
+
+## Problema real identificado
+
+Não é possível garantir que um `reserve` foi rejeitado quando a
+conexão é interrompida antes da resposta. O servidor pode ter
+registrado a reserva mesmo que o Windows receba timeout. O mesmo
+ocorre depois de `finalize(success=true/false)`: uma resposta
+perdida não prova que a operação falhou.
+
+**Repetir automaticamente `reserve`/`finalize` seria inseguro**
+sem um contrato comprovado de idempotência e uma rota server-side
+de consulta do status de cada tentativa. O fluxo Windows deve
+bloquear novas importações nesse caso até reconciliar a situação.
+
+## Implementação neste ciclo
+
+### `DesktopArchiveQuotaJournal`
+
+- Exige um diretório local **existente** reservado à aplicação e
+  protegido pelo usuário atual; o código não cria automaticamente
+  pastas globais nem altera permissões do cliente. A implantação
+  comercial ainda precisa comprovar ACL privada no Windows.
+- Arquivos `pending-UUID.json` com estados:
+  - `RESERVE_UNKNOWN`: gravado **antes** da primeira chamada `reserve`;
+    qualquer timeout deixa a tentativa pendente, mesmo sem chave remota;
+  - `RESERVED`: resposta recebida com identificador server-side;
+  - `FINALIZE_UNKNOWN`: gravado **antes** de chamar `finalize`;
+  - `CLEANUP_UNKNOWN`: confirmação recebida para falha/duplicata,
+    mas reversão local ainda não concluída.
+- Usa arquivo temporário na mesma pasta, `FileChannel.force(true)`
+  e `ATOMIC_MOVE` para publicar cada atualização. Não promete
+  persistência absoluta de metadados do diretório em queda de energia:
+  isso ainda requer auditoria no volume/Windows alvo.
+- `FileLock` entre processos e `Mutex` no processo para impedir
+  novas reservas simultâneas na mesma pasta de controle. Arquivos
+  temporários abandonados ou registros corrompidos bloqueiam a
+  próxima reserva — nunca são descartados silenciosamente.
+- O registro contém apenas UUID local, categoria, hash SHA-256
+  da identificação da entrada, chave opaca de reserva, estado e
+  horário local. Não armazena access token, refresh token, segredo,
+  nome de cliente, matriz, conteúdo do pacote ou caminho original.
+- Exibe os pendentes por `listPending()`, sem consultar o servidor,
+  não reexecuta quotas nem exclui arquivos automaticamente.
+- A remoção do registro ocorre apenas depois de confirmação da
+  finalização remota e conclusão da reversão necessária.
+
+### Integração no gate comercial
+
+`DesktopArchiveCommercialImportGate` foi adaptado para usar
+o journal quando explicitamente injetado:
+
+1. Valida a seleção, sessão verificada e importador disponível.
+2. Recusa um adaptador HTTP real
+   `DesktopBrotherArchiveUsageGateway` **sem journal**.
+3. Adquire lock, verifica ausência de registros anteriores e grava
+   `RESERVE_UNKNOWN` antes de solicitar `reserve`.
+4. Marca `RESERVED` após a resposta e somente então executa a
+   extração seletiva e validação original Android.
+5. Grava `FINALIZE_UNKNOWN` antes de enviar a finalização.
+6. Após confirmação de sucesso e reversão, quando necessária,
+   retira o registro. Em situação ambígua mantém o item pendente
+   e bloqueia novas reservas com mensagem de reconciliação manual.
+
+O restante do programa Windows permanece **sem sessão Google
+comercial e sem importação pela interface**. Esta infraestrutura
+foi testada com servidor falso e arquivos de QA, sem dados de cliente.
+
+## Critérios de aceitação automatizados
+
+`DesktopArchiveQuotaJournalTest` cobre:
+
+- Escrita anterior ao envio da primeira reserva e ausência de
+  credenciais/caminhos originais no arquivo local.
+- Reinício simulado com registro `RESERVED` ou `FINALIZE_UNKNOWN`,
+  sem tentativas automáticas de nova cota.
+- Tempo de resposta perdido após `reserve`, ainda sem chave remota:
+  nenhuma segunda tentativa é permitida.
+- Resposta perdida após `finalize`: rollback da nova gravação,
+  preservação do registro para reconciliação e bloqueio de nova cota.
+- Falha local com resposta remota `success=false` confirmada:
+  rollback e retirada do registro.
+- Registro malformado, arquivo temporário órfão e lock concorrente:
+  falha fechada.
+- Recusa de `DesktopBrotherArchiveUsageGateway` real sem journal.
+
+[CI Windows — recuperação de cotas](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-archive-recovery-qa.yml)
+executa estes cenários sem rede, chaves de produção ou autenticação
+real, além da regressão dos contratos anteriores.
+
+## Bloqueios comerciais não resolvidos
+
+1. **Endpoint servidor idempotente e de consulta/reconciliação**,
+   inclusive para `reserve` cujo identificador não chegou ao
+   cliente. Sem isso, o journal só detecta a dúvida e bloqueia
+   novas operações; **não resolve automaticamente a quota**.
+2. **OAuth Google Windows/PKCE** homologado, com configuração
+   autorizada e sem armazenar refresh tokens em texto simples.
+3. **ACL, durabilidade e testes com encerramento forçado** em PC
+   Windows real; mutex e lock file não substituem teste de queda
+   de energia.
+4. **Propriedade durável do arquivo criado**: ainda existe janela
+   entre a gravação local da matriz/fonte e o registro de ownership;
+   o rollback atual é in-process e não permite excluir órfãos após
+   crash com segurança. Implementar diário transacional por arquivo.
+5. Revisão jurídica das dependências de extração RAR/UnRAR,
+   homologação com máquinas e arquivos autorizados e testes
+   de concorrência entre instalações/usuários.
+
+**Status:** implementação experimental somente QA. Não habilitar
+importação comercial, não consumir cotas reais, não publicar EXE,
+não fazer merge na `main` nem upload ao site da T.I. Machado.
