@@ -146,6 +146,16 @@ class DesktopBrotherEntitlementReaderTest {
         assertFailsWith<IllegalArgumentException> {
             DesktopBrotherEntitlementReader("sb_secret_no_client")
         }
+        for (invalid in listOf(
+            "sb_publishable_qa test key",
+            "sb_publishable_qa\\\"injected-value",
+            "sb_publishable_qa\\\\hidden",
+            "sb_publishable_qa_ç"
+        )) {
+            assertFailsWith<IllegalArgumentException> {
+                DesktopBrotherEntitlementReader(invalid)
+            }
+        }
         var called = 0
         val reader = DesktopBrotherEntitlementReader(key) {
             called++
