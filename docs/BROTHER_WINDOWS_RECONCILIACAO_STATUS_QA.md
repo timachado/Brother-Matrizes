@@ -125,10 +125,16 @@ Não usar esta revisão para cobrar/consumir cotas de clientes.
   aprovados: Deno com base em memória/sem permissões externas,
   e Kotlin/Windows com HTTP simulado e journal imutável.
 - [Resultados XML Windows #13586169484](https://github.com/timachado/Brother-Matrizes/actions/runs/42403888861/artifacts/13586169484).
-- [Regressão portátil #42404005897](https://github.com/timachado/Brother-Matrizes/actions/runs/42404005897)
-  inclui o novo diagnóstico entre os testes obrigatórios do
-  launcher Windows. A conclusão e os artefatos são confirmados
-  em verificação separada.
+- [Regressão portátil #42404005897](https://github.com/timachado/Brother-Matrizes/actions/runs/42404005897):
+  `completed/success` no commit `5451e7b`, incluindo o
+  diagnóstico de status de quotas nos testes prioritários, montagem
+  da imagem APP-IMAGE e execução/captura das telas no runner Windows.
+  Artefatos QA temporários privados:
+  [Brother Matrizes Windows Portable QA #13585839410](https://github.com/timachado/Brother-Matrizes/actions/runs/42404005897/artifacts/13585839410)
+  (98.263.701 bytes, launcher e runtime completos) e
+  [capturas Windows #13585714916](https://github.com/timachado/Brother-Matrizes/actions/runs/42404005897/artifacts/13585714916)
+  (237.365 bytes). Podem exigir login GitHub e expiram.
+  Nenhuma chamada ao endpoint novo ocorre na UI QA.
 - Nada foi implantado no serviço de produção, Android oficial
   ou servidor de licenciamento: estes resultados se referem
   exclusivamente ao código da branch e à QA simulada.
