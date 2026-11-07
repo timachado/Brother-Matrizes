@@ -15,6 +15,8 @@ internal object WindowsExternalBrowser : DesktopExternalBrowser {
     override fun open(url: URI) {
         require(url.scheme == "https" &&
             url.host == "dwpcddiramxlhavdmmyn.supabase.co" &&
+            url.port == -1 &&
+            url.rawUserInfo == null &&
             url.path == "/auth/v1/authorize" &&
             url.rawFragment == null) {
             "URL de autorização não autorizada."
