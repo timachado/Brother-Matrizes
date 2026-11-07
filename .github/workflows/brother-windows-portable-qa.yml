@@ -117,16 +117,44 @@ jobs:
           if (!(Test-Path (Join-Path $inside "runtime"))) {
             throw "A copia de QA perdeu o runtime Java."
           }
-          $icoPackaged = @(Get-ChildItem -LiteralPath $inside -Recurse -Filter "*.ico" -File)
-          if ($icoPackaged.Count -eq 0) {
-            throw "Icone ICO da marca original nao foi incluido na imagem portable."
-          }
-          $sourceIco = "windows-fiel/build/qa/brand/brother_matrizes.ico"
-          $expectedHash = (Get-FileHash -Algorithm SHA256 $sourceIco).Hash
-          if (!($icoPackaged | Where-Object {
-              (Get-FileHash -Algorithm SHA256 $_.FullName).Hash -eq $expectedHash
-          })) {
-            throw "O ICO empacotado nao corresponde aos bytes do monograma Android."
+          # jpackage EMBUTE o .ico nos recursos do .exe e normalmente nao
+          # copia o arquivo .ico para a pasta app-image. Conferir o recurso
+          # real do launcher pelo Windows GDI, sem depender de nome/caminho.
+          Add-Type -AssemblyName System.Drawing
+          $sourceIco = (Resolve-Path "windows-fiel/build/qa/brand/brother_matrizes.ico").Path
+          $launcher = (Resolve-Path (Join-Path $inside "BrotherMatrizesQA.exe")).Path
+          $expectedIcon = [System.Drawing.Icon]::new($sourceIco)
+          $launcherIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($launcher)
+          if ($null -eq $launcherIcon) { throw "O launcher nao possui icone do Windows." }
+          try {
+            $expectedBitmap = [System.Drawing.Bitmap]::new($expectedIcon.ToBitmap(), 32, 32)
+            $launcherBitmap = [System.Drawing.Bitmap]::new($launcherIcon.ToBitmap(), 32, 32)
+            try {
+              $different = 0
+              $total = 0
+              for ($y = 2; $y -lt 30; $y += 2) {
+                for ($x = 2; $x -lt 30; $x += 2) {
+                  $a = $expectedBitmap.GetPixel($x, $y)
+                  $b = $launcherBitmap.GetPixel($x, $y)
+                  $total++
+                  if ([Math]::Abs([int]$a.R - [int]$b.R) -gt 50 -or
+                      [Math]::Abs([int]$a.G - [int]$b.G) -gt 50 -or
+                      [Math]::Abs([int]$a.B - [int]$b.B) -gt 50) {
+                    $different++
+                  }
+                }
+              }
+              if ($different -gt [Math]::Floor($total * 0.40)) {
+                throw "Icone do EXE nao corresponde ao monograma Android ($different/$total)."
+              }
+              "BROTHER_WINDOWS_LAUNCHER_OFFICIAL_BRAND_ICON_OK"
+            } finally {
+              $expectedBitmap.Dispose()
+              $launcherBitmap.Dispose()
+            }
+          } finally {
+            $expectedIcon.Dispose()
+            $launcherIcon.Dispose()
           }
       - name: Publicar SOMENTE artifact privado de Actions por 7 dias
         uses: actions/upload-artifact@v4
