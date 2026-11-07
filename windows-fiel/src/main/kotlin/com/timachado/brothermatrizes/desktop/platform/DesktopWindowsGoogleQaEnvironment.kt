@@ -4,6 +4,8 @@ import java.io.Closeable
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Path
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.time.Clock
 import java.time.Duration
 
@@ -52,6 +54,7 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
     companion object {
         fun openForQa(
             publishableKey: String,
+            target: DesktopQaStagingProject,
             folder: Path = DesktopWindowsDpapiSessionStore.defaultUserDataFolder(),
             clock: Clock = Clock.systemUTC(),
             browser: DesktopExternalBrowser = WindowsExternalBrowser,
@@ -61,29 +64,39 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
         ): DesktopWindowsGoogleQaEnvironment {
             // A public key is supplied at runtime; never embed a service key.
             val client = DesktopSupabaseGooglePkceClient(
-                publishableKey, connectionFactory
+                publishableKey, connectionFactory, projectRef = target.ref
             )
             val identity = DesktopSupabaseGoogleIdentityVerifier(
-                publishableKey, connectionFactory
+                publishableKey, connectionFactory, projectRef = target.ref
             )
             val entitlement = DesktopBrotherEntitlementReader(
-                publishableKey, connectionFactory
+                publishableKey, connectionFactory, projectRef = target.ref
             )
             val coordinator = DesktopGooglePkceLoginCoordinator(
                 auth = client,
                 browser = browser,
                 callbackTimeout = Duration.ofMinutes(5)
             )
+            // Keep staging DPAPI sessions separate from previous local QA
+            // tokens and every other Supabase project. No fallback to
+            // an unscoped or commercial session folder is permitted.
+            val scoped = folder.resolve("qa-staging-" + target.ref)
+            check(!Files.isSymbolicLink(folder) &&
+                !Files.isSymbolicLink(scoped) &&
+                (!Files.exists(scoped, LinkOption.NOFOLLOW_LINKS) ||
+                    Files.isDirectory(scoped, LinkOption.NOFOLLOW_LINKS))) {
+                "Diretório de sessão de homologação inválido."
+            }
             val account = DesktopWindowsAuthQaController.open(
                 signIn = DesktopWindowsAuthQaController.googleSignInSource(coordinator),
                 refresher = DesktopSessionRefresher { prior ->
                     client.refreshSession(prior)
                 },
                 clock = clock,
-                folder = folder
+                folder = scoped
             )
             val readiness = DesktopGoogleProviderReadiness(
-                publishableKey, connectionFactory
+                publishableKey, connectionFactory, projectRef = target.ref
             )
             return DesktopWindowsGoogleQaEnvironment(
                 account, identity, entitlement, readiness
