@@ -251,7 +251,7 @@ fun main(args: Array<String>) = application {
                 }
                 Menu("Biblioteca") {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
-                    Item("Analisar pacote ZIP (somente leitura)…", onClick = { archiveLaunchRequest++ })
+                    Item("Analisar ZIP / RAR / 7Z (somente leitura)…", onClick = { archiveLaunchRequest++ })
                 }
             }
         }
@@ -972,11 +972,11 @@ private fun FielHomeHost(
         if (archiveBusy) return
         scope.launch {
             val chooser = JFileChooser().apply {
-                dialogTitle = "Analisar pacote ZIP — somente leitura"
+                dialogTitle = "Analisar pacote ZIP / RAR / 7Z — somente leitura"
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
                 fileFilter = FileNameExtensionFilter(
-                    "Pacote de matrizes ZIP (*.zip)", "zip"
+                    "Pacotes ZIP, RAR e 7Z", "zip", "rar", "7z"
                 )
             }
             if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
@@ -990,7 +990,7 @@ private fun FielHomeHost(
                 }
                 archivePreview = inspected
             } catch (failure: Exception) {
-                archiveError = failure.message ?: "Arquivo ZIP inválido."
+                archiveError = failure.message ?: "Pacote ZIP/RAR/7Z inválido ou protegido por senha."
             } finally {
                 archiveBusy = false
             }
@@ -1549,7 +1549,7 @@ private fun FielHomeHost(
                     preview = archivePreview,
                     busy = archiveBusy,
                     error = archiveError,
-                    onChooseZip = { analyzeArchiveOnly() },
+                    onChoosePackage = { analyzeArchiveOnly() },
                     onBack = {
                         archivePreview = null
                         archiveError = null
