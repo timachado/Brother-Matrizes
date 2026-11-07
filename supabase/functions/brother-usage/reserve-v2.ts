@@ -86,7 +86,21 @@ export async function reserveImportV2(
       if (data.replayed !== undefined && typeof data.replayed !== "boolean") {
         return { status: 503, body: { message: "Replay remoto inválido." } };
       }
-      return { status: 409, body: data as IdempotentReserveResponse };
+      if (data.remaining !== undefined &&
+          (!Number.isInteger(data.remaining) ||
+            (data.remaining as number) < 0 ||
+            (data.remaining as number) > 5)) {
+        return { status: 503, body: { message: "Saldo de quota remoto inválido." } };
+      }
+      return { status: 409, body: {
+        allowed: false,
+        operation: input.operation,
+        ...(typeof key === "string" ? { request_key: key } : {}),
+        ...(typeof data.state === "string"
+          ? { state: data.state as "reserved" | "failed" | "completed" } : {}),
+        ...(typeof data.replayed === "boolean" ? { replayed: data.replayed } : {}),
+        ...(typeof data.remaining === "number" ? { remaining: data.remaining } : {}),
+      } };
     }
     if (data.request_key !== "usage_" + input.clientRequestId ||
         data.state !== "reserved" ||
@@ -97,7 +111,14 @@ export async function reserveImportV2(
             (data.remaining as number) > 5))) {
       return { status: 503, body: { message: "Identidade da reserva não confirmada." } };
     }
-    return { status: 200, body: data as IdempotentReserveResponse };
+    return { status: 200, body: {
+      allowed: true,
+      operation: input.operation,
+      request_key: "usage_" + input.clientRequestId,
+      state: "reserved",
+      replayed: data.replayed as boolean,
+      remaining: data.remaining as number | null,
+    } };
   } catch {
     return { status: 503, body: { message: "Reserva idempotente indisponível." } };
   }
