@@ -155,12 +155,13 @@ internal class DesktopArchiveValidatedLibrarySinkFactory(
                 report.testedGlyphs > 0) { "Fonte rejeitada pelo motor de contornos." }
 
             val library = DesktopImportedFontLibrary(destination)
-            val result = library.importFile(source, item.displayName) { name, digest ->
-                recorder?.beforePublish(name, digest)
+            val outcome = library.importFileWithResult(source, item.displayName) {
+                name, digest -> recorder?.beforePublish(name, digest)
             }
-            if (!result.created) {
+            if (!outcome.created) {
                 return DesktopArchiveImportCommit(false, null)
             }
+            val result = outcome.record
             val newPath = Path.of(result.absolutePath)
             require(newPath.parent == destination &&
                 Files.isRegularFile(newPath, LinkOption.NOFOLLOW_LINKS) &&
