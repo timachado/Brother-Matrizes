@@ -113,5 +113,11 @@ class DesktopGooglePkceLoginCoordinatorTest {
         assertFailsWith<IllegalArgumentException> {
             WindowsExternalBrowser.open(URI("https://dwpcddiramxlhavdmmyn.supabase.co/other"))
         }
+        assertFailsWith<IllegalArgumentException> {
+            WindowsExternalBrowser.open(URI("https://dwpcddiramxlhavdmmyn.supabase.co:8443/auth/v1/authorize"))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            WindowsExternalBrowser.open(URI("https://user@dwpcddiramxlhavdmmyn.supabase.co/auth/v1/authorize"))
+        }
     }
 }
