@@ -444,9 +444,9 @@ class DesktopArchiveQuotaJournalTest {
             }
             val file = folder.resolve("pending-${pending.localId}.json")
             val raw = Files.readString(file)
-            assertTrue(raw.contains("\"version\":2"))
+            assertTrue(raw.contains("\"version\":3"))
             assertTrue(raw.contains("\"protocol\":\"PRO_V2\""))
-            val legacy = raw.replace("\"version\":2", "\"version\":1")
+            val legacy = raw.replace("\"version\":3", "\"version\":1")
                 .replace(",\"protocol\":\"PRO_V2\"", "")
             Files.writeString(file, legacy)
             val restored = DesktopArchiveQuotaJournal(folder).listPending().single()
@@ -458,6 +458,77 @@ class DesktopArchiveQuotaJournalTest {
             assertFailsWith<IllegalStateException> {
                 journal.acquireLease().use { journal.begin(matrix()) }
             }
+        }
+    }
+
+    @Test
+    fun ownedOutputIdentityIsDurableAndNeverEnablesAutomaticDeletion() {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val reserved = journal.acquireLease().use {
+                val pending = journal.begin(
+                    matrix(), DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2
+                )
+                journal.reserved(pending, "usage_${pending.localId}")
+            }
+            val name = "archive-pes-" + "a".repeat(64) + ".flp"
+            val checksum = "b".repeat(64)
+            val intent = journal.declareOutput(reserved, name, checksum)
+            assertEquals(false, intent.output?.verifiedNew)
+            assertEquals(listOf(intent), DesktopArchiveQuotaJournal(folder).listPending())
+            assertFailsWith<IllegalStateException> {
+                journal.declareOutput(intent, name, checksum)
+            }
+            assertFailsWith<IllegalStateException> {
+                journal.verifyOutput(intent, name, "c".repeat(64))
+            }
+            val confirmed = journal.verifyOutput(intent, name, checksum)
+            assertEquals(true, confirmed.output?.verifiedNew)
+            assertEquals(listOf(confirmed), DesktopArchiveQuotaJournal(folder).listPending())
+            assertFailsWith<IllegalStateException> {
+                journal.verifyOutput(confirmed, name, checksum)
+            }
+            // Neither startup nor a journal inspection may delete client files.
+            val unrelated = folder.resolve("customer-existing.flp")
+            Files.write(unrelated, byteArrayOf(9, 8, 7))
+            val restarted = DesktopArchiveQuotaJournal(folder)
+            assertEquals(listOf(confirmed), restarted.listPending())
+            assertEquals(listOf<Byte>(9, 8, 7), Files.readAllBytes(unrelated).toList())
+            assertFailsWith<IllegalStateException> {
+                restarted.acquireLease().use { restarted.begin(matrix()) }
+            }
+            Files.delete(unrelated)
+        }
+    }
+
+    @Test
+    fun rejectPathTraversalOrWrongCategoryAndReadPreviousSchemaSafely() {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val record = journal.acquireLease().use {
+                val pending = journal.begin(
+                    font(), DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2
+                )
+                journal.reserved(pending, "pro_${pending.localId}")
+            }
+            for (invalid in listOf("../escape.ttf", "archive-pes-" + "a".repeat(64) + ".flp",
+                "unsafe\\\\windows.ttf", "alpha-123456789a.ttf/other")) {
+                assertFailsWith<IllegalArgumentException> {
+                    journal.declareOutput(record, invalid, "b".repeat(64))
+                }
+            }
+            val file = folder.resolve("pending-${record.localId}.json")
+            val v3 = Files.readString(file)
+            // V2 contains protocol but no file ownership evidence.
+            Files.writeString(file, v3.replace("\"version\":3", "\"version\":2"))
+            val v2 = DesktopArchiveQuotaJournal(folder).listPending().single()
+            assertEquals(DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2, v2.protocol)
+            assertEquals(null, v2.output)
+            assertFailsWith<IllegalStateException> {
+                journal.acquireLease().use { journal.begin(matrix()) }
+            }
+            // Revert our synthetic QA fixture only, never any real marker.
+            Files.writeString(file, v3)
         }
     }
 
