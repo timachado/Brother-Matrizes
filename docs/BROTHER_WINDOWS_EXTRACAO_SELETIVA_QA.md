@@ -93,3 +93,22 @@ oficial, as quotas de produção e o site não sofreram alterações.
 Este documento registra o código implementado e os critérios de
 homologação; somente um resultado CI `completed/success` confirma
 a execução dos testes.
+
+## Resultado CI verificado — 07/11/2026
+
+- [Extração seletiva #42388833000](https://github.com/timachado/Brother-Matrizes/actions/runs/42388833000):
+  `completed/success` no commit `c564621`. Compilou o
+  `DesktopArchiveSelectiveStager`, a
+  `DesktopArchiveSelectiveImportFactory` e executou todos
+  os testes de seleção única, ZIP/7Z, SHA-256, CRC, cancelamento,
+  reversão e cotas simuladas no runner Windows.
+- O teste de substituição do pacote foi corrigido entre a primeira
+  e a segunda execução: passou a recriar um ZIP estruturalmente válido
+  com o mesmo tamanho e nome, mas SHA diferente. O job da revisão
+  inicial [#42388786780](https://github.com/timachado/Brother-Matrizes/actions/runs/42388786780)
+  **falhou neste teste**, foi corrigido e o job final **passou**.
+- [Portátil Windows com regressão seletiva #42389191324](https://github.com/timachado/Brother-Matrizes/actions/runs/42389191324)
+  incorpora os novos testes ao empacotamento do launcher de QA.
+  A liberação de seu artefato deve ser conferida separadamente;
+  **não há importação comercial exposta na UI**.
+
