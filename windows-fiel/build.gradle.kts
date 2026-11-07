@@ -1229,6 +1229,11 @@ compose.desktop {
             // Mantém AWT/Swing (JFileChooser), JNA/DPAPI, Skia e TLS.
             // A redução de módulos fica para análise jdeps posterior.
             includeAllModules = true
+            // Mesmo monograma WebP aprovado no launcher adaptativo Android.
+            // O script QA converte o original para .ico antes do empacotamento.
+            windows {
+                iconFile.set(project.file("build/qa/brand/brother_matrizes.ico"))
+            }
         }
     }
 }
