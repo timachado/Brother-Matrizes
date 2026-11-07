@@ -327,17 +327,29 @@ val copyAndroidProjectLibrary by tasks.registering {
     }
 
 """
+        // Android's action "Backup completo" contains fonts and settings,
+        // whereas the desktop operation exports ONLY local FLP documents.
+        // Change labels in the generated Windows copy, never Android main.
+        check(source.split("\"Backup completo\"").size == 2 &&
+            source.split("\"Restaurar\"").size == 2) {
+            "Rótulos da Biblioteca Android mudaram; revisar portagem segura."
+        }
         val desktop = (source.substring(0, start) + secureRarBlock +
             source.substring(end))
             .replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "")
             .replace("import androidx.activity.result.contract.ActivityResultContracts\n", "")
             .replace("import androidx.compose.ui.platform.LocalContext\n", "")
             .replace("import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService\n", "")
+            .replace("\"Backup completo\"", "\"Backup FLP local\"")
+            .replace("\"Restaurar\"", "\"Restaurar FLP\"")
         check(!desktop.contains("import androidx.activity") &&
             !desktop.contains("RarExternalOpener") &&
             !desktop.contains("BrotherMatrizesAccountService") &&
             desktop.contains("fun ProjectLibraryScreen(") &&
-            desktop.contains("fun SentMatricesList(")
+            desktop.contains("fun SentMatricesList(") &&
+            desktop.contains("\"Backup FLP local\"") &&
+            desktop.contains("\"Restaurar FLP\"") &&
+            !desktop.contains("\"Backup completo\"")
         ) { "Biblioteca Android contém dependências não portadas: bloquear build." }
         val out = generatedProjectLibrary.get().file(
             "com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
