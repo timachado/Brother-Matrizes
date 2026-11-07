@@ -16,6 +16,7 @@ import kotlin.test.assertTrue
 /** Tests offline: HttpURLConnection is a fake, never production Supabase. */
 class DesktopBrotherFontUsageGatewayTest {
     private val reservation = "usage_12345678-1234-1234-1234-123456789abc"
+    private val publishableKey = "sb_publishable_offline_qa_test_0123456789"
 
     private class FakeConnection(
         url: URL,
@@ -40,7 +41,7 @@ class DesktopBrotherFontUsageGatewayTest {
 
     private fun client(connection: FakeConnection): DesktopBrotherFontUsageGateway =
         DesktopBrotherFontUsageGateway(
-            publishableKey = "public-test-key",
+            publishableKey = publishableKey,
             appVersionCode = 196
         ) { url ->
             assertEquals(
@@ -61,7 +62,7 @@ class DesktopBrotherFontUsageGatewayTest {
         assertEquals("""{"action":"reserve","operation":"import_font"}""", fake.sentPayload())
         assertEquals("POST", fake.requestMethod)
         assertEquals("Bearer verified-access-token", fake.getRequestProperty("Authorization"))
-        assertEquals("public-test-key", fake.getRequestProperty("apikey"))
+        assertEquals(publishableKey, fake.getRequestProperty("apikey"))
         assertEquals("196", fake.getRequestProperty("X-Brother-App-Version-Code"))
         assertEquals(false, fake.instanceFollowRedirects)
         assertEquals(20_000, fake.connectTimeout)
@@ -91,6 +92,7 @@ class DesktopBrotherFontUsageGatewayTest {
             """{"allowed":false,"operation":"import_font","request_key":"$reservation"}""",
             """{"allowed":true,"operation":"import_matrix","request_key":"$reservation"}""",
             """{"allowed":true,"operation":"import_font","request_key":"beta_local"}""",
+            """{"allowed":"true","operation":"import_font","request_key":"$reservation"}""",
             """{"allowed":true,"operation":"import_font"}"""
         )
         for (response in cases) {
@@ -127,9 +129,43 @@ class DesktopBrotherFontUsageGatewayTest {
     }
 
     @Test
+    fun `finalizacao nunca aceita texto true como confirmacao do servidor`() = runBlocking {
+        val fake = FakeConnection(
+            URL("https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"),
+            response = """{"ok":"true"}"""
+        )
+        assertFailsWith<IllegalStateException> {
+            client(fake).finalizeFont("verified-access-token", reservation, true)
+        }
+        assertTrue(fake.disconnected)
+    }
+
+    @Test
+    fun `chave secreta nao pode ser usada no cliente Windows nem abrir rede`() {
+        var calls = 0
+        for (key in listOf(
+            "sb_secret_restricted_private_key_1234567890",
+            "service_role_private_key_1234567890",
+            "eyJhbGciOiJIUzI1NiJ9.fake.signature",
+            "public-test-key",
+            "sb_publishable_x",
+            "sb_publishable_unsafe key_1234567890",
+            "sb_publishable_unsafe\r\nheader_1234567890"
+        )) {
+            assertFailsWith<IllegalArgumentException> {
+                DesktopBrotherFontUsageGateway(key, 196) {
+                    calls++
+                    error("Nunca conectar com chave proibida.")
+                }
+            }
+        }
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun `recusa credenciais ou requestKey malformados antes de enviar`() = runBlocking {
         var calls = 0
-        val gateway = DesktopBrotherFontUsageGateway("public-test-key", 196) {
+        val gateway = DesktopBrotherFontUsageGateway(publishableKey, 196) {
             calls++
             error("Nenhuma rede esperada")
         }
