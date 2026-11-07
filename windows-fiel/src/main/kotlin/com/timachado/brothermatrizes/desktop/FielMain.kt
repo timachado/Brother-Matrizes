@@ -45,6 +45,7 @@ import com.timachado.brothermatrizes.ConverterScreen
 import com.timachado.brothermatrizes.EditorScreen
 import com.timachado.brothermatrizes.NameEditorScreen
 import com.timachado.brothermatrizes.MonogramScreen
+import com.timachado.brothermatrizes.MachineTransferScreen
 import com.timachado.brothermatrizes.ProjectLibraryScreen
 import com.timachado.brothermatrizes.EmbroideryDisplayMode
 import com.timachado.brothermatrizes.SimulatorScreen
@@ -71,6 +72,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStor
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracker
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
+import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -674,7 +676,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -1103,6 +1105,60 @@ private fun FielHomeHost(
         }
     }
 
+    fun exportMachineFile(
+        format: String,
+        selectedHoop: HoopProfile,
+        forMachineApp: Boolean
+    ) {
+        val design = activeDesign ?: return
+        scope.launch {
+            // Same Android machine safety validator and converter used by
+            // the original Transfer screen; no direct USB/Wi-Fi protocol.
+            val prepared = runCatching {
+                withContext(Dispatchers.Default) {
+                    DesktopMachineTransferFile.prepare(design, format, selectedHoop)
+                }
+            }.getOrElse { error ->
+                snackbar.showSnackbar(
+                    "Matriz não exportada: " + (error.message ?: "validação recusada")
+                )
+                return@launch
+            }
+            val chooser = JFileChooser().apply {
+                dialogTitle = if (forMachineApp)
+                    "Salvar arquivo para importar no aplicativo da bordadeira"
+                else
+                    "Salvar matriz em arquivo ou pendrive selecionado"
+                selectedFile = File(prepared.suggestedName)
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Matriz ${prepared.format} (*.${prepared.format.lowercase()})",
+                    prepared.format.lowercase()
+                )
+            }
+            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val chosen = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    DesktopMachineTransferFile.saveNew(prepared, chosen)
+                }
+            }.fold(onSuccess = { saved ->
+                snackbar.showSnackbar(
+                    "Arquivo ${prepared.format} salvo: ${saved.fileName}. " +
+                        (if (forMachineApp)
+                            "Abra-o no software da bordadeira; não houve envio Wi-Fi."
+                        else
+                            "Confirme o arquivo no pendrive e na máquina antes de bordar.")
+                )
+            }, onFailure = { error ->
+                snackbar.showSnackbar(
+                    "Arquivo não salvo: " + (error.message ?: "destino inválido")
+                )
+            })
+        }
+    }
+
     fun saveProject() {
         val design = activeDesign ?: return
         scope.launch {
@@ -1327,7 +1383,7 @@ private fun FielHomeHost(
                     onEdit = { detail = ActiveDetail.EDITOR },
                     onEditName = { detail = ActiveDetail.NAME_EDITOR },
                     onConvert = { detail = ActiveDetail.CONVERTER },
-                    onTransfer = { informNotPorted("Enviar") },
+                    onTransfer = { detail = ActiveDetail.TRANSFER },
                     onSaveProject = { saveProject() },
                     onSaveCopy = { exportDesign(MatrixConverter.preferredBrotherFormat) },
                     onShare = { informNotPorted("Compartilhar") },
@@ -1397,6 +1453,22 @@ private fun FielHomeHost(
                     },
                     onSimulate = { design ->
                         openDesign(design, EmbroideryDisplayMode.SOLID, ActiveDetail.SIMULATOR)
+                    }
+                )
+            } else if (detail == ActiveDetail.TRANSFER && activeDesign != null) {
+                // Tela Compose oficial Android: mesmo formato, bastidor e
+                // bloqueios de compatibilidade. Apenas os callbacks de
+                // filesystem são substituídos por adaptação Windows.
+                MachineTransferScreen(
+                    design = checkNotNull(activeDesign),
+                    onBack = { detail = ActiveDetail.VIEWER },
+                    onUsbOtg = { format, selectedHoop ->
+                        exportMachineFile(format, selectedHoop, false)
+                    },
+                    onWifi = { format, selectedHoop ->
+                        // App da máquina é um destino manual de arquivo.
+                        // Não declarar envio Wi-Fi nem conexão automática.
+                        exportMachineFile(format, selectedHoop, true)
                     }
                 )
             } else if (detail == ActiveDetail.CONVERTER && activeDesign != null) {
@@ -1471,7 +1543,35 @@ private fun FielHomeHost(
                             }
                         }
                     },
-                    onTransfer = { informNotPorted("Transferência para a máquina") },
+                    onTransfer = { summary ->
+                        val file = catalog?.pathById?.get(summary.id)
+                        if (file == null) {
+                            scope.launch {
+                                snackbar.showSnackbar("Projeto não encontrado na Biblioteca.")
+                            }
+                        } else {
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        DesktopEmbroideryFiles.open(file)
+                                    }
+                                }.fold(onSuccess = { design ->
+                                    recentProjectIds = DesktopLibraryRecentTracker.putFirst(
+                                        summary.id, recentProjectIds
+                                    )
+                                    openDesign(
+                                        design, EmbroideryDisplayMode.SOLID,
+                                        ActiveDetail.TRANSFER
+                                    )
+                                }, onFailure = { error ->
+                                    snackbar.showSnackbar(
+                                        "Projeto não enviado: " +
+                                            (error.message ?: "FLP inválido")
+                                    )
+                                })
+                            }
+                        }
+                    },
                     onToggleFavorite = { summary ->
                         favorites = if (summary.id in favorites)
                             favorites - summary.id else favorites + summary.id
@@ -1494,7 +1594,10 @@ private fun FielHomeHost(
                     recent = activeDesign,
                     onCreateName = { openCreate() },
                     onFonts = { area = HomeArea.FONTS },
-                    onTransfer = { informNotPorted("Enviar") },
+                    onTransfer = {
+                        if (activeDesign != null) detail = ActiveDetail.TRANSFER
+                        else informNotPorted("Abra ou crie uma matriz antes de enviar")
+                    },
                     onOpen = { openProject() },
                     onRecent = {
                         if (activeDesign != null) detail = ActiveDetail.VIEWER
