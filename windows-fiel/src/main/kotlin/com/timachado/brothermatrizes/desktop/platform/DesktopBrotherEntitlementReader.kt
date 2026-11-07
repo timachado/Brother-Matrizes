@@ -90,7 +90,8 @@ internal class DesktopBrotherEntitlementReader(
                 as? JsonObject ?: error("Resposta de assinatura inválida.")
             val user = body["user"] as? JsonObject
                 ?: error("Resposta sem identidade verificada.")
-            val authenticated = (body["authenticated"] as? JsonPrimitive)?.booleanOrNull == true
+            // Never accept JSON string "true" or "false" as a server grant.
+            val authenticated = body.nativeBoolean("authenticated") == true
             val subject = user.text("id")
             val email = user.text("email")
             check(authenticated && subject.equals(identity.userId, ignoreCase = true) &&
@@ -99,7 +100,7 @@ internal class DesktopBrotherEntitlementReader(
             }
             val plan = body.text("planCode")
             val active = body.text("status") == "active"
-            val serverPro = (body["pro"] as? JsonPrimitive)?.booleanOrNull == true
+            val serverPro = body.nativeBoolean("pro") == true
             val permitted = serverPro && active && plan in paid
             // This is informational; do not pass the result to commercial gates.
             DesktopServerAccountSnapshot(
@@ -111,6 +112,11 @@ internal class DesktopBrotherEntitlementReader(
         } finally {
             conn.disconnect()
         }
+    }
+
+    private fun JsonObject.nativeBoolean(field: String): Boolean? {
+        val value = this[field] as? JsonPrimitive ?: return null
+        return if (value.isString) null else value.booleanOrNull
     }
 
     private fun JsonObject.text(field: String): String =
