@@ -39,7 +39,7 @@ class DesktopPkceLoopbackListenerTest {
             assertFalse(listener.toString().contains(listener.handshake.state))
             val executor = Executors.newSingleThreadExecutor()
             try {
-                val future = executor.submit<java.lang.String> {
+                val future = executor.submit<String> {
                     val exchange = listener.awaitCallback(Duration.ofSeconds(15))
                     exchange.authorizationCode
                 }
@@ -64,7 +64,7 @@ class DesktopPkceLoopbackListenerTest {
         DesktopPkceLoopbackListener.open().use { listener ->
             val executor = Executors.newSingleThreadExecutor()
             try {
-                val future = executor.submit<java.lang.String> {
+                val future = executor.submit<String> {
                     listener.awaitCallback(Duration.ofSeconds(15)).authorizationCode
                 }
                 val target = listener.redirectUri.rawPath + "?" +
@@ -95,7 +95,7 @@ class DesktopPkceLoopbackListenerTest {
         DesktopPkceLoopbackListener.open().use { listener ->
             val executor = Executors.newSingleThreadExecutor()
             try {
-                val future = executor.submit<java.lang.String> {
+                val future = executor.submit<String> {
                     listener.awaitCallback(Duration.ofSeconds(15)).authorizationCode
                 }
                 val target = listener.redirectUri.rawPath + "?" +
