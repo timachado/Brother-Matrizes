@@ -40,6 +40,7 @@ jobs:
         run: |
           gradle -p windows-fiel test --no-daemon --stacktrace `
             --tests '*DesktopWindowsDpapiSessionStoreTest' `
+            --tests '*DesktopWindowsLockedSessionRuntimeTest' `
             --tests '*DesktopTransientSessionKeeperTest' `
             --tests '*DesktopSupabaseGooglePkceClientTest' `
             --tests '*DesktopGooglePkceLoginCoordinatorTest' `
