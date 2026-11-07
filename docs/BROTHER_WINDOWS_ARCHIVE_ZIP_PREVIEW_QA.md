@@ -1,4 +1,4 @@
-# Brother Matrizes Windows — inventário ZIP somente leitura (QA)
+# Brother Matrizes Windows — inventário ZIP, RAR/RAR5 e 7Z (QA)
 
 **Escopo:** PR #226, branch `feature/windows-fiel-android-1-11-8-20261106`.
 **Fonte Android:** `ArchiveExtractorScreen.kt` e
@@ -15,23 +15,23 @@ cobrança fictícia ou botão de importar inoperante.
 
 ## Implementação efetuada
 
-- Menu Windows: **Biblioteca → Analisar pacote ZIP (somente leitura)**.
-- Seleção explícita do ZIP pelo JFileChooser; nenhuma pasta do cliente
+- Menu Windows: **Biblioteca → Analisar ZIP / RAR / 7Z (somente leitura)**.
+- Seleção explícita do pacote ZIP/RAR/7Z pelo JFileChooser; nenhuma pasta do cliente
   é escaneada automaticamente.
-- `DesktopArchiveInventory.inspect` lê apenas o diretório de
-  metadados do ZIP local; não abre individualmente nem extrai os
+- `DesktopArchiveInventory.inspect` lê apenas os metadados de cada
+  pacote local (ZIP, RAR/RAR5 ou 7Z); não extrai os
   arquivos internos, não grava em pasta temporária e não usa rede.
 - Tipos reconhecidos conforme Android:
   **PES, DST, JEF** (matrizes) e **TTF, OTF** (fontes).
-- Limites espelhados do `SafeArchiveExtractor`: ZIP de até
+- Limites espelhados do `SafeArchiveExtractor`: pacote de até
   **128 MB**, até **300 entradas**, **24 MB** por arquivo,
   **256 MB** de conteúdo descompactado anunciado, profundidade
   menor que 8, relação de compressão máxima 1000:1 para candidatas.
 - Filtragem de nomes inseguros para Windows (caminhos absolutos,
   `..`, nomes reservados, caracteres de controle e Unicode bidi),
   tipos não suportados e entradas duplicadas sem abrir conteúdo.
-- Tela `DesktopArchivePreviewScreen` apresenta totais, nomes,
-  formatos e tamanhos; não oferece controles falsos de extração.
+- Tela `DesktopArchivePreviewScreen` apresenta o formato detectado,
+  totais, nomes, tipos e tamanhos; sem controles falsos de extração.
 - `--capture-archive-qa` mostra somente inventário sintético,
   sem ler arquivos de usuários.
 - Nenhum dado de produção Supabase, senha, token ou arquivo comercial
@@ -47,12 +47,12 @@ ZIP inválido, extensão incorreta, symlink e mais de 300 entradas.
 realiza compilação, testes em Windows e captura visual, além de
 verificar os limites e formatos contra a fonte Android.
 
-**Não está homologado:** RAR/RAR5/7Z, arquivos com senha, importação
+**Não está homologado:** leitura de RAR real em todos os formatos, arquivos com senha, importação
 com licença/cota, validação CRC/conteúdo das matrizes internas,
 exclusão/renomeação, extração, análise da integridade de cada arquivo
 interno e interoperabilidade física com bordadeira.
 
-O inventário é **metadados declarados pelo ZIP**, não certificação de
+O inventário mostra **metadados declarados pelo pacote**, não certificação de
 que a matriz interna está íntegra ou é segura para bordar. A
 homologação comercial deverá preservar a autorização individual e
 as regras de cobrança do Android, além de testes com documentos
@@ -87,3 +87,39 @@ explicitamente autorizados pelo cliente.
 
 Somente QA. Não fazer merge na `main`, upload no site, envio em grupos,
 associação automática de arquivos ou liberação de `.exe` comercial.
+
+## Evolução RAR / RAR5 / 7Z — QA 07/11/2026
+
+- O inventário Windows agora reconhece as assinaturas reais de
+  **ZIP, RAR/RAR5 e 7Z** e recusa discrepância entre extensão e bytes.
+  Aceita somente arquivos locais regulares, até 128 MB, selecionados
+  explicitamente pelo usuário; symlinks não são analisados.
+- Integra as **mesmas versões do Android oficial**:
+  `com.github.junrar:junrar:8.1.1`,
+  `org.apache.commons:commons-compress:1.28.0`,
+  `org.tukaani:xz:1.10`. O leitor 7Z utiliza limite de
+  memória de 32 MiB, e o RAR limita dicionário a 32 MiB.
+- Em todos os formatos, utiliza apenas listagem de cabeçalhos:
+  **sem descompactação, leitura individual de matriz, importação,
+  escrita, pedido de senha, cobrança ou alteração em arquivos originais**.
+  Arquivos protegidos por senha podem ser rejeitados na leitura.
+- O teste `DesktopArchiveRar7zInventoryTest` gera **um 7Z sintético
+  real**, identifica matrizes e fontes, rejeita caminhos inseguros
+  e confirma que nenhum arquivo foi extraído. Também rejeita
+  assinatura falsa e cabeçalhos RAR/RAR5/7Z inválidos.
+- **RAR/RAR5 real permanece com homologação manual pendente**:
+  o teste automatizado não contém um RAR autêntico e
+  autorizado. Não alegar compatibilidade universal sem esse ensaio.
+- **Licença/redistribuição:** antes de distribuição comercial,
+  revisar formalmente os termos e avisos de licença do `junrar`
+  (componentes UnRAR), e também gerar/inspecionar o relatório de
+  dependências, segurança, SBOM e notices. O QA privado não é
+  um release nem autoriza essa distribuição.
+
+Workflows de validação:
+[Arquivos compactados](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-archive-inventory-qa.yml)
+e
+[Windows portátil QA](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-portable-qa.yml).
+
+A autorização comercial **por item** e o registro/finalização da cota
+permanecem bloqueios obrigatórios para qualquer importação futura.
