@@ -74,8 +74,14 @@ explicitamente autorizados pelo cliente.
 - A criação da imagem portátil com o novo inventário é verificada
   separadamente por
   [Windows portátil #42381808212](https://github.com/timachado/Brother-Matrizes/actions/runs/42381808212).
-  Sua conclusão e artefato devem ser conferidos antes de comunicar
-  um novo ZIP de QA.
+  **Resultado confirmado:** `completed/success` na revisão
+  `c226168`. A imagem portátil foi construída, os testes prioritários
+  passaram, e o launcher executou as capturas Windows com a nova tela
+  de análise ZIP. Artefatos temporários privados:
+  [Portable QA #13578400425](https://github.com/timachado/Brother-Matrizes/actions/runs/42381808212/artifacts/13578400425)
+  (ZIP com launcher e runtime, ~95 MB) e
+  [capturas #13578385395](https://github.com/timachado/Brother-Matrizes/actions/runs/42381808212/artifacts/13578385395).
+  A retenção é temporária; não houve publicação comercial.
 
 ## Situação de liberação
 
