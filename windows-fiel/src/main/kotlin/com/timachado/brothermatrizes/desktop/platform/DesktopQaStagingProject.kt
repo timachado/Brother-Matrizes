@@ -20,7 +20,10 @@ internal class DesktopQaStagingProject private constructor(val ref: String) {
             "/auth/v1/settings",
             "/functions/v1/brother-entitlement",
             "/functions/v1/brother-usage"
-        ) || path.startsWith("/auth/v1/token?grant_type=")) {
+        ) || path in setOf(
+            "/auth/v1/token?grant_type=pkce",
+            "/auth/v1/token?grant_type=refresh_token"
+        )) {
             "Endpoint de QA não permitido."
         }
         return URL(origin + path).also {
