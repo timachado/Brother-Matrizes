@@ -110,3 +110,21 @@ e verificações para não criar um instalador comercial.
 A compilação visual da Home e a criação do novo pacote portátil QA
 são execuções separadas; exigem resultados próprios antes de qualquer
 alegação de aprovação do pacote completo.
+
+## Pacote portátil de QA da integração Abrir/Salvar — 07/11/2026
+
+- [GitHub Actions #42378251643](https://github.com/timachado/Brother-Matrizes/actions/runs/42378251643):
+  `completed/success` após os testes prioritários, geração de
+  `createDistributable`, inicialização e capturas em Windows runner.
+- Artefato **temporário, privado e NÃO COMERCIAL**
+  [#13576493156](https://github.com/timachado/Brother-Matrizes/actions/runs/42378251643/artifacts/13576493156),
+  nome `Brother-Matrizes-Windows-PORTABLE-QA-NÃO-COMERCIAL`.
+  Contém launcher `BrotherMatrizesQA.exe` e as pastas requeridas
+  de runtime e aplicação. Não é executável independente isolado,
+  nem instalador, nem versão homologada para clientes.
+- O pipeline de Home [#42378251655](https://github.com/timachado/Brother-Matrizes/actions/runs/42378251655)
+  concluiu compilação, validação de fonte Android e testes unitários.
+  A etapa de captura visual permanece sujeita ao resultado final do job.
+
+A validade do artefato é limitada pelas políticas de retenção do
+GitHub Actions. Nenhum release público ou upload no site foi feito.
