@@ -61,16 +61,16 @@ jobs:
         shell: pwsh
         run: |
           $working = (Resolve-Path "windows-fiel").Path
-          $home = "windows-fiel/build/qa/home-windows-original-port.png"
-          $account = "windows-fiel/build/qa/account-windows-readonly-qa.png"
+          $homeScreenshot = "windows-fiel/build/qa/home-windows-original-port.png"
+          $accountScreenshot = "windows-fiel/build/qa/account-windows-readonly-qa.png"
           $runHome = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-home-qa") -WorkingDirectory $working -PassThru -Wait
           if ($runHome.ExitCode -ne 0) { throw "O launcher portable falhou na Home: $($runHome.ExitCode)" }
-          if (!(Test-Path $home) -or (Get-Item $home).Length -lt 10000) {
+          if (!(Test-Path $homeScreenshot) -or (Get-Item $homeScreenshot).Length -lt 10000) {
             throw "A Home do launcher portable nao foi renderizada."
           }
           $runAccount = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-account-qa") -WorkingDirectory $working -PassThru -Wait
           if ($runAccount.ExitCode -ne 0) { throw "O launcher portable falhou em Minha Conta: $($runAccount.ExitCode)" }
-          if (!(Test-Path $account) -or (Get-Item $account).Length -lt 10000) {
+          if (!(Test-Path $accountScreenshot) -or (Get-Item $accountScreenshot).Length -lt 10000) {
             throw "Minha Conta do launcher portable nao foi renderizada."
           }
           "BROTHER_WINDOWS_PORTABLE_LAUNCHER_SMOKE_OK"
