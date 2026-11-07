@@ -40,7 +40,7 @@ internal fun DesktopArchivePreviewScreen(
     preview: DesktopArchiveInventory.Preview?,
     busy: Boolean,
     error: String?,
-    onChooseZip: () -> Unit,
+    onChoosePackage: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -52,7 +52,7 @@ internal fun DesktopArchivePreviewScreen(
             Text("‹ Voltar", color = FioGold)
         }
         Text(
-            "Extrator Inteligente — análise ZIP",
+            "Extrator Inteligente — ZIP / RAR / 7Z",
             color = FioText, fontWeight = FontWeight.Bold, fontSize = 22.sp
         )
         Text(
@@ -61,14 +61,14 @@ internal fun DesktopArchivePreviewScreen(
             color = FioTextMuted
         )
         Button(
-            onClick = onChooseZip,
+            onClick = onChoosePackage,
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = FioGold, contentColor = FioBackground
             )
         ) {
-            Text("Selecionar arquivo ZIP")
+            Text("Selecionar pacote ZIP, RAR ou 7Z")
         }
         if (busy) {
             CircularProgressIndicator(color = FioGold)
@@ -88,7 +88,7 @@ internal fun DesktopArchivePreviewScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        preview.archiveName, color = FioGold,
+                        "${preview.format.displayName()} • ${preview.archiveName}", color = FioGold,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -146,4 +146,10 @@ internal fun DesktopArchivePreviewScreen(
             color = FioTextMuted, fontSize = 11.sp
         )
     }
+}
+
+private fun DesktopArchiveInventory.Format.displayName(): String = when (this) {
+    DesktopArchiveInventory.Format.ZIP -> "ZIP"
+    DesktopArchiveInventory.Format.RAR -> "RAR / RAR5"
+    DesktopArchiveInventory.Format.SEVEN_Z -> "7Z"
 }
