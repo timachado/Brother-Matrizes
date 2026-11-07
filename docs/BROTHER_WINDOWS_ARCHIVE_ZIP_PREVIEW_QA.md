@@ -144,3 +144,40 @@ permanecem bloqueios obrigatórios para qualquer importação futura.
   Também não houve teste em equipamento de bordado, conta comercial ou
   documento de cliente. Sem distribuição, merge na main ou publicação
   no site da T.I. Machado.
+
+## Evidência com amostras reais RAR4 e RAR5
+
+- Fonte: repositório público
+  [junrar/junrar](https://github.com/junrar/junrar),
+  commit imutável `51ea7dc09262bd56cd191159acddea31bee65c5b`,
+  arquivos `src/test/resources/com/github/junrar/rar4.rar` e
+  `src/test/resources/com/github/junrar/rar5.rar`.
+- Proveniência validada pela árvore Git upstream: `rar4.rar`,
+  **123 bytes**, Git blob SHA-1
+  `4cde363a7fe70d217316f83d9ff3cd65adb1b5fa`;
+  `rar5.rar`, **130 bytes**, Git blob SHA-1
+  `bf6839769eb7d0c6622f5cc0b2504ebb5beffe4e`.
+- A CI baixa os dois arquivos diretamente do commit fixado,
+  verifica tamanho e Git blob SHA-1 antes dos testes.
+  Nunca inclui esses binários no repositório, no ZIP distribuído
+  ou nos artefatos finais.
+- O teste `DesktopArchiveRealRarFixturesTest` exige a pasta
+  explícita `BROTHER_RAR_FIXTURE_DIR` no runner. Verifica
+  o reconhecimento de RAR4 e RAR5, as duas entradas de texto dos
+  arquivos de referência, a classificação como conteúdo **não
+  importável**, a integridade dos bytes e ausência de extração.
+  Não comprova leitura de matriz PES/DST/JEF embutida no RAR.
+- Os samples são da suíte de testes pública do projeto upstream,
+  não arquivos de clientes. A licença UnRAR do repositório
+  [junrar/LICENSE](https://github.com/junrar/junrar/blob/51ea7dc09262bd56cd191159acddea31bee65c5b/LICENSE)
+  contém restrições relacionadas à recriação do algoritmo de
+  compressão RAR; revisão jurídica e avisos comerciais
+  continuam necessários.
+- Workflow:
+  [RAR4/RAR5 com hash fixado](https://github.com/timachado/Brother-Matrizes/actions/workflows/brother-windows-archive-inventory-qa.yml).
+  Só registrar `success` após conferir a execução final.
+
+**Pendente para importação comercial:** autenticação homologada,
+reserva/finalização de cota por item, integridade e validação de cada
+arquivo extraído, consentimento, caminhos de destino, proteção contra
+ZIP Slip e homologação com dados autorizados e bordadeiras físicas.
