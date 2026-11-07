@@ -57,6 +57,7 @@ jobs:
             --tests '*DesktopGooglePkceLoginCoordinatorTest' `
             --tests '*DesktopWindowsFullGoogleQaFlowTest' `
             --tests '*DesktopPkceHandshakeTest' `
+            --tests '*DesktopPkceRedirectPreflightTest' `
             --tests '*DesktopPkceLoopbackListenerTest'
       - name: Garantir que QA nao criou executavel comercial
         shell: pwsh
