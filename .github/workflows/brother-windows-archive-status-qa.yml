@@ -56,8 +56,7 @@ jobs:
           assert all(s in pro for s in (
             'authenticatedUserId', 'requestKey', 'requestId',
           )), "Pro lookup must scope reads"
-          assert 'createClient' not in helper and 'createClient' not in pro,
-          "Read-only helper must have no DB client"
+          assert ('createClient' not in helper and 'createClient' not in pro), "Read-only helpers must have no DB client"
           assert 'delete(' not in helper and 'update(' not in helper
           print("BROTHER_KNOWN_QUOTA_STATUS_SERVER_READ_ONLY_OK")
           PY
