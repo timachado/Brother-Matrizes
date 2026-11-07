@@ -63,7 +63,7 @@ Evidências:
 | Nº | Portão | Situação 07/11/2026 | Evidência necessária para fechar |
 |---:|---|---|---|
 | 1 | Reserva gratuita V2 em staging e implantação controlada | **QA isolada aprovada; implantação pendente** | Migração oficial revisada, RLS/grants auditados, protocolo V1 Android intacto, testes de concorrência em staging, rollback planejado e implantação separadamente autorizada. |
-| 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: contratos Pro V2 offline testados; persistência SQL ainda pendente** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
+| 2 | Idempotência e recibos duráveis do plano Pro | **Parcial: recibos e RPCs Pro V2 aprovados em PostgreSQL descartável; staging e implantação pendentes** | Autoridade de assinatura consultada no servidor; recibos Pro persistidos por UUID/conta/operação; repetição não concede plano, crédito ou reserva adicional; casos de cancelamento/expiração e concorrência aprovados. |
 | 3 | Finalização de cota e reconciliação remota idempotente | **Parcial: journal e status de reserva em QA** | Decisão de sucesso/falha gravada server-side e recuperável, consulta autenticada de tentativas sem resposta, resposta repetida sem dupla cobrança, testes de perda de conexão e contratos Free/Pro. |
 | 4 | Diário de propriedade e recuperação de arquivos após falhas | **Parcial: rollback no processo e FileLock** | Journal de ownership persistido antes de salvar matriz/fonte, gravar em pasta temporária privada, commit durável, recuperação sem apagar arquivos alheios, simulações de corte de energia e concorrência entre processos. |
 | 5 | Login Google Windows e licenciamento real | **QA simulada, homologação real pendente** | Redirect allowlist confirmada no Supabase, navegador externo + PKCE + DPAPI + getUser em conta exclusiva de QA, logout/expiração, vínculo da identidade com entitlement real, sem tokens em claro. |
@@ -104,3 +104,11 @@ concluídos. O número de portões pode mudar se surgir bloqueador material
 em QA real; isso deve ser explicitamente informado.
 
 *Contagem desta auditoria: 9 abertas / 0 homologadas para distribuição comercial.*
+
+## Atualização de QA — recibos Pro V2 em PostgreSQL 16
+
+- [GitHub Actions #42408650490](https://github.com/timachado/Brother-Matrizes/actions/runs/42408650490): **dois jobs aprovados**, incluindo PostgreSQL 16 descartável e Deno (10 testes, zero falhas).
+- Implementadas [tabela RLS e funções SQL QA](../qa/sql/brother_pro_v2_receipts_ephemeral.sql) de reserva/finalização Pro, com replay por UUIDv4, quatro conexões concorrentes e decisão imutável quando a finalização é repetida.
+- O [script SQL isolado](../.github/scripts/brother_pro_v2_ephemeral_pg.sh) também verifica recusa de outra conta, operação, plano, reserva expirada, acesso de anon/authenticated e colisão entre chaves Free/Pro.
+- O código **não** está conectado à Edge Function comercial; nenhuma migração Supabase foi criada ou aplicada. Falta integrar a autoridade de licenças e homologar em staging antes de implantar.
+- **Contagem comercial inalterada: 9 portões abertos, zero homologados.**
