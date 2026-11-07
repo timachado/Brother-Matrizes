@@ -105,6 +105,10 @@ homologados**. `main`, Android e Supabase produção inalterados.
   acesso a Supabase real.
 - [Relatórios XML Windows #13589947316](https://github.com/timachado/Brother-Matrizes/actions/runs/42412652537/artifacts/13589947316):
   arquivo sintético de testes, sem tokens nem matrizes de clientes.
-- [Portable QA #42412612723](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723)
-  executa regressão prioritária e APP-IMAGE. O resultado final
-  da imagem Windows deve ser confirmado separadamente.
+- [Portable QA #42412612723](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723):
+  **completed/success**, com regressão prioritária, APP-IMAGE,
+  execução do launcher e captura de tela no runner Windows.
+  [Executável portátil QA #13590541211](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723/artifacts/13590541211)
+  (98.267.343 bytes; pasta com launcher e runtime) e
+  [capturas QA #13589164810](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723/artifacts/13589164810)
+  (237.365 bytes). Artefatos privados e temporários, sem liberação comercial.
