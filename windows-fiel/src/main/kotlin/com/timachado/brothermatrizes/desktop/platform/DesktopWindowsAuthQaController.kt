@@ -32,10 +32,24 @@ internal class DesktopWindowsAuthQaController private constructor(
     }
 
     suspend fun login(): Unit = exclusive {
-        // Existing credentials are invalidated before a new OAuth attempt.
+        // Generic offline QA only; NOT an authorization for commercial UI.
         keeper.clear()
         val session = signIn.signIn()
         keeper.install(session)
+    }
+
+    /**
+     * Authenticated QA login: Google provider must be confirmed by the
+     * Supabase server BEFORE any token is written to protected storage.
+     */
+    suspend fun loginAndVerifyGoogleForQa(
+        verifier: DesktopSupabaseGoogleIdentityVerifier
+    ): DesktopVerifiedGoogleIdentity = exclusive {
+        keeper.clear()
+        val session = signIn.signIn()
+        val identity = verifier.verifyGoogleIdentity(session.accessToken)
+        keeper.install(session)
+        identity
     }
 
     suspend fun accessTokenForQa(): String = exclusive {
@@ -50,7 +64,16 @@ internal class DesktopWindowsAuthQaController private constructor(
     suspend fun verifyGoogleAccountForQa(
         verifier: DesktopSupabaseGoogleIdentityVerifier
     ): DesktopVerifiedGoogleIdentity = exclusive {
-        verifier.verifyGoogleIdentity(keeper.tokenForIsolatedQa())
+        try {
+            verifier.verifyGoogleIdentity(keeper.tokenForIsolatedQa())
+        } catch (cancelled: CancellationException) {
+            keeper.clear()
+            throw cancelled
+        } catch (_: Exception) {
+            // A failed server verification invalidates even DPAPI recovery.
+            keeper.clear()
+            error("Não foi possível validar a conta Google. Entre novamente.")
+        }
     }
 
     suspend fun logout(): Unit = exclusive {
