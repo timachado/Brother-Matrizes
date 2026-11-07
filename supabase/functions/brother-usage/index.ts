@@ -93,7 +93,8 @@ Deno.serve(async (req: Request) => {
   // Never enable before the Pro receipt table/RPCs, entitlement checks,
   // staging, and Windows journal have been independently homologated.
   const proV2Enabled = Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true";
-  if (["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&
+  if (typeof payload.action === "string" &&
+      ["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&
       !proV2Enabled) {
     return reply({ message: "Recibos Pro V2 ainda não habilitados para homologação." }, 503);
   }
