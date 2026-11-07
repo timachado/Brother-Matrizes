@@ -37,20 +37,23 @@ internal class DesktopWindowsLockedSessionRuntime private constructor(
 
     private val guardedVault: DesktopProtectedSessionVault =
         object : DesktopProtectedSessionVault {
-            override fun save(session: DesktopTransientAuthSession) {
-                assertActive()
-                storage.save(session)
-            }
+            override fun save(session: DesktopTransientAuthSession) =
+                synchronized(this@DesktopWindowsLockedSessionRuntime) {
+                    assertActive()
+                    storage.save(session)
+                }
 
-            override fun load(): DesktopProtectedSessionSnapshot? {
-                assertActive()
-                return storage.load()
-            }
+            override fun load(): DesktopProtectedSessionSnapshot? =
+                synchronized(this@DesktopWindowsLockedSessionRuntime) {
+                    assertActive()
+                    storage.load()
+                }
 
-            override fun clear() {
-                assertActive()
-                storage.clear()
-            }
+            override fun clear() =
+                synchronized(this@DesktopWindowsLockedSessionRuntime) {
+                    assertActive()
+                    storage.clear()
+                }
         }
 
     /**
