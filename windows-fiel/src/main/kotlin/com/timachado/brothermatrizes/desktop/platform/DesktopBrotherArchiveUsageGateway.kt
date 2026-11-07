@@ -273,8 +273,11 @@ internal class DesktopBrotherArchiveUsageGateway(
         (this[field] as? JsonPrimitive)
             ?.takeIf { it.isString }?.content.orEmpty()
 
-    private fun JsonObject.booleanOptional(field: String): Boolean? =
-        (this[field] as? JsonPrimitive)?.booleanOrNull
+    private fun JsonObject.booleanOptional(field: String): Boolean? {
+        val value = this[field] as? JsonPrimitive ?: return null
+        // JSON string "true" must never be treated as a server boolean.
+        return if (value.isString) null else value.booleanOrNull
+    }
 
     private fun JsonObject.boolean(field: String): Boolean =
         booleanOptional(field) == true
