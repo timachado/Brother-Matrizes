@@ -161,7 +161,19 @@ QA**, visível quando há opt-in explícito do Windows:
   de tamanho. Os workflows OAuth/DPAPI e Minha Conta receberam
   esses testes e a compilação da UI.
 
-**Aguardando checagem de CI:** a existência dos commits não comprova
-o resultado dos testes. Ainda é necessária conferência autenticada
-do dashboard, teste com conta QA e aceite explícito da paridade
-funcional antes de distribuir o Windows comercial.
+**Resultado de QA em 07/11/2026:**
+
+- [OAuth/DPAPI #42376543324](https://github.com/timachado/Brother-Matrizes/actions/runs/42376543324):
+  `completed/success` no commit `feaf8f6`. Compilação e testes
+  offline de autenticação, DPAPI, PKCE e revisão exata de allowlist passaram.
+- [Minha Conta #42376546723](https://github.com/timachado/Brother-Matrizes/actions/runs/42376546723):
+  `completed/success` no commit `338a773`. Os testes unitários
+  e a captura Compose Windows de Minha Conta passaram.
+  Artefato QA `brother-windows-account-readonly-qa-screenshot`
+  (ID `13576150878`, 27.836 bytes) disponibilizado.
+
+Essas provas cobrem ambiente automatizado e não comprovam sessão
+Supabase real, aprovação da allowlist nem assinatura comercial.
+Ainda é necessária conferência autenticada do dashboard, teste
+com conta dedicada de QA e aceite da paridade funcional completa
+antes de distribuir o Windows comercial.
