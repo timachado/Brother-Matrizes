@@ -33,10 +33,12 @@ internal class DesktopBrotherFontUsageGateway(
     )
 
     init {
-        require(publishableKey.isNotBlank() &&
-            publishableKey.length <= 4096 &&
-            publishableKey.none { it.isISOControl() }) {
-            "Chave publicável inválida."
+        // Reject service_role, sb_secret_*, legacy private JWTs and
+        // header injection BEFORE creating a network connection.
+        require(publishableKey.startsWith("sb_publishable_") &&
+            publishableKey.length in 20..4096 &&
+            publishableKey.all { !it.isISOControl() && !it.isWhitespace() }) {
+            "A autorização de cotas exige chave Supabase publicável."
         }
         require(appVersionCode > 0) { "Versão do aplicativo inválida." }
         require(endpoint.protocol == "https" &&
@@ -77,7 +79,7 @@ internal class DesktopBrotherFontUsageGateway(
     private suspend fun post(accessToken: String, jsonBody: String): JsonObject =
         withContext(Dispatchers.IO) {
             require(accessToken.isNotBlank() && accessToken.length <= 8192 &&
-                accessToken.none { it.isISOControl() }) {
+                accessToken.none { it.isISOControl() || it.isWhitespace() }) {
                 "Sessão de autenticação inválida."
             }
             val conn = openConnection(endpoint)
@@ -130,7 +132,11 @@ internal class DesktopBrotherFontUsageGateway(
         }
 
     private fun JsonObject.bool(field: String): Boolean =
-        (this[field] as? JsonPrimitive)?.booleanOrNull == true
+        (this[field] as? JsonPrimitive)?.let {
+            // kotlinx.serialization booleanOrNull also parses the STRING
+            // "true". A server authorization flag must be a JSON boolean.
+            !it.isString && it.booleanOrNull == true
+        } == true
 
     private fun JsonObject.string(field: String): String =
         (this[field] as? JsonPrimitive)?.let {
