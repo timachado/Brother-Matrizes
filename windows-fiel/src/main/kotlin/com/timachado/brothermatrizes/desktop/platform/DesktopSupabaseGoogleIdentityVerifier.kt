@@ -38,6 +38,11 @@ internal class DesktopSupabaseGoogleIdentityVerifier(
     },
     private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
+    constructor(
+        publishableKey: String,
+        connectionFactory: (URL) -> HttpURLConnection
+    ) : this(publishableKey, connectionFactory, "dwpcddiramxlhavdmmyn")
+
     private val endpoint = URL(
         "https://$projectRef.supabase.co/auth/v1/user"
     )
