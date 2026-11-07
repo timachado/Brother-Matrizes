@@ -781,14 +781,6 @@ private fun FielHomeHost(
             }
         )
     }
-    LaunchedEffect(archiveLaunchRequest) {
-        if (archiveLaunchRequest > 0) {
-            archivePreview = null
-            archiveError = null
-            area = HomeArea.LIBRARY
-            detail = ActiveDetail.ARCHIVE_PREVIEW
-        }
-    }
     LaunchedEffect(drawingLaunchRequest) {
         if (drawingLaunchRequest > 0) {
             area = HomeArea.CREATE
@@ -835,6 +827,14 @@ private fun FielHomeHost(
                 )
             else null
         )
+    }
+    LaunchedEffect(archiveLaunchRequest) {
+        if (archiveLaunchRequest > 0) {
+            archivePreview = null
+            archiveError = null
+            area = HomeArea.LIBRARY
+            detail = ActiveDetail.ARCHIVE_PREVIEW
+        }
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
