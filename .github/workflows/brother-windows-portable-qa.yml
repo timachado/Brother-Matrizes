@@ -46,6 +46,14 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopCommercialFontImportGateTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGoogleProviderReadinessTest.kt"
       - "branding/brother_bm_launcher_safe.webp.base64"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopOpenTypeFontNames.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOpenTypeFontNamesTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopImportedFontLibraryTest.kt"
       - ".github/workflows/brother-windows-portable-qa.yml"
   workflow_dispatch:
 
@@ -89,7 +97,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopImportedFontLibraryTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
@@ -173,7 +181,9 @@ jobs:
             "Envio para maquina: exportacao manual em arquivo/pendrive. Sem Wi-Fi/USB direto ou teste em bordadeira."
             "Criar desenho: SVG local e desenho livre Android em QA; sem garantia de SVG complexo ou teste em cliente."
             "Extrator: leitura ZIP RAR RAR5 7Z. Validação Android PES DST JEF/FLP e Skia TTF isolados em QA, sem importação comercial na interface."
-            "Cotas: journal e lock multiprocesso testados; consulta de estado read-only apenas preparada no código, sem endpoint publicado nem reconciliação automática."
+            "Cotas: journal V3, lock multiprocesso e diagnóstico read-only testados; nunca conciliam, excluem ou liberam importação automaticamente."
+            "Fontes: nomes OpenType provenientes da base Android 1.11.9, somente metadados; geração comercial de fonte externa continua bloqueada."
+            "Autenticação Google/DPAPI e entitlement: QA com servidor simulado; redirect e login reais ainda nao homologados."
             "Codigo: feature/windows-fiel-android-1-11-8-20261106"
             "Commit: $env:GITHUB_SHA"
             "SHA256 BrotherMatrizesQA.exe: $hash"
