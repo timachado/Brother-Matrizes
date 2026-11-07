@@ -104,6 +104,7 @@ fun main(args: Array<String>) = application {
     val compactScreenshot = args.singleOrNull() == "--capture-home-qa"
     val wideScreenshot = args.singleOrNull() == "--capture-home-wide-qa"
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
+    val accountScreenshot = args.singleOrNull() == "--capture-account-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
     val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
@@ -123,7 +124,7 @@ fun main(args: Array<String>) = application {
     val saveDialogQa = saveDialogNewQa || saveDialogProtectQa
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot ||
-            editorCapture || fileChooserQa || saveDialogQa
+            editorCapture || fileChooserQa || saveDialogQa || accountScreenshot
     // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
     // As capturas QA continuam aceitando somente suas flags explícitas.
     val launchDocument = if (screenshotMode) null
@@ -195,7 +196,8 @@ fun main(args: Array<String>) = application {
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
-                editorCapture || fileChooserQa || saveDialogQa -> DpSize(920.dp, 680.dp)
+                editorCapture || fileChooserQa || saveDialogQa || accountScreenshot ->
+                    DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -390,7 +392,7 @@ fun main(args: Array<String>) = application {
                 delay(
                     when {
                         editorCapture -> 11_000L
-                        createNameScreenshot -> 5_000L
+                        createNameScreenshot || accountScreenshot -> 5_000L
                         else -> 2_500L
                     }
                 )
@@ -585,6 +587,7 @@ fun main(args: Array<String>) = application {
                     }
                     val filename = when {
                         createNameScreenshot -> "create-name-windows-original-port.png"
+                        accountScreenshot -> "account-windows-readonly-qa.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
@@ -597,9 +600,11 @@ fun main(args: Array<String>) = application {
                         "Captura do canvas Windows não foi gerada."
                     }
                     println(
-                        (if (editorCapture)
-                            "BROTHER_WINDOWS_NAME_EDITOR_SCREENSHOT_OK "
-                        else "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK ") +
+                        (when {
+                            editorCapture -> "BROTHER_WINDOWS_NAME_EDITOR_SCREENSHOT_OK "
+                            accountScreenshot -> "BROTHER_WINDOWS_ACCOUNT_SCREENSHOT_OK "
+                            else -> "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK "
+                        }) +
                             "${bounds.width}x${bounds.height}"
                     )
                     exitProcess(0)
@@ -612,6 +617,7 @@ fun main(args: Array<String>) = application {
         BrotherMatrizesTheme(darkTheme = true) {
             FielHomeHost(
                 startInCreate = createNameScreenshot,
+                startInAccountQa = accountScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
@@ -679,6 +685,7 @@ private fun syntheticNameEditorQaDesign(): EmbroideryDesign {
 @Composable
 private fun FielHomeHost(
     startInCreate: Boolean = false,
+    startInAccountQa: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
@@ -692,7 +699,13 @@ private fun FielHomeHost(
     libraryFolderRequest: Int = 0
 ) {
     var area by remember {
-        mutableStateOf(if (startInCreate) HomeArea.CREATE else HomeArea.HOME)
+        mutableStateOf(
+            when {
+                startInAccountQa -> HomeArea.ACCOUNT
+                startInCreate -> HomeArea.CREATE
+                else -> HomeArea.HOME
+            }
+        )
     }
     var detail by remember {
         mutableStateOf(
