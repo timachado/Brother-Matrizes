@@ -196,8 +196,11 @@ internal object DesktopArchiveInventory {
             path.any { it.isISOControl() ||
                 it in "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069" }
         ) return null
+        // ZIP exposes compressedSize; RAR and 7Z metadata readers may not.
+        // Android SafeArchiveExtractor.describe applies ratio only when known.
+        // A missing packed size must NOT hide valid 7Z/RAR entries. There is
+        // no decompression in this read-only Windows preview.
         if (packed > 0 && size > packed * MAX_RATIO) return null
-        if (packed < 0) return null
 
         val base = path.substringAfterLast('/')
         if (base.startsWith(' ') || base.endsWith(' ') || base.endsWith('.') ||
