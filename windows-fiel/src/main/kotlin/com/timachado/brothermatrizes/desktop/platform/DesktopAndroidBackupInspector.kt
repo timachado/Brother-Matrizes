@@ -67,11 +67,17 @@ internal object DesktopAndroidBackupInspector {
                     !entry.name.startsWith('/') && !entry.name.contains("..")) {
                     "Backup contém nomes duplicados, caminhos inseguros ou pastas."
                 }
-                val allowed = entry.name == "brother_matrizes-complete-backup.txt" ||
-                    entry.name == "projects.brother_matrizes-backup" ||
+                val allowed = if (name.endsWith(".brother_matrizes-fullbackup")) {
+                    entry.name == "brother_matrizes-complete-backup.txt" ||
+                        entry.name == "projects.brother_matrizes-backup" ||
+                        entry.name.matches(
+                            Regex("fonts/[A-Za-z0-9._-]{1,100}\\.(ttf|otf)",
+                                RegexOption.IGNORE_CASE)
+                        )
+                } else {
                     entry.name == "brother_matrizes-backup.txt" ||
-                    entry.name.matches(Regex("projects/[0-9]{5}\\.flp")) ||
-                    entry.name.matches(Regex("fonts/[A-Za-z0-9._-]{1,100}\\.(ttf|otf)", RegexOption.IGNORE_CASE))
+                        entry.name.matches(Regex("projects/[0-9]{5}\\.flp"))
+                }
                 require(allowed) { "Backup contém entrada desconhecida." }
                 require(entry.size in 0..MAX_UNCOMPRESSED_BYTES &&
                     entry.size <= MAX_UNCOMPRESSED_BYTES - unpacked) {
