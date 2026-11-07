@@ -28,8 +28,8 @@ function eq<T>(actual: T, expected: T, context: string) {
   }
 }
 const approved = (replayed: boolean) => ({
-  allowed: true, operation: initial.operation, request_key: key,
-  state: "reserved", replayed, pro: true, remaining: null,
+  allowed: true as const, operation: initial.operation, request_key: key,
+  state: "reserved" as const, replayed, pro: true as const, remaining: null,
 });
 
 Deno.test("trusted active Pro is required before first database write", async () => {
