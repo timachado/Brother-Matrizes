@@ -145,4 +145,55 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
             status.finding)
         assertFalse(status.permitsAutomaticCleanup)
     }
+
+    @Test
+    fun durableProV2StatusIsDiagnosticOnlyAndNeverDeletesJournal() {
+        val folder = Files.createTempDirectory("bm-pro-v2-status-")
+        try {
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val stage = journal.acquireLease().use {
+                journal.reserved(
+                    journal.begin(item),
+                    "pro_12345678-1234-4234-8234-123456789abc"
+                )
+            }
+            for ((state, finding) in listOf(
+                DesktopArchiveQuotaStatus.State.RESERVED to
+                    DesktopArchiveQuotaRecoveryAssessment.Finding.SERVER_STILL_RESERVED,
+                DesktopArchiveQuotaStatus.State.COMPLETED to
+                    DesktopArchiveQuotaRecoveryAssessment.Finding.SERVER_COMPLETED_LOCAL_UNVERIFIED,
+                DesktopArchiveQuotaStatus.State.FAILED to
+                    DesktopArchiveQuotaRecoveryAssessment.Finding.SERVER_FAILED_LOCAL_UNVERIFIED,
+                DesktopArchiveQuotaStatus.State.NOT_FOUND to
+                    DesktopArchiveQuotaRecoveryAssessment.Finding.UNRECOGNIZED_SERVER_RESERVATION
+            )) {
+                val assessment = DesktopArchiveQuotaRecoveryAssessment.inspect(
+                    stage, DesktopArchiveQuotaStatus(
+                        "pro_12345678-1234-4234-8234-123456789abc",
+                        DesktopArchiveInventory.Category.MATRIX, state
+                    )
+                )
+                assertEquals(finding, assessment.finding)
+                assertTrue(assessment.blocksNewImports)
+                assertFalse(assessment.permitsAutomaticFinalize)
+                assertFalse(assessment.permitsAutomaticCleanup)
+                assertEquals(listOf(stage), journal.listPending())
+                assertFailsWith<IllegalStateException> {
+                    journal.acquireLease().use { journal.begin(item) }
+                }
+            }
+            assertFailsWith<IllegalArgumentException> {
+                DesktopArchiveQuotaRecoveryAssessment.inspect(
+                    stage, DesktopArchiveQuotaStatus(
+                        "pro_00000000-0000-4000-8000-000000000000",
+                        DesktopArchiveInventory.Category.MATRIX,
+                        DesktopArchiveQuotaStatus.State.COMPLETED
+                    )
+                )
+            }
+        } finally {
+            Files.list(folder).use { it.forEach(Files::deleteIfExists) }
+            Files.deleteIfExists(folder)
+        }
+    }
 }
