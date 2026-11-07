@@ -55,14 +55,14 @@ internal class DesktopTransientSessionKeeper(
         try {
             current = null
             expiresAt = null
-            val protected = vault?.load() ?: return false
-            check(protected.session.expiresInSeconds in 1..86_400 &&
-                !protected.expiresAt.isAfter(clock.instant().plusSeconds(86_400))) {
+            val snapshot = vault?.load() ?: return false
+            check(snapshot.session.expiresInSeconds in 1..86_400 &&
+                !snapshot.expiresAt.isAfter(clock.instant().plusSeconds(86_400))) {
                 "Sessão protegida fora da validade."
             }
-            current = protected.session
+            current = snapshot.session
             // Preserve original expiry, not an artificially renewed lifetime.
-            expiresAt = protected.expiresAt
+            expiresAt = snapshot.expiresAt
             return true
         } finally {
             lock.unlock()
