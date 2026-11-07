@@ -36,6 +36,24 @@ jobs:
         run: |
           gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAccountQaScreenTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsFullGoogleQaFlowTest'
           if ($LASTEXITCODE -ne 0) { throw "QA de Minha Conta Windows falhou." }
+      - name: Capturar Minha Conta real em Compose Desktop sem identidade pessoal
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-account-qa" --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Minha Conta nao abriu na janela Windows." }
+          $png = "windows-fiel/build/qa/account-windows-readonly-qa.png"
+          if (!(Test-Path $png)) { throw "Captura de Minha Conta ausente." }
+          if ((Get-Item $png).Length -lt 10000) {
+            throw "Captura de Minha Conta incompleta."
+          }
+      - name: Guardar comprovacao visual de Minha Conta sem dados comerciais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-account-readonly-qa-screenshot
+          path: windows-fiel/build/qa/account-windows-readonly-qa.png
+          if-no-files-found: warn
+          retention-days: 14
       - name: Sem installer nem executavel em QA de conta
         shell: pwsh
         run: |
