@@ -1,6 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { readKnownImportStatus } from "./read-status.ts";
 import { reserveImportV2 } from "./reserve-v2.ts";
+import { handleProV2 } from "./pro-v2-route.ts";
+import type { TrustedEntitlement } from "./pro-receipt-v2.ts";
 
 /**
  * Brother Matrizes — import allowance, not a commerce authority.
@@ -38,12 +40,13 @@ Deno.serve(async (req: Request) => {
     payload = parsed;
     const validKeys = parsed.action === "reserve"
       ? ["action", "operation"]
-      : parsed.action === "reserve_v2"
+      : ["reserve_v2", "reserve_pro_v2"].includes(parsed.action)
         ? ["action", "operation", "client_request_id"]
         : parsed.action === "status"
-        ? ["action", "operation", "request_key"]
-        : ["action", "operation", "request_key", "success"];
-    if (!["reserve", "reserve_v2", "finalize", "status"].includes(parsed.action) ||
+          ? ["action", "operation", "request_key"]
+          : ["action", "operation", "request_key", "success"];
+    if (!["reserve", "reserve_v2", "reserve_pro_v2", "finalize",
+      "finalize_pro_v2", "status"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
       !operations.has(parsed.operation) ||
@@ -54,10 +57,15 @@ Deno.serve(async (req: Request) => {
         (typeof parsed.request_key !== "string" ||
           !/^usage_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
             .test(parsed.request_key))) ||
-      (parsed.action === "reserve_v2" &&
+      (["reserve_v2", "reserve_pro_v2"].includes(parsed.action) &&
         (typeof parsed.client_request_id !== "string" ||
           !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-            .test(parsed.client_request_id))))
+            .test(parsed.client_request_id))) ||
+      (parsed.action === "finalize_pro_v2" &&
+        (typeof parsed.success !== "boolean" ||
+          typeof parsed.request_key !== "string" ||
+          !/^pro_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+            .test(parsed.request_key))))
       throw Error("invalid");
   } catch {
     return reply({ message: "Solicitação de importação inválida." }, 400);
@@ -80,6 +88,40 @@ Deno.serve(async (req: Request) => {
   if (loginError || !user) return reply({ message: "Sessão Google inválida ou expirada." }, 401);
   if (!user.email || !user.email_confirmed_at)
     return reply({ message: "Confirme seu e-mail Google para utilizar as importações." }, 403);
+
+  // Separate, explicit opt-in. Defaults to disabled even in a deploy.
+  // Never enable before the Pro receipt table/RPCs, entitlement checks,
+  // staging, and Windows journal have been independently homologated.
+  const proV2Enabled = Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true";
+  if (["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action) &&
+      !proV2Enabled) {
+    return reply({ message: "Recibos Pro V2 ainda não habilitados para homologação." }, 503);
+  }
+
+  // A persisted Pro receipt may be finalized even after its subscription
+  // expires. The authenticated user is already verified above, and the
+  // restricted database RPC additionally matches user, operation and UUID.
+  if (payload.action === "finalize_pro_v2") {
+    const result = await handleProV2({
+      action: "finalize_pro_v2",
+      identity: { authenticatedUserId: user.id, authenticatedEmail: user.email },
+      operation: payload.operation as "import_font" | "import_matrix",
+      clientRequestId: (payload.request_key as string).slice(4),
+      success: payload.success as boolean,
+    }, {
+      enabled: proV2Enabled,
+      getTrustedEntitlement: async () => {
+        throw Error("Finalizing an existing receipt must never fetch or create entitlement.");
+      },
+      reserve: async () => {
+        throw Error("Finalization must never reserve another Pro receipt.");
+      },
+      finalize: async args => await admin.rpc(
+        "brother_matrizes_finalize_pro_import_v2", args
+      ),
+    });
+    return reply(result.body, result.status);
+  }
 
   // Additive, read-only diagnostic for a KNOWN 'usage_' reservation.
   // No quota changes, no rows inserted, no entitlement assertions and
@@ -107,6 +149,7 @@ Deno.serve(async (req: Request) => {
   // Reuse the current entitlement authority: never duplicate or fabricate
   // WooCommerce/Efí payment checks inside this non-financial service.
   let isPro = false;
+  let trustedEntitlement: TrustedEntitlement | null = null;
   try {
     const ent = await fetch(url.replace(/\/$/, "") + "/functions/v1/brother-entitlement", {
       method: "GET",
@@ -118,11 +161,35 @@ Deno.serve(async (req: Request) => {
     if (!body?.authenticated || body?.user?.id !== user.id ||
       !body?.user?.email?.toLowerCase || body.user.email.toLowerCase() !== user.email.toLowerCase())
       throw Error("entitlement identity mismatch");
+    trustedEntitlement = body as TrustedEntitlement;
     isPro = body.pro === true && body.status === "active" &&
       ["trial", "pro_monthly", "pro_yearly", "pro_lifetime", "pro_lifetime_launch"]
         .includes(body.planCode);
   } catch {
     return reply({ message: "Não foi possível verificar sua licença. Confira a internet e tente novamente." }, 503);
+  }
+
+  // Authenticated Pro V2 is staged behind an opt-in flag. All permission
+  // fields come from the trusted brother-entitlement GET above, not the
+  // client body. The SQL RPC and table are intentionally NOT deployed.
+  if (payload.action === "reserve_pro_v2") {
+    const result = await handleProV2({
+      action: "reserve_pro_v2",
+      identity: { authenticatedUserId: user.id, authenticatedEmail: user.email },
+      operation: payload.operation as "import_font" | "import_matrix",
+      clientRequestId: payload.client_request_id as string,
+    }, {
+      enabled: proV2Enabled,
+      getTrustedEntitlement: async () => {
+        if (!trustedEntitlement) throw Error("Server entitlement unavailable.");
+        return trustedEntitlement;
+      },
+      reserve: async args => await admin.rpc("brother_matrizes_reserve_pro_import_v2", args),
+      finalize: async () => {
+        throw Error("Reserve must never finalize another Pro receipt.");
+      },
+    });
+    return reply(result.body, result.status);
   }
 
   // Additive Windows-only free quota V2. Authentication, active
