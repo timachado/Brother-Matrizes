@@ -128,3 +128,11 @@ de reserva e finalização, sempre em **PostgreSQL descartável**
 antes de staging. Depois integrar somente após homologação.
 Nenhuma instalação, deploy, cobrança, notificação ou release
 é autorizada por esta especificação.
+
+## Homologação SQL isolada — 07/11/2026
+
+- Implementadas [tabela de recibos e RPCs SQL Pro V2 em QA](../../qa/sql/brother_pro_v2_receipts_ephemeral.sql), com RLS, grants para o serviço, reserva UUIDv4 e finalização idempotente. **Este arquivo não é uma migração oficial.**
+- [Script de PostgreSQL 16 descartável](../../.github/scripts/brother_pro_v2_ephemeral_pg.sh) verifica transações reais, bloqueios entre quatro conexões simultâneas, finalizações opostas, reserva expirada, identidade divergente e ausência de acesso direto dos papéis públicos.
+- [CI #42408650490](https://github.com/timachado/Brother-Matrizes/actions/runs/42408650490): **dois jobs concluídos com sucesso**, incluindo dez testes Deno (zero falhas) e execução SQL exclusivamente no PostgreSQL descartável da CI.
+- Não houve alteração na Edge Function comercial, no projeto Supabase, na conta Pro de qualquer cliente ou no Android oficial. O endpoint Pro V2 permanece desativado.
+- **Ainda pendente para concluir o portão #2:** gerar migração com Supabase CLI, auditar RLS e compatibilidade de retornos reais de `brother-entitlement`, integrar RPCs no servidor autenticado, testar staging com planos ativos e expirados e obter autorização explícita de implantação.
