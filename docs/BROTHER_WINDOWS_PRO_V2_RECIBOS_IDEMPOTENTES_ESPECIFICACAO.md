@@ -105,8 +105,26 @@ Supabase CLI, ser revisada por segurança e possuir plano de
 rollback testado. O ambiente de produção não pode ser modificado
 automaticamente para cumprir este documento.
 
-**Próxima implementação técnica recomendada:** helper puro
-`reserveProV2` com DB simulado, verificação de entitlement
-injetada e testes negativos; depois SQL de staging para os
-recibos e `finalize` idempotente. Nenhuma instalação, deploy,
-notificação ou release é autorizada por esta especificação.
+**Implementação técnica neste ciclo:** helper isolado
+`pro-receipt-v2.ts` com `eligibleProPlan`,
+`reserveProReceiptV2` e `finalizeProReceiptV2`.
+A dependência confiável do entitlement e as RPCs são injetadas
+para testes offline. Nenhuma rota da Edge Function foi ativada;
+sem tabela real ou chamada ao Supabase. O fluxo Android V1 e a
+decisão Pro V2 bloqueada na Edge Function permanecem intactos.
+
+[CI Pro V2 #42408075964](https://github.com/timachado/Brother-Matrizes/actions/runs/42408075964):
+`completed/success`, verificação de tipos Deno e **10 testes
+aprovados, zero falhas**. Casos: plano Pro mensal, trial,
+vitalício, identidade divergente, conta sem plano, assinatura
+vencida, indisponibilidade da autoridade, recibo falso,
+resposta perdida, replay e finalização com resultado imutável.
+A primeira tentativa #42408011040 falhou somente na tipagem
+de valores literais no teste, corrigida na execução final.
+
+**Próxima implementação técnica recomendada:** tabela de recibos
+Pro operacionais com RLS/permissões corretas e RPCs transacionais
+de reserva e finalização, sempre em **PostgreSQL descartável**
+antes de staging. Depois integrar somente após homologação.
+Nenhuma instalação, deploy, cobrança, notificação ou release
+é autorizada por esta especificação.
