@@ -1,0 +1,48 @@
+name: Brother Matrizes - Windows Minha Conta segura (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreenTest.kt"
+      - ".github/workflows/brother-windows-account-readonly-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  account:
+    name: Compilar Minha Conta e provar que Pro nao e liberado localmente
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Provar que opt-in e seguro e assinatura somente leitura
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace 
+            --tests '*DesktopAccountQaScreenTest' 
+            --tests '*DesktopBrotherEntitlementReaderTest' 
+            --tests '*DesktopWindowsFullGoogleQaFlowTest'
+          if ($LASTEXITCODE -ne 0) { throw "QA de Minha Conta Windows falhou." }
+      - name: Sem installer nem executavel em QA de conta
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "EXE inesperado durante QA Minha Conta."
+          }
+          "BROTHER_WINDOWS_ACCOUNT_READONLY_QA_OK"
