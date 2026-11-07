@@ -50,7 +50,13 @@ internal object DesktopAccountPresentation {
 
     fun verified(snapshot: DesktopServerAccountSnapshot): VerifiedSummary {
         // Defense in depth: a stale or inconsistent preview cannot show Pro.
-        val paid = snapshot.hasServerPro && snapshot.subscriptionStatus == "active"
+        val paidPlans = setOf(
+            "pro_monthly", "pro_yearly", "pro_lifetime",
+            "pro_lifetime_launch", "trial"
+        )
+        val paid = snapshot.hasServerPro &&
+            snapshot.subscriptionStatus == "active" &&
+            snapshot.planCode in paidPlans
         val planName = when (if (paid) snapshot.planCode else "free") {
             "pro_monthly" -> "Brother Matrizes Pro mensal"
             "pro_yearly" -> "Brother Matrizes Pro anual"
