@@ -405,4 +405,60 @@ class DesktopArchiveQuotaJournalTest {
             assertEquals(firstId, journal.listPending().single().localId)
         }
     }
+    @Test
+    fun v2ProtocolIsPersistedBeforeNetworkAndRejectsCrossProtocolReceipt() {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val pending = journal.acquireLease().use {
+                journal.begin(
+                    matrix(), DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2
+                )
+            }
+            assertEquals(
+                DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2,
+                DesktopArchiveQuotaJournal(folder).listPending().single().protocol
+            )
+            assertFailsWith<IllegalStateException> {
+                journal.reserved(pending, "pro_${pending.localId}")
+            }
+            assertFailsWith<IllegalStateException> {
+                journal.reserved(
+                    pending, "usage_00000000-0000-4000-8000-000000000000"
+                )
+            }
+            assertEquals(listOf(pending), journal.listPending())
+            val correct = journal.reserved(pending, "usage_${pending.localId}")
+            assertEquals("usage_${pending.localId}", correct.reservationKey)
+            assertEquals(listOf(correct), journal.listPending())
+        }
+    }
+
+    @Test
+    fun versionOneMarkerMigratesAsUnknownWithoutClaimingProV2Status() {
+        withFolder { folder ->
+            val journal = DesktopArchiveQuotaJournal(folder)
+            val pending = journal.acquireLease().use {
+                journal.begin(
+                    font(), DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2
+                )
+            }
+            val file = folder.resolve("pending-${pending.localId}.json")
+            val raw = Files.readString(file)
+            assertTrue(raw.contains("\\"version\\":2"))
+            assertTrue(raw.contains("\\"protocol\\":\\"PRO_V2\\""))
+            val legacy = raw.replace("\\"version\\":2", "\\"version\\":1")
+                .replace(",\\"protocol\\":\\"PRO_V2\\"", "")
+            Files.writeString(file, legacy)
+            val restored = DesktopArchiveQuotaJournal(folder).listPending().single()
+            assertEquals(
+                DesktopArchiveQuotaJournal.ReservationProtocol.LEGACY_UNKNOWN,
+                restored.protocol
+            )
+            assertEquals(null, restored.reservationKey)
+            assertFailsWith<IllegalStateException> {
+                journal.acquireLease().use { journal.begin(matrix()) }
+            }
+        }
+    }
+
 }
