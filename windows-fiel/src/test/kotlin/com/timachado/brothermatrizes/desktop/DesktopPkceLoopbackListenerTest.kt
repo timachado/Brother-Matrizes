@@ -1,13 +1,16 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackListener
+import com.timachado.brothermatrizes.desktop.platform.DesktopOAuthLoginRejected
 import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.concurrent.Executors
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -116,4 +119,38 @@ class DesktopPkceLoopbackListenerTest {
             }
         }
     }
+
+    @Test
+    fun terminatesRealStateGoogleDenialWithoutWaitingFiveMinutes() {
+        DesktopPkceLoopbackListener.open().use { listener ->
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val future = executor.submit<String> {
+                    listener.awaitCallback(Duration.ofSeconds(15)).authorizationCode
+                }
+                val base = listener.redirectUri.rawPath + "?" +
+                    listener.redirectUri.rawQuery
+                val injected = base.replace(listener.handshake.state, "fake_state") +
+                    "&error=access_denied"
+                assertTrue(request(listener.port, injected)
+                    .startsWith("HTTP/1.1 400 Bad Request"))
+                val valid = base + "&error=access_denied" +
+                    "&error_description=personally%20identifying%20data"
+                val response = request(listener.port, valid)
+                assertTrue(response.startsWith("HTTP/1.1 200 OK"))
+                assertFalse(response.contains("personally identifying data"))
+                assertFalse(response.contains(listener.handshake.state))
+                val rejected = assertFailsWith<ExecutionException> {
+                    future.get(5, TimeUnit.SECONDS)
+                }
+                assertTrue(rejected.cause is DesktopOAuthLoginRejected)
+                assertFalse(rejected.cause?.message.orEmpty()
+                    .contains("personally identifying data"))
+            } finally {
+                listener.close()
+                executor.shutdownNow()
+            }
+        }
+    }
+
 }
