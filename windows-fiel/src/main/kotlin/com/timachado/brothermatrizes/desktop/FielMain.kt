@@ -118,6 +118,7 @@ fun main(args: Array<String>) = application {
     val createNameScreenshot = args.singleOrNull() == "--capture-create-name-qa"
     val accountScreenshot = args.singleOrNull() == "--capture-account-qa"
     val fontsScreenshot = args.singleOrNull() == "--capture-fonts-qa"
+    val transferScreenshot = args.singleOrNull() == "--capture-machine-transfer-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
     val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
@@ -138,7 +139,7 @@ fun main(args: Array<String>) = application {
     val screenshotMode =
         compactScreenshot || wideScreenshot || createNameScreenshot ||
             editorCapture || fileChooserQa || saveDialogQa ||
-                accountScreenshot || fontsScreenshot
+                accountScreenshot || fontsScreenshot || transferScreenshot
     // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
     // As capturas QA continuam aceitando somente suas flags explícitas.
     val launchDocument = if (screenshotMode) null
@@ -224,7 +225,8 @@ fun main(args: Array<String>) = application {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
                 editorCapture || fileChooserQa || saveDialogQa ||
-                    accountScreenshot || fontsScreenshot -> DpSize(920.dp, 680.dp)
+                    accountScreenshot || fontsScreenshot ||
+                    transferScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -588,8 +590,8 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    if (editorCapture) {
-                        // Editor usa tela cheia e não possui barra inferior.
+                    if (editorCapture || transferScreenshot) {
+                        // Telas de detalhe usam tela cheia sem barra inferior.
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
                         val rgbColors = buildSet {
@@ -616,6 +618,7 @@ fun main(args: Array<String>) = application {
                         createNameScreenshot -> "create-name-windows-original-port.png"
                         accountScreenshot -> "account-windows-readonly-qa.png"
                         fontsScreenshot -> "fonts-windows-readonly-qa.png"
+                        transferScreenshot -> "machine-transfer-windows-qa.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
@@ -632,6 +635,7 @@ fun main(args: Array<String>) = application {
                             editorCapture -> "BROTHER_WINDOWS_NAME_EDITOR_SCREENSHOT_OK "
                             accountScreenshot -> "BROTHER_WINDOWS_ACCOUNT_SCREENSHOT_OK "
                             fontsScreenshot -> "BROTHER_WINDOWS_FONTS_SCREENSHOT_OK "
+                            transferScreenshot -> "BROTHER_WINDOWS_MACHINE_TRANSFER_SCREENSHOT_OK "
                             else -> "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK "
                         }) +
                             "${bounds.width}x${bounds.height}"
@@ -648,6 +652,7 @@ fun main(args: Array<String>) = application {
                 startInCreate = createNameScreenshot,
                 startInAccountQa = accountScreenshot,
                 startInFontsQa = fontsScreenshot,
+                startInTransferQa = transferScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
@@ -718,6 +723,7 @@ private fun FielHomeHost(
     startInCreate: Boolean = false,
     startInAccountQa: Boolean = false,
     startInFontsQa: Boolean = false,
+    startInTransferQa: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
@@ -745,6 +751,7 @@ private fun FielHomeHost(
         mutableStateOf(
             when {
                 startInNameEditorQa -> ActiveDetail.NAME_EDITOR
+                startInTransferQa -> ActiveDetail.TRANSFER
                 startInSaveDialogQaFile != null -> ActiveDetail.VIEWER
                 else -> ActiveDetail.NONE
             }
@@ -758,7 +765,7 @@ private fun FielHomeHost(
     }
     var activeDesign by remember {
         mutableStateOf(
-            if (startInNameEditorQa || startInSaveDialogQaFile != null)
+            if (startInNameEditorQa || startInSaveDialogQaFile != null || startInTransferQa)
                 syntheticNameEditorQaDesign() else null
         )
     }
@@ -813,7 +820,7 @@ private fun FielHomeHost(
                 // initial state and never read extra customer documents.
                 val normalStartup = !disableRecentRecovery &&
                     !startInCreate && !startInAccountQa &&
-                    !startInFontsQa && !startInNameEditorQa &&
+                    !startInFontsQa && !startInNameEditorQa && !startInTransferQa &&
                     startInChooserQaFile == null &&
                     startInLaunchDocument == null &&
                     startInSaveDialogQaFile == null
