@@ -444,10 +444,10 @@ class DesktopArchiveQuotaJournalTest {
             }
             val file = folder.resolve("pending-${pending.localId}.json")
             val raw = Files.readString(file)
-            assertTrue(raw.contains("\\"version\\":2"))
-            assertTrue(raw.contains("\\"protocol\\":\\"PRO_V2\\""))
-            val legacy = raw.replace("\\"version\\":2", "\\"version\\":1")
-                .replace(",\\"protocol\\":\\"PRO_V2\\"", "")
+            assertTrue(raw.contains("\"version\":2"))
+            assertTrue(raw.contains("\"protocol\":\"PRO_V2\""))
+            val legacy = raw.replace("\"version\":2", "\"version\":1")
+                .replace(",\"protocol\":\"PRO_V2\"", "")
             Files.writeString(file, legacy)
             val restored = DesktopArchiveQuotaJournal(folder).listPending().single()
             assertEquals(
