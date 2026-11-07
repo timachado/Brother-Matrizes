@@ -25,6 +25,11 @@ internal class DesktopGoogleProviderReadiness(
     },
     private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) {
+    constructor(
+        publishableKey: String,
+        connectionFactory: (URL) -> HttpURLConnection
+    ) : this(publishableKey, connectionFactory, "dwpcddiramxlhavdmmyn")
+
     data class Snapshot(
         val googleProviderEnabled: Boolean,
         val redirectAllowlistVerified: Boolean = false
