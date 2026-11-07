@@ -181,3 +181,22 @@ permanecem bloqueios obrigatórios para qualquer importação futura.
 reserva/finalização de cota por item, integridade e validação de cada
 arquivo extraído, consentimento, caminhos de destino, proteção contra
 ZIP Slip e homologação com dados autorizados e bordadeiras físicas.
+
+## Resultado verificado com RAR4/RAR5 reais — 07/11/2026
+
+- [Workflow Windows arquivos compactados #42386304023](https://github.com/timachado/Brother-Matrizes/actions/runs/42386304023):
+  `completed/success` no commit `24f8c744`. Passaram:
+  obtenção dos dois RAR autênticos do upstream, verificação de
+  tamanhos e hashes de Git, `DesktopArchiveRealRarFixturesTest`
+  para **RAR4 e RAR5**, os testes anteriores ZIP/7Z e a captura
+  da tela Compose no runner Windows.
+- [Captura de tela QA #13579298590](https://github.com/timachado/Brother-Matrizes/actions/runs/42386304023/artifacts/13579298590),
+  `brother-windows-archive-inventory-qa-screenshot`, 18.999 bytes.
+- Nenhum RAR foi distribuído no ZIP, gravado nos artefatos, ou
+  importado na Biblioteca. A execução não ativa autorização de
+  cotas, não extrai arquivos e não faz conexão com bordadeira.
+- Isso comprova a listagem de RAR4/RAR5 **não criptografados da
+  suíte pública do leitor** no Windows CI. RAR com senha,
+  volumes multipartes, matrizes reais dentro de RAR e integração
+  comercial continuam pendentes.
+
