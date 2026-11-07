@@ -116,6 +116,24 @@ class DesktopFlpBackupRestorerTest {
         }
 
     @Test
+    fun rejectsTruncatedZipEvenWhenLocalEntryHeaderIsValid() = withRoot { root ->
+        val parent = Files.createDirectory(root.resolve("destino"))
+        val project = root.resolve("legitimo.flp")
+        DesktopFlpProjectFiles.saveNew(design(), project)
+        val complete = root.resolve("complete.zip")
+        zip(complete, listOf("legitimo.flp" to Files.readAllBytes(project)))
+        val completeBytes = Files.readAllBytes(complete)
+        val truncated = root.resolve("truncated.zip")
+        // Drop the ZIP end-of-central-directory record. ZipInputStream alone
+        // could still read the local entry, but the backup is not complete.
+        Files.write(truncated, completeBytes.copyOf(completeBytes.size - 22))
+        assertFailsWith<Exception> {
+            DesktopFlpBackupRestorer.restoreLocalFlpZip(truncated, parent)
+        }
+        Files.list(parent).use { assertEquals(0L, it.count()) }
+    }
+
+    @Test
     fun rejectsCaseDuplicateMalformedAndEmptyArchivesAndRollsBackStage() =
         withRoot { root ->
             val parent = Files.createDirectory(root.resolve("destino"))
