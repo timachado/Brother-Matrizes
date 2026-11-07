@@ -23,6 +23,11 @@ import kotlinx.serialization.json.put
  * Authorization decisions are made by server JSON, not locally.
  */
 internal interface DesktopArchiveIdempotentUsageGateway {
+    // Current HTTP adapter only implements Free V2. Future Pro V2 must
+    // explicitly declare PRO_V2 BEFORE the first network request.
+    val reservationProtocol: DesktopArchiveQuotaJournal.ReservationProtocol
+        get() = DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2
+
     /**
      * Client request ID MUST be the UUIDv4 persisted by the journal before
      * the first reserve attempt. A new ID is a NEW quota attempt.
