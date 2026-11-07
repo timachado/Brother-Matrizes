@@ -112,7 +112,7 @@ internal class DesktopWindowsDpapiSessionStore(
                 "Sessão cifrada fora do limite."
             }
             temp = Files.createTempFile(folder, ".bm-session-", ".tmp")
-            Files.write(temp, ciphertext, StandardOpenOption.TRUNCATE_EXISTING)
+            Files.write(temp, ciphertext, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)
             try {
                 Files.move(
                     temp, file, StandardCopyOption.ATOMIC_MOVE,
