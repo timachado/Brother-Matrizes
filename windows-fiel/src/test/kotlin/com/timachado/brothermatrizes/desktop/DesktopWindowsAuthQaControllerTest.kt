@@ -122,14 +122,23 @@ class DesktopWindowsAuthQaControllerTest {
             DesktopSessionRefresher { error("No network refresh expected") },
             clock, folder
         ).use { controller ->
-            controller.login()
             assertFailsWith<IllegalStateException> {
-                controller.verifyGoogleAccountForQa(verifier("email"))
+                controller.loginAndVerifyGoogleForQa(verifier("email"))
             }
-            val identity = controller.verifyGoogleAccountForQa(verifier("google"))
+            assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+            assertFailsWith<IllegalStateException> { controller.accessTokenForQa() }
+            val identity = controller.loginAndVerifyGoogleForQa(verifier("google"))
             assertEquals(id, identity.userId)
             assertEquals(email, identity.email)
             assertFalse(identity.toString().contains(email))
+            assertEquals(token, controller.accessTokenForQa())
+            assertTrue(Files.exists(folder.resolve("session.v1.dpapi")))
+            assertEquals(id, controller.verifyGoogleAccountForQa(verifier("google")).userId)
+            assertFailsWith<IllegalStateException> {
+                controller.verifyGoogleAccountForQa(verifier("email"))
+            }
+            assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+            assertFailsWith<IllegalStateException> { controller.accessTokenForQa() }
             controller.logout()
             assertFailsWith<IllegalStateException> {
                 controller.verifyGoogleAccountForQa(verifier("google"))
