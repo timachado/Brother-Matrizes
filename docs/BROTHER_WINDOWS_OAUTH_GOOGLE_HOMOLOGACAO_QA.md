@@ -127,8 +127,10 @@ no dashboard, autorização comercial, publicação do EXE e alterações
   caracteres Base64URL. O autoteste local invoca esse contrato.
 - `DesktopPkceRedirectPreflightTest` tem casos negativos de host,
   protocolo, porta, caminho, parâmetros adicionais e fragmento.
-- O workflow OAuth/DPAPI Windows foi configurado para executar essa
-  suíte; **não afirmar sucesso até conferir o resultado do Actions**.
+- **QA Windows aprovada:** workflow OAuth/DPAPI
+  [#42375796805](https://github.com/timachado/Brother-Matrizes/actions/runs/42375796805)
+  `completed/success` no commit `64ede18`, incluindo o teste
+  `DesktopPkceRedirectPreflightTest`. Isso não prova a allowlist remota.
 
 Próximo gate manual e restrito: [Auth URL Configuration](https://supabase.com/dashboard/project/dwpcddiramxlhavdmmyn/auth/url-configuration),
 sem alterar Site URL nem callbacks Android. Padrão proposto precisa
