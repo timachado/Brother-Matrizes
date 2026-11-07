@@ -81,3 +81,28 @@ Os testes locais/CI atuais usam Google/Supabase HTTP **simulados**.
 A aprovação do pipeline **não** é comprovação de login real nem de liberação
 do redirect na configuração remota. O projeto Android `main`, WordPress,
 WooCommerce, Supabase comercial e o site T.I. Machado não foram modificados.
+
+## Proteção adicional do loopback e cancelamento — 07/11/2026
+
+Na branch Windows isolada foram adicionados controles sem modificar
+Android, permissões comerciais, contas reais ou servidores:
+
+- `DesktopPkceLoopbackListener.awaitCallback` recebe verificação opcional
+  de cancelamento do chamador e usa polling HTTP de 300 ms,
+  preservando o limite total de 5 minutos do fluxo.
+- Leitura dos cabeçalhos HTTP fica sujeita a prazo absoluto de 3 segundos
+  por conexão; cabeçalhos incompletos são rejeitados sem consumir
+  `bm_state` ou código de autorização.
+- `DesktopGooglePkceLoginCoordinator` verifica cancelamento antes
+  de processar o callback, antes da troca de código e antes de retornar
+  uma sessão transitória.
+- Testes de regressão cobrem cancelamento sem troca de tokens e
+  encerramento da porta, cabeçalho travado e callback legítimo posterior.
+
+**Estado:** mudanças registradas nos commits `b2f957d`, `c581a20`,
+`8a92553` e `8c966cf`. Commit registrado não equivale a CI aprovado.
+Exigir `success` no workflow OAuth/DPAPI antes da homologação.
+
+Permanecem bloqueados: login Google real, validação de Redirect URLs
+no dashboard, autorização comercial, publicação do EXE e alterações
+à versão Android oficial.
