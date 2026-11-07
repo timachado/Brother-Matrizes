@@ -18,8 +18,8 @@ internal object DesktopRedirectAllowlistReview {
             "Lista de redirecionamentos extensa demais para QA."
         }
         val entries = pastedLines.lineSequence()
-            .map(String::trim)
-            .filter(String::isNotEmpty)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
             .toList()
         return Result(
             candidatePresentInPastedText = entries.any {
