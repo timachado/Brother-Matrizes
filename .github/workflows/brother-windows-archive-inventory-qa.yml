@@ -1,0 +1,78 @@
+name: Brother Matrizes - Windows ZIP read-only inventory (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveInventory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchivePreviewScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveInventoryTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt"
+      - ".github/workflows/brother-windows-archive-inventory-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-only:
+    name: ZIP local sem extracao, autenticacao ou escrita
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Confirmar contrato de limites e formatos Android
+        shell: pwsh
+        run: |
+          $official = Get-Content "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt" -Raw
+          foreach ($token in @("MAX_ARCHIVE = 128L * 1024 * 1024", "MAX_ENTRY = 24L * 1024 * 1024",
+                               "MAX_TOTAL = 256L * 1024 * 1024", "MAX_ENTRIES = 300", "MAX_DEPTH = 8",
+                               '"PES", "DST", "JEF"', '"TTF", "OTF"')) {
+            if (!$official.Contains($token)) {
+              throw "Os limites ou formatos do Android mudaram: atualizar o adaptador Windows."
+            }
+          }
+          "BROTHER_WINDOWS_ARCHIVE_ANDROID_CONTRACT_OK"
+      - name: Compilar Windows e testar inventario ZIP sem extrair arquivos
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest'
+          if ($LASTEXITCODE -ne 0) { throw "Inventario ZIP Windows falhou no QA." }
+      - name: Capturar tela real de analise de ZIP no Windows com dados sinteticos
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-archive-qa" --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Tela de analise ZIP nao abriu no Windows." }
+          $png = "windows-fiel/build/qa/archive-inventory-windows-qa.png"
+          if (!(Test-Path $png) -or (Get-Item $png).Length -lt 10000) {
+            throw "Captura da tela de inventario ZIP ausente ou incompleta."
+          }
+      - name: Guardar captura apenas para QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-archive-inventory-qa-screenshot
+          path: windows-fiel/build/qa/archive-inventory-windows-qa.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Garantir nenhuma distribuicao comercial pela QA
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador comercial inesperado na analise ZIP."
+          }
+          "BROTHER_WINDOWS_ZIP_INVENTORY_METADATA_ONLY_QA_OK"
