@@ -22,6 +22,18 @@ import kotlinx.serialization.json.put
  * A public Supabase key is provided by the caller, never hardcoded here.
  * Authorization decisions are made by server JSON, not locally.
  */
+internal interface DesktopArchiveIdempotentUsageGateway {
+    /**
+     * Client request ID MUST be the UUIDv4 persisted by the journal before
+     * the first reserve attempt. A new ID is a NEW quota attempt.
+     */
+    suspend fun reserveOnce(
+        accessToken: String,
+        category: DesktopArchiveInventory.Category,
+        clientRequestId: String
+    ): String
+}
+
 internal interface DesktopArchiveQuotaStatusReader {
     /** Diagnostic ONLY. Never settles a quota or deletes a journal marker. */
     suspend fun lookupKnown(
@@ -45,7 +57,8 @@ internal class DesktopBrotherArchiveUsageGateway(
     private val connectionFactory: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
     }
-) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader {
+) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader,
+    DesktopArchiveIdempotentUsageGateway {
     private val endpoint = URL(
         "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
     )
@@ -87,6 +100,38 @@ internal class DesktopBrotherArchiveUsageGateway(
         val key = response.text("request_key")
         check(reservationPattern.matches(key)) {
             "Chave de reserva inválida retornada pelo servidor."
+        }
+        return key
+    }
+
+    /**
+     * Staged protocol. The server must have the reviewed SQL RPC and the
+     * additive Edge Function deployed before this can succeed. Neither
+     * change is activated by compiling this Windows class.
+     */
+    override suspend fun reserveOnce(
+        accessToken: String,
+        category: DesktopArchiveInventory.Category,
+        clientRequestId: String
+    ): String {
+        require(
+            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                .matches(clientRequestId)
+        ) { "Identificador idempotente Windows inválido." }
+        val operation = operationFor(category)
+        val response = post(accessToken, buildJsonObject {
+            put("action", "reserve_v2")
+            put("operation", operation)
+            put("client_request_id", clientRequestId)
+        })
+        val key = "usage_$clientRequestId"
+        check(response.boolean("allowed") &&
+            response.text("operation") == operation &&
+            response.text("request_key") == key &&
+            response.text("state") == "reserved" &&
+            response.booleanOptional("replayed") != null
+        ) {
+            "Servidor não confirmou a reserva idempotente de importação."
         }
         return key
     }
