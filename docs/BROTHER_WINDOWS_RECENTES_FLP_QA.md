@@ -74,3 +74,26 @@ aprovada; a existência de um link não significa resultado positivo.
   [Home #42377281288](https://github.com/timachado/Brother-Matrizes/actions/runs/42377281288)
   e [portátil interno #42377281318](https://github.com/timachado/Brother-Matrizes/actions/runs/42377281318).
 - **Não interpretar builds antigos como homologação da última revisão.**
+
+## Integração Abrir / Salvar / Biblioteca — 07/11/2026
+
+- `DesktopLibraryRecentTracker` atualiza o catálogo e coloca o FLP
+  **validado** em primeiro lugar no histórico, apenas quando o caminho
+  estiver na **pasta FLP já selecionada pelo usuário**.
+- A abertura por **JFileChooser** e pelo **Explorador do Windows**, bem como
+  a confirmação de **Salvar projeto FLP**, chamam o mesmo rastreador.
+  A abertura de DST/PES/JEF não implica indexação falsa em catálogo FLP.
+- Não há troca automática de pasta, acesso a projetos de outras pastas,
+  inclusão de arquivo corrompido ou escrita em matrizes existentes.
+- A codificação e a gravação FLP, assim como a leitura pelo seletor,
+  agora executam em `Dispatchers.IO`, para reduzir bloqueios da janela.
+- `DesktopLibraryRecentTrackerTest` cobre inclusão de novo arquivo,
+  deduplicação/capacidade do histórico, arquivo corrompido, ausente,
+  externo à pasta e preservação dos bytes originais.
+- O workflow Windows de Biblioteca/FLP foi atualizado para executar
+  a nova suíte. Ainda é necessário validar o resultado final do
+  pipeline e a experiência manual em PC Windows.
+
+A lista de recentes fora da pasta selecionada e a sincronização
+de projetos com armazenamento de nuvem não foram implementadas aqui.
+Essa mudança não altera assinaturas, cotas ou autenticação comercial.
