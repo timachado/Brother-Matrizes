@@ -76,6 +76,8 @@ def main() -> None:
         (dest / (icon + ".svg")).write_text(svg, encoding="utf-8")
 
     for original, target in [
+        ("brother_bm_launcher_safe.webp.base64",
+         "brother_bm_launcher_safe.webp"),
         ("brother_bm_premium_approved.webp.base64",
          "brother_bm_premium_approved.webp"),
         ("brother_home_hero.base64", "brother_home_hero-original.jpg"),
