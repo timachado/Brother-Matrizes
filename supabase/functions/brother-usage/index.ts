@@ -34,15 +34,22 @@ Deno.serve(async (req: Request) => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw Error("invalid");
     payload = parsed;
-    const validKeys = parsed.action === "reserve" ?
-      ["action", "operation"] : ["action", "operation", "request_key", "success"];
-    if (!["reserve", "finalize"].includes(parsed.action) ||
+    const validKeys = parsed.action === "reserve"
+      ? ["action", "operation"]
+      : parsed.action === "status"
+        ? ["action", "operation", "request_key"]
+        : ["action", "operation", "request_key", "success"];
+    if (!["reserve", "finalize", "status"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
       !operations.has(parsed.operation) ||
       (parsed.action === "finalize" &&
         (typeof parsed.success !== "boolean" ||
-          typeof parsed.request_key !== "string" || !requestKey.test(parsed.request_key))))
+          typeof parsed.request_key !== "string" || !requestKey.test(parsed.request_key))) ||
+      (parsed.action === "status" &&
+        (typeof parsed.request_key !== "string" ||
+          !/^usage_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+            .test(parsed.request_key))))
       throw Error("invalid");
   } catch {
     return reply({ message: "Solicitação de importação inválida." }, 400);
@@ -65,6 +72,37 @@ Deno.serve(async (req: Request) => {
   if (loginError || !user) return reply({ message: "Sessão Google inválida ou expirada." }, 401);
   if (!user.email || !user.email_confirmed_at)
     return reply({ message: "Confirme seu e-mail Google para utilizar as importações." }, 403);
+
+  // Additive, read-only diagnostic for a KNOWN 'usage_' reservation.
+  // No quota changes, no rows inserted, no entitlement assertions and
+  // no retries/finalization. The owner and operation are filtered together:
+  // a validly formatted key is NOT sufficient to read another account.
+  // Pro receipts were never persisted in this table and are intentionally
+  // not supported. Lost reserve responses without a key require a separate
+  // future idempotent client-request protocol, not guesswork.
+  if (payload.action === "status") {
+    const requestId = (payload.request_key as string).slice("usage_".length);
+    const { data, error } = await admin.from("brother_matrizes_import_usage")
+      .select("state")
+      .eq("request_id", requestId)
+      .eq("user_id", user.id)
+      .eq("operation", payload.operation)
+      .maybeSingle();
+    if (error) return reply({ message: "Estado da reserva indisponível." }, 503);
+    if (!data) {
+      return reply({
+        found: false, operation: payload.operation,
+        request_key: payload.request_key,
+      });
+    }
+    if (!["reserved", "completed", "failed"].includes(data.state)) {
+      return reply({ message: "Estado desconhecido: revisão manual obrigatória." }, 503);
+    }
+    return reply({
+      found: true, operation: payload.operation,
+      request_key: payload.request_key, state: data.state,
+    });
+  }
 
   // Reuse the current entitlement authority: never duplicate or fabricate
   // WooCommerce/Efí payment checks inside this non-financial service.
