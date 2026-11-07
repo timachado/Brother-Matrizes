@@ -152,7 +152,9 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
         try {
             val journal = DesktopArchiveQuotaJournal(folder)
             val stage = journal.acquireLease().use {
-                val begun = journal.begin(item)
+                val begun = journal.begin(
+                    item, DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2
+                )
                 journal.reserved(begun, "pro_${begun.localId}")
             }
             for ((state, finding) in listOf(
@@ -212,4 +214,91 @@ class DesktopArchiveQuotaRecoveryAssessmentTest {
             Files.deleteIfExists(folder)
         }
     }
+    @Test
+    fun lostFirstAckCanOnlyBeQueriedWhenProtocolWasWrittenBeforeNetwork() {
+        for (protocol in listOf(
+            DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2,
+            DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2
+        )) {
+            val folder = Files.createTempDirectory("bm-ack-lost-v2-")
+            try {
+                val journal = DesktopArchiveQuotaJournal(folder)
+                val pending = journal.acquireLease().use {
+                    journal.begin(item, protocol)
+                }
+                val prefix = if (protocol ==
+                    DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2) "usage_" else "pro_"
+                val expectedKey = prefix + pending.localId
+                assertEquals(null, pending.reservationKey)
+                assertEquals(expectedKey,
+                    DesktopArchiveQuotaRecoveryAssessment.diagnosticRequestKey(pending))
+                assertEquals(
+                    DesktopArchiveQuotaRecoveryAssessment.Finding.SERVER_STATUS_UNAVAILABLE,
+                    DesktopArchiveQuotaRecoveryAssessment.inspect(pending, null).finding
+                )
+                for (remoteState in listOf(
+                    DesktopArchiveQuotaStatus.State.RESERVED,
+                    DesktopArchiveQuotaStatus.State.COMPLETED,
+                    DesktopArchiveQuotaStatus.State.NOT_FOUND
+                )) {
+                    val result = DesktopArchiveQuotaRecoveryAssessment.inspect(
+                        pending,
+                        DesktopArchiveQuotaStatus(
+                            expectedKey, DesktopArchiveInventory.Category.MATRIX, remoteState
+                        )
+                    )
+                    assertTrue(result.blocksNewImports)
+                    assertFalse(result.permitsAutomaticFinalize)
+                    assertFalse(result.permitsAutomaticCleanup)
+                    assertEquals(listOf(pending), journal.listPending())
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    DesktopArchiveQuotaRecoveryAssessment.inspect(
+                        pending,
+                        DesktopArchiveQuotaStatus(
+                            prefix + "00000000-0000-4000-8000-000000000000",
+                            DesktopArchiveInventory.Category.MATRIX,
+                            DesktopArchiveQuotaStatus.State.COMPLETED
+                        )
+                    )
+                }
+                assertFailsWith<IllegalStateException> {
+                    journal.acquireLease().use { journal.begin(item) }
+                }
+            } finally {
+                Files.list(folder).use { it.forEach(Files::deleteIfExists) }
+                Files.deleteIfExists(folder)
+            }
+        }
+    }
+
+    @Test
+    fun legacyProReceiptIsNeverPromotedToDurableV2ByItsUuidAlone() {
+        val fake = DesktopArchiveQuotaJournal.Pending(
+            localId = "12345678-1234-4234-8234-123456789abc",
+            category = DesktopArchiveInventory.Category.MATRIX,
+            entrySha256 = "1".repeat(64),
+            reservationKey = "pro_12345678-1234-4234-8234-123456789abc",
+            stage = DesktopArchiveQuotaJournal.Stage.RESERVED,
+            createdAtMillis = 1,
+            protocol = DesktopArchiveQuotaJournal.ReservationProtocol.LEGACY_UNKNOWN
+        )
+        assertEquals(null,
+            DesktopArchiveQuotaRecoveryAssessment.diagnosticRequestKey(fake))
+        assertEquals(
+            DesktopArchiveQuotaRecoveryAssessment.Finding.NO_SERVER_KEY,
+            DesktopArchiveQuotaRecoveryAssessment.inspect(fake, null).finding
+        )
+        assertFailsWith<IllegalArgumentException> {
+            DesktopArchiveQuotaRecoveryAssessment.inspect(
+                fake,
+                DesktopArchiveQuotaStatus(
+                    "pro_12345678-1234-4234-8234-123456789abc",
+                    DesktopArchiveInventory.Category.MATRIX,
+                    DesktopArchiveQuotaStatus.State.COMPLETED
+                )
+            )
+        }
+    }
+
 }
