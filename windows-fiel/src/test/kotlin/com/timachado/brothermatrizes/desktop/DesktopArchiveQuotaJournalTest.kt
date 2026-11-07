@@ -33,7 +33,7 @@ class DesktopArchiveQuotaJournalTest {
         DesktopArchiveInventory.Category.FONT
     )
 
-    private fun withFolder(block: (Path) -> Unit) {
+    private inline fun withFolder(block: (Path) -> Unit) {
         val root = Files.createTempDirectory("bm-usage-journal-qa-")
         try {
             block(root)
