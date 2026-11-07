@@ -64,10 +64,20 @@ internal class DesktopProtectedSessionSnapshot(
  * DPAPI does not protect against other processes running as the same user.
  * Application licensing still requires server verification independently.
  */
+/**
+ * Protected session persistence contract for real DPAPI and offline fakes.
+ * Never back this interface with a plaintext vault in a distributed build.
+ */
+internal interface DesktopProtectedSessionVault {
+    fun save(session: DesktopTransientAuthSession)
+    fun load(): DesktopProtectedSessionSnapshot?
+    fun clear()
+}
+
 internal class DesktopWindowsDpapiSessionStore(
     private val folder: Path = defaultUserDataFolder(),
     private val clock: Clock = Clock.systemUTC()
-) {
+) : DesktopProtectedSessionVault {
     private val file = folder.resolve("session.v1.dpapi")
     private val maxCiphertext = 65_536
     private val maxPlaintext = 32_768
@@ -82,7 +92,7 @@ internal class DesktopWindowsDpapiSessionStore(
     }
 
     @Synchronized
-    fun save(session: DesktopTransientAuthSession) {
+    override fun save(session: DesktopTransientAuthSession) {
         require(session.expiresInSeconds in 1..86_400 &&
             session.accessToken.validSessionToken() &&
             session.refreshToken.validSessionToken()) {
@@ -130,7 +140,7 @@ internal class DesktopWindowsDpapiSessionStore(
     }
 
     @Synchronized
-    fun load(): DesktopProtectedSessionSnapshot? {
+    override fun load(): DesktopProtectedSessionSnapshot? {
         validateStorageDirectory(create = false)
         if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) return null
         check(Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
@@ -177,7 +187,7 @@ internal class DesktopWindowsDpapiSessionStore(
     }
 
     @Synchronized
-    fun clear() {
+    override fun clear() {
         validateStorageDirectory(create = false)
         if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
             check(Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
