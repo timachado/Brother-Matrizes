@@ -79,11 +79,14 @@ Todos os diagnósticos continuam com
 
 ## O que ainda falta
 
-1. **Protocolo de reconciliação de reserva antes do primeiro ACK**:
-   sem `reservationKey` o journal legado não especifica se a
-   tentativa original era Free/Pro V1/V2. Não inferir uma chave;
-   adicionar tipo de protocolo e intenção ao journal antes do envio,
-   com migração compatível dos registros antigos.
+1. **Protocolo de reserva antes do primeiro ACK — implementado em QA, aguardando CI:** 
+   o journal V2 grava `LEGACY_UNKNOWN`, `FREE_V2` ou `PRO_V2`
+   **antes** da chamada remota. Marcadores JSON V1 são lidos como
+   `LEGACY_UNKNOWN`, sem promoção automática; a chave de consulta
+   Free/Pro V2 só é derivada se a intenção V2 já estava persistida.
+   O servidor ainda precisa ser consultado explicitamente em um
+   fluxo de diagnóstico autorizado. Nenhum status remoto autoriza
+   finalizar, excluir o journal ou liberar outra importação.
 2. Persistir intenção e identidade do arquivo local criado antes
    de finalizar, para recuperação segura de ownership após crash.
 3. Homologação completa em staging separado com autenticação Google,
@@ -112,3 +115,27 @@ homologados**. `main`, Android e Supabase produção inalterados.
   (98.267.343 bytes; pasta com launcher e runtime) e
   [capturas QA #13589164810](https://github.com/timachado/Brother-Matrizes/actions/runs/42412612723/artifacts/13589164810)
   (237.365 bytes). Artefatos privados e temporários, sem liberação comercial.
+
+## Protocolo local V2 — continuação técnica (07/11/2026)
+
+- `DesktopArchiveQuotaJournal` grava `version=2` e o campo
+  `protocol`, incluindo o tipo `FREE_V2` definido pelo adaptador
+  Windows atualmente implementado, **antes** de reservar a cota.
+  Futuro adaptador Pro V2 deverá declarar seu tipo expressamente;
+  o código atual não habilita reservas Pro nem consulta contas reais.
+- Leitura de marcadores `version=1` preserva
+  `LEGACY_UNKNOWN`: nem um UUIDv4 com prefixo `pro_` igual ao
+  identificador local passa a ser tratado como comprovante Pro V2.
+- `DesktopArchiveQuotaRecoveryAssessment.diagnosticRequestKey`
+  permite reconstruir somente uma **chave candidata de consulta
+  read-only** se o protocolo V2 tiver sido gravado antes do primeiro
+  envio. Chave candidata não é autorização nem prova de reserva.
+  Estado remoto `reserved/completed/failed/not_found` continua
+  mantendo `blocksNewImports=true`, sem finalização nem limpeza.
+- Cenários de teste acrescentados: ACK de reserva perdida Free/Pro V2,
+  UUID remoto divergente, legado Pro V1, proteção contra repetição e
+  compatibilidade de leitura de journal V1.
+- **Status desta revisão:** alterações enviadas ao PR #226 apenas
+  para QA. A aprovação de compilação e testes corresponde ao workflow
+  do commit mais recente, a verificar. Nenhum EXE comercial,
+  merge, migração, instalação ou alteração no Supabase de produção.
