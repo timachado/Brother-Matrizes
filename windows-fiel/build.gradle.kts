@@ -1378,7 +1378,13 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
 
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    // A separate JVM requires the FULL test runtime classpath; Gradle's
+    // worker java.class.path contains only its worker launcher.
+    // This is solely for independent-process quota crash/lock QA.
+    systemProperty("brother.qa.childClasspath", sourceSets["test"].runtimeClasspath.asPath)
+}
 
 compose.desktop {
     application {
