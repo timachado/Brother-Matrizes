@@ -552,6 +552,78 @@ val copyAndroidFontCatalogRules by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedFontCatalogRules)
 
+// Cartões de fontes NATIVAS: importar o bloco Compose oficial da
+// FontLibraryScreen Android (prévias de pontadas BM/SATIN e metadados reais).
+// Nenhuma TTF/OTF externa é instalada; não há alterações em quotas ou login.
+val originalNativeFontGallery = layout.buildDirectory.dir("generated/android-native-font-gallery/kotlin")
+val copyAndroidNativeFontGallery by tasks.registering {
+    val input = originalAndroidCode.file("FontLibraryScreen.kt")
+    inputs.file(input)
+    outputs.dir(originalNativeFontGallery)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val opening = "            items(\n                EmbroideryFontPreset"
+        val start = source.indexOf("                val preview =\n", source.indexOf(opening))
+        val end = source.indexOf(
+            "\n            }\n\n            item {\n                Text(\n                    \"As fontes nativas usam", start
+        )
+        check(source.contains(opening) && start > 0 && end > start) {
+            "FontLibraryScreen Android mudou; revisar extração dos cartões."
+        }
+        val officialCard = source.substring(start, end)
+        check(officialCard.contains("TextMatrixGenerator") &&
+            officialCard.contains("TextMatrixOptions(") &&
+            officialCard.contains("EmbroideryCanvas(") &&
+            officialCard.contains("font.displayName") &&
+            officialCard.contains("stitchCount") &&
+            officialCard.contains("SatinUnderlayMode") &&
+            officialCard.contains("FioSurface")) {
+            "A prévia de pontadas Android perdeu alguma função."
+        }
+        val header = """
+package com.timachado.brothermatrizes.desktop
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.timachado.brothermatrizes.EmbroideryCanvas
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
+import com.timachado.brothermatrizes.core.embroidery.SatinUnderlayMode
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixGenerator
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
+import com.timachado.brothermatrizes.ui.theme.FioSurface
+import com.timachado.brothermatrizes.ui.theme.FioText
+import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+
+/** Original Android font card. Only extracted into a reusable Windows Composable. */
+@Composable
+internal fun OriginalAndroidNativeFontCard(font: EmbroideryFontPreset) {
+""".trimStart()
+        val output = originalNativeFontGallery.get().file(
+            "com/timachado/brothermatrizes/desktop/OriginalAndroidNativeFontCard.kt"
+        ).asFile
+        output.parentFile.mkdirs()
+        output.writeText(header + officialCard + "\n}\n", Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(originalNativeFontGallery)
+
+
 // Android 1.11.9: o nome real de TTF/OTF vem DIRETAMENTE do leitor
 // OpenType da versão oficial; evitar forks entre Android/Windows.
 val generatedAndroidOpenType = layout.buildDirectory.dir("generated/android-opentype/kotlin")
@@ -1675,7 +1747,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyOfficialAndroidPlans, copyOriginalAndroidArchive, copyAndroidExtractorScreen, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
+        copyAndroidTheme, copyOfficialAndroidPlans, copyOriginalAndroidArchive, copyAndroidExtractorScreen, copyAndroidFontCatalogRules, copyAndroidNativeFontGallery, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
         copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
