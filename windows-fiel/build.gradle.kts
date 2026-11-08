@@ -485,29 +485,48 @@ val copyAndroidProjectLibrary by tasks.registering {
     }
 
 """
-        // Android's action "Backup completo" contains fonts and settings,
-        // whereas the desktop operation exports ONLY local FLP documents.
-        // Change labels in the generated Windows copy, never Android main.
+        // A Biblioteca Windows agora exporta/restaura tanto o backup
+        // original Android completo como os projetos FLP locais.
+        // Preservar a nomenclatura aprovada na interface Android.
         check(source.split("\"Backup completo\"").size == 2 &&
             source.split("\"Restaurar\"").size == 2) {
-            "Rótulos da Biblioteca Android mudaram; revisar portagem segura."
+            "Rótulos oficiais da Biblioteca mudaram; revisar portagem."
         }
-        val desktop = (source.substring(0, start) + secureRarBlock +
+        val baseDesktop = (source.substring(0, start) + secureRarBlock +
             source.substring(end))
             .replace("import androidx.activity.compose.rememberLauncherForActivityResult\n", "")
             .replace("import androidx.activity.result.contract.ActivityResultContracts\n", "")
             .replace("import androidx.compose.ui.platform.LocalContext\n", "")
             .replace("import com.timachado.brothermatrizes.core.account.BrotherMatrizesAccountService\n", "")
-            .replace("\"Backup completo\"", "\"Backup FLP local\"")
-            .replace("\"Restaurar\"", "\"Restaurar FLP\"")
+        // Ação de análise local não invoca a ferramenta comercial "rar_receive".
+        val callbackAnchor = "    onSearchMatrices: () -> Unit,\n"
+        val rarActionAnchor = "        rarMessage?.let {"
+        check(baseDesktop.contains(callbackAnchor) &&
+            baseDesktop.contains(rarActionAnchor)) {
+            "Biblioteca Android mudou as ações; revisar ponte do Extrator."
+        }
+        val inspectButton = """
+        OutlinedButton(
+            onClick = onInspectArchive,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Analisar ZIP / RAR / 7Z (sem importar)", color = FioGold)
+        }
+
+"""
+        val desktop = baseDesktop
+            .replace(callbackAnchor,
+                callbackAnchor + "    onInspectArchive: () -> Unit,\n")
+            .replace(rarActionAnchor, inspectButton + rarActionAnchor)
         check(!desktop.contains("import androidx.activity") &&
             !desktop.contains("RarExternalOpener") &&
             !desktop.contains("BrotherMatrizesAccountService") &&
             desktop.contains("fun ProjectLibraryScreen(") &&
             desktop.contains("fun SentMatricesList(") &&
-            desktop.contains("\"Backup FLP local\"") &&
-            desktop.contains("\"Restaurar FLP\"") &&
-            !desktop.contains("\"Backup completo\"")
+            desktop.contains("onInspectArchive: () -> Unit") &&
+            desktop.contains("Analisar ZIP / RAR / 7Z (sem importar)") &&
+            desktop.contains("\"Backup completo\"") &&
+            desktop.contains("\"Restaurar\"")
         ) { "Biblioteca Android contém dependências não portadas: bloquear build." }
         val out = generatedProjectLibrary.get().file(
             "com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
