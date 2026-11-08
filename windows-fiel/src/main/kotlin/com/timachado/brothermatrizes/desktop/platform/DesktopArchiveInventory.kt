@@ -21,7 +21,7 @@ import java.util.zip.ZipFile
  * deliberately does not extract, import, persist, charge quotas, open files
  * inside the archive, or invent authorization for commercial tools.
  * Uses the same third-party metadata readers already in the Android app.
- * Password protected archives are not supported by this read-only UI.
+ * Optional RAR/7Z password mirrors SafeArchiveExtractor Android; never persisted.
  */
 internal object DesktopArchiveInventory {
     private const val MAX_ARCHIVE = 128L * 1024L * 1024L
@@ -59,7 +59,7 @@ internal object DesktopArchiveInventory {
         val fontCount get() = entries.count { it.category == Category.FONT }
     }
 
-    fun inspect(chosenArchive: Path): Preview {
+    fun inspect(chosenArchive: Path, password: CharArray? = null): Preview {
         val archive = chosenArchive.toAbsolutePath().normalize()
         val extension = archive.fileName.toString()
             .substringAfterLast('.', "").lowercase(Locale.ROOT)
@@ -138,6 +138,9 @@ internal object DesktopArchiveInventory {
             Format.SEVEN_Z -> SevenZFile.builder()
                 .setFile(archive.toFile())
                 .setMaxMemoryLimitKiB(32768)
+                .apply {
+                    if (password != null && password.isNotEmpty()) setPassword(password)
+                }
                 .get().use { seven ->
                     // Metadata-only; never call getInputStream, read or extract.
                     for (entry in seven.entries) {
@@ -148,7 +151,9 @@ internal object DesktopArchiveInventory {
                 archive.toFile(),
                 ArchiveOptions.builder()
                     .maxDictionarySize(32L * 1024L * 1024L)
-                    .build()
+                    .apply {
+                        if (password != null && password.isNotEmpty()) password(password)
+                    }.build()
             ).use { rar ->
                 // Metadata-only; never call extractFile or uncompress.
                 for (entry in rar.fileHeaders) {
