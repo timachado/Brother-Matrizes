@@ -1409,7 +1409,10 @@ compose.desktop {
         // + runtime JRE numa pasta movível; não modifica o registro.
         // Nenhum targetFormats é ativado e não existe release comercial.
         nativeDistributions {
-            packageName = "BrotherMatrizesQA"
+            // Display brand on Windows while preserving an explicit QA
+            // description and version; not a commercial signed release.
+            // Launcher name remains ASCII for portable Windows paths.
+            packageName = "BrotherMatrizes"
             packageVersion = "0.0.1"
             description = "Brother Matrizes Windows - validacao interna QA"
             vendor = "T.I. Machado Solucoes em Tecnologia"
