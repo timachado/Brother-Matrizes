@@ -370,6 +370,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 1
+      - name: Guardar XML de falhas Kotlin para diagnostico preciso (dados ficticios)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Windows-Portable-Kotlin-Test-Failures
+          path: windows-fiel/build/test-results/test/*.xml
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Anexar capturas do launcher portable
         if: always()
         uses: actions/upload-artifact@v4
