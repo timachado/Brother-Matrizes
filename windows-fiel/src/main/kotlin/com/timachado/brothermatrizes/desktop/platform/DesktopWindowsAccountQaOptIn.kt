@@ -52,6 +52,23 @@ internal object DesktopWindowsAccountQaOptIn {
         )
     }
 
+    /** Same official Google/PKCE controller as Minha Conta and DaFont. */
+    fun telegramSearchAccessForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopTelegramSearchAccess {
+        val key = publicKeyFromEnvironment(environment)
+            ?: return DesktopTelegramSearchUnavailable
+        if (qaEnvironment == null) return DesktopTelegramSearchUnavailable
+        return DesktopBrotherTelegramUsageGateway(
+            publishableKey = key,
+            versionCode = 195,
+            verifiedGoogle = DesktopVerifiedGoogleTokenSource {
+                qaEnvironment.verifiedAccessTokenForQa()
+            }
+        )
+    }
+
     fun openWhenOptedIn(): DesktopWindowsGoogleQaEnvironment? {
         val environment = System.getenv()
         val key = publicKeyFromEnvironment(environment) ?: return null
