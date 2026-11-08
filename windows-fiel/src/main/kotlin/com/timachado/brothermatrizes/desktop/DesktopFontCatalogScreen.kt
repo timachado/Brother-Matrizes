@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.desktop
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
+import com.timachado.brothermatrizes.font.FontCatalogSource
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -45,7 +49,8 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun DesktopFontCatalogScreen(
     onBack: () -> Unit,
-    onCreateName: () -> Unit
+    onCreateName: () -> Unit,
+    onRequireGoogle: () -> Unit
 ) {
     val reader = remember { DesktopReadOnlyFontCatalog.windowsDefault() }
     var snapshot by remember {
@@ -58,6 +63,34 @@ internal fun DesktopFontCatalogScreen(
         mutableStateOf<DesktopReadOnlyFontAnalyzer.Report?>(null)
     }
     var analysisError by remember { mutableStateOf<String?>(null) }
+    var catalogQuery by remember { mutableStateOf("") }
+    var catalogBusy by remember { mutableStateOf(false) }
+    var catalogStatus by remember { mutableStateOf<String?>(null) }
+
+    fun openOfficialCatalog(source: FontCatalogSource) {
+        if (catalogBusy) return
+        scope.launch {
+            catalogBusy = true
+            catalogStatus = null
+            try {
+                val opened = DesktopFontCatalogSearch.browse(
+                    source = source,
+                    query = catalogQuery
+                )
+                catalogStatus =
+                    "${source.displayName} aberto no navegador. Baixe a fonte manualmente " +
+                        "e confira sua licença antes de solicitar importação."
+                // Does not automatically download, unpack or import.
+                check(opened.catalog == source)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                catalogStatus = failure.message ?: "Pesquisa não autorizada nesta sessão."
+            } finally {
+                catalogBusy = false
+            }
+        }
+    }
 
     fun analyzeExternalFontReadOnly() {
         if (isAnalyzing) return
@@ -138,6 +171,60 @@ internal fun DesktopFontCatalogScreen(
                             "Essa operação permanece indisponível nesta versão Windows de QA.",
                         color = FioText
                     )
+                }
+            }
+        }
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Pesquisar fontes — DaFont e NetFontes",
+                        color = FioGold,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedTextField(
+                        value = catalogQuery,
+                        onValueChange = { catalogQuery = it.take(90) },
+                        label = { Text("Nome da fonte (opcional para categorias)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { openOfficialCatalog(FontCatalogSource.DAFONT) },
+                            enabled = !catalogBusy,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Buscar no DaFont") }
+                        Button(
+                            onClick = { openOfficialCatalog(FontCatalogSource.NETFONTES) },
+                            enabled = !catalogBusy,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Buscar no NetFontes") }
+                    }
+                    Text(
+                        "As pesquisas seguem o contrato do Android: sessão Google " +
+                            "obrigatória e reserva de cota no servidor para buscas DaFont. " +
+                            "Na QA Windows, a autorização ainda não foi homologada; " +
+                            "nenhuma pesquisa é iniciada sem confirmação.",
+                        color = FioTextMuted
+                    )
+                    if (catalogStatus != null) {
+                        Text(checkNotNull(catalogStatus), color = FioGold)
+                    }
+                    OutlinedButton(
+                        onClick = onRequireGoogle,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Minha Conta · autenticação Google") }
                 }
             }
         }
