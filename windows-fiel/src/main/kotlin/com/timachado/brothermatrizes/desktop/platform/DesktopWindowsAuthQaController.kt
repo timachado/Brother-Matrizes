@@ -77,6 +77,31 @@ internal class DesktopWindowsAuthQaController private constructor(
     }
 
     /**
+     * Explicit QA-only bearer for desktop catalog actions. The same DPAPI
+     * session backing Minha Conta is checked against Supabase /auth/v1/user
+     * and required to report the Google provider. Token and verification
+     * run under ONE controller mutex to avoid refresh/login/logout races.
+     *
+     * The caller must never log or persist the returned token separately.
+     * This does NOT grant Pro access, import rights or bypass server quotas.
+     */
+    suspend fun verifiedAccessTokenForQa(
+        verifier: DesktopSupabaseGoogleIdentityVerifier
+    ): String = exclusive {
+        try {
+            val token = keeper.tokenForIsolatedQa()
+            verifier.verifyGoogleIdentity(token)
+            token
+        } catch (cancelled: CancellationException) {
+            keeper.clear()
+            throw cancelled
+        } catch (_: Exception) {
+            keeper.clear()
+            error("Sessão Google não validada pelo Supabase. Entre novamente.")
+        }
+    }
+
+    /**
      * Read-only commercial preview: verify Google identity with Supabase Auth,
      * then match that user to server-issued WordPress/WooCommerce entitlement.
      * Does NOT implement DesktopVerifiedFontSession or release a commercial gate.
