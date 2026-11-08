@@ -85,8 +85,9 @@ class CleanRoomActiveSatinPortTest {
             filePrefix = "qa"
         )
         assertTrue(result.isFailure,
-            "Sem a verificação de cobertura, geração de fonte é proibida.")
+            "Fonte inexistente deve impedir qualquer geração de matriz.")
         assertFalse(result.getOrNull() != null)
-        assertTrue(result.exceptionOrNull() is UnsupportedOperationException)
+        assertTrue(result.exceptionOrNull() is IllegalArgumentException,
+            "O extrator Skia deve recusar o caminho TTF inexistente antes da geração.")
     }
 }
