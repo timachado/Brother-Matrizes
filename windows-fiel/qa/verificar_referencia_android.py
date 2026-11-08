@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verificação estática da fonte oficial Android 1.11.8 (NÃO testa visual).
+"""Verificação estática do Android oficial atual (NÃO testa visual).
 
 Não modifica arquivos. Não faz rede. Destina-se somente ao novo fluxo
 Windows fiel, separado da QA Windows reprovada.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+import re
 import sys
 
 
@@ -31,8 +32,36 @@ def require(check: bool, reason: str) -> None:
 
 def validate() -> None:
     gradle = read("app/build.gradle.kts")
-    require('versionName = "1.11.8"' in gradle, "Versão Android diferente de 1.11.8.")
-    require("versionCode = 195" in gradle, "Código Android diferente de 195.")
+
+    desktop = read(
+        "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/"
+        "desktop/platform/DesktopAndroidBaseline.kt"
+    )
+    def extract(source: str, pattern: str, label: str) -> str:
+        match = re.search(pattern, source)
+        require(match is not None, f"Metadado obrigatório ausente: {label}.")
+        return match.group(1)
+
+    android_name = extract(
+        gradle, r'\bversionName\s*=\s*"([^"]+)"', "Android versionName"
+    )
+    android_code = extract(
+        gradle, r"\bversionCode\s*=\s*(\d+)", "Android versionCode"
+    )
+    windows_name = extract(
+        desktop, r'\bVERSION_NAME:\s*String\s*=\s*"([^"]+)"',
+        "Windows VERSION_NAME"
+    )
+    windows_code = extract(
+        desktop, r"\bVERSION_CODE:\s*Int\s*=\s*(\d+)",
+        "Windows VERSION_CODE"
+    )
+    require(
+        (android_name, android_code) == (windows_name, windows_code),
+        "Windows QA divergiu da versão oficial Android: "
+        f"Android {android_name} ({android_code}), "
+        f"Windows {windows_name} ({windows_code})."
+    )
 
     home = read("app/src/main/java/com/timachado/brothermatrizes/HomeScreen.kt")
     main = read("app/src/main/java/com/timachado/brothermatrizes/MainActivity.kt")
@@ -138,7 +167,7 @@ def validate() -> None:
     require("premium-home-screenshot.png" in screenshot,
             "Teste de captura deixou de gerar imagem de referência.")
 
-    print("BROTHER_ANDROID_1118_REFERENCE_OK")
+    print(f"BROTHER_ANDROID_REFERENCE_OK {android_name} ({android_code})")
     print("Fonte, 16 rotas, navegação, composição e recursos originais conferidos.")
     print("AVISO: aprovação estática NÃO comprova paridade Windows ou teste físico.")
 
@@ -147,5 +176,5 @@ if __name__ == "__main__":
     try:
         validate()
     except (ValueError, OSError, base64.binascii.Error) as exc:
-        print(f"BROTHER_ANDROID_1118_REFERENCE_FAIL: {exc}", file=sys.stderr)
+        print(f"BROTHER_ANDROID_REFERENCE_FAIL: {exc}", file=sys.stderr)
         sys.exit(1)
