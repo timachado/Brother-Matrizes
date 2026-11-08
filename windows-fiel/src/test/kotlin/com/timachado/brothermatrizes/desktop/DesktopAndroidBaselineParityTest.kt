@@ -22,7 +22,7 @@ class DesktopAndroidBaselineParityTest {
         val code = Regex("""\bversionCode\s*=\s*(\d+)""").find(source)
             ?.groupValues?.get(1)?.toInt()
             ?: error("Android versionCode não encontrado.")
-        val name = Regex("""\bversionName\s*=\s*"([^"]+)"""").find(source)
+        val name = Regex("""versionName\s*=\s*"([^"]+)""").find(source)
             ?.groupValues?.get(1)
             ?: error("Android versionName não encontrado.")
         assertEquals(code, DesktopAndroidBaseline.VERSION_CODE)
