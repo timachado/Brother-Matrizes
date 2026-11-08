@@ -41,6 +41,8 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
+import com.timachado.brothermatrizes.ArchiveExtractorScreen
+import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
 import com.timachado.brothermatrizes.BrotherPlansScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.CreateDrawingScreen
@@ -831,6 +833,7 @@ private fun FielHomeHost(
     var showConnections by remember { mutableStateOf(false) }
     // Archive QA is metadata-only and intentionally never persists selected
     // archive names, contents, passwords or per-item commercial reservations.
+    var archiveSelectedPath by remember { mutableStateOf<Path?>(null) }
     var archiveBusy by remember { mutableStateOf(false) }
     var archiveError by remember { mutableStateOf<String?>(null) }
     var archivePreview by remember {
@@ -857,6 +860,7 @@ private fun FielHomeHost(
     }
     LaunchedEffect(archiveLaunchRequest) {
         if (archiveLaunchRequest > 0) {
+            archiveSelectedPath = null
             archivePreview = null
             archiveError = null
             area = HomeArea.LIBRARY
@@ -1026,6 +1030,7 @@ private fun FielHomeHost(
                         DesktopArchiveInventory.inspect(selected, secret)
                     }
                     archivePreview = inspected
+                    archiveSelectedPath = selected
                 } finally {
                     secret.fill('\u0000')
                 }
@@ -1747,18 +1752,65 @@ private fun FielHomeHost(
                     }
                 )
             } else if (detail == ActiveDetail.ARCHIVE_PREVIEW) {
-                DesktopArchivePreviewScreen(
-                    preview = archivePreview,
-                    busy = archiveBusy,
-                    error = archiveError,
-                    onChoosePackage = { password -> analyzeArchiveOnly(password) },
-                    onBack = {
-                        archivePreview = null
-                        archiveError = null
-                        detail = ActiveDetail.NONE
-                        area = HomeArea.LIBRARY
-                    }
-                )
+                val sourceArchive = archiveSelectedPath
+                if (sourceArchive != null) {
+                    // ORIGINAL Android ArchiveExtractorScreen composable imported
+                    // at build time; only filesystem and preview callbacks differ.
+                    ArchiveExtractorScreen(
+                        archivePath = sourceArchive,
+                        onBack = {
+                            archiveSelectedPath = null
+                            archivePreview = null
+                            archiveError = null
+                            detail = ActiveDetail.NONE
+                            area = HomeArea.LIBRARY
+                        },
+                        onPreviewMatrix = { inventory, selected, password ->
+                            // Preview only: no account, quota, project save,
+                            // font installation or writes to user libraries.
+                            val temporaryFolder = Files.createTempDirectory(
+                                "brother-matrix-preview-"
+                            )
+                            try {
+                                val extracted = withContext(Dispatchers.IO) {
+                                    SafeArchiveExtractor.extract(
+                                        temporaryFolder.toFile(),
+                                        inventory, selected, password
+                                    )
+                                }
+                                val design = try {
+                                    withContext(Dispatchers.IO) {
+                                        DesktopEmbroideryFiles.open(extracted.toPath())
+                                    }
+                                } finally {
+                                    Files.deleteIfExists(extracted.toPath())
+                                }
+                                openDesign(
+                                    design,
+                                    EmbroideryDisplayMode.SOLID,
+                                    ActiveDetail.VIEWER
+                                )
+                            } finally {
+                                Files.deleteIfExists(temporaryFolder)
+                            }
+                        }
+                    )
+                } else {
+                    // Legacy synthetic capture still opens the same preview.
+                    // Choosing a real archive switches to Android's original UI.
+                    DesktopArchivePreviewScreen(
+                        preview = archivePreview,
+                        busy = archiveBusy,
+                        error = archiveError,
+                        onChoosePackage = { password -> analyzeArchiveOnly(password) },
+                        onBack = {
+                            archivePreview = null
+                            archiveError = null
+                            detail = ActiveDetail.NONE
+                            area = HomeArea.LIBRARY
+                        }
+                    )
+                }
             } else if (detail == ActiveDetail.DRAWING) {
                 // Tela CreateDrawingScreen Compose original Android, com
                 // gestos de mouse e seletor SVG local Windows. O desenho
