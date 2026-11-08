@@ -1,9 +1,8 @@
 package com.timachado.brothermatrizes.desktop.platform
 
-import com.timachado.brothermatrizes.core.embroidery.EmbroideryBounds
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
-import com.timachado.brothermatrizes.core.embroidery.EmbroideryPoint
-import com.timachado.brothermatrizes.core.embroidery.HoopValidator
+import com.timachado.brothermatrizes.font.CleanRoomSatinEngine
+import com.timachado.brothermatrizes.font.ImportedFont
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -13,7 +12,6 @@ import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * Android imported-font Satin workflow on Windows, behind the mandatory
@@ -88,66 +86,27 @@ internal class DesktopImportedFontSatinService(
             "Integridade da fonte importada não confirmada."
         }
 
-        val geometry = DesktopSkiaGlyphGeometry.sample(
-            fontPath, text,
-            targetHeightUnits = options.heightMm * 10f,
-            spacingUnits = options.spacingMm * 10f
+        // Run the exact active Android 1.11.8 CleanRoomSatinEngine copied
+        // by Gradle, not the legacy DesktopReferenceSatinKernel. The
+        // AndroidSkiaOutlineExtractor / coverage guard have real JVM
+        // implementations in DesktopAndroidSatinContract.kt and fail closed
+        // on unsupported shaping or illegible stitches.
+        val androidCompatibleFont = ImportedFont(
+            id = authorizedFont.id,
+            displayName = authorizedFont.displayName,
+            fileName = authorizedFont.fileName,
+            extension = authorizedFont.extension,
+            absolutePath = authorizedFont.absolutePath
         )
-        val raw = DesktopReferenceSatinKernel.generate(
-            geometry.contoursByGlyph, options
-        ).filter { it.command != StitchCommand.END }
-        require(raw.size in 1..100_000 && raw.any {
-            it.command == StitchCommand.STITCH
-        }) { "O Satin não gerou pontadas úteis." }
-
-        // Match Android recentering plus final END marker contract.
-        val physical = raw.filter { it.command != StitchCommand.TRIM }
-        require(physical.isNotEmpty())
-        val cx = (physical.minOf { it.xUnits }.toLong() +
-            physical.maxOf { it.xUnits }.toLong()) / 2.0
-        val cy = (physical.minOf { it.yUnits }.toLong() +
-            physical.maxOf { it.yUnits }.toLong()) / 2.0
-        val centered = raw.map {
-            it.copy(
-                xUnits = (it.xUnits - cx).roundToInt(),
-                yUnits = (it.yUnits - cy).roundToInt()
-            )
-        }
-        require(centered.all {
-            kotlin.math.abs(it.xUnits.toLong()) <= 1_000_000L &&
-            kotlin.math.abs(it.yUnits.toLong()) <= 1_000_000L
-        }) { "Pontadas fora do intervalo físico seguro." }
-        val last = centered.last()
-        val points: List<EmbroideryPoint> = centered +
-            EmbroideryPoint(last.xUnits, last.yUnits, StitchCommand.END, last.colorIndex)
-        val bounds = EmbroideryBounds(
-            minXUnits = centered.minOf { it.xUnits },
-            maxXUnits = centered.maxOf { it.xUnits },
-            minYUnits = centered.minOf { it.yUnits },
-            maxYUnits = centered.maxOf { it.yUnits }
-        )
-        val safeText = text.replace(Regex("[^A-Za-z0-9_-]+"), "_")
-            .take(30).ifBlank { "nome" }
-        val design = EmbroideryDesign(
-            fileName = "nome-$safeText.${format.lowercase(Locale.ROOT)}",
-            format = format,
-            label = text,
-            points = points,
-            bounds = bounds,
-            stitchCount = centered.count { it.command == StitchCommand.STITCH },
-            jumpCount = centered.count { it.command == StitchCommand.JUMP },
-            colorChanges = centered.count { it.command == StitchCommand.COLOR_CHANGE },
-            endFound = true,
-            sourceBytes = ByteArray(0),
-            threadColors = listOf(options.color),
-            isModified = true,
-            hoopProfile = options.hoopProfile,
-            fabricProfile = options.fabricProfile
-        )
-        if (options.enforceHoop && options.hoopProfile != null) {
-            check(HoopValidator.validate(design, options.hoopProfile).fits) {
-                "A matriz ultrapassa a área segura do bastidor."
-            }
+        val design = CleanRoomSatinEngine.generate(
+            font = androidCompatibleFont,
+            sourceText = text,
+            options = options,
+            filePrefix = "nome"
+        ).getOrThrow()
+        check(design.stitchCount > 0 && design.endFound &&
+            design.points.lastOrNull()?.command == StitchCommand.END) {
+            "O Satin oficial não finalizou uma matriz segura."
         }
         return AuthorizedDesign(authorizedFont, design)
     }
