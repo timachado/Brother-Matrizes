@@ -54,7 +54,7 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
     companion object {
         fun openForQa(
             publishableKey: String,
-            target: DesktopQaStagingProject,
+            target: DesktopBrotherBackendTarget,
             folder: Path = DesktopWindowsDpapiSessionStore.defaultUserDataFolder(),
             clock: Clock = Clock.systemUTC(),
             browser: DesktopExternalBrowser = WindowsExternalBrowser,
@@ -77,15 +77,15 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
                 browser = browser,
                 callbackTimeout = Duration.ofMinutes(5)
             )
-            // Keep staging DPAPI sessions separate from previous local QA
-            // tokens and every other Supabase project. No fallback to
-            // an unscoped or commercial session folder is permitted.
-            val scoped = folder.resolve("qa-staging-" + target.ref)
+            // Keep Windows QA DPAPI tokens apart from normal application
+            // state and unrelated apps, but use the SAME Supabase identity.
+            // No Android device secrets or client files are accessed.
+            val scoped = folder.resolve("qa-brother-account-" + target.ref)
             check(!Files.isSymbolicLink(folder) &&
                 !Files.isSymbolicLink(scoped) &&
                 (!Files.exists(scoped, LinkOption.NOFOLLOW_LINKS) ||
                     Files.isDirectory(scoped, LinkOption.NOFOLLOW_LINKS))) {
-                "Diretório de sessão de homologação inválido."
+                "Diretório de sessão Windows inválido."
             }
             val account = DesktopWindowsAuthQaController.open(
                 signIn = DesktopWindowsAuthQaController.googleSignInSource(coordinator),
