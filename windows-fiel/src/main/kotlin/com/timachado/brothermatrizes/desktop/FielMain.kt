@@ -1687,7 +1687,8 @@ private fun FielHomeHost(
                 // permanece sem OAuth/cota comercial homologados.
                 DesktopFontCatalogScreen(
                     onBack = { area = HomeArea.HOME },
-                    onCreateName = { openCreate() }
+                    onCreateName = { openCreate() },
+                    onRequireGoogle = { area = HomeArea.ACCOUNT }
                 )
             } else if (area == HomeArea.LIBRARY) {
                 // UI, abas, cartões e metadados copiados do Android.
