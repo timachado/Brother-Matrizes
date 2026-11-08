@@ -2136,6 +2136,16 @@ private fun FielHomeHost(
                     onRestore = { restoreLocalFlpProjects() },
                     onFonts = { area = HomeArea.FONTS },
                     onSearchMatrices = { detail = ActiveDetail.TELEGRAM },
+                    onInspectArchive = {
+                        // Somente análise e visualização de arquivo local.
+                        // "rar_receive" protegido continua inacessível
+                        // sem autenticação e autorização do backend Android.
+                        detail = ActiveDetail.ARCHIVE_PREVIEW
+                        archiveSelectedPath = null
+                        archivePreview = null
+                        archiveError = null
+                        analyzeArchiveOnly()
+                    },
                     onRequireGoogle = { area = HomeArea.ACCOUNT }
                 )
             } else if (area == HomeArea.HOME) {
