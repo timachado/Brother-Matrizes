@@ -27,7 +27,7 @@ internal object DesktopTelegramSearchUnavailable : DesktopTelegramSearchAccess {
 
 internal object DesktopTelegramMatrixSearch {
     private val receipt = Regex(
-        "^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        "^(usage|pro)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     )
 
     fun destination(raw: String): URI {
