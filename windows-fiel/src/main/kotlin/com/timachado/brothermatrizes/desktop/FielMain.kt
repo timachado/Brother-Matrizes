@@ -703,7 +703,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW, COMMUNITY }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW, COMMUNITY, TELEGRAM }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -776,6 +776,9 @@ private fun FielHomeHost(
         DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(
             accountQaEnvironment
         )
+    }
+    val telegramSearchAccess = remember(accountQaEnvironment) {
+        DesktopWindowsAccountQaOptIn.telegramSearchAccessForQa(accountQaEnvironment)
     }
 
     var area by remember {
@@ -1691,6 +1694,56 @@ private fun FielHomeHost(
                     showConnections = showConnections,
                     onBack = { detail = ActiveDetail.VIEWER }
                 )
+            } else if (detail == ActiveDetail.TELEGRAM) {
+                DesktopTelegramMatrixSearchScreen(
+                    projects = catalog?.projects.orEmpty(),
+                    onBack = { detail = ActiveDetail.NONE },
+                    // This QA path only opens a local file for inspection.
+                    // It does NOT persist an imported library record or
+                    // bypass the official import_matrix quota transaction.
+                    onOpenLocalFile = {
+                        detail = ActiveDetail.NONE
+                        openProject()
+                    },
+                    onRequireGoogle = {
+                        detail = ActiveDetail.NONE
+                        area = HomeArea.ACCOUNT
+                    },
+                    onOpenSavedProject = { summary ->
+                        val selected = catalog?.pathById?.get(summary.id)
+                        if (selected == null) {
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Projeto não encontrado na Biblioteca."
+                                )
+                            }
+                        } else {
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        DesktopEmbroideryFiles.open(selected)
+                                    }
+                                }.fold(
+                                    onSuccess = { design ->
+                                        recentProjectIds = DesktopLibraryRecentTracker.putFirst(
+                                            summary.id, recentProjectIds
+                                        )
+                                        openDesign(
+                                            design, EmbroideryDisplayMode.SOLID, ActiveDetail.VIEWER
+                                        )
+                                    },
+                                    onFailure = { error ->
+                                        snackbar.showSnackbar(
+                                            "FLP recusado: " +
+                                                (error.message ?: "arquivo inválido")
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    },
+                    access = telegramSearchAccess
+                )
             } else if (detail == ActiveDetail.COMMUNITY) {
                 // Android BrotherCommunityScreen: same group, updates,
                 // support and feedback actions with Windows browser/mail.
@@ -1842,7 +1895,7 @@ private fun FielHomeHost(
                     onBackup = { backupLocalFlpProjects() },
                     onRestore = { restoreLocalFlpProjects() },
                     onFonts = { area = HomeArea.FONTS },
-                    onSearchMatrices = { informNotPorted("Pesquisa Telegram") },
+                    onSearchMatrices = { detail = ActiveDetail.TELEGRAM },
                     onRequireGoogle = { area = HomeArea.ACCOUNT }
                 )
             } else if (area == HomeArea.HOME) {
