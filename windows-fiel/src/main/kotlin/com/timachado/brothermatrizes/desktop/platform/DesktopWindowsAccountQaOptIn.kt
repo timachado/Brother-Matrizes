@@ -51,6 +51,38 @@ internal object DesktopWindowsAccountQaOptIn {
         )
     }
 
+    /**
+     * The only opt-in entry point for a REAL import_font reservation.
+     *
+     * TWO independent opt-ins are needed, plus an existing verified Google
+     * QA controller. Default Windows packages expose no import gate.
+     * Never persist the publishable key, bearer or plan as local entitlement.
+     */
+    internal fun fontImportEnabled(environment: Map<String, String>): Boolean =
+        environment["BROTHER_WINDOWS_QA_FONT_IMPORT"] == "enabled" &&
+            publicKeyFromEnvironment(environment) != null
+
+    fun fontImportGateForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopCommercialFontImportGate? {
+        if (qaEnvironment == null || !fontImportEnabled(environment)) return null
+        val key = checkNotNull(publicKeyFromEnvironment(environment))
+        val fonts = DesktopWindowsDpapiSessionStore.defaultUserDataFolder()
+            .resolve("fonts")
+        return DesktopCommercialFontImportGate(
+            library = DesktopImportedFontLibrary(fonts),
+            verifiedSession = DesktopVerifiedFontSession {
+                qaEnvironment.verifiedAccessTokenForQa()
+            },
+            usage = DesktopBrotherFontUsageGateway(
+                publishableKey = key,
+                appVersionCode = DesktopAndroidBaseline.VERSION_CODE
+            ),
+            journal = DesktopFontImportSafety.journalFor(fonts)
+        )
+    }
+
     /** Same official Google/PKCE controller as Minha Conta and DaFont. */
     fun telegramSearchAccessForQa(
         qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
