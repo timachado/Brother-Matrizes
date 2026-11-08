@@ -150,23 +150,23 @@ internal object DesktopSavedFontBridge {
 
     private fun verify(font: DesktopFontRecord, folder: Path): Boolean =
         runCatching {
-            if (!safeId.matches(font.id) || font.id != font.fileName) return false
+            if (!safeId.matches(font.id) || font.id != font.fileName) return@runCatching false
             val file = Path.of(font.absolutePath).toAbsolutePath().normalize()
             if (file.parent != folder || Files.isSymbolicLink(folder) ||
                 !Files.isDirectory(folder, LinkOption.NOFOLLOW_LINKS) ||
                 Files.isSymbolicLink(file) ||
-                !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return false
+                !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return@runCatching false
             val size = Files.size(file)
-            if (size !in 4..MAX_FONT_BYTES) return false
+            if (size !in 4..MAX_FONT_BYTES) return@runCatching false
             val data = Files.readAllBytes(file)
-            if (data.size.toLong() != size) return false
+            if (data.size.toLong() != size) return@runCatching false
             val format = when {
                 data.take(4) == listOf(0.toByte(), 1.toByte(), 0.toByte(), 0.toByte()) ||
                     String(data, 0, 4, Charsets.US_ASCII) == "true" -> "ttf"
                 String(data, 0, 4, Charsets.US_ASCII) == "OTTO" -> "otf"
-                else -> return false
+                else -> return@runCatching false
             }
-            if (font.extension.lowercase(Locale.ROOT) != format) return false
+            if (font.extension.lowercase(Locale.ROOT) != format) return@runCatching false
             val hash = MessageDigest.getInstance("SHA-256").digest(data)
                 .take(5).joinToString("") { "%02x".format(it.toInt() and 0xff) }
             font.id.substringBeforeLast('.').endsWith("-$hash", ignoreCase = true)
