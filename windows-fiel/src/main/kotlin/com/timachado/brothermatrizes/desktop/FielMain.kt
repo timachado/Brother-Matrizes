@@ -72,6 +72,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
+import com.timachado.brothermatrizes.desktop.platform.DesktopSentMatrixHistory
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracker
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
@@ -869,6 +870,14 @@ private fun FielHomeHost(
     var favorites by remember { mutableStateOf(initialData.favorites) }
     var recentProjectIds by remember { mutableStateOf(initialData.recents) }
     var selectedLibraryFolder by remember { mutableStateOf(initialData.selectedFolder) }
+    // Exact Android SentMatrixRecord fields, stored independently from FLP
+    // metadata. Only a successful native Windows machine-file save adds a
+    // history record; opening or previewing a file never counts as delivery.
+    val sentHistory = remember { DesktopSentMatrixHistory() }
+    val initialSentState = remember(sentHistory) { runCatching { sentHistory.list() } }
+    var sentMatrices by remember {
+        mutableStateOf(initialSentState.getOrDefault(emptyList()))
+    }
     val libraryPersistenceLock = remember { Mutex() }
 
     // Arquivo pequeno e versionado em %LOCALAPPDATA%; não é um backup
@@ -1290,12 +1299,29 @@ private fun FielHomeHost(
                     DesktopMachineTransferFile.saveNew(prepared, chosen)
                 }
             }.fold(onSuccess = { saved ->
+                // Android recordMachineDelivery is called only after a
+                // successful handoff. Here this means the user-selected
+                // machine file was written, not physically received.
+                val historyUpdate = runCatching {
+                    withContext(Dispatchers.IO) {
+                        sentHistory.recordExport(
+                            saved.fileName.toString(),
+                            prepared.format,
+                            if (forMachineApp) "Wi-Fi / app" else "USB / OTG"
+                        )
+                    }
+                }
+                historyUpdate.onSuccess { sentMatrices = it }
                 snackbar.showSnackbar(
                     "Arquivo ${prepared.format} salvo: ${saved.fileName}. " +
                         (if (forMachineApp)
                             "Abra-o no software da bordadeira; não houve envio Wi-Fi."
                         else
-                            "Confirme o arquivo no pendrive e na máquina antes de bordar.")
+                            "Confirme o arquivo no pendrive e na máquina antes de bordar.") +
+                        if (historyUpdate.isFailure)
+                            " Histórico de enviados não atualizado."
+                        else
+                            " Operação registrada na aba Enviados."
                 )
             }, onFailure = { error ->
                 snackbar.showSnackbar(
@@ -1785,7 +1811,7 @@ private fun FielHomeHost(
                     projects = catalog?.projects.orEmpty(),
                     favoriteProjectIds = favorites,
                     recentProjectIds = recentProjectIds,
-                    sentMatrices = emptyList(),
+                    sentMatrices = sentMatrices,
                     onBack = { area = HomeArea.HOME },
                     onOpen = { summary ->
                         val path: Path? = catalog?.pathById?.get(summary.id)
@@ -1890,8 +1916,38 @@ private fun FielHomeHost(
                             }
                         }
                     },
-                    onDeleteSent = { informNotPorted("Histórico de envios") },
-                    onClearSent = { informNotPorted("Limpeza de envios") },
+                    onDeleteSent = { record ->
+                        scope.launch {
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    sentHistory.remove(record.id)
+                                }
+                            }.fold(
+                                onSuccess = {
+                                    sentMatrices = it
+                                    snackbar.showSnackbar("Registro removido; arquivo de matriz preservado.")
+                                },
+                                onFailure = {
+                                    snackbar.showSnackbar("Não foi possível remover o registro de envio.")
+                                }
+                            )
+                        }
+                    },
+                    onClearSent = {
+                        scope.launch {
+                            runCatching {
+                                withContext(Dispatchers.IO) { sentHistory.clear() }
+                            }.fold(
+                                onSuccess = {
+                                    sentMatrices = it
+                                    snackbar.showSnackbar("Histórico Enviados limpo; matrizes preservadas.")
+                                },
+                                onFailure = {
+                                    snackbar.showSnackbar("Não foi possível limpar o histórico Enviados.")
+                                }
+                            )
+                        }
+                    },
                     onBackup = { backupLocalFlpProjects() },
                     onRestore = { restoreLocalFlpProjects() },
                     onFonts = { area = HomeArea.FONTS },
