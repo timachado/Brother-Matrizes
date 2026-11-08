@@ -79,6 +79,7 @@ internal object DesktopAccountPresentation {
 @Composable
 internal fun DesktopAccountQaScreen(
     onBack: () -> Unit,
+    onPlans: () -> Unit,
     qaEnvironment: DesktopWindowsGoogleQaEnvironment?
 ) {
     // The same QA environment is owned by FielHomeHost for the whole desktop
@@ -129,6 +130,11 @@ internal fun DesktopAccountQaScreen(
             "Brother Matrizes • T.I. Machado Soluções em Tecnologia",
             color = FioTextMuted
         )
+        OutlinedButton(
+            onClick = onPlans,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Planos e benefícios — versão original Android") }
+
 
         Card(
             modifier = Modifier.fillMaxWidth(),
