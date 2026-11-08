@@ -32,14 +32,13 @@ O executável QA anterior permanece fechado por padrão. Para disponibilizar a o
 Em uma sessão temporária do PowerShell, a partir da pasta portátil **completa**:
 
 ```powershell
-# SOMENTE em um projeto Supabase staging próprio, diferente da produção:
+# Usar SOMENTE a chave publicável do projeto OFICIAL Brother Matrizes
+# e apenas depois de verificar a allowlist do OAuth e autorizar o teste.
 $env:BROTHER_WINDOWS_QA_GOOGLE_AUTH = "enabled"
-$env:BROTHER_WINDOWS_QA_STAGING_PROJECT_REF = "<REF_PROJETO_STAGING_EXCLUSIVO>"
-$env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY = "<CHAVE_PUBLICAVEL_DESTE_STAGING>"
+$env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY = "<CHAVE_PUBLICAVEL_DO_SUPABASE_BROTHER_MATRIZES>"
 .\BrotherMatrizesQA.exe
-# Ao finalizar os testes, limpe o ambiente da sessão:
+# Ao finalizar os testes, limpar as variáveis desta sessão:
 Remove-Item Env:BROTHER_WINDOWS_QA_GOOGLE_AUTH -ErrorAction SilentlyContinue
-Remove-Item Env:BROTHER_WINDOWS_QA_STAGING_PROJECT_REF -ErrorAction SilentlyContinue
 Remove-Item Env:BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY -ErrorAction SilentlyContinue
 ```
 
@@ -84,38 +83,39 @@ A reserva/finalização via server-side **não pode ser ensaiada no projeto de p
 
 **Fontes técnicas:** [Supabase Auth Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls) e [Google Sign-In](https://supabase.com/docs/guides/auth/social-sign-in/auth-google).
 
+## Decisão do proprietário: mesmo backend Android/Windows — 08/11/2026
 
-## Atualização de isolamento do ambiente Windows — 07/11/2026
+A versão Windows é uma adaptação do **Brother Matrizes Android oficial**,
+não um produto independente. **Não criar um segundo Supabase**.
+O único backend autorizado para o aplicativo Windows é o projeto
+`dwpcddiramxlhavdmmyn`, que já sustenta o Android.
+Usuários, identidades Google, planos Pro, licenças e servidor de cotas
+continuam sob as **mesmas regras de autorização server-side**.
+Não há tabelas, contas ou políticas Pro paralelas no PC.
 
-**Esta seção substitui qualquer instrução anterior que apontasse a QA
-OAuth/PKCE diretamente para o projeto comercial.** A revisão do PR #226
-impõe `BROTHER_WINDOWS_QA_STAGING_PROJECT_REF` explicitamente, além do
-opt-in e da chave publicável do **mesmo projeto staging**. Sem a referência
-do staging, a interface QA permanece desativada.
+As classes `DesktopBrotherBackendTarget.official()` e
+`DesktopWindowsAccountQaOptIn` usam o identificador oficial fixo,
+sem variável de staging. Os clientes PKCE, token/refresh, GET /user,
+GET /settings, GET brother-entitlement e o diagnóstico de cotas
+usam o mesmo host. A sessão local Windows permanece protegida
+separadamente por DPAPI em `qa-brother-account-<project-ref>`;
+esta pasta **não significa outro projeto Supabase**.
+Não reutilizar os arquivos locais de sessão do Android.
 
-A fábrica `DesktopWindowsGoogleQaEnvironment.openForQa` agora requer
-`DesktopQaStagingProject`, que rejeita os IDs do projeto de produção
-Brother Matrizes e do Matrix Engine. Todos os clientes de autenticação,
-refresh, `getUser`, `settings` e consulta **GET** de assinatura recebem
-esse projeto. O DPAPI de QA utiliza a pasta privada
-`qa-staging-<referencia>`, sem recuperar a sessão de outro ambiente.
-A leitura de estado de cotas é exposta por um adaptador separado
-`DesktopStagingQuotaStatusReader`: exclusivamente status conhecido de
-Free/Pro V2, nunca reserva, finalização, criação de licença ou remoção
-de journal. O transporte do status é POST porque esse é o contrato
-da Edge Function; não se trata de escrita de cota.
+Por segurança, a QA distribuível mantém o login desligado por padrão.
+O opt-in explicitamente configurado apenas prepara o fluxo; não abre
+navegador nem acessa rede até o operador invocar uma ação.
+Validar primeiro a allowlist PKCE em procedimento autorizado e usar
+**conta de teste sem direitos pagos reais**. Nunca modificar o
+Supabase, cadastrar usuário de cliente, consumir cotas ou alterar
+assinaturas automaticamente. O pipeline utiliza
+`HttpURLConnection` simulado, sem tocar a rede comercial.
 
-**Diagnóstico da conta conectada em 07/11/2026:** foram listados apenas
-o projeto comercial ativo `dwpcddiramxlhavdmmyn` e o projeto Matrix
-Engine `likurzkruaznsvvidhun` inativo. Nenhum deles foi designado
-como staging Brother Matrizes. Não foi criado um terceiro projeto,
-configurado Google OAuth, editada allowlist ou efetuada cobrança; novo
-projeto poderia exigir confirmação de custos. As URLs de retorno reais
-e a chave de staging ainda não foram homologadas.
-
-Os testes de regressão utilizam hosts sintéticos e conexões HTTP
-injetadas em memória, sem DNS Supabase, contas, cotas ou dados reais.
-A aprovação de CI não comprova a existência de projeto staging ou
-autenticação Google real; executar login só depois de verificar a
-posse/configuração do novo projeto e a allowlist estrita com conta de
-testes. **Nunca usar as credenciais comerciais** neste procedimento.
+**Prioridade retomada:** portar integralmente as 16 rotas Android para
+interface expandida de PC, substituindo ações `informNotPorted` por
+adaptações nativas (arquivos, compartilhamento, teclado, mouse,
+biblioteca, editor etc.). Não se consegue portar um APK diretamente
+como um EXE Windows sem reconstrução das integrações de plataforma.
+Os projetos FLP/DST/PES/JEF armazenados no dispositivo Android não
+aparecem automaticamente no PC; é necessário abrir/importar os
+arquivos ou homologar uma sincronização autorizada.
