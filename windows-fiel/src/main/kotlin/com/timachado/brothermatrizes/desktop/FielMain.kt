@@ -21,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -78,6 +79,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -761,6 +763,21 @@ private fun FielHomeHost(
     archiveLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0
 ) {
+    // Shared QA-only Google/DPAPI controller: one lock per window, retained
+    // while navigating Minha Conta -> Fontes. Default build remains OFF.
+    val accountQaEnvironment = remember {
+        runCatching { DesktopWindowsAccountQaOptIn.openWhenOptedIn() }
+            .getOrNull()
+    }
+    DisposableEffect(accountQaEnvironment) {
+        onDispose { accountQaEnvironment?.close() }
+    }
+    val fontCatalogAccess = remember(accountQaEnvironment) {
+        DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(
+            accountQaEnvironment
+        )
+    }
+
     var area by remember {
         mutableStateOf(
             when {
@@ -1680,7 +1697,8 @@ private fun FielHomeHost(
                 // Minha Conta de QA: login somente por opt-in explícito.
                 // O preview do servidor não autoriza recursos comerciais.
                 DesktopAccountQaScreen(
-                    onBack = { area = HomeArea.HOME }
+                    onBack = { area = HomeArea.HOME },
+                    qaEnvironment = accountQaEnvironment
                 )
             } else if (area == HomeArea.FONTS) {
                 // Catálogo real de presets Android; importação TTF/OTF
@@ -1688,7 +1706,8 @@ private fun FielHomeHost(
                 DesktopFontCatalogScreen(
                     onBack = { area = HomeArea.HOME },
                     onCreateName = { openCreate() },
-                    onRequireGoogle = { area = HomeArea.ACCOUNT }
+                    onRequireGoogle = { area = HomeArea.ACCOUNT },
+                    access = fontCatalogAccess
                 )
             } else if (area == HomeArea.LIBRARY) {
                 // UI, abas, cartões e metadados copiados do Android.
