@@ -247,7 +247,7 @@ class DesktopCommercialFontImportGateTest {
             val error = assertFailsWith<IllegalStateException> {
                 gate.importFont(fontFixture())
             }
-            assertTrue(error.message.orEmpty().contains("sincronizada"))
+            assertTrue(error.message.orEmpty().contains("não confirmada"))
             assertEquals(1, fake.reserved)
             assertTrue(DesktopImportedFontLibrary(destination).list().isEmpty())
         } finally {
