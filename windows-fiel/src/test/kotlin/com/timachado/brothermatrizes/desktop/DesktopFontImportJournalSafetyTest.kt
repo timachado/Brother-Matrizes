@@ -48,6 +48,11 @@ class DesktopFontImportJournalSafetyTest {
                 pending, "usage_12345678-1234-1234-1234-123456789abc"
             )
             pending = journal.declareOutput(pending, id, sha)
+            // Simulate a JVM crash AFTER the filename was declared but
+            // BEFORE publication/ownership evidence was confirmed.
+            assertEquals(DesktopArchiveQuotaJournal.Stage.RESERVED, pending.stage)
+            assertTrue(DesktopFontImportSafety.published(fonts, listOf(source)).isEmpty())
+            assertFailsWith<IllegalStateException> { journal.begin(item) }
             pending = journal.verifyOutput(pending, id, sha)
             pending = journal.finalizing(pending)
             assertTrue(DesktopFontImportSafety.published(fonts, listOf(source)).isEmpty())
