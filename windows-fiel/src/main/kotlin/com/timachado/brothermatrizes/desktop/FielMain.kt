@@ -80,6 +80,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -1491,7 +1492,7 @@ private fun FielHomeHost(
         bottomBar = {
             if (detail == ActiveDetail.NONE) {
             // Mesmas cinco abas, sequência, formato e tokens da MainActivity
-            // Android 1.11.8; não usar barra lateral da versão rejeitada.
+            // UI Android original; não usar barra lateral da versão rejeitada.
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
               NavigationBar(
                 modifier = Modifier
@@ -1776,7 +1777,7 @@ private fun FielHomeHost(
                 // Firebase Android push remains a documented parity gate.
                 DesktopBrotherCommunityScreen(
                     onBack = { detail = ActiveDetail.NONE },
-                    versionName = "Windows QA"
+                    versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL
                 )
             } else if (area == HomeArea.CREATE) {
                 CreateNameScreen(
