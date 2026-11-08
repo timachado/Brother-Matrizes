@@ -37,6 +37,7 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaMultiprocessTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaProcessProbe.kt"
       - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/qa/install_gradle_814_official.ps1"
       - ".github/workflows/brother-windows-archive-recovery-qa.yml"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
@@ -58,11 +59,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.14"
-          # Github Gradle cache API returned HTTP 504; run tests without cache.
-          cache-disabled: true
+      - name: Instalar Gradle 8.14 oficial e validar SHA-256
+        shell: pwsh
+        run: ./windows-fiel/qa/install_gradle_814_official.ps1
       - name: Confirmar modo fechado na interface e ausencia de tokens no journal
         shell: pwsh
         run: |
