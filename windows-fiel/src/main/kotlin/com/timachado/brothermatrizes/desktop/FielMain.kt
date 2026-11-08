@@ -1490,11 +1490,10 @@ private fun FielHomeHost(
                                 area = target
                                 detail = ActiveDetail.NONE
                                 if (target == HomeArea.LIBRARY && catalog == null) {
-                                    scope.launch {
-                                        snackbar.showSnackbar(
-                                            "No menu Biblioteca, selecione uma pasta de projetos FLP."
-                                        )
-                                    }
+                                    // First access must actually let the user
+                                    // choose a folder, not display an empty
+                                    // library with an unactionable snackbar.
+                                    chooseLibraryFolder()
                                 }
                             }
                         },
@@ -1852,10 +1851,11 @@ private fun FielHomeHost(
                     onRecent = {
                         if (activeDesign != null) detail = ActiveDetail.VIEWER
                         else {
-                            // No active document: show the real FLP library,
-                            // not a misleading "not ported" placeholder.
                             area = HomeArea.LIBRARY
                             detail = ActiveDetail.NONE
+                            // If no local catalog has been selected yet, show
+                            // the real Windows folder picker immediately.
+                            if (catalog == null) chooseLibraryFolder()
                         }
                     },
                     onSimulate = {
