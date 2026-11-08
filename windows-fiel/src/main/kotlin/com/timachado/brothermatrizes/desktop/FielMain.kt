@@ -71,6 +71,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupExporter
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopSentMatrixHistory
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
@@ -1070,6 +1072,86 @@ private fun FielHomeHost(
         }
     }
 
+    fun backupCompleteOrFlp() {
+        // Android already offers complete backup; use its EXACT codecs.
+        // Keep the existing local FLP ZIP action available without changes.
+        val options = arrayOf("Backup completo (Android)", "ZIP local FLP", "Cancelar")
+        val selected = JOptionPane.showOptionDialog(
+            null,
+            "Qual formato deseja exportar? O backup completo inclui projetos FLP e fontes TTF/OTF selecionadas.",
+            "Backup da biblioteca Brother Matrizes",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]
+        )
+        if (selected == 1) {
+            backupLocalFlpProjects()
+            return
+        }
+        if (selected != 0) return
+        val chosenProjects = catalog?.folder
+        if (chosenProjects == null) {
+            scope.launch { snackbar.showSnackbar(
+                "Selecione primeiro uma pasta de projetos FLP na Biblioteca."
+            ) }
+            return
+        }
+        scope.launch {
+            val includeFonts = JOptionPane.showConfirmDialog(
+                null,
+                "Deseja incluir fontes TTF/OTF de uma pasta deste PC? " +
+                    "Sim: escolher a pasta de fontes. Não: exportar somente as matrizes. " +
+                    "O formato continuará compatível com o backup completo Android.",
+                "Fontes no backup completo",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            )
+            if (includeFonts == JOptionPane.CANCEL_OPTION ||
+                includeFonts == JOptionPane.CLOSED_OPTION) return@launch
+            val fonts = if (includeFonts == JOptionPane.YES_OPTION) {
+                val folder = JFileChooser().apply {
+                    dialogTitle = "Selecionar pasta com fontes TTF/OTF para backup"
+                    fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                }
+                if (folder.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
+                    return@launch
+                }
+                folder.selectedFile.toPath().toAbsolutePath().normalize()
+            } else null
+            val chooser = JFileChooser().apply {
+                dialogTitle = "Salvar backup completo no formato original Android"
+                selectedFile = File("Brother-Matrizes.brother_matrizes-fullbackup")
+                fileSelectionMode = JFileChooser.FILES_ONLY
+                isAcceptAllFileFilterUsed = false
+                fileFilter = FileNameExtensionFilter(
+                    "Brother Matrizes backup completo", "brother_matrizes-fullbackup"
+                )
+            }
+            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
+            val raw = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            val destination = if (raw.fileName.toString().endsWith(
+                    ".brother_matrizes-fullbackup", ignoreCase = true
+                )) raw else Path.of(raw.toString() + ".brother_matrizes-fullbackup")
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    DesktopAndroidCompleteBackupExporter.export(chosenProjects, fonts, destination)
+                }
+            }.fold(onSuccess = { result ->
+                snackbar.showSnackbar(
+                    "Backup Android compatível criado: " +
+                        "${result.exportedProjects} projeto(s), " +
+                        "${result.exportedFonts} fonte(s). Arquivo: ${result.destination}"
+                )
+            }, onFailure = { error ->
+                snackbar.showSnackbar(
+                    "Backup completo não criado: ${error.message ?: "falha de acesso"}"
+                )
+            })
+        }
+    }
+
     fun restoreLocalFlpProjects() {
         scope.launch {
             // FLP ZIP local is restored into a new folder. Original Android
@@ -1949,7 +2031,7 @@ private fun FielHomeHost(
                             )
                         }
                     },
-                    onBackup = { backupLocalFlpProjects() },
+                    onBackup = { backupCompleteOrFlp() },
                     onRestore = { restoreLocalFlpProjects() },
                     onFonts = { area = HomeArea.FONTS },
                     onSearchMatrices = { detail = ActiveDetail.TELEGRAM },
