@@ -31,9 +31,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Instalar Gradle 8.14 oficial e validar SHA-256
-        shell: pwsh
-        run: ./windows-fiel/qa/install_gradle_814_official.ps1
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
       - name: Verificar fonte Android e arquivos oficiais
         shell: pwsh
         run: |
