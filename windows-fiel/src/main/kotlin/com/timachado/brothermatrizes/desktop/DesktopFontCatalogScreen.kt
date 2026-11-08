@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
+import com.timachado.brothermatrizes.desktop.platform.DesktopExternalFontRunningPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipPreview
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
@@ -42,6 +43,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
+import java.nio.file.Path
 import kotlinx.coroutines.withContext
 
 /**
@@ -67,6 +69,39 @@ internal fun DesktopFontCatalogScreen(
         mutableStateOf<DesktopReadOnlyFontAnalyzer.Report?>(null)
     }
     var analysisError by remember { mutableStateOf<String?>(null) }
+    var inspectedFontFile by remember { mutableStateOf<Path?>(null) }
+    var runningSample by remember { mutableStateOf("Maria") }
+    var runningBusy by remember { mutableStateOf(false) }
+    var runningReport by remember {
+        mutableStateOf<DesktopExternalFontRunningPreflight.Report?>(null)
+    }
+    var runningError by remember { mutableStateOf<String?>(null) }
+
+    fun runTemporaryStitchPreflight() {
+        if (runningBusy) return
+        val selected = inspectedFontFile ?: return
+        val sample = runningSample
+        runningBusy = true
+        runningReport = null
+        runningError = null
+        scope.launch {
+            try {
+                runningReport = withContext(Dispatchers.Default) {
+                    DesktopExternalFontRunningPreflight.inspect(
+                        selected, sample, requestedHeightMm = 18f
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                runningError =
+                    "Não foi possível analisar as pontadas temporárias. " +
+                        "A fonte não foi importada e nenhuma matriz foi salva."
+            } finally {
+                runningBusy = false
+            }
+        }
+    }
     var catalogQuery by remember { mutableStateOf("") }
     var catalogBusy by remember { mutableStateOf(false) }
     var catalogStatus by remember { mutableStateOf<String?>(null) }
@@ -143,11 +178,15 @@ internal fun DesktopFontCatalogScreen(
         isAnalyzing = true
         analysis = null
         analysisError = null
+        inspectedFontFile = null
+        runningReport = null
+        runningError = null
         scope.launch {
             try {
                 analysis = withContext(Dispatchers.IO) {
                     DesktopReadOnlyFontAnalyzer.inspect(selected)
                 }
+                inspectedFontFile = selected
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -386,6 +425,66 @@ internal fun DesktopFontCatalogScreen(
                                 "ou a licença comercial estejam homologadas.",
                             color = FioTextMuted
                         )
+                    }
+                }
+            }
+        }
+        if (analysis != null && inspectedFontFile != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt)
+                ) {
+                    Column(
+                        Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Prévia técnica de pontadas — ponto corrido (QA)",
+                            color = FioGold,
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
+                            value = runningSample,
+                            onValueChange = { runningSample = it.take(24) },
+                            label = { Text("Texto da amostra, até 24 caracteres") },
+                            singleLine = true,
+                            enabled = !runningBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            onClick = { runTemporaryStitchPreflight() },
+                            enabled = !runningBusy && runningSample.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (runningBusy) "Calculando contornos…"
+                                else "Testar pontadas em memória (sem exportar)")
+                        }
+                        Text(
+                            "Amostra RUNNING calculada pelo motor vetorial do Android. " +
+                                "Não substitui o Satin de fontes importadas, " +
+                                "não cria DST, não altera a Biblioteca e não usa cotas.",
+                            color = FioTextMuted
+                        )
+                        if (runningError != null) {
+                            Text(checkNotNull(runningError), color = FioGold)
+                        }
+                        if (runningReport != null) {
+                            val stats = checkNotNull(runningReport)
+                            Text(
+                                "Contornos: ${stats.glyphContours} · pontos vetoriais: " +
+                                    "${stats.sampledOutlinePoints} · " +
+                                    "pontadas: ${stats.stitchCount} · " +
+                                    "saltos: ${stats.jumpCount}",
+                                color = FioText
+                            )
+                            Text(
+                                "Dimensões temporárias: " +
+                                    "${"%.1f".format(stats.widthMm)} × " +
+                                    "${"%.1f".format(stats.heightMm)} mm",
+                                color = FioTextMuted
+                            )
+                        }
                     }
                 }
             }
