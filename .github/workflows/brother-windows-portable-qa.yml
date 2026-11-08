@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/gradle.properties"
       - "windows-fiel/qa/preparar_icone_windows.py"
       - "windows-fiel/qa/preparar_recursos_android.py"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
@@ -179,7 +180,7 @@ jobs:
           $noInstallerTools = Join-Path $env:RUNNER_TEMP "brother-app-image-no-wix"
           New-Item -Path $noInstallerTools -ItemType Directory -Force | Out-Null
           $env:WIX_PATH = $noInstallerTools
-          gradle -p windows-fiel -Pcompose.desktop.application.downloadWix=false createDistributable --no-daemon --stacktrace
+          gradle -p windows-fiel createDistributable --no-daemon --stacktrace
           if ($LASTEXITCODE -ne 0) { throw "Compose createDistributable falhou." }
           $root = "windows-fiel/build/compose/binaries"
           if (!(Test-Path $root)) { throw "Imagem de aplicativo Windows ausente." }
