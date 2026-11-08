@@ -26,16 +26,27 @@ class AndroidProjectLibraryParityTest {
             "build/generated/android-project-library/kotlin/com/timachado/brothermatrizes/ProjectLibraryScreen.kt"
         )).replace("\r\n", "\n")
         val anchor = "    val recentProjects ="
-        // Only two deliberate Windows-specific labels may differ: the
-        // Desktop backup does NOT include the Android fonts/settings.
+        // A tela mantém o layout e os rótulos Android de backup completo.
+        // Só acrescentamos o botão de análise local, fora do rar_receive
+        // comercial, sem alterar os cartões ou os callbacks existentes.
+        val inspectButton = """
+        OutlinedButton(
+            onClick = onInspectArchive,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Analisar ZIP / RAR / 7Z (sem importar)", color = FioGold)
+        }
+
+"""
         val expected = original.substringAfter(anchor)
-            .replace("\"Backup completo\"", "\"Backup FLP local\"")
-            .replace("\"Restaurar\"", "\"Restaurar FLP\"")
+            .replace("        rarMessage?.let {",
+                inspectButton + "        rarMessage?.let {")
         assertEquals(expected, generated.substringAfter(anchor),
-            "Layout e callbacks da Biblioteca Android foram modificados além dos rótulos FLP.")
-        assertTrue(generated.contains("\"Backup FLP local\""))
-        assertTrue(generated.contains("\"Restaurar FLP\""))
-        assertTrue(!generated.contains("\"Backup completo\""))
+            "A Biblioteca Windows divergiu do layout Android além do botão local.")
+        assertTrue(generated.contains("\"Backup completo\""))
+        assertTrue(generated.contains("\"Restaurar\""))
+        assertTrue(generated.contains("onInspectArchive: () -> Unit"))
+        assertTrue(generated.contains("Analisar ZIP / RAR / 7Z (sem importar)"))
         assertTrue(generated.contains("fun ProjectLibraryScreen("))
         assertTrue(!generated.contains("RarExternalOpener"))
         assertTrue(!generated.contains("BrotherMatrizesAccountService"))
