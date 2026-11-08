@@ -89,9 +89,11 @@ Todos os diagnósticos continuam com
    finalizar, excluir o journal ou liberar outra importação.
 2. Persistir intenção e identidade do arquivo local criado antes
    de finalizar, para recuperação segura de ownership após crash.
-3. Homologação completa em staging separado com autenticação Google,
-   autorização por conta e audit trail no servidor. Ainda não
-   autorizado deploy para produção.
+3. Homologação Windows de autenticação Google com **o mesmo Supabase
+   oficial do Android**, utilizando chamadas simuladas na CI e conta
+   de teste autorizada para o ensaio manual. Não criar outro projeto,
+   não executar reserva/cobrança real em produção e não implantar
+   migrações no Supabase existente sem revisão específica.
 4. Verificação de queda de energia, ACL e bloqueio entre processos
    reais no dispositivo Windows de teste.
 
@@ -170,8 +172,10 @@ teve conclusão `success`. O novo código de diagnóstico só poderá ser
 descrito como testado depois da conclusão de seu próprio CI.
 
 **Portão comercial permanece aberto:** ainda são necessários Auth Redirect
-URLs homologados em ambiente isolado, conta Google de testes, SQL/Edge
-V2 autorizados em staging, leitura de arquivos locais com ownership
-conferido após desligamento brusco e cobertura física/funcional Windows.
+URLs Windows verificados para o Supabase oficial já utilizado no Android,
+conta Google de testes autorizada, compatibilidade com o contrato SQL/Edge
+existente, leitura de arquivos locais com ownership conferido após
+desligamento brusco e cobertura física/funcional Windows. Nenhum
+novo Supabase faz parte do escopo aprovado.
 Nenhum desses requisitos pode ser substituído por status remoto ou
 resultado de teste automatizado. 0 de 9 portões homologados.
