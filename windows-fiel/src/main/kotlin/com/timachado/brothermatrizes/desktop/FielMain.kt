@@ -784,6 +784,9 @@ private fun FielHomeHost(
             accountQaEnvironment
         )
     }
+    val fontImportGate = remember(accountQaEnvironment) {
+        DesktopWindowsAccountQaOptIn.fontImportGateForQa(accountQaEnvironment)
+    }
     val telegramSearchAccess = remember(accountQaEnvironment) {
         DesktopWindowsAccountQaOptIn.telegramSearchAccessForQa(accountQaEnvironment)
     }
@@ -1986,7 +1989,8 @@ private fun FielHomeHost(
                     onBack = { area = HomeArea.HOME },
                     onCreateName = { openCreate() },
                     onRequireGoogle = { area = HomeArea.ACCOUNT },
-                    access = fontCatalogAccess
+                    access = fontCatalogAccess,
+                    importGate = fontImportGate
                 )
             } else if (area == HomeArea.LIBRARY) {
                 // UI, abas, cartões e metadados copiados do Android.
