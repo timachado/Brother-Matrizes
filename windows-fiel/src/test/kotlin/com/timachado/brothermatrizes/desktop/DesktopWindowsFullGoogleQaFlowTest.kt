@@ -35,7 +35,7 @@ class DesktopWindowsFullGoogleQaFlowTest {
     private val refresh = "offline_full_flow_refresh_123456789012345"
     private val uid = "11111111-2222-4333-8444-555555555555"
     private val email = "qa-flow@example.invalid"
-    private val stagingRef = "stagingonlyqa1234567"
+    private val officialRef = DesktopBrotherBackendTarget.OFFICIAL_REF
 
     private class HttpFake(url: URL, private val reply: String) : HttpURLConnection(url) {
         val postBody = ByteArrayOutputStream()
@@ -173,7 +173,7 @@ class DesktopWindowsFullGoogleQaFlowTest {
             val errors = mutableListOf<Throwable>()
             val requests = mutableListOf<String>()
             val connector: (URL) -> HttpURLConnection = { url ->
-                assertEquals("$stagingRef.supabase.co", url.host)
+                assertEquals("$officialRef.supabase.co", url.host)
                 requests += url.path
                 when (url.path) {
                     "/auth/v1/token" -> HttpFake(
@@ -192,11 +192,11 @@ class DesktopWindowsFullGoogleQaFlowTest {
             }
             DesktopWindowsGoogleQaEnvironment.openForQa(
                 publishableKey = key,
-                target = DesktopQaStagingProject.isolated(stagingRef),
+                target = DesktopBrotherBackendTarget.official(),
                 folder = folder,
                 browser = browser(
                     "code=offline_factory_auth_code", workers, errors,
-                    expectedHost = "$stagingRef.supabase.co"
+                    expectedHost = "$officialRef.supabase.co"
                 ),
                 connectionFactory = connector
             ).use { first ->
@@ -205,13 +205,13 @@ class DesktopWindowsFullGoogleQaFlowTest {
                 assertEquals(uid, first.signIn().userId)
                 assertEquals("free", first.accountPreview().planCode)
                 assertFalse(first.accountPreview().hasServerPro)
-                assertTrue(Files.exists(folder.resolve("qa-staging-$stagingRef")
+                assertTrue(Files.exists(folder.resolve("qa-brother-account-$officialRef")
                     .resolve("session.v1.dpapi")))
                 assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
             }
             DesktopWindowsGoogleQaEnvironment.openForQa(
                 publishableKey = key,
-                target = DesktopQaStagingProject.isolated(stagingRef),
+                target = DesktopBrotherBackendTarget.official(),
                 folder = folder,
                 browser = DesktopExternalBrowser {
                     error("Restoring DPAPI must not launch a new browser")
@@ -223,7 +223,7 @@ class DesktopWindowsFullGoogleQaFlowTest {
                 assertEquals(before, requests.count { it == "/auth/v1/token" })
                 assertEquals("free", restarted.accountPreview().planCode)
                 restarted.logout()
-                assertFalse(Files.exists(folder.resolve("qa-staging-$stagingRef")
+                assertFalse(Files.exists(folder.resolve("qa-brother-account-$officialRef")
                     .resolve("session.v1.dpapi")))
                 assertFalse(restarted.restoreAndVerify())
             }
