@@ -42,10 +42,9 @@ internal object DesktopWindowsAccountQaOptIn {
         if (qaEnvironment == null) return DesktopFontCatalogAccessUnavailable
         return DesktopBrotherDaFontUsageGateway(
             publishableKey = key,
-            // This Windows branch still compiles the 1.11.8 (195) Android
-            // core. NEVER advertise the newer 1.11.9 code to the quota server
-            // until the actual Windows source baseline has been synchronized.
-            versionCode = 195,
+            // Verified against the source app/build.gradle.kts by a QA test.
+            // Version metadata is NOT authorization or proof of parity.
+            versionCode = DesktopAndroidBaseline.VERSION_CODE,
             verifiedGoogle = DesktopVerifiedGoogleTokenSource {
                 qaEnvironment.verifiedAccessTokenForQa()
             }
@@ -62,7 +61,7 @@ internal object DesktopWindowsAccountQaOptIn {
         if (qaEnvironment == null) return DesktopTelegramSearchUnavailable
         return DesktopBrotherTelegramUsageGateway(
             publishableKey = key,
-            versionCode = 195,
+            versionCode = DesktopAndroidBaseline.VERSION_CODE,
             verifiedGoogle = DesktopVerifiedGoogleTokenSource {
                 qaEnvironment.verifiedAccessTokenForQa()
             }
