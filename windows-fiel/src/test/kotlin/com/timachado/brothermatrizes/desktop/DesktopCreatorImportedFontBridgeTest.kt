@@ -36,8 +36,20 @@ class DesktopCreatorImportedFontBridgeTest {
     )
 
     private fun clean(root: Path) {
+        // Windows Skia/HarfBuzz can keep a test font mapped until the JVM
+        // exits, even after closing typefaces. FileSystemException in fixture
+        // cleanup must not hide the real test assertions. Cleanup remains
+        // strictly scoped to our fresh temporary QA directory.
         Files.walk(root).use { stream ->
-            stream.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+            stream.sorted(Comparator.reverseOrder()).forEach { target ->
+                try {
+                    Files.deleteIfExists(target)
+                } catch (locked: java.nio.file.FileSystemException) {
+                    // No business data: a generated synthetic fixture.
+                    // The JVM will retry after native font handles are closed.
+                    target.toFile().deleteOnExit()
+                }
+            }
         }
     }
 
