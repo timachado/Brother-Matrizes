@@ -4,6 +4,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherBackendTarge
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherEntitlementReader
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherFontUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopCommercialFontImportGate
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontImportSafety
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFontLibrary
 import com.timachado.brothermatrizes.desktop.platform.DesktopQaSignIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopSessionRefresher
@@ -141,7 +142,10 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                     publishableKey, 196, fakeConnections
                 )
                 val library = DesktopImportedFontLibrary(folder.resolve("fonts"))
-                val gate = DesktopCommercialFontImportGate(library, verified, gateway)
+                val gate = DesktopCommercialFontImportGate(
+                    library, verified, gateway,
+                    DesktopFontImportSafety.journalFor(folder.resolve("fonts"))
+                )
                 val font = fontFixture()
                 val first = gate.importFont(font)
                 val duplicate = gate.importFont(font)
