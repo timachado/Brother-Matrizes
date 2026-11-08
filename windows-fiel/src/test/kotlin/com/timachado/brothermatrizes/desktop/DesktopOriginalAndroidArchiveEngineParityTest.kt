@@ -28,7 +28,7 @@ class DesktopOriginalAndroidArchiveEngineParityTest {
         finally {
             Files.walk(folder).use { entries ->
                 entries.sorted(Comparator.reverseOrder())
-                    .forEach(Files::deleteIfExists)
+                    .forEach { Files.deleteIfExists(it) }
             }
         }
     }
