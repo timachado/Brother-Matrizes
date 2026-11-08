@@ -1003,7 +1003,7 @@ private fun FielHomeHost(
         }
     }
 
-    fun analyzeArchiveOnly() {
+    fun analyzeArchiveOnly(passwordText: String = "") {
         if (archiveBusy) return
         scope.launch {
             val chooser = JFileChooser().apply {
@@ -1020,10 +1020,15 @@ private fun FielHomeHost(
             archivePreview = null
             archiveError = null
             try {
-                val inspected = withContext(Dispatchers.IO) {
-                    DesktopArchiveInventory.inspect(selected)
+                val secret = passwordText.toCharArray()
+                try {
+                    val inspected = withContext(Dispatchers.IO) {
+                        DesktopArchiveInventory.inspect(selected, secret)
+                    }
+                    archivePreview = inspected
+                } finally {
+                    secret.fill('\u0000')
                 }
-                archivePreview = inspected
             } catch (failure: Exception) {
                 archiveError = failure.message ?: "Pacote ZIP/RAR/7Z inválido ou protegido por senha."
             } finally {
@@ -1746,7 +1751,7 @@ private fun FielHomeHost(
                     preview = archivePreview,
                     busy = archiveBusy,
                     error = archiveError,
-                    onChoosePackage = { analyzeArchiveOnly() },
+                    onChoosePackage = { password -> analyzeArchiveOnly(password) },
                     onBack = {
                         archivePreview = null
                         archiveError = null
