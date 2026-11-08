@@ -1,5 +1,8 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import com.timachado.brothermatrizes.core.archive.ArchiveCategory
+import com.timachado.brothermatrizes.core.archive.ArchiveFormat
+import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
 import com.github.junrar.Archive
 import com.github.junrar.ArchiveOptions
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
@@ -193,26 +196,12 @@ internal object DesktopArchiveInventory {
         }
     }
 
-    private fun identify(header: ByteArray): Format {
-        if (header.size >= 4 &&
-            header.copyOfRange(0, 4).contentEquals(byteArrayOf(0x50, 0x4B, 0x03, 0x04))
-        ) return Format.ZIP
-        if (header.size >= 6 &&
-            header.copyOfRange(0, 6).contentEquals(byteArrayOf(
-                0x37, 0x7A, 0xBC.toByte(), 0xAF.toByte(), 0x27, 0x1C
-            ))
-        ) return Format.SEVEN_Z
-        if (header.size >= 7 &&
-            header.copyOfRange(0, 7).contentEquals(byteArrayOf(
-                0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00
-            ))
-        ) return Format.RAR
-        if (header.size >= 8 &&
-            header.copyOfRange(0, 8).contentEquals(byteArrayOf(
-                0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x01, 0x00
-            ))
-        ) return Format.RAR
-        error("Formato não reconhecido. Use ZIP, RAR/RAR5 ou 7Z.")
+    private fun identify(header: ByteArray): Format = when (
+        SafeArchiveExtractor.identify(header) // Android original
+    ) {
+        ArchiveFormat.ZIP -> Format.ZIP
+        ArchiveFormat.RAR -> Format.RAR
+        ArchiveFormat.SEVEN_Z -> Format.SEVEN_Z
     }
 
     private fun candidate(
@@ -228,12 +217,10 @@ internal object DesktopArchiveInventory {
             path.any { it.isISOControl() ||
                 it in "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069" }
         ) return null
-        // ZIP exposes compressedSize; RAR and 7Z metadata readers may not.
-        // Android SafeArchiveExtractor.describe applies ratio only when known.
-        // A missing packed size must NOT hide valid 7Z/RAR entries. There is
-        // no decompression in this read-only Windows preview.
-        if (packed > 0 && size > packed * MAX_RATIO) return null
-
+        // Core Android decides which embroidery/font files are compatible.
+        // The Windows-specific checks below only reject unsafe filenames.
+        val original = SafeArchiveExtractor.describe(index, path, size, packed)
+            ?: return null
         val base = path.substringAfterLast('/')
         if (base.startsWith(' ') || base.endsWith(' ') || base.endsWith('.') ||
             base.any { it in "<>\"|?*" }
@@ -243,12 +230,10 @@ internal object DesktopArchiveInventory {
             stem.matches(Regex("COM[1-9]|LPT[1-9]"))
         ) return null
 
-        val ext = base.substringAfterLast('.', "").uppercase(Locale.ROOT)
-        val category = when (ext) {
-            "PES", "DST", "JEF" -> Category.MATRIX
-            "TTF", "OTF" -> Category.FONT
-            else -> return null
+        val category = when (original.category) {
+            ArchiveCategory.MATRIX -> Category.MATRIX
+            ArchiveCategory.FONT -> Category.FONT
         }
-        return Item(index, path, base, ext, size, category)
+        return Item(index, path, base, original.extension, size, category)
     }
 }
