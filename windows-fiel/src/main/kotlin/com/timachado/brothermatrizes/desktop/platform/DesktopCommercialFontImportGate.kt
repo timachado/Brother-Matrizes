@@ -108,7 +108,7 @@ internal class DesktopCommercialFontImportGate(
             "Reserva de importação inválida recebida do servidor."
         }
         if (pending != null) {
-            pending = checkNotNull(journal).reserved(pending, reservation)
+            pending = checkNotNull(journal).reserved(checkNotNull(pending), reservation)
         }
 
         var created: DesktopFontRecord? = null
@@ -141,7 +141,7 @@ internal class DesktopCommercialFontImportGate(
         // A finalize response may be lost after the server has committed.
         // Never clear this marker or perform another reserve on uncertainty.
         if (pending != null) {
-            pending = checkNotNull(journal).finalizing(pending)
+            pending = checkNotNull(journal).finalizing(checkNotNull(pending))
         }
         val confirmed = created != null && importFailure == null
         try {
@@ -169,7 +169,7 @@ internal class DesktopCommercialFontImportGate(
             library.delete(created.id)
         }
         // Only after server ACK and local cleanup does the marker disappear.
-        if (pending != null) checkNotNull(journal).completed(pending)
+        if (pending != null) checkNotNull(journal).completed(checkNotNull(pending))
         if (importFailure != null) throw importFailure
         return checkNotNull(result) { "Importação não produziu registro de fonte." }
     }
