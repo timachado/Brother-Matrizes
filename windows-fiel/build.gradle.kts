@@ -704,6 +704,135 @@ val copyOriginalAndroidArchive by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedOriginalArchive)
 
+/**
+ * Arquivo visual oficial Android ArchiveExtractorScreen. Remove APENAS
+ * as APIs Android de ContentResolver/Intent e a transação comercial:
+ * o modo Windows permite selecionar e VISUALIZAR a matriz, sem gravar
+ * matrizes/fontes na biblioteca ou consumir cotas.
+ *
+ * O Compose visual, checkbox, textos, senha e estados saem da fonte oficial.
+ * Uma futura importação autenticada usará o gate de cotas já existente,
+ * jamais uma rota local que fure o limite comercial do Android.
+ */
+val generatedAndroidExtractorScreen = layout.buildDirectory.dir("generated/android-extractor-screen/kotlin")
+val copyAndroidExtractorScreen by tasks.registering {
+    val input = originalAndroidCode.file("ArchiveExtractorScreen.kt")
+    inputs.file(input)
+    outputs.dir(generatedAndroidExtractorScreen)
+    doLast {
+        var source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        fun change(old: String, new: String) {
+            check(source.contains(old)) {
+                "O Extrator Inteligente oficial Android mudou; revisar adaptação Windows: " +
+                    old.take(90)
+            }
+            source = source.replace(old, new)
+        }
+        listOf(
+            "import android.content.Intent\n",
+            "import android.net.Uri\n",
+            "import androidx.activity.compose.BackHandler\n",
+            "import androidx.compose.ui.platform.LocalContext\n",
+            "import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign\n",
+            "import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult\n",
+            "import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader\n",
+            "import com.timachado.brothermatrizes.core.project.ProjectStore\n",
+            "import com.timachado.brothermatrizes.core.project.SavedProjectSummary\n",
+            "import com.timachado.brothermatrizes.font.ImportedFontStore\n"
+        ).forEach { change(it, "") }
+        change("import java.util.concurrent.atomic.AtomicBoolean\n",
+            "import java.util.concurrent.atomic.AtomicBoolean\nimport java.nio.file.Path\nimport java.awt.Desktop\n")
+        change(
+            """    archiveUri: Uri,
+    onBack: () -> Unit,
+    onImported: (List<SavedProjectSummary>, EmbroideryDesign?) -> Unit,
+    canImport: suspend (ArchiveCategory) -> String?,
+    onImportFinished: suspend (ArchiveCategory, String, Boolean) -> Unit""",
+            """    archivePath: Path,
+    onBack: () -> Unit,
+    onPreviewMatrix: suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit"""
+        )
+        change("    val context = LocalContext.current\n", "")
+        change("archiveUri", "archivePath")
+        change("    BackHandler(enabled = !importing) { onBack() }\n", "")
+        change(
+            "runCatching { SafeArchiveExtractor.stage(context, archivePath, secret) }",
+            "runCatching { SafeArchiveExtractor.stage(archivePath, secret) }"
+        )
+        val externalStart = source.indexOf("    fun external(packageName: String? = null) {")
+        val externalEnd = source.indexOf("    Column(\n", externalStart)
+        check(externalStart >= 0 && externalEnd > externalStart)
+        source = source.substring(0, externalStart) + """
+    fun external() {
+        runCatching {
+            require(Desktop.isDesktopSupported())
+            Desktop.getDesktop().open(archivePath.toFile())
+        }.onFailure {
+            error = "Nenhum aplicativo compatível disponível para abrir este pacote."
+        }
+    }
+""" + source.substring(externalEnd)
+        val rarStart = source.indexOf("            // Only show RAR button if installed and resolvable.")
+        val rarEnd = source.indexOf("            TextButton(onClick = onBack)", rarStart)
+        check(rarStart >= 0 && rarEnd > rarStart)
+        source = source.substring(0, rarStart) + """
+            OutlinedButton(onClick = { external() }) {
+                Text("ABRIR COM APLICATIVO DO WINDOWS", color = FioGold)
+            }
+""" + source.substring(rarEnd)
+        val importStart = source.indexOf("            if (importing) {\n")
+        val importEnd = source.indexOf("            if (archive.entries.isEmpty()) {\n", importStart)
+        check(importStart >= 0 && importEnd > importStart &&
+            source.substring(importStart, importEnd).contains("canImport(item.category)") &&
+            source.substring(importStart, importEnd).contains("onImportFinished("))
+        val safePreview = """
+            val selectedMatrices = archive.entries.filter {
+                it.index in selected && it.category == ArchiveCategory.MATRIX
+            }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !importing && selectedMatrices.size == 1,
+                onClick = {
+                    val item = selectedMatrices.single()
+                    importing = true
+                    report = ""
+                    scope.launch {
+                        val secret = password.toCharArray()
+                        try {
+                            onPreviewMatrix(archive, item, secret)
+                            report = "Matriz aberta para visualização, sem importação."
+                        } catch (failure: Exception) {
+                            report = failure.message ?: "Não foi possível visualizar esta matriz."
+                        } finally {
+                            secret.fill('\u005cu0000')
+                            importing = false
+                        }
+                    }
+                }
+            ) { Text("VISUALIZAR MATRIZ SELECIONADA (SEM IMPORTAR)") }
+            Text(
+                "A interface e o extrator são os originais do Android. " +
+                    "Importar para a biblioteca requer autorização Google " +
+                    "e reserva de cota no serviço oficial.",
+                color = FioTextMuted, fontSize = 11.sp
+            )
+"""
+        source = source.substring(0, importStart) + safePreview + source.substring(importEnd)
+        check(!source.contains("import android.") && !source.contains("context.") &&
+            !source.contains("BackHandler(") &&
+            !source.contains("canImport(") && !source.contains("onImportFinished(") &&
+            source.contains("fun ArchiveExtractorScreen(") &&
+            source.contains("SafeArchiveExtractor.stage(archivePath, secret)"))
+        val destination = generatedAndroidExtractorScreen.get().file(
+            "com/timachado/brothermatrizes/ArchiveExtractorScreen.kt"
+        ).asFile
+        destination.parentFile.mkdirs()
+        destination.writeText(source, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedAndroidExtractorScreen)
+
+
 
 
 /**
@@ -1527,7 +1656,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyOfficialAndroidPlans, copyOriginalAndroidArchive, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
+        copyAndroidTheme, copyOfficialAndroidPlans, copyOriginalAndroidArchive, copyAndroidExtractorScreen, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
         copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
