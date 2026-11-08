@@ -75,6 +75,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracke
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
@@ -1166,7 +1167,11 @@ private fun FielHomeHost(
         detail = destination
     }
 
-    fun exportDesign(targetFormat: String, peDesign: Boolean = false) {
+    fun exportDesign(
+        targetFormat: String,
+        peDesign: Boolean = false,
+        revealInExplorer: Boolean = false
+    ) {
         val design = activeDesign ?: return
         scope.launch {
             val generated = withContext(Dispatchers.Default) {
@@ -1190,8 +1195,26 @@ private fun FielHomeHost(
                             "." + targetFormat.lowercase()
                         )) { "Extensão do arquivo deve ser .$targetFormat." }
                         Files.write(file, converted.bytes, StandardOpenOption.CREATE_NEW)
-                    }.onSuccess {
-                        snackbar.showSnackbar("Matriz salva como novo arquivo.")
+                    }.onSuccess { saved ->
+                        if (revealInExplorer) {
+                            // A opção de compartilhar no Windows prepara uma
+                            // cópia e revela o arquivo, sem enviar a ninguém.
+                            runCatching {
+                                DesktopWindowsShareHandoff.revealSavedMatrix(saved)
+                            }.onSuccess {
+                                snackbar.showSnackbar(
+                                    "Matriz salva e localizada no Explorer. " +
+                                        "Escolha o aplicativo ou destinatário manualmente."
+                                )
+                            }.onFailure {
+                                snackbar.showSnackbar(
+                                    "Matriz salva. Não foi possível abrir o Explorer; " +
+                                        "acesse a pasta escolhida para compartilhar."
+                                )
+                            }
+                        } else {
+                            snackbar.showSnackbar("Matriz salva como novo arquivo.")
+                        }
                     }.onFailure {
                         snackbar.showSnackbar(
                             "Falha ao salvar a matriz: ${it.message}"
@@ -1494,9 +1517,18 @@ private fun FielHomeHost(
                     onTransfer = { detail = ActiveDetail.TRANSFER },
                     onSaveProject = { saveProject() },
                     onSaveCopy = { exportDesign(MatrixConverter.preferredBrotherFormat) },
-                    onShare = { informNotPorted("Compartilhar") },
+                    onShare = {
+                        exportDesign(
+                            MatrixConverter.preferredBrotherFormat,
+                            revealInExplorer = true
+                        )
+                    },
                     onSavePeDesign = { exportDesign("PES", peDesign = true) },
-                    onSharePeDesign = { informNotPorted("Compartilhar PE-Design") },
+                    onSharePeDesign = {
+                        exportDesign(
+                            "PES", peDesign = true, revealInExplorer = true
+                        )
+                    },
                     onPositionChange = { activeDesign = it }
                 )
             } else if (detail == ActiveDetail.NAME_EDITOR && activeDesign != null) {
@@ -1620,7 +1652,9 @@ private fun FielHomeHost(
                     onSave = { format -> exportDesign(format) },
                     // Compartilhamento requer integração nativa Windows;
                     // não simular entrega nem salvamento.
-                    onShare = { informNotPorted("Compartilhar matriz convertida") }
+                    onShare = { format ->
+                        exportDesign(format, revealInExplorer = true)
+                    }
                 )
             } else if (detail == ActiveDetail.SIMULATOR && activeDesign != null) {
                 val design = checkNotNull(activeDesign)
