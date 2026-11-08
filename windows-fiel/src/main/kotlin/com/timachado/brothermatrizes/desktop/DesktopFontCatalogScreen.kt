@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.timachado.brothermatrizes.desktop.platform.DesktopCommercialFontImportGate
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
 import com.timachado.brothermatrizes.desktop.platform.DesktopExternalFontRunningPreflight
@@ -57,7 +58,8 @@ internal fun DesktopFontCatalogScreen(
     onBack: () -> Unit,
     onCreateName: () -> Unit,
     onRequireGoogle: () -> Unit,
-    access: DesktopFontCatalogAccess = DesktopFontCatalogAccessUnavailable
+    access: DesktopFontCatalogAccess = DesktopFontCatalogAccessUnavailable,
+    importGate: DesktopCommercialFontImportGate? = null
 ) {
     val reader = remember { DesktopReadOnlyFontCatalog.windowsDefault() }
     var snapshot by remember {
@@ -77,6 +79,70 @@ internal fun DesktopFontCatalogScreen(
         mutableStateOf<DesktopExternalFontRunningPreflight.Report?>(null)
     }
     var runningError by remember { mutableStateOf<String?>(null) }
+    var selectedForImport by remember { mutableStateOf<Path?>(null) }
+    var selectedImportReport by remember {
+        mutableStateOf<DesktopReadOnlyFontAnalyzer.Report?>(null)
+    }
+    var importBusy by remember { mutableStateOf(false) }
+    var importStatus by remember { mutableStateOf<String?>(null) }
+
+    /** Local validation does not reserve quotas or save font files. */
+    fun chooseFontForAuthorizedImport() {
+        if (importGate == null || importBusy) return
+        val picker = JFileChooser().apply {
+            dialogTitle = "Selecionar TTF/OTF para importar — exige cota real"
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isAcceptAllFileFilterUsed = false
+            fileFilter = FileNameExtensionFilter("Fontes TTF/OTF", "ttf", "otf")
+        }
+        if (picker.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
+        val selected = picker.selectedFile.toPath()
+        selectedForImport = null
+        selectedImportReport = null
+        importStatus = null
+        importBusy = true
+        scope.launch {
+            try {
+                // Test magic/signature and Skia before asking for a quota.
+                val preview = withContext(Dispatchers.IO) {
+                    DesktopReadOnlyFontAnalyzer.inspect(selected)
+                }
+                selectedImportReport = preview
+                selectedForImport = selected
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                importStatus = "Fonte inválida. Nenhuma cota foi solicitada."
+            } finally {
+                importBusy = false
+            }
+        }
+    }
+
+    fun confirmAuthorizedImport() {
+        val gate = importGate ?: return
+        val file = selectedForImport ?: return
+        if (importBusy || selectedImportReport == null) return
+        selectedForImport = null
+        selectedImportReport = null
+        importBusy = true
+        importStatus = "Confirmando conta Google e cota no servidor oficial…"
+        scope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { gate.importFont(file) }
+                snapshot = withContext(Dispatchers.IO) { reader.snapshot() }
+                failed = false
+                importStatus = "${saved.displayName}: fonte salva. Disponível em Criar Nome."
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                importStatus = "A importação não foi autorizada ou não foi confirmada. " +
+                    "Nenhuma fonte pendente foi liberada; consulte Minha Conta."
+            } finally {
+                importBusy = false
+            }
+        }
+    }
 
     fun runTemporaryStitchPreflight() {
         if (runningBusy) return
@@ -249,6 +315,41 @@ internal fun DesktopFontCatalogScreen(
                             "Essa operação permanece indisponível nesta versão Windows de QA.",
                         color = FioText
                     )
+                }
+                if (importGate != null) {
+                    Text(
+                        "Modo QA autorizado: esta importação consulta o Google e pode " +
+                            "descontar uma cota REAL da mesma conta Brother Matrizes do Android.",
+                        color = FioText
+                    )
+                    OutlinedButton(
+                        onClick = { chooseFontForAuthorizedImport() },
+                        enabled = !importBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Selecionar TTF/OTF para importação autorizada")
+                    }
+                    if (selectedForImport != null && selectedImportReport != null) {
+                        val localPreview = checkNotNull(selectedImportReport)
+                        Text(
+                            "Fonte: ${localPreview.familyName} · ${localPreview.format} · " +
+                                "${localPreview.byteSize / 1024} KB",
+                            color = FioText
+                        )
+                        Button(
+                            onClick = { confirmAuthorizedImport() },
+                            enabled = !importBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Confirmar importação e possível desconto da cota") }
+                        TextButton(
+                            onClick = {
+                                selectedForImport = null
+                                selectedImportReport = null
+                            },
+                            enabled = !importBusy
+                        ) { Text("Cancelar sem consumir cota") }
+                    }
+                    importStatus?.let { Text(it, color = FioGold) }
                 }
             }
         }
