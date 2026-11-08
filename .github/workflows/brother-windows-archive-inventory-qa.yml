@@ -10,6 +10,7 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchivePreviewScreen.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveInventoryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOriginalAndroidArchiveEngineParityTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveRar7zInventoryTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveRealRarFixturesTest.kt"
       - "app/src/main/java/com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt"
@@ -21,7 +22,7 @@ permissions:
 
 jobs:
   metadata-only:
-    name: ZIP RAR 7Z sem extracao autenticacao ou escrita
+    name: Android ZIP RAR 7Z original + extracao temporaria sem importacao
     runs-on: windows-latest
     timeout-minutes: 40
     env:
@@ -91,7 +92,7 @@ jobs:
       - name: Compilar Windows e testar inventario ZIP sem extrair arquivos
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveRealRarFixturesTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveInventoryTest' --tests '*DesktopOriginalAndroidArchiveEngineParityTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveRealRarFixturesTest'
           if ($LASTEXITCODE -ne 0) { throw "Inventario ZIP/RAR/7Z Windows falhou no QA." }
       - name: Capturar tela real de analise de ZIP no Windows com dados sinteticos
         shell: pwsh
