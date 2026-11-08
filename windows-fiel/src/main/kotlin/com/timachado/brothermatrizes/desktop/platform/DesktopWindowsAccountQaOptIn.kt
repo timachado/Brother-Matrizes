@@ -1,12 +1,13 @@
 package com.timachado.brothermatrizes.desktop.platform
 
 /**
- * Temporary, explicit developer-only bridge for verifying the real Google
- * redirect on Windows after the Supabase redirect allowlist is confirmed.
+ * Opt-in developer QA for the SAME official Supabase Brother Matrizes uses
+ * on Android. Never create a separate project, a user directory, a Pro grant
+ * or an independent quota ledger for Windows.
  *
- * Production desktop builds must not silently activate login using a bundled
- * Supabase key. This switch is QA-only and cannot authorize any paid feature.
- * A publishable key is public; secret/service_role keys are never accepted.
+ * The feature is disabled in release QA packages by default. Even when opted
+ * in, no network request, browser login or paid import starts automatically.
+ * No service-role/secret keys are accepted; all paid rights remain server-side.
  */
 internal object DesktopWindowsAccountQaOptIn {
     internal fun publicKeyFromEnvironment(environment: Map<String, String>): String? {
@@ -16,26 +17,20 @@ internal object DesktopWindowsAccountQaOptIn {
         return key.takeIf {
             it.startsWith("sb_publishable_") &&
                 it.length in 20..4096 &&
-                it.all { c ->
-                    c.code in 0x21..0x7e && c != '"' && c != '\\'
-                }
+                it.all { c -> c.code in 0x21..0x7e && c != '"' && c != '\\' }
         }
     }
 
-    internal fun stagingTargetFromEnvironment(
-        environment: Map<String, String>
-    ): DesktopQaStagingProject? {
+    // Read-only configuration identity. No second Supabase project required.
+    internal fun targetForQa(environment: Map<String, String>): DesktopBrotherBackendTarget? {
         if (environment["BROTHER_WINDOWS_QA_GOOGLE_AUTH"] != "enabled") return null
-        val ref = environment["BROTHER_WINDOWS_QA_STAGING_PROJECT_REF"]
-            ?: return null
-        return runCatching { DesktopQaStagingProject.isolated(ref) }.getOrNull()
+        return DesktopBrotherBackendTarget.official()
     }
 
     fun openWhenOptedIn(): DesktopWindowsGoogleQaEnvironment? {
         val environment = System.getenv()
         val key = publicKeyFromEnvironment(environment) ?: return null
-        // An opt-in key alone is never enough to target the production Auth.
-        val staging = stagingTargetFromEnvironment(environment) ?: return null
-        return DesktopWindowsGoogleQaEnvironment.openForQa(key, staging)
+        val target = targetForQa(environment) ?: return null
+        return DesktopWindowsGoogleQaEnvironment.openForQa(key, target)
     }
 }
