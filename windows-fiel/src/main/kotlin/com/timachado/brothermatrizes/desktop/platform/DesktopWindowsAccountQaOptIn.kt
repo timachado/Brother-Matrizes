@@ -42,7 +42,10 @@ internal object DesktopWindowsAccountQaOptIn {
         if (qaEnvironment == null) return DesktopFontCatalogAccessUnavailable
         return DesktopBrotherDaFontUsageGateway(
             publishableKey = key,
-            versionCode = 196, // Android oficial 1.11.9, somente cabeçalho de API.
+            // This Windows branch still compiles the 1.11.8 (195) Android
+            // core. NEVER advertise the newer 1.11.9 code to the quota server
+            // until the actual Windows source baseline has been synchronized.
+            versionCode = 195,
             verifiedGoogle = DesktopVerifiedGoogleTokenSource {
                 qaEnvironment.verifiedAccessTokenForQa()
             }
