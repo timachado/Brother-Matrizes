@@ -310,9 +310,14 @@ internal fun DesktopFontCatalogScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "A importação de novas fontes exige login Google e " +
-                            "reserva de cota confirmada pelo servidor. " +
-                            "Essa operação permanece indisponível nesta versão Windows de QA.",
+                        if (importGate == null)
+                            "A importação de novas fontes exige login Google e " +
+                                "reserva de cota confirmada pelo servidor. " +
+                                "Operação indisponível na versão Windows padrão."
+                        else
+                            "Importação disponível somente neste ambiente QA " +
+                                "explicitamente autorizado, com confirmação da cota no " +
+                                "mesmo servidor utilizado pelo Android.",
                         color = FioText
                     )
                 }
