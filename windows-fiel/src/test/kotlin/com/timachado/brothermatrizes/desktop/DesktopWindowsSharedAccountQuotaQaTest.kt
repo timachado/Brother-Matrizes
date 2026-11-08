@@ -90,14 +90,14 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                     """.trimIndent()
                     "/functions/v1/brother-usage" -> {
                         when {
-                            request.contains(""""action":"reserve"""") &&
-                                request.contains(""""operation":"import_font"""") ->
+                            request.contains("\"action\":\"reserve\"") &&
+                                request.contains("\"operation\":\"import_font\"") ->
                                 """{"allowed":true,"operation":"import_font","request_key":"$reservation"}"""
-                            request.contains(""""action":"finalize"""") &&
-                                request.contains(""""request_key":"$reservation"""") -> {
+                            request.contains("\"action\":\"finalize\"") &&
+                                request.contains("\"request_key\":\"$reservation\"") -> {
                                 val success = when {
-                                    request.contains(""""success":true""") -> true
-                                    request.contains(""""success":false""") -> false
+                                    request.contains("\"success\":true") -> true
+                                    request.contains("\"success\":false") -> false
                                     else -> error("Finalização inválida.")
                                 }
                                 finalized += success
