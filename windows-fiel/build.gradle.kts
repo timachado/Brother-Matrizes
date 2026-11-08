@@ -568,6 +568,54 @@ val copyAndroidTheme by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedTheme)
 
+// Planos/Benefícios: Compose e textos de comércio copiados da fonte Android.
+// Apenas BackHandler (exclusivo de Activity Android) é substituído pelo botão
+// Voltar já presente no Composable original. Nenhum entitlement novo é criado.
+val generatedOfficialPlans = layout.buildDirectory.dir("generated/android-plans/kotlin")
+val copyOfficialAndroidPlans by tasks.registering {
+    val base = originalAndroidCode.asFile
+    val out = generatedOfficialPlans.get().asFile
+    inputs.files(
+        base.resolve("BrotherPlansScreen.kt"),
+        base.resolve("AccountPremiumComponents.kt"),
+        base.resolve("core/account/AccountModels.kt"),
+        base.resolve("core/account/BrotherLaunchOfferCatalog.kt"),
+        base.resolve("core/account/BrotherPlanBenefits.kt")
+    )
+    outputs.dir(generatedOfficialPlans)
+    doLast {
+        val shared = listOf(
+            "AccountPremiumComponents.kt",
+            "core/account/AccountModels.kt",
+            "core/account/BrotherLaunchOfferCatalog.kt",
+            "core/account/BrotherPlanBenefits.kt"
+        )
+        shared.forEach { path ->
+            val target = out.resolve("com/timachado/brothermatrizes/$path")
+            target.parentFile.mkdirs()
+            target.writeBytes(base.resolve(path).readBytes())
+        }
+        val source = base.resolve("BrotherPlansScreen.kt").readText(Charsets.UTF_8)
+            .replace("\r\n", "\n")
+        check(source.contains("internal fun BrotherPlansScreen(") &&
+            source.contains("import androidx.activity.compose.BackHandler") &&
+            source.contains("BackHandler(enabled = showFullComparison) { showFullComparison = false }")) {
+            "Tela de Planos Android alterada; revisar adaptação de teclado Windows."
+        }
+        val desktop = source
+            .replace("import androidx.activity.compose.BackHandler\n", "")
+            .replace(
+                "    BackHandler(enabled = showFullComparison) { showFullComparison = false }",
+                "    // Windows: o botão Voltar original fecha o comparativo."
+            )
+        val target = out.resolve("com/timachado/brothermatrizes/BrotherPlansScreen.kt")
+        target.parentFile.mkdirs()
+        target.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedOfficialPlans)
+
+
 /**
  * Tipos e geradores do Android são compilados DIRETAMENTE da fonte oficial,
  * sem reescrita de algoritmos de pontadas. Mesmo contrato de modelo do APK.
@@ -1389,7 +1437,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
+        copyAndroidTheme, copyOfficialAndroidPlans, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
         copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
@@ -1410,6 +1458,7 @@ dependencies {
     implementation("commons-io:commons-io:2.20.0")
     implementation("org.apache.commons:commons-lang3:3.18.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("org.json:json:20240303") // JSON público WooCommerce, usado pelo Android
     implementation("net.java.dev.jna:jna-platform:5.19.1") // Windows DPAPI (current user, never machine scope)
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
