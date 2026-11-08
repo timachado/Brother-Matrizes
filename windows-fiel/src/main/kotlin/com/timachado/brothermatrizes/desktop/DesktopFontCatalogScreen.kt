@@ -33,6 +33,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipPreview
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.font.FontCatalogSource
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
@@ -508,16 +509,11 @@ internal fun DesktopFontCatalogScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
-            items(loaded.builtIn, key = { "preset_" + it.key }) { font ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(font.displayName, color = FioText, fontWeight = FontWeight.Bold)
-                        Text(font.category + " · " + font.description, color = FioTextMuted)
-                    }
-                }
+            // Os cartões de bordado, amostras BM/SATIN, famílias e contagem
+            // de pontadas vêm literalmente de FontLibraryScreen.kt do Android.
+            // A lista usa EmbroideryFontPreset, sem duplicar fontes por nome.
+            items(EmbroideryFontPreset.entries, key = { "preset_" + it.name }) { preset ->
+                OriginalAndroidNativeFontCard(preset)
             }
             item {
                 Text(
