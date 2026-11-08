@@ -518,6 +518,21 @@ val copyAndroidProjectLibrary by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedProjectLibrary)
 
+// Catálogos oficiais DaFont/NetFontes: mesmas URLs, regras HTTPS e
+// buscas usadas no Android; não duplicar URLs nem lógica de navegação.
+// A autenticação Google/cota continua sob o mesmo Supabase oficial.
+// Esta etapa somente prepara o contrato para QA offline, sem liberar
+// pesquisa comercial sem token verificado.
+val generatedFontCatalogRules = layout.buildDirectory.dir("generated/android-font-catalog/kotlin")
+val copyAndroidFontCatalogRules by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/font/DaFontNavigationRules.kt")
+        include("com/timachado/brothermatrizes/font/NetFontesNavigationRules.kt")
+    }
+    into(generatedFontCatalogRules)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedFontCatalogRules)
+
 // Tema inteiro compilado diretamente do Android original: sem reimplementação
 // de cores, tipografia, esquemas light/dark ou cantos arredondados.
 val generatedTheme = layout.buildDirectory.dir("generated/android-theme/kotlin")
@@ -1352,7 +1367,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyOfficialCore, copyAndroidProjectCodec,
+        copyAndroidTheme, copyAndroidFontCatalogRules, copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
         copyAndroidStrokeEmitter, copyAndroidActiveSatin
