@@ -16,7 +16,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,7 +37,8 @@ import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 /**
  * Windows QA adaptation of Android's archive *inspection* step only.
  *
- * A list of compatible matrix/font filenames is displayed, but no item can
+ * A list of compatible matrix/font filenames is displayed, including protected
+ * RAR/7Z when a password is provided, but no item can
  * be imported without Android-equivalent per-item authorization and quotas.
  * This deliberately has no inert "Importar" action suggesting success.
  */
@@ -40,9 +47,10 @@ internal fun DesktopArchivePreviewScreen(
     preview: DesktopArchiveInventory.Preview?,
     busy: Boolean,
     error: String?,
-    onChoosePackage: () -> Unit,
+    onChoosePackage: (String) -> Unit,
     onBack: () -> Unit
 ) {
+    var archivePassword by remember { mutableStateOf("") }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp, vertical = 12.dp),
@@ -60,8 +68,21 @@ internal fun DesktopArchivePreviewScreen(
                 "O original não será alterado.",
             color = FioTextMuted
         )
+        OutlinedTextField(
+            value = archivePassword,
+            onValueChange = { archivePassword = it.take(128) },
+            label = { Text("Senha RAR/7Z (somente se necessário)") },
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy
+        )
         Button(
-            onClick = onChoosePackage,
+            onClick = {
+                val suppliedPassword = archivePassword
+                archivePassword = ""
+                onChoosePackage(suppliedPassword)
+            },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
