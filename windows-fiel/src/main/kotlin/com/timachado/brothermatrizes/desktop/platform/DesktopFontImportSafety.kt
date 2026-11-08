@@ -25,9 +25,19 @@ internal object DesktopFontImportSafety {
         // DesktopArchiveQuotaJournal intentionally NEVER creates its own
         // directory. Create it only here, inside the app's existing private
         // folder, when explicit font-import QA was opted in.
+        val posix = Files.getFileStore(parent).supportsFileAttributeView("posix")
+        val ownerOnly = java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")
         if (!Files.exists(location, LinkOption.NOFOLLOW_LINKS)) {
             try {
-                Files.createDirectory(location)
+                // Create with private permissions atomically on POSIX; on
+                // Windows inherit the application's private user directory ACL.
+                if (posix) {
+                    Files.createDirectory(location,
+                        java.nio.file.attribute.PosixFilePermissions
+                            .asFileAttribute(ownerOnly))
+                } else {
+                    Files.createDirectory(location)
+                }
             } catch (_: java.nio.file.FileAlreadyExistsException) {
                 // Another process may have initialized the same journal.
             }
@@ -37,9 +47,7 @@ internal object DesktopFontImportSafety {
             location.parent == parent) {
             "Pasta de cotas não é diretório privado regular."
         }
-        if (Files.getFileStore(location).supportsFileAttributeView("posix")) {
-            val ownerOnly = java.nio.file.attribute.PosixFilePermissions
-                .fromString("rwx------")
+        if (posix) {
             val perms = Files.getPosixFilePermissions(location)
             check(perms.subtract(ownerOnly).isEmpty()) {
                 "Registro de cotas não pode ser acessível por terceiros."
