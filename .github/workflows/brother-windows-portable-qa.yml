@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "windows-fiel/build.gradle.kts"
-      - "windows-fiel/qa/install_gradle_814_official.ps1"
       - "windows-fiel/qa/preparar_icone_windows.py"
       - "windows-fiel/qa/preparar_recursos_android.py"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
@@ -131,9 +130,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Instalar Gradle 8.14 oficial e validar SHA-256
-        shell: pwsh
-        run: ./windows-fiel/qa/install_gradle_814_official.ps1
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
