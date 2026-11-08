@@ -172,7 +172,10 @@ jobs:
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
         run: |
-          gradle -p windows-fiel createDistributable --no-daemon --stacktrace
+          # A app-image NAO requer o WiX. No Compose 1.9.3, esta propriedade
+          # desativa a dependencia downloadWix/unzipWix sem mudar jpackage.
+          # Nunca gerar MSI ou EXE instalador.
+          gradle -p windows-fiel -Pcompose.desktop.application.downloadWix=false createDistributable --no-daemon --stacktrace
           if ($LASTEXITCODE -ne 0) { throw "Compose createDistributable falhou." }
           $root = "windows-fiel/build/compose/binaries"
           if (!(Test-Path $root)) { throw "Imagem de aplicativo Windows ausente." }
