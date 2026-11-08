@@ -138,6 +138,21 @@ internal class DesktopCommercialFontImportGate(
             importFailure = failure
         }
 
+        // If publication was declared but the library threw before returning
+        // an ownership receipt, the new file MAY already exist on disk.
+        // Finalizing(false) and clearing this marker would expose it in
+        // DesktopSavedFontBridge without a confirmed import_font quota.
+        // Preserve RESERVED + output evidence for manual reconciliation.
+        // Never guess that an unverified file is safe to delete or finalize.
+        if (importFailure != null && created == null &&
+            pending?.output != null) {
+            throw IllegalStateException(
+                "Publicação da fonte incerta. O registro durável bloqueia a " +
+                    "fonte e novas importações até reconciliação.",
+                importFailure
+            )
+        }
+
         // A finalize response may be lost after the server has committed.
         // Never clear this marker or perform another reserve on uncertainty.
         if (pending != null) {
