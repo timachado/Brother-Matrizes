@@ -61,6 +61,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14"
+          # Github Gradle cache API returned HTTP 504; run tests without cache.
+          cache-disabled: true
       - name: Confirmar modo fechado na interface e ausencia de tokens no journal
         shell: pwsh
         run: |
