@@ -133,10 +133,11 @@ class DesktopWindowsAuthQaControllerTest {
             assertEquals(email, identity.email)
             assertFalse(identity.toString().contains(email))
             assertEquals(token, controller.accessTokenForQa())
+            assertEquals(token, controller.verifiedAccessTokenForQa(verifier("google")))
             assertTrue(Files.exists(folder.resolve("session.v1.dpapi")))
             assertEquals(id, controller.verifyGoogleAccountForQa(verifier("google")).userId)
             assertFailsWith<IllegalStateException> {
-                controller.verifyGoogleAccountForQa(verifier("email"))
+                controller.verifiedAccessTokenForQa(verifier("email"))
             }
             assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
             assertFailsWith<IllegalStateException> { controller.accessTokenForQa() }
