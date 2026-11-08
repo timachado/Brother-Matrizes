@@ -1463,11 +1463,18 @@ private fun FielHomeHost(
             }
         }
     ) { padding ->
-        // Uma grade Android de duas colunas ocupando 1000dp produz
-        // cartões e hero esticados. O limite é aplicado SOMENTE pelo
-        // host Windows, preservando 100% do HomeScreen Android original.
+        // Home mantém a hierarquia/hero originais do Android. As ferramentas
+        // de trabalho usam a largura de PC disponível sem redesenhar a UI:
+        // o editor, visualizador, simulador e desenhos admitem até 1060dp,
+        // enquanto Criar e Biblioteca admitem até 980dp. Em telas menores,
+        // fillMaxWidth preserva a responsividade do Compose.
+        val desktopMaxWidth = when {
+            detail != ActiveDetail.NONE -> 1060.dp
+            area == HomeArea.CREATE || area == HomeArea.LIBRARY -> 980.dp
+            else -> 700.dp
+        }
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-          Box(Modifier.widthIn(max = 700.dp).fillMaxWidth().fillMaxHeight()) {
+          Box(Modifier.widthIn(max = desktopMaxWidth).fillMaxWidth().fillMaxHeight()) {
             if (detail == ActiveDetail.VIEWER && activeDesign != null) {
                 val design = checkNotNull(activeDesign)
                 ViewerScreen(
