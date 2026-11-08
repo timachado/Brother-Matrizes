@@ -33,6 +33,14 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
         return true
     }
 
+    /**
+     * Returns a short-lived bearer ONLY after an explicit QA click and an
+     * atomic Google identity check against the same official Supabase Auth
+     * used by Android. Never exposes the token to Compose state or logs.
+     */
+    suspend fun verifiedAccessTokenForQa(): String =
+        account.verifiedAccessTokenForQa(identityVerifier)
+
     /** Server verified but informational; never grants importing privileges. */
     suspend fun accountPreview(): DesktopServerAccountSnapshot =
         account.accountPreviewForQa(identityVerifier, entitlementReader)
