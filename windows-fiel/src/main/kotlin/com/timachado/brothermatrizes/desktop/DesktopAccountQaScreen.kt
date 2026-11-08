@@ -16,7 +16,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
-import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceRedirectPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopRedirectAllowlistReview
@@ -78,16 +77,13 @@ internal object DesktopAccountPresentation {
 }
 
 @Composable
-internal fun DesktopAccountQaScreen(onBack: () -> Unit) {
-    // No browser or network access on composition. If explicit QA opt-in is
-    // absent, no runtime, session lock, DPAPI access or account is opened.
-    val qaEnvironment = remember {
-        runCatching { DesktopWindowsAccountQaOptIn.openWhenOptedIn() }
-            .getOrNull()
-    }
-    DisposableEffect(qaEnvironment) {
-        onDispose { qaEnvironment?.close() }
-    }
+internal fun DesktopAccountQaScreen(
+    onBack: () -> Unit,
+    qaEnvironment: DesktopWindowsGoogleQaEnvironment?
+) {
+    // The same QA environment is owned by FielHomeHost for the whole desktop
+    // window, so switching to Fontes cannot close/relock the DPAPI session.
+    // No auth network request occurs during composition.
 
     val scope = rememberCoroutineScope()
     var summary by remember {
