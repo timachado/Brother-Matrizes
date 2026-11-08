@@ -202,7 +202,13 @@ class DesktopWindowsFullGoogleQaFlowTest {
             ).use { first ->
                 assertTrue(requests.isEmpty()) // opt-in, never autologin
                 assertFalse(first.restoreAndVerify())
+                assertFailsWith<IllegalStateException> {
+                    first.verifiedAccessTokenForQa()
+                }
                 assertEquals(uid, first.signIn().userId)
+                // No second DPAPI lock or separate Supabase user needed for
+                // the DaFont/NetFontes token: share the same verified session.
+                assertEquals(access, first.verifiedAccessTokenForQa())
                 assertEquals("free", first.accountPreview().planCode)
                 assertFalse(first.accountPreview().hasServerPro)
                 assertTrue(Files.exists(folder.resolve("qa-brother-account-$officialRef")
@@ -220,9 +226,13 @@ class DesktopWindowsFullGoogleQaFlowTest {
             ).use { restarted ->
                 val before = requests.count { it == "/auth/v1/token" }
                 assertTrue(restarted.restoreAndVerify())
+                assertEquals(access, restarted.verifiedAccessTokenForQa())
                 assertEquals(before, requests.count { it == "/auth/v1/token" })
                 assertEquals("free", restarted.accountPreview().planCode)
                 restarted.logout()
+                assertFailsWith<IllegalStateException> {
+                    restarted.verifiedAccessTokenForQa()
+                }
                 assertFalse(Files.exists(folder.resolve("qa-brother-account-$officialRef")
                     .resolve("session.v1.dpapi")))
                 assertFalse(restarted.restoreAndVerify())
