@@ -703,7 +703,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW, COMMUNITY }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -1691,6 +1691,14 @@ private fun FielHomeHost(
                     showConnections = showConnections,
                     onBack = { detail = ActiveDetail.VIEWER }
                 )
+            } else if (detail == ActiveDetail.COMMUNITY) {
+                // Android BrotherCommunityScreen: same group, updates,
+                // support and feedback actions with Windows browser/mail.
+                // Firebase Android push remains a documented parity gate.
+                DesktopBrotherCommunityScreen(
+                    onBack = { detail = ActiveDetail.NONE },
+                    versionName = "Windows QA"
+                )
             } else if (area == HomeArea.CREATE) {
                 CreateNameScreen(
                     onBack = { area = HomeArea.HOME },
@@ -1879,7 +1887,10 @@ private fun FielHomeHost(
                         }
                     },
                     onUnavailable = { text -> informNotPorted(text) },
-                    onCommunity = { informNotPorted("Comunidade e novidades") }
+                    onCommunity = {
+                        area = HomeArea.HOME
+                        detail = ActiveDetail.COMMUNITY
+                    }
                 )
             } else {
                 // Transparente: as demais rotas serão portadas da fonte oficial,
