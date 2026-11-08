@@ -10,7 +10,6 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFont
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardOpenOption
 import java.util.Comparator
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -104,15 +103,33 @@ class DesktopCreatorImportedFontBridgeTest {
             assertEquals(1, reserved) // Using an EXISTING font never imports again.
             assertEquals(1, finalized)
 
-            // Any substitution after registration is rejected by SHA-256.
-            Files.write(
-                Path.of(saved.absolutePath), byteArrayOf(0, 1, 0, 0),
-                StandardOpenOption.TRUNCATE_EXISTING
-            )
+            // A Skia Typeface may keep the successful Satin font memory
+            // mapped on Windows until process exit. Do NOT overwrite its
+            // still-open file: test identity substitution separately below.
+            assertEquals(listOf(saved.id), DesktopSavedFontBridge.list(fonts).map { it.id })
+        } finally {
+            clean(root)
+        }
+    }
+
+    @Test
+    fun alteredFontWithValidTtfBytesButForgedSha256IsRejected() {
+        val root = Files.createTempDirectory("brother-forged-sha256-")
+        val fonts = root.resolve("fonts")
+        Files.createDirectories(fonts)
+        try {
+            // Real system TTF bytes but deliberately forged Android-style ID.
+            // No glyphs are loaded, so this checks SHA-256 without attempting
+            // to modify an open/memory-mapped Skia typeface on Windows.
+            val forgedId = "Adulterada-aaaaaaaaaa.ttf"
+            val file = fonts.resolve(forgedId)
+            Files.copy(fixtureFont(), file)
+            val forged = DesktopImportedFont(forgedId, "Adulterada")
             assertTrue(DesktopSavedFontBridge.list(fonts).isEmpty())
             assertTrue(DesktopSavedFontBridge.generate(
-                listed.single(), "Maria", options(), "nome", fonts
+                forged, "Maria", options(), "nome", fonts
             ).isFailure)
+            assertTrue(Files.exists(file))
         } finally {
             clean(root)
         }
