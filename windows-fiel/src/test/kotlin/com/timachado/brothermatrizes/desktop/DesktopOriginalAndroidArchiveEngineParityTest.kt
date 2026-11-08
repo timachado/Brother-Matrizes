@@ -3,6 +3,12 @@ package com.timachado.brothermatrizes.desktop
 import com.timachado.brothermatrizes.core.archive.ArchiveCategory
 import com.timachado.brothermatrizes.core.archive.ArchiveFormat
 import com.timachado.brothermatrizes.core.archive.SafeArchiveExtractor
+import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.TextLayoutGenerator
+import com.timachado.brothermatrizes.core.embroidery.TextLayoutOptions
+import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
+import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
+import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import java.nio.file.Files
 import java.nio.file.Path
@@ -119,6 +125,44 @@ class DesktopOriginalAndroidArchiveEngineParityTest {
                 Files.list(cache).use { assertEquals(0L, it.count()) }
             } finally {
                 Files.deleteIfExists(stage.sourceFile.toPath())
+            }
+        }
+
+    @Test
+    fun androidArchivePreviewOpensRealSyntheticDstInWindowsViewerParser() =
+        withWorkspace { root ->
+            val originalDesign = TextLayoutGenerator.generate(
+                TextLayoutOptions(
+                    textOptions = TextMatrixOptions(
+                        text = "Maria", heightMm = 12f, style = TextStitchStyle.RUNNING
+                    )
+                )
+            ).getOrThrow()
+            val dst = MatrixConverter.convert(originalDesign, "DST").getOrThrow().bytes
+            val archive = root.resolve("Matrizes.zip")
+            zip(archive, listOf("Folder/Maria.dst" to dst))
+            val originalZip = Files.readAllBytes(archive)
+            val stagedArchive = SafeArchiveExtractor.stage(archive)
+            val temporary = Files.createDirectory(root.resolve("preview"))
+            try {
+                val selected = stagedArchive.entries.single {
+                    it.category == ArchiveCategory.MATRIX &&
+                        it.extension == "DST"
+                }
+                val temporaryDst = SafeArchiveExtractor.extract(
+                    temporary.toFile(), stagedArchive, selected
+                )
+                try {
+                    val parsed = DesktopEmbroideryFiles.open(temporaryDst.toPath())
+                    assertTrue(parsed.points.isNotEmpty())
+                    assertTrue(parsed.stitchCount > 0)
+                    assertContentEquals(dst, temporaryDst.readBytes())
+                    assertContentEquals(originalZip, Files.readAllBytes(archive))
+                } finally {
+                    temporaryDst.delete()
+                }
+            } finally {
+                Files.deleteIfExists(stagedArchive.sourceFile.toPath())
             }
         }
 }
