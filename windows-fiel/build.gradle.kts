@@ -615,6 +615,96 @@ val copyOfficialAndroidPlans by tasks.registering {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedOfficialPlans)
 
+// Extrator Inteligente: reutilizar motor ZIP/RAR/7Z Android original.
+// A única alteração é a ponte ContentResolver/Uri -> Path/Files do Windows.
+// As regras de tamanho, entrada e extração ficam na MESMA fonte Android.
+val generatedOriginalArchive = layout.buildDirectory.dir("generated/android-archive/kotlin")
+val copyOriginalAndroidArchive by tasks.registering {
+    val input = originalAndroidCode.file("core/archive/SafeArchiveExtractor.kt")
+    inputs.file(input)
+    outputs.dir(generatedOriginalArchive)
+    doLast {
+        val source = input.asFile.readText(Charsets.UTF_8).replace("\r\n", "\n")
+        val start = source.indexOf("    fun isArchive(context: Context, uri: Uri): Boolean {")
+        val end = source.indexOf(
+            "    /** Metadata-only inspector for files staged in private storage. */", start
+        )
+        check(start > 0 && end > start &&
+            source.contains("fun extract(context: Context, inventory: ArchiveInventory,") &&
+            source.contains("val destination = File(context.cacheDir,") &&
+            source.contains("internal fun describe(") &&
+            source.contains("MAX_ARCHIVE = 128L * 1024 * 1024")) {
+            "SafeArchiveExtractor Android mudou; revisar somente a ponte Windows."
+        }
+        val pathAdapter = """
+    /** Windows file-picker equivalent of Android isArchive(Context, Uri). */
+    fun isArchive(path: java.nio.file.Path): Boolean =
+        listOf(".zip", ".rar", ".7z").any {
+            path.fileName.toString().lowercase().endsWith(it)
+        }
+
+    /** Copy an explicitly selected Windows file into private temporary storage. */
+    fun stage(sourcePath: java.nio.file.Path, password: CharArray? = null): ArchiveInventory {
+        val sourceFile = sourcePath.toAbsolutePath().normalize()
+        require(!java.nio.file.Files.isSymbolicLink(sourceFile) &&
+            java.nio.file.Files.isRegularFile(
+                sourceFile, java.nio.file.LinkOption.NOFOLLOW_LINKS
+            ) && java.nio.file.Files.size(sourceFile) in 1..MAX_ARCHIVE) {
+            "Selecione um pacote regular local de até 128 MB."
+        }
+        val stage = java.nio.file.Files.createTempFile("brother-android-archive-", ".bin")
+        try {
+            java.nio.file.Files.newInputStream(
+                sourceFile, java.nio.file.LinkOption.NOFOLLOW_LINKS
+            ).use { input ->
+                stage.toFile().outputStream().use { out ->
+                    val buffer = ByteArray(16384)
+                    var total = 0L
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        require(total <= MAX_ARCHIVE) {
+                            "Pacote maior que 128 MB; utilize outro aplicativo."
+                        }
+                        out.write(buffer, 0, n)
+                    }
+                }
+            }
+            return inspect(stage.toFile(), password)
+        } catch (failure: Exception) {
+            java.nio.file.Files.deleteIfExists(stage)
+            throw failure
+        }
+    }
+
+"""
+        val desktop = (
+            source.substring(0, start) + pathAdapter + source.substring(end)
+        )
+            .replace("import android.content.Context\n", "")
+            .replace("import android.net.Uri\n", "")
+            .replace(
+                "fun extract(context: Context, inventory: ArchiveInventory,",
+                "fun extract(cacheDir: File, inventory: ArchiveInventory,"
+            )
+            .replace("val destination = File(context.cacheDir,", "val destination = File(cacheDir,")
+        check(!desktop.contains("android.") && !desktop.contains("context.cacheDir") &&
+            desktop.contains("fun inspect(file: File, password: CharArray?") &&
+            desktop.contains("fun extract(cacheDir: File, inventory: ArchiveInventory,") &&
+            desktop.contains("val destination = File(cacheDir,")) {
+            "Motor original Android não foi portado de forma segura."
+        }
+        val target = generatedOriginalArchive.get().file(
+            "com/timachado/brothermatrizes/core/archive/SafeArchiveExtractor.kt"
+        ).asFile
+        target.parentFile.mkdirs()
+        target.writeText(desktop, Charsets.UTF_8)
+    }
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedOriginalArchive)
+
+
 
 /**
  * Tipos e geradores do Android são compilados DIRETAMENTE da fonte oficial,
@@ -1437,7 +1527,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyOfficialAndroidPlans, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
+        copyAndroidTheme, copyOfficialAndroidPlans, copyOriginalAndroidArchive, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
         copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
