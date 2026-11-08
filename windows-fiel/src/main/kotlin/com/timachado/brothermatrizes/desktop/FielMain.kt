@@ -65,6 +65,7 @@ import com.timachado.brothermatrizes.R
 import com.timachado.brothermatrizes.desktop.resources.desktopPainterResource
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpProjectFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
+import com.timachado.brothermatrizes.desktop.platform.DesktopProjectRecycleBin
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFlpBackupRestorer
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspector
@@ -1751,9 +1752,54 @@ private fun FielHomeHost(
                         favorites = if (summary.id in favorites)
                             favorites - summary.id else favorites + summary.id
                     },
-                    // Nunca excluir projeto sem fluxo homologado e confirmação.
-                    onDelete = {
-                        informNotPorted("Exclusão de projetos")
+                    // Ação nativa de exclusão recuperável: exige confirmação
+                    // explícita e envia o FLP validado à Lixeira do Windows.
+                    // Nunca excluir permanentemente ou tocar no Android.
+                    onDelete = { project ->
+                        val library = catalog
+                        if (library == null || project.id !in library.pathById) {
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Projeto não localizado. Atualize a Biblioteca."
+                                )
+                            }
+                        } else {
+                            val answer = JOptionPane.showConfirmDialog(
+                                null,
+                                "Mover o projeto ${project.fileName} à Lixeira do Windows?\n" +
+                                    "O arquivo não será apagado definitivamente. " +
+                                    "Você poderá restaurá-lo pela Lixeira.",
+                                "Remover projeto da Biblioteca",
+                                JOptionPane.YES_NO_OPTION,
+                                JOptionPane.WARNING_MESSAGE
+                            )
+                            if (answer == JOptionPane.YES_OPTION) {
+                                scope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            DesktopProjectRecycleBin.moveConfirmed(
+                                                library.folder, project
+                                            )
+                                            DesktopProjectCatalog.scan(library.folder)
+                                        }
+                                    }.fold(onSuccess = { updated ->
+                                        catalog = updated
+                                        favorites = favorites - project.id
+                                        recentProjectIds = recentProjectIds.filterNot {
+                                            it == project.id
+                                        }
+                                        snackbar.showSnackbar(
+                                            "Projeto enviado à Lixeira do Windows."
+                                        )
+                                    }, onFailure = { error ->
+                                        snackbar.showSnackbar(
+                                            "Projeto não removido: " +
+                                                (error.message ?: "operação recusada")
+                                        )
+                                    })
+                                }
+                            }
+                        }
                     },
                     onDeleteSent = { informNotPorted("Histórico de envios") },
                     onClearSent = { informNotPorted("Limpeza de envios") },
