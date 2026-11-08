@@ -31,6 +31,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14"
+          # Github Gradle cache API returned HTTP 504; run tests without cache.
+          cache-disabled: true
       - name: Rejeitar keys secretas, flags falsas e operações sem cota
         shell: pwsh
         run: |
