@@ -38,6 +38,10 @@ on:
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopMachineTransferFileTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopFontCatalogScreen.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopFontCatalogSearch.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopFontCatalogSearchTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/DaFontNavigationRules.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/font/NetFontesNavigationRules.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopReadOnlyFontAnalyzer.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopReadOnlyFontAnalyzerTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
@@ -127,7 +131,7 @@ jobs:
       - name: Compilar testes locais prioritarios sem dados comerciais
         shell: pwsh
         run: |
-          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopWindowsShareHandoffTest' --tests '*DesktopProjectRecycleBinTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopQaStagingProjectTest' --tests '*DesktopStagingQuotaStatusReaderTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopImportedFontLibraryTest'
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidProjectRecoveryTest' --tests '*DesktopFlpBackupRestorerTest' --tests '*DesktopAccountQaScreenTest' --tests '*DesktopLaunchDocumentTest' --tests '*DesktopGoogleProviderReadinessTest' --tests '*DesktopReadOnlyFontAnalyzerTest' --tests '*DesktopFontCatalogSearchTest' --tests '*DesktopBrotherFontUsageGatewayTest' --tests '*DesktopCommercialFontImportGateTest' --tests '*DesktopPkceLoopbackSelfTestTest' --tests '*DesktopPkceLoopbackListenerTest' --tests '*DesktopMachineTransferFileTest' --tests '*DesktopWindowsShareHandoffTest' --tests '*DesktopProjectRecycleBinTest' --tests '*DesktopSvgFilePickerTest' --tests '*DesktopArchiveInventoryTest' --tests '*DesktopArchiveRar7zInventoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopWindowsFullGoogleQaFlowTest' --tests '*DesktopQaStagingProjectTest' --tests '*DesktopStagingQuotaStatusReaderTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopImportedFontLibraryTest'
           if ($LASTEXITCODE -ne 0) { throw "QA Windows portable bloqueada por testes." }
       - name: Criar imagem APP-IMAGE sem EXE/MSI instalador
         shell: pwsh
@@ -224,7 +228,7 @@ jobs:
             "Criar desenho: SVG local e desenho livre Android em QA; sem garantia de SVG complexo ou teste em cliente."
             "Extrator: leitura ZIP RAR RAR5 7Z. Validação Android PES DST JEF/FLP e Skia TTF isolados em QA, sem importação comercial na interface."
             "Cotas: journal V3, lock multiprocesso e diagnóstico read-only testados; nunca conciliam, excluem ou liberam importação automaticamente."
-            "Fontes: nomes OpenType provenientes da base Android 1.11.9, somente metadados; geração comercial de fonte externa continua bloqueada."
+            "Fontes: catálogos DaFont/NetFontes agora visíveis na QA, com login Google/cota DaFont ainda bloqueados; geração comercial externa segue indisponível."
             "Autenticação Google/DPAPI e entitlement: QA com servidor simulado; redirect e login reais ainda nao homologados."
             "Codigo: feature/windows-fiel-android-1-11-8-20261106"
             "Commit: $env:GITHUB_SHA"
