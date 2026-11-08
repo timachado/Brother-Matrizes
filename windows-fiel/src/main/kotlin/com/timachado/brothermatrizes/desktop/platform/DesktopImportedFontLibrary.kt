@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import com.timachado.brothermatrizes.font.OpenTypeFontNames
 import org.jetbrains.skia.FontMgr
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
@@ -211,7 +212,7 @@ internal class DesktopImportedFontLibrary(private val location: Path) {
             .ifBlank { "Fonte importada" }
         // Same OpenType name-table preference as the Android 1.11.9 baseline.
         // File ID/path remain unchanged; fallback stays deterministic.
-        val displayName = DesktopOpenTypeFontNames.readDisplayName(file.toFile())
+        val displayName = OpenTypeFontNames.readDisplayName(file.toFile())
             ?: fallbackName
         return DesktopFontRecord(
             id = name, displayName = displayName, fileName = name,
