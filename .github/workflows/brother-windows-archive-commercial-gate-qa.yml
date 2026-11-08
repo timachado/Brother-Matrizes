@@ -62,7 +62,13 @@ jobs:
             throw "Gate Windows mudou de política fail-closed ou tentou rede."
           }
           $http = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherArchiveUsageGateway.kt" -Raw
-          if (!$http.Contains('https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage') -or
+          # O gateway constrói a URL a partir do ref oficial, em vez de
+          # embutir a URL completa. Validar a composição E o host esperado.
+          $expectedUrl = 'https://' + '$projectRef' + '.supabase.co/functions/v1/brother-usage'
+          if (!$http.Contains('private val projectRef: String = "dwpcddiramxlhavdmmyn"') -or
+              !$http.Contains($expectedUrl) -or
+              !$http.Contains('endpoint.host == "$projectRef.supabase.co"') -or
+              !$http.Contains('endpoint.protocol == "https"') -or
               !$http.Contains('instanceFollowRedirects = false') -or
               !$http.Contains('connection.disconnect()') -or
               $http.Contains('sb_secret_')) {
