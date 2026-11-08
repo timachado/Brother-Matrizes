@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
 import com.timachado.brothermatrizes.font.FontCatalogSource
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurfaceAlt
@@ -50,7 +52,8 @@ import kotlinx.coroutines.withContext
 internal fun DesktopFontCatalogScreen(
     onBack: () -> Unit,
     onCreateName: () -> Unit,
-    onRequireGoogle: () -> Unit
+    onRequireGoogle: () -> Unit,
+    access: DesktopFontCatalogAccess = DesktopFontCatalogAccessUnavailable
 ) {
     val reader = remember { DesktopReadOnlyFontCatalog.windowsDefault() }
     var snapshot by remember {
@@ -75,7 +78,8 @@ internal fun DesktopFontCatalogScreen(
             try {
                 val opened = DesktopFontCatalogSearch.browse(
                     source = source,
-                    query = catalogQuery
+                    query = catalogQuery,
+                    access = access
                 )
                 catalogStatus =
                     "${source.displayName} aberto no navegador. Baixe a fonte manualmente " +
@@ -212,10 +216,11 @@ internal fun DesktopFontCatalogScreen(
                         ) { Text("Buscar no NetFontes") }
                     }
                     Text(
-                        "As pesquisas seguem o contrato do Android: sessão Google " +
-                            "obrigatória e reserva de cota no servidor para buscas DaFont. " +
-                            "Na QA Windows, a autorização ainda não foi homologada; " +
-                            "nenhuma pesquisa é iniciada sem confirmação.",
+                        "Pesquisa DaFont: autenticação Google e reserva de cota " +
+                            "confirmada pelo mesmo Supabase do Android. " +
+                            "NetFontes: login Google sem cota de pesquisa DaFont. " +
+                            "Acesso disponível somente em QA autorizada; " +
+                            "downloads e importação de fontes permanecem separados.",
                         color = FioTextMuted
                     )
                     if (catalogStatus != null) {
