@@ -41,6 +41,7 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
+import com.timachado.brothermatrizes.BrotherPlansScreen
 import com.timachado.brothermatrizes.CreateNameScreen
 import com.timachado.brothermatrizes.CreateDrawingScreen
 import com.timachado.brothermatrizes.ConverterScreen
@@ -707,7 +708,7 @@ private enum class HomeArea(
     ACCOUNT("Conta", R.drawable.ic_ms_account_circle_rounded)
 }
 
-private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW, COMMUNITY, TELEGRAM }
+private enum class ActiveDetail { NONE, VIEWER, SIMULATOR, CONVERTER, MONOGRAM, EDITOR, NAME_EDITOR, TRANSFER, DRAWING, ARCHIVE_PREVIEW, COMMUNITY, TELEGRAM, PLANS }
 
 /**
  * Matriz sintética SEM dados de cliente para teste visual específico.
@@ -1872,6 +1873,29 @@ private fun FielHomeHost(
                     },
                     access = telegramSearchAccess
                 )
+            } else if (detail == ActiveDetail.PLANS) {
+                // Tela e cartões de planos COMPILADOS diretamente do Android.
+                // A conta do Windows ainda não é homologada comercialmente:
+                // nunca inferir plano Pro por estado local ou simular checkout.
+                BrotherPlansScreen(
+                    account = null,
+                    onBack = { detail = ActiveDetail.NONE; area = HomeArea.ACCOUNT },
+                    onActivateTrial = {
+                        scope.launch { snackbar.showSnackbar(
+                            "Teste PRO requer autenticação e ativação no serviço oficial."
+                        ) }
+                    },
+                    onOpenPlan = {
+                        scope.launch { snackbar.showSnackbar(
+                            "Contratação deve ser concluída no canal oficial após homologação da conta Windows."
+                        ) }
+                    },
+                    onOpenWebAccount = {
+                        scope.launch { snackbar.showSnackbar(
+                            "Consulte suas licenças pelo portal oficial; autenticação Windows ainda em homologação."
+                        ) }
+                    }
+                )
             } else if (detail == ActiveDetail.COMMUNITY) {
                 // Android BrotherCommunityScreen: same group, updates,
                 // support and feedback actions with Windows browser/mail.
@@ -1895,6 +1919,7 @@ private fun FielHomeHost(
                 // O preview do servidor não autoriza recursos comerciais.
                 DesktopAccountQaScreen(
                     onBack = { area = HomeArea.HOME },
+                    onPlans = { detail = ActiveDetail.PLANS },
                     qaEnvironment = accountQaEnvironment
                 )
             } else if (area == HomeArea.FONTS) {
