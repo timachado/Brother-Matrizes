@@ -17,7 +17,35 @@ internal object DesktopFontImportSafety {
     fun journalFor(fontFolder: Path): DesktopArchiveQuotaJournal {
         val fontRoot = fontFolder.toAbsolutePath().normalize()
         val parent = checkNotNull(fontRoot.parent)
-        return DesktopArchiveQuotaJournal(parent.resolve("font-import-usage-journal"))
+        check(!Files.isSymbolicLink(parent) &&
+            Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS)) {
+            "Diretório privado do aplicativo não está disponível."
+        }
+        val location = parent.resolve("font-import-usage-journal")
+        // DesktopArchiveQuotaJournal intentionally NEVER creates its own
+        // directory. Create it only here, inside the app's existing private
+        // folder, when explicit font-import QA was opted in.
+        if (!Files.exists(location, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                Files.createDirectory(location)
+            } catch (_: java.nio.file.FileAlreadyExistsException) {
+                // Another process may have initialized the same journal.
+            }
+        }
+        check(!Files.isSymbolicLink(location) &&
+            Files.isDirectory(location, LinkOption.NOFOLLOW_LINKS) &&
+            location.parent == parent) {
+            "Pasta de cotas não é diretório privado regular."
+        }
+        if (Files.getFileStore(location).supportsFileAttributeView("posix")) {
+            val ownerOnly = java.nio.file.attribute.PosixFilePermissions
+                .fromString("rwx------")
+            val perms = Files.getPosixFilePermissions(location)
+            check(perms.subtract(ownerOnly).isEmpty()) {
+                "Registro de cotas não pode ser acessível por terceiros."
+            }
+        }
+        return DesktopArchiveQuotaJournal(location)
     }
 
     fun published(
