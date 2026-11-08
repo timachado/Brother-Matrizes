@@ -80,7 +80,7 @@ require("Backend Windows tem o mesmo Supabase oficial do Android",
         "brother-usage" in gateway and
         "import_font" in gateway and
         "instanceFollowRedirects = false" in gateway and
-        "connection.disconnect()" in gateway)
+        "conn.disconnect()" in gateway)
 require("Reserva real exige journal antes de acesso de rede",
         "usage !is DesktopBrotherFontUsageGateway || journal != null" in gate and
         "journal?.begin(selected)" in gate and
