@@ -37,14 +37,14 @@ on:
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopReadOnlyFontAnalyzer.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopReadOnlyFontAnalyzerTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
-      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopQaStagingProject.kt"
-      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopStagingQuotaStatusReader.kt"
-      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopStagingQuotaStatusReaderTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherBackendTarget.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherKnownQuotaStatusReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherKnownQuotaStatusReaderTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGooglePkceClient.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGoogleIdentityVerifier.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
-      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopQaStagingProjectTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherBackendTargetTest.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsFullGoogleQaFlowTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGoogleProviderReadiness.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopPkceLoopbackSelfTest.kt"
@@ -92,21 +92,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Validar QA sem credencial comercial e com staging obrigatório
+      - name: Validar backend único Android/Windows e OAuth desligado por padrão
         shell: pwsh
         run: |
           $guard = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAccountQaOptIn.kt" -Raw
           $qa = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt" -Raw
-          if (!$guard.Contains('BROTHER_WINDOWS_QA_STAGING_PROJECT_REF') -or
-              !$guard.Contains('DesktopQaStagingProject.isolated(ref)') -or
+          $target = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherBackendTarget.kt" -Raw
+          if (!$target.Contains('OFFICIAL_REF = "dwpcddiramxlhavdmmyn"') -or
+              !$guard.Contains('DesktopBrotherBackendTarget.official()') -or
               !$qa.Contains('projectRef = target.ref') -or
-              !$qa.Contains('qa-staging-')) {
-            throw "Autenticação Windows QA perdeu a separação do Supabase comercial."
+              !$qa.Contains('qa-brother-account-') -or
+              $guard.Contains('BROTHER_WINDOWS_QA_STAGING_PROJECT_REF')) {
+            throw "Windows nao esta vinculado ao Supabase oficial do Android."
           }
           if ($env:BROTHER_WINDOWS_QA_GOOGLE_AUTH -ne "disabled") {
             throw "O pacote portátil QA deve ser executado sem autenticação ativa por padrão."
           }
-          "BROTHER_WINDOWS_QA_STAGING_ISOLATION_OK"
+          "BROTHER_WINDOWS_SAME_ANDROID_BACKEND_QA_ONLY_OK"
       - name: Gerar ICO do mesmo monograma do launcher Android original
         shell: pwsh
         run: |
