@@ -804,7 +804,7 @@ val copyAndroidExtractorScreen by tasks.registering {
                         } catch (failure: Exception) {
                             report = failure.message ?: "Não foi possível visualizar esta matriz."
                         } finally {
-                            secret.fill('\u005cu0000')
+                            secret.fill(0.toChar())
                             importing = false
                         }
                     }
