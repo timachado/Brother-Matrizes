@@ -95,7 +95,7 @@ require("Falha após declarar publicação preserva journal antes de finalize",
         "pending?.output != null" in gate and
         gate.index("pending?.output != null") < gate.index("usage.finalizeFont(token, reservation, confirmed)") and
         "Publicação da fonte incerta" in gate and
-        "journal.completed" in gate)
+        ".completed(" in gate)
 require("Teste de crash protege fase RESERVED sem recibo de propriedade",
         "assertEquals(DesktopArchiveQuotaJournal.Stage.RESERVED, pending.stage)" in
         read(ROOT / "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopFontImportJournalSafetyTest.kt"))
