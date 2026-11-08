@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherBackendTarget
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -37,6 +38,28 @@ class DesktopBrotherBackendTargetTest {
         assertNull(DesktopWindowsAccountQaOptIn.publicKeyFromEnvironment(
             enabled + ("BROTHER_WINDOWS_QA_GOOGLE_AUTH" to "disabled")
         ))
+    }
+
+    @Test
+    fun daFontAccessStaysDisabledWithoutExplicitQaSession() {
+        val optedIn = mapOf(
+            "BROTHER_WINDOWS_QA_GOOGLE_AUTH" to "enabled",
+            "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY" to key
+        )
+        assertEquals(
+            DesktopFontCatalogAccessUnavailable,
+            DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(
+                qaEnvironment = null, environment = optedIn
+            )
+        )
+        assertEquals(
+            DesktopFontCatalogAccessUnavailable,
+            DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(
+                qaEnvironment = null,
+                environment = optedIn +
+                    ("BROTHER_WINDOWS_QA_GOOGLE_AUTH" to "disabled")
+            )
+        )
     }
 
     @Test
