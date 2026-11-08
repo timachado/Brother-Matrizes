@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipPreview
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
@@ -69,6 +70,39 @@ internal fun DesktopFontCatalogScreen(
     var catalogQuery by remember { mutableStateOf("") }
     var catalogBusy by remember { mutableStateOf(false) }
     var catalogStatus by remember { mutableStateOf<String?>(null) }
+    var zipBusy by remember { mutableStateOf(false) }
+    var zipPreview by remember { mutableStateOf<DesktopFontZipPreview.Result?>(null) }
+    var zipError by remember { mutableStateOf<String?>(null) }
+
+    fun inspectFontZipReadOnly() {
+        if (zipBusy) return
+        val chooser = JFileChooser().apply {
+            dialogTitle = "Inspecionar ZIP de fontes DaFont/NetFontes — sem importar"
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isAcceptAllFileFilterUsed = false
+            fileFilter = FileNameExtensionFilter("Arquivos ZIP de fontes (*.zip)", "zip")
+        }
+        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
+        val selected = chooser.selectedFile.toPath()
+        zipBusy = true
+        zipPreview = null
+        zipError = null
+        scope.launch {
+            try {
+                zipPreview = withContext(Dispatchers.IO) {
+                    DesktopFontZipPreview.inspect(selected)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                zipError =
+                    "Não foi possível analisar o ZIP de fontes com segurança. " +
+                        "Nenhum arquivo foi extraído ou importado."
+            } finally {
+                zipBusy = false
+            }
+        }
+    }
 
     fun openOfficialCatalog(source: FontCatalogSource) {
         if (catalogBusy) return
@@ -230,6 +264,73 @@ internal fun DesktopFontCatalogScreen(
                         onClick = onRequireGoogle,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Minha Conta · autenticação Google") }
+                }
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "ZIP de fontes DaFont / NetFontes",
+                        color = FioGold, fontWeight = FontWeight.Bold
+                    )
+                    OutlinedButton(
+                        onClick = { inspectFontZipReadOnly() },
+                        enabled = !zipBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (zipBusy) "Analisando ZIP…"
+                            else "Selecionar ZIP de fontes (sem importar)")
+                    }
+                    Text(
+                        "Verifique as fontes TTF/OTF contidas no ZIP, exatamente como " +
+                            "na etapa de seleção Android. Não extrai, salva, converte " +
+                            "nem consome cotas nesta QA.",
+                        color = FioTextMuted
+                    )
+                    if (zipError != null) {
+                        Text(checkNotNull(zipError), color = FioGold)
+                    }
+                    if (zipPreview != null) {
+                        val report = checkNotNull(zipPreview)
+                        Text(
+                            "${report.zipName}: ${report.fontCount} fonte(s) TTF/OTF; " +
+                                "${report.skippedItems} item(ns) não selecionáveis.",
+                            color = FioText
+                        )
+                        Text(
+                            if (report.fontCount == 0)
+                                "Este ZIP não contém fontes compatíveis para análise."
+                            else
+                                "Prévia abaixo. Importação comercial ainda indisponível.",
+                            color = FioTextMuted
+                        )
+                    }
+                }
+            }
+        }
+        if (zipPreview != null) {
+            val zipFonts = checkNotNull(zipPreview).fonts
+            items(zipFonts, key = { "zip_${it.index}" }) { font ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = FioSurfaceAlt)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(font.name, color = FioText, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${font.format} · ${font.sizeBytes / 1024} KB · " +
+                                "apenas pré-visualização",
+                            color = FioTextMuted
+                        )
+                    }
                 }
             }
         }
