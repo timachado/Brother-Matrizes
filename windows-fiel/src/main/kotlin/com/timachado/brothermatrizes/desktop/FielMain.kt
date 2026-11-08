@@ -1163,8 +1163,9 @@ private fun FielHomeHost(
     fun informNotPorted(feature: String) {
         scope.launch {
             snackbar.showSnackbar(
-                "$feature: ainda não portado. Esta build serve apenas para " +
-                    "comparar a Home com o Android oficial."
+                "$feature ainda não está disponível no Windows. " +
+                    "As funções prontas continuam acessíveis; este recurso " +
+                    "precisa de homologação antes da publicação comercial."
             )
         }
     }
@@ -1358,7 +1359,7 @@ private fun FielHomeHost(
         }
     }
 
-    fun openProject() {
+    fun openProject(destination: ActiveDetail = ActiveDetail.VIEWER) {
         scope.launch {
             val chooser = JFileChooser().apply {
                 dialogTitle = "Abrir matriz DST, PES, JEF ou projeto FLP"
@@ -1385,7 +1386,7 @@ private fun FielHomeHost(
                         DesktopEmbroideryFiles.open(selected)
                     }
                 }.onSuccess { design ->
-                    openDesign(design, displayMode, ActiveDetail.VIEWER)
+                    openDesign(design, displayMode, destination)
                     registerOpenedOrSavedFlp(selected)
                     if (startInChooserQaFile != null) {
                         val selectedExtension =
@@ -1413,7 +1414,15 @@ private fun FielHomeHost(
                             StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE
                         )
                     }
-                    snackbar.showSnackbar("Matriz aberta no visualizador.")
+                    snackbar.showSnackbar(
+                        when (destination) {
+                            ActiveDetail.TRANSFER -> "Matriz aberta em Enviar para a máquina."
+                            ActiveDetail.EDITOR -> "Matriz aberta no Editor."
+                            ActiveDetail.SIMULATOR -> "Matriz aberta no Simulador."
+                            ActiveDetail.CONVERTER -> "Matriz aberta no Conversor."
+                            else -> "Matriz aberta no visualizador."
+                        }
+                    )
                 }.onFailure {
                     snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
                 }
@@ -1837,26 +1846,29 @@ private fun FielHomeHost(
                     onFonts = { area = HomeArea.FONTS },
                     onTransfer = {
                         if (activeDesign != null) detail = ActiveDetail.TRANSFER
-                        else informNotPorted("Abra ou crie uma matriz antes de enviar")
+                        else openProject(ActiveDetail.TRANSFER)
                     },
                     onOpen = { openProject() },
                     onRecent = {
                         if (activeDesign != null) detail = ActiveDetail.VIEWER
-                        else informNotPorted("Recente")
+                        else {
+                            // No active document: show the real FLP library,
+                            // not a misleading "not ported" placeholder.
+                            area = HomeArea.LIBRARY
+                            detail = ActiveDetail.NONE
+                        }
                     },
                     onSimulate = {
                         if (activeDesign != null) detail = ActiveDetail.SIMULATOR
-                        else informNotPorted("Crie ou abra uma matriz primeiro")
+                        else openProject(ActiveDetail.SIMULATOR)
                     },
                     onEdit = {
                         if (activeDesign != null) detail = ActiveDetail.EDITOR
-                        else informNotPorted("Abra ou crie uma matriz antes de editar")
+                        else openProject(ActiveDetail.EDITOR)
                     },
                     onConvert = {
                         if (activeDesign != null) detail = ActiveDetail.CONVERTER
-                        else scope.launch {
-                            snackbar.showSnackbar("Abra ou crie uma matriz antes de converter.")
-                        }
+                        else openProject(ActiveDetail.CONVERTER)
                     },
                     onClearRecent = {
                         // Apaga somente a referência de sessão, nunca arquivos.
