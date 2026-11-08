@@ -1,0 +1,44 @@
+name: Brother Matrizes - Auditoria estatica Android para Windows (sem Gradle)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/qa/auditar_contratos_windows.py"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/**"
+      - "windows-fiel/build.gradle.kts"
+      - "app/src/main/java/com/timachado/brothermatrizes/**"
+      - ".github/workflows/brother-windows-portable-qa.yml"
+      - ".github/workflows/brother-windows-port-static-audit.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "windows-fiel/qa/auditar_contratos_windows.py"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/**"
+      - "windows-fiel/build.gradle.kts"
+      - "app/src/main/java/com/timachado/brothermatrizes/**"
+      - ".github/workflows/brother-windows-portable-qa.yml"
+      - ".github/workflows/brother-windows-port-static-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-contracts:
+    name: Conferir contratos Android e seguranca das cotas sem rede externa
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+      BROTHER_WINDOWS_QA_FONT_IMPORT: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auditar port, identidade oficial e garantias de quota
+        shell: pwsh
+        run: |
+          python -B windows-fiel/qa/auditar_contratos_windows.py
+          if ($LASTEXITCODE -ne 0) { throw "Auditoria estatica Windows falhou." }
+          "BROTHER_WINDOWS_SOURCE_CONTRACTS_CHECKED_NO_RELEASE_OK"
