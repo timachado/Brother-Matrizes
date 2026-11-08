@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.desktop
 
+import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherTelegramUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopTelegramMatrixSearch
 import com.timachado.brothermatrizes.desktop.platform.DesktopTelegramSearchAccess
@@ -128,7 +129,7 @@ class DesktopTelegramMatrixSearchTest {
         val opened = mutableListOf<FakeConnection>()
         val gateway = DesktopBrotherTelegramUsageGateway(
             publishableKey = "sb_publishable_12345678901234567890",
-            versionCode = 195,
+            versionCode = DesktopAndroidBaseline.VERSION_CODE,
             verifiedGoogle = DesktopVerifiedGoogleTokenSource {
                 "verified-google-token-1234567890"
             },
@@ -143,7 +144,10 @@ class DesktopTelegramMatrixSearchTest {
         for (conn in opened) {
             assertEquals("dwpcddiramxlhavdmmyn.supabase.co", conn.url.host)
             assertEquals("/functions/v1/brother-usage", conn.url.path)
-            assertEquals("195", conn.getRequestProperty("X-Brother-App-Version-Code"))
+            assertEquals(
+                DesktopAndroidBaseline.VERSION_CODE.toString(),
+                conn.getRequestProperty("X-Brother-App-Version-Code")
+            )
             assertEquals("Bearer verified-google-token-1234567890",
                 conn.getRequestProperty("Authorization"))
         }
