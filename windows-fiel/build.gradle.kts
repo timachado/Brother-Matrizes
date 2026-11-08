@@ -533,6 +533,17 @@ val copyAndroidFontCatalogRules by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedFontCatalogRules)
 
+// Shared support contact/feedback text is compiled directly from Android.
+// Do not fork the public phone, email, labels or message format for Windows.
+val generatedCommunityContacts = layout.buildDirectory.dir("generated/android-community/kotlin")
+val copyAndroidCommunityContacts by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/BrotherFeedbackDelivery.kt")
+    }
+    into(generatedCommunityContacts)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedCommunityContacts)
+
 // Tema inteiro compilado diretamente do Android original: sem reimplementação
 // de cores, tipografia, esquemas light/dark ou cantos arredondados.
 val generatedTheme = layout.buildDirectory.dir("generated/android-theme/kotlin")
@@ -1367,7 +1378,8 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyAndroidFontCatalogRules, copyOfficialCore, copyAndroidProjectCodec,
+        copyAndroidTheme, copyAndroidFontCatalogRules, copyAndroidCommunityContacts,
+        copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
         copyAndroidStrokeEmitter, copyAndroidActiveSatin
