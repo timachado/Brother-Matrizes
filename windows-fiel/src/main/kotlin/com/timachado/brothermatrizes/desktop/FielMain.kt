@@ -1154,10 +1154,10 @@ private fun FielHomeHost(
 
     fun restoreLocalFlpProjects() {
         scope.launch {
-            // FLP ZIP local is restored into a new folder. Original Android
-            // backups are only inspected; fonts/projects are NOT imported.
+            // Original Android full backups restore both FLP and font files
+            // to a new folder; no commercial import or quota grant is inferred.
             val sourceChooser = JFileChooser().apply {
-                dialogTitle = "Restaurar FLP local ou analisar backup original Android"
+                dialogTitle = "Restaurar ZIP FLP ou backup completo original Android"
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
                 fileFilter = FileNameExtensionFilter(
@@ -1183,9 +1183,13 @@ private fun FielHomeHost(
                     )
                     return@launch
                 }
-                if (checked.projectCount !in 1..200) {
+                val permitsFontOnlyBackup =
+                    checked.kind == DesktopAndroidBackupInspector.Kind.ANDROID_COMPLETE &&
+                        checked.fontCount > 0
+                if (checked.projectCount !in 0..200 ||
+                    (checked.projectCount == 0 && !permitsFontOnlyBackup)) {
                     snackbar.showSnackbar(
-                        "Recuperação Windows admite de 1 a 200 matrizes por backup. " +
+                        "Recuperação Windows admite até 200 matrizes FLP por backup. " +
                             "Nenhum arquivo foi restaurado."
                     )
                     return@launch
@@ -1194,8 +1198,13 @@ private fun FielHomeHost(
                     null,
                     "Backup Android verificado: " + checked.projectCount +
                         " matriz(es), " + checked.fontCount + " fonte(s).\n" +
-                        "Recuperar APENAS os projetos FLP em uma NOVA pasta?\n" +
-                        "Fontes, conta, licenças e configurações NÃO serão importadas.",
+                        if (checked.kind == DesktopAndroidBackupInspector.Kind.ANDROID_COMPLETE)
+                            "Recuperar matrizes FLP e arquivos TTF/OTF em uma NOVA pasta?\n" +
+                                "Fontes recuperadas NÃO serão ativadas na biblioteca comercial; " +
+                                "conta, licenças e configurações não são importadas."
+                        else
+                            "Recuperar projetos FLP em NOVA pasta? " +
+                                "Conta e licenças não serão importadas.",
                     "Recuperar matrizes do Android — confirmação",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
@@ -1212,23 +1221,32 @@ private fun FielHomeHost(
             val parent = folderChooser.selectedFile.toPath().toAbsolutePath().normalize()
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val recovered = if (androidPreview != null) {
-                        val result = DesktopAndroidProjectRecovery.restoreProjectsOnly(
-                            backup, parent
-                        )
-                        result.folder to result.restoredProjects
-                    } else {
-                        val result = DesktopFlpBackupRestorer.restoreLocalFlpZip(
-                            backup, parent
-                        )
-                        result.folder to result.importedProjects
+                    val recovered = when {
+                        androidPreview?.kind ==
+                            DesktopAndroidBackupInspector.Kind.ANDROID_COMPLETE -> {
+                            val result = DesktopAndroidCompleteBackupRecovery.restore(
+                                backup, parent
+                            )
+                            Triple(result.folder, result.recoveredProjects,
+                                result.recoveredFonts)
+                        }
+                        androidPreview != null -> {
+                            val result = DesktopAndroidProjectRecovery.restoreProjectsOnly(
+                                backup, parent
+                            )
+                            Triple(result.folder, result.restoredProjects, 0)
+                        }
+                        else -> {
+                            val result = DesktopFlpBackupRestorer.restoreLocalFlpZip(
+                                backup, parent
+                            )
+                            Triple(result.folder, result.importedProjects, 0)
+                        }
                     }
-                    Triple(
-                        recovered.first, recovered.second,
-                        DesktopProjectCatalog.scan(recovered.first)
-                    )
+                    recovered to DesktopProjectCatalog.scan(recovered.first)
                 }
-            }.fold(onSuccess = { (newFolder, projectCount, scanned) ->
+            }.fold(onSuccess = { (recovered, scanned) ->
+                val (newFolder, projectCount, fontCount) = recovered
                 // No existing FLP was replaced: switch to the new folder
                 // so the recovered projects can be opened immediately.
                 catalog = scanned
@@ -1238,8 +1256,9 @@ private fun FielHomeHost(
                 snackbar.showSnackbar(
                     "Recuperados " + projectCount +
                         " projeto(s) FLP em nova pasta: " + newFolder.toString() +
-                        if (androidPreview != null)
-                            ". Fontes Android não foram importadas."
+                        if (fontCount > 0)
+                            ". " + fontCount + " fonte(s) recuperada(s) na subpasta fonts/ " +
+                                "(não ativadas no catálogo comercial)."
                         else ""
                 )
             }, onFailure = { error ->
