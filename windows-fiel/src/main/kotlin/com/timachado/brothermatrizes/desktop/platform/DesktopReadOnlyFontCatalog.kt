@@ -42,7 +42,9 @@ internal class DesktopReadOnlyFontCatalog(private val importedFolder: Path) {
             Files.isSymbolicLink(folder) -> error("Biblioteca de fontes insegura.")
             !Files.isDirectory(folder, LinkOption.NOFOLLOW_LINKS) ->
                 error("Biblioteca de fontes inválida.")
-            else -> DesktopImportedFontLibrary(folder).list()
+            else -> DesktopFontImportSafety.published(
+                folder, DesktopImportedFontLibrary(folder).list()
+            )
         }
         return Snapshot(presets, local)
     }
