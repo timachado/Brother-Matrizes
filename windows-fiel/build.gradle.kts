@@ -533,6 +533,17 @@ val copyAndroidFontCatalogRules by tasks.registering(Sync::class) {
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedFontCatalogRules)
 
+// Android 1.11.9: o nome real de TTF/OTF vem DIRETAMENTE do leitor
+// OpenType da versão oficial; evitar forks entre Android/Windows.
+val generatedAndroidOpenType = layout.buildDirectory.dir("generated/android-opentype/kotlin")
+val copyAndroidOpenTypeNames by tasks.registering(Sync::class) {
+    from("../app/src/main/java") {
+        include("com/timachado/brothermatrizes/font/OpenTypeFontNames.kt")
+    }
+    into(generatedAndroidOpenType)
+}
+kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedAndroidOpenType)
+
 // Shared support contact/feedback text is compiled directly from Android.
 // Do not fork the public phone, email, labels or message format for Windows.
 val generatedCommunityContacts = layout.buildDirectory.dir("generated/android-community/kotlin")
@@ -1378,7 +1389,7 @@ tasks.named("compileKotlin") {
     dependsOn(
         copyAndroidHome, copyAndroidCreateName, copyAndroidVisualization, copyAndroidMachineTransfer, copyAndroidCreateDrawing,
         copyAndroidProjectLibrary, copyAndroidEditor, copyAndroidNameEditor,
-        copyAndroidTheme, copyAndroidFontCatalogRules, copyAndroidCommunityContacts,
+        copyAndroidTheme, copyAndroidFontCatalogRules, copyAndroidOpenTypeNames, copyAndroidCommunityContacts,
         copyOfficialCore, copyAndroidProjectCodec,
         copyAndroidBackupCodecs, copyAndroidLoader, copyAndroidReferenceSatin, copyAndroidStrokeSkeleton,
         copyAndroidStrokePlanner, copyAndroidStrokeRows,
