@@ -27,6 +27,28 @@ internal object DesktopWindowsAccountQaOptIn {
         return DesktopBrotherBackendTarget.official()
     }
 
+    /**
+     * One shared QA session is owned by the desktop host, not each screen.
+     * Missing explicit opt-in or missing Google backend always fails closed.
+     * Real reserve/finalize is only reachable by deliberate catalog clicks
+     * after the user signs in and Supabase verifies the Google identity.
+     */
+    fun fontCatalogAccessForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopFontCatalogAccess {
+        val key = publicKeyFromEnvironment(environment)
+            ?: return DesktopFontCatalogAccessUnavailable
+        if (qaEnvironment == null) return DesktopFontCatalogAccessUnavailable
+        return DesktopBrotherDaFontUsageGateway(
+            publishableKey = key,
+            versionCode = 196, // Android oficial 1.11.9, somente cabeçalho de API.
+            verifiedGoogle = DesktopVerifiedGoogleTokenSource {
+                qaEnvironment.verifiedAccessTokenForQa()
+            }
+        )
+    }
+
     fun openWhenOptedIn(): DesktopWindowsGoogleQaEnvironment? {
         val environment = System.getenv()
         val key = publicKeyFromEnvironment(environment) ?: return null
