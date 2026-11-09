@@ -1185,21 +1185,14 @@ private fun FielHomeHost(
 
     fun analyzeArchiveOnly(passwordText: String = "") {
         if (archiveBusy) return
+        // Guard the entire picker + inspection, not just the file parser.
+        archiveBusy = true
         scope.launch {
-            val chooser = JFileChooser().apply {
-                dialogTitle = "Analisar pacote ZIP / RAR / 7Z — somente leitura"
-                fileSelectionMode = JFileChooser.FILES_ONLY
-                isAcceptAllFileFilterUsed = false
-                fileFilter = FileNameExtensionFilter(
-                    "Pacotes ZIP, RAR e 7Z", "zip", "rar", "7z"
-                )
-            }
-            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
-            val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
-            archiveBusy = true
-            archivePreview = null
-            archiveError = null
             try {
+                val selected = DesktopNativeMatrixPicker.chooseArchive()
+                    ?: return@launch
+                archivePreview = null
+                archiveError = null
                 val secret = passwordText.toCharArray()
                 try {
                     val inspected = withContext(Dispatchers.IO) {
@@ -1211,7 +1204,8 @@ private fun FielHomeHost(
                     secret.fill('\u0000')
                 }
             } catch (failure: Exception) {
-                archiveError = failure.message ?: "Pacote ZIP/RAR/7Z inválido ou protegido por senha."
+                archiveError = failure.message
+                    ?: "Pacote ZIP/RAR/7Z inválido ou protegido por senha."
             } finally {
                 archiveBusy = false
             }

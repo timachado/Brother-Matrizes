@@ -67,3 +67,14 @@ dos dados `editableName`.
 `Selecionar pasta FLP` usa `DIRECTORIES_ONLY` sem bloquear a coroutine
 Compose, mantém favoritos/recentes de outras pastas e nunca consome cotas.
 Testes verificam filtro nativo, caminho de QA e ausência de escrita na seleção.
+
+## Prévia ZIP/RAR/7Z em modo seguro (09/11/2026)
+
+A escolha de arquivos ZIP, RAR e 7Z para inspeção foi movida para a EDT
+Swing, aguardada por `Dispatchers.IO`; o sinalizador de operação ocupada
+agora protege também contra abertura de duas janelas antes da análise.
+Cancelar não altera a biblioteca e `finally` libera o estado. A senha
+temporária de inspeção é apagada da memória após uso. O analisador
+`DesktopArchiveInventory` continua somente leitura, sem persistência,
+consumo de cotas ou desbloqueio de importações comerciais. Regressão QA
+confere o filtro ZIP/RAR/7Z sem abrir/extrair arquivos.

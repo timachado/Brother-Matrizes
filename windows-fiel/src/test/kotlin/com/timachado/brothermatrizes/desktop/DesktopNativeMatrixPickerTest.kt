@@ -80,6 +80,20 @@ class DesktopNativeMatrixPickerTest {
     }
 
     @Test
+    fun archiveChooserOnlyOffersZipRarAnd7zWithoutImportingFiles() {
+        val archive = DesktopNativeMatrixPicker.configuredArchiveChooser()
+        assertEquals(JFileChooser.FILES_ONLY, archive.fileSelectionMode)
+        assertFalse(archive.isAcceptAllFileFilterUsed)
+        for (extension in listOf("zip", "ZIP", "rar", "7z")) {
+            assertTrue(archive.fileFilter.accept(File("backup.$extension")))
+        }
+        for (extension in listOf("exe", "bat", "flp", "pes", "pdf")) {
+            assertFalse(archive.fileFilter.accept(File("backup.$extension")))
+        }
+        // Merely constructing a chooser does not create or extract any file.
+    }
+
+    @Test
     fun invalidSelectionNeverChangesLocalFilesOrBypassesFilter() {
         val root = Files.createTempDirectory("bm-open-matrix-")
         try {

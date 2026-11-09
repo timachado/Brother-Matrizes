@@ -123,6 +123,27 @@ internal object DesktopNativeMatrixPicker {
         selected
     }
 
+    /** Read-only archive selection: preview does not import or debit quotas. */
+    fun configuredArchiveChooser(): JFileChooser = JFileChooser().apply {
+        dialogTitle = "Analisar pacote ZIP / RAR / 7Z — somente leitura"
+        fileSelectionMode = JFileChooser.FILES_ONLY
+        isAcceptAllFileFilterUsed = false
+        fileFilter = FileNameExtensionFilter(
+            "Pacotes ZIP, RAR e 7Z", "zip", "rar", "7z"
+        )
+    }
+
+    suspend fun chooseArchive(): Path? = withContext(Dispatchers.IO) {
+        var selected: Path? = null
+        SwingUtilities.invokeAndWait {
+            val chooser = configuredArchiveChooser()
+            if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                selected = chooser.selectedFile?.toPath()?.toAbsolutePath()?.normalize()
+            }
+        }
+        selected
+    }
+
     fun validateSelectedFile(selected: Path): Path {
         val path = selected.toAbsolutePath().normalize()
         val ext = path.fileName.toString().substringAfterLast('.', "")
