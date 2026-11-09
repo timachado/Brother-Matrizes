@@ -21,7 +21,10 @@ internal object DesktopFontZipPreview {
         val zipName: String,
         val fonts: List<Font>,
         val skippedItems: Int,
-        val hasSha256: Boolean
+        val hasSha256: Boolean,
+        // Bind the originally reviewed file to any later authorized import.
+        // ZIP files replaced after preview may not consume a quota.
+        val archiveSha256: String? = null
     ) {
         val fontCount get() = fonts.size
     }
@@ -47,7 +50,8 @@ internal object DesktopFontZipPreview {
             zipName = inventory.archiveName,
             fonts = fonts,
             skippedItems = inventory.scannedCount - fonts.size,
-            hasSha256 = inventory.archiveSha256?.matches(Regex("[0-9a-f]{64}")) == true
+            hasSha256 = inventory.archiveSha256?.matches(Regex("[0-9a-f]{64}")) == true,
+            archiveSha256 = inventory.archiveSha256
         )
     }
 }
