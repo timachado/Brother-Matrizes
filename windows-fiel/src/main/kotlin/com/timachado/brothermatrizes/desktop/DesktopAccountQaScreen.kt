@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPendingFontQuotaReview
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceRedirectPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopRedirectAllowlistReview
@@ -35,6 +36,8 @@ import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Windows account navigation, modeled after the Android Minha Conta tab.
@@ -92,6 +95,7 @@ internal fun DesktopAccountQaScreen(
     }
     var busy by remember { mutableStateOf(false) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
+    var pendingFontQuotaStatus by remember { mutableStateOf<String?>(null) }
     var loopbackStatus by remember { mutableStateOf<String?>(null) }
     var pastedAllowlist by remember { mutableStateOf("") }
     var allowlistReview by remember { mutableStateOf<String?>(null) }
@@ -318,6 +322,37 @@ internal fun DesktopAccountQaScreen(
                 }
             }
         } else {
+            // QA-only local journal review; user clicks explicitly.
+            // No Google request, quota charge, file mutation or automatic
+            // reconciliation. Even an empty journal is not proof of rights.
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        pendingFontQuotaStatus = null
+                        try {
+                            val report = withContext(Dispatchers.IO) {
+                                DesktopWindowsPendingFontQuotaReview.inspectWindowsDefault()
+                            }
+                            pendingFontQuotaStatus = report.userMessage()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            pendingFontQuotaStatus =
+                                "Registro de cotas inválido ou indisponível. " +
+                                    "Nenhuma importação deve ser liberada sem revisão."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            ) { Text("Consultar cotas pendentes de fontes — somente leitura") }
+            if (pendingFontQuotaStatus != null) {
+                Text(checkNotNull(pendingFontQuotaStatus), color = FioText)
+            }
+
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
