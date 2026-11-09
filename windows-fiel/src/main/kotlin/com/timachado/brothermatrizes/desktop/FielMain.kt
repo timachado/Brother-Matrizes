@@ -76,6 +76,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBackupInspec
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupRecovery
+import com.timachado.brothermatrizes.desktop.platform.DesktopRecoveredAndroidFontPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopSentMatrixHistory
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
@@ -1257,9 +1258,18 @@ private fun FielHomeHost(
                             Triple(result.folder, result.importedProjects, 0)
                         }
                     }
-                    recovered to DesktopProjectCatalog.scan(recovered.first)
+                    val preflight = if (recovered.third > 0) {
+                        // Read-only: inspect recovered OpenType bytes without
+                        // registering sources or accessing commercial quotas.
+                        runCatching {
+                            DesktopRecoveredAndroidFontPreflight.inspect(
+                                recovered.first.resolve("fonts")
+                            )
+                        }.getOrNull()
+                    } else null
+                    Triple(recovered, DesktopProjectCatalog.scan(recovered.first), preflight)
                 }
-            }.fold(onSuccess = { (recovered, scanned) ->
+            }.fold(onSuccess = { (recovered, scanned, preflight) ->
                 val (newFolder, projectCount, fontCount) = recovered
                 // No existing FLP was replaced: switch to the new folder
                 // so the recovered projects can be opened immediately.
@@ -1272,7 +1282,11 @@ private fun FielHomeHost(
                         " projeto(s) FLP em nova pasta: " + newFolder.toString() +
                         if (fontCount > 0)
                             ". " + fontCount + " fonte(s) recuperada(s) na subpasta fonts/ " +
-                                "(não ativadas no catálogo comercial)."
+                                "(não ativadas no catálogo comercial); " +
+                                (preflight?.let {
+                                    "${it.readableCount} com contornos legíveis, " +
+                                        "${it.blockedCount} exigem revisão."
+                                } ?: "análise de contornos indisponível.")
                         else ""
                 )
             }, onFailure = { error ->
