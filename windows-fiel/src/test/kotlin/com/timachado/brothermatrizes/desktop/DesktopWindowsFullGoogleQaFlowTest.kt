@@ -198,7 +198,8 @@ class DesktopWindowsFullGoogleQaFlowTest {
                     "code=offline_factory_auth_code", workers, errors,
                     expectedHost = "$officialRef.supabase.co"
                 ),
-                connectionFactory = connector
+                connectionFactory = connector,
+                redirectReviewedForQa = true
             ).use { first ->
                 assertTrue(requests.isEmpty()) // opt-in, never autologin
                 assertFalse(first.restoreAndVerify())
@@ -222,7 +223,8 @@ class DesktopWindowsFullGoogleQaFlowTest {
                 browser = DesktopExternalBrowser {
                     error("Restoring DPAPI must not launch a new browser")
                 },
-                connectionFactory = connector
+                connectionFactory = connector,
+                redirectReviewedForQa = true
             ).use { restarted ->
                 val before = requests.count { it == "/auth/v1/token" }
                 assertTrue(restarted.restoreAndVerify())
