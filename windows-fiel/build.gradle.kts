@@ -843,7 +843,8 @@ val copyAndroidExtractorScreen by tasks.registering {
     onImportFinished: suspend (ArchiveCategory, String, Boolean) -> Unit""",
             """    archivePath: Path,
     onBack: () -> Unit,
-    onPreviewMatrix: suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit"""
+    onPreviewMatrix: suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit,
+    onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem) -> Unit)? = null"""
         )
         change("    val context = LocalContext.current\n", "")
         change("archiveUri", "archivePath")
@@ -903,6 +904,42 @@ val copyAndroidExtractorScreen by tasks.registering {
                     }
                 }
             ) { Text("VISUALIZAR MATRIZ SELECIONADA (SEM IMPORTAR)") }
+            if (onAuthorizedImport != null) {
+                val chosen = archive.entries.filter { it.index in selected }
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !importing && archive.format == ArchiveFormat.ZIP &&
+                        chosen.size == 1,
+                    onClick = {
+                        val item = chosen.single()
+                        val approval = javax.swing.JOptionPane.showConfirmDialog(
+                            null,
+                            "Importar apenas o item selecionado?\\n" +
+                                "Confirme que você possui autorização de uso.\\n" +
+                                "A conta Google será verificada e uma cota REAL " +
+                                "poderá ser consumida. Cancelar não reserva cota.",
+                            "Brother Matrizes — autorizar importação ZIP",
+                            javax.swing.JOptionPane.YES_NO_OPTION,
+                            javax.swing.JOptionPane.WARNING_MESSAGE
+                        )
+                        if (approval == javax.swing.JOptionPane.YES_OPTION) {
+                            importing = true
+                            report = ""
+                            scope.launch {
+                                try {
+                                    onAuthorizedImport(archive, item)
+                                    report = "Item importado e confirmado na Biblioteca."
+                                } catch (failure: Exception) {
+                                    report = "Importação bloqueada ou sem cota confirmada. " +
+                                        "Verifique Minha Conta e o histórico de cotas."
+                                } finally {
+                                    importing = false
+                                }
+                            }
+                        }
+                    }
+                ) { Text("IMPORTAR ITEM ZIP COM CONTA E COTA") }
+            }
             Text(
                 "A interface e o extrator são os originais do Android. " +
                     "Importar para a biblioteca requer autorização Google " +
