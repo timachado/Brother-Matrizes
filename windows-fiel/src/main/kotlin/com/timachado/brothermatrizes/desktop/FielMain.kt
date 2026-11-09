@@ -977,6 +977,7 @@ private fun FielHomeHost(
     val scope = rememberCoroutineScope()
     var matrixChooserOpen by remember { mutableStateOf(false) }
     var matrixSaveChooserOpen by remember { mutableStateOf(false) }
+    var libraryDirectoryChooserOpen by remember { mutableStateOf(false) }
     LaunchedEffect(shortcutLaunchRequest) {
         if (shortcutLaunchRequest <= 0) return@LaunchedEffect
         val status = withContext(Dispatchers.IO) {
@@ -1145,31 +1146,40 @@ private fun FielHomeHost(
     }
 
     fun chooseLibraryFolder() {
+        if (libraryDirectoryChooserOpen) return
+        libraryDirectoryChooserOpen = true
         scope.launch {
-            val chooser = JFileChooser().apply {
-                dialogTitle = "Selecionar pasta de projetos FLP — somente leitura"
-                fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            try {
+                val folder = DesktopNativeMatrixPicker.chooseDirectory(
+                    "Selecionar pasta de projetos FLP — somente leitura",
+                    selectedLibraryFolder?.let { Path.of(it) }
+                ) ?: return@launch
+                runCatching {
+                    withContext(Dispatchers.IO) { DesktopProjectCatalog.scan(folder) }
+                }.fold(onSuccess = { scanned ->
+                    catalog = scanned
+                    // Keep favorites/recents from other folders while switching
+                    // local libraries. Selecting a folder never imports quotas.
+                    selectedLibraryFolder = scanned.folder.toString()
+                    area = HomeArea.LIBRARY
+                    detail = ActiveDetail.NONE
+                    snackbar.showSnackbar(
+                        "Biblioteca FLP: ${scanned.projects.size} projeto(s), " +
+                            "${scanned.skippedInvalid} arquivo(s) inválido(s) ignorado(s)."
+                    )
+                }, onFailure = { error ->
+                    snackbar.showSnackbar(
+                        "Não foi possível ler a pasta FLP: ${error.message}"
+                    )
+                })
+            } catch (error: Exception) {
+                snackbar.showSnackbar(
+                    "Seletor de pasta indisponível: " +
+                        (error.message ?: "erro de acesso")
+                )
+            } finally {
+                libraryDirectoryChooserOpen = false
             }
-            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
-            val selected = chooser.selectedFile.toPath()
-            runCatching {
-                withContext(Dispatchers.IO) { DesktopProjectCatalog.scan(selected) }
-            }.fold(onSuccess = { scanned ->
-                catalog = scanned
-                // Manter favoritos/recentes de outras pastas, caso o usuário
-                // alterne entre bibliotecas FLP. Não apagar histórico externo.
-                selectedLibraryFolder = scanned.folder.toString()
-                area = HomeArea.LIBRARY
-                detail = ActiveDetail.NONE
-                snackbar.showSnackbar(
-                    "Biblioteca FLP: ${scanned.projects.size} projeto(s), " +
-                        "${scanned.skippedInvalid} arquivo(s) inválido(s) ignorado(s)."
-                )
-            }, onFailure = { error ->
-                snackbar.showSnackbar(
-                    "Não foi possível ler a pasta FLP: ${error.message}"
-                )
-            })
         }
     }
 
@@ -1650,21 +1660,18 @@ private fun FielHomeHost(
 
     fun saveProject() {
         val design = activeDesign ?: return
+        if (matrixSaveChooserOpen) return
+        matrixSaveChooserOpen = true
         scope.launch {
-            val chooser = JFileChooser().apply {
-                dialogTitle = "Salvar projeto original Brother Matrizes FLP"
-                selectedFile = if (startInSaveDialogQaFile != null)
-                    startInSaveDialogQaFile.toFile()
-                else File("brother-matrizes-projeto.flp")
-                fileSelectionMode = JFileChooser.FILES_ONLY
-                isAcceptAllFileFilterUsed = false
-                fileFilter = FileNameExtensionFilter(
-                    "Projetos Brother Matrizes (*.flp)", "flp"
-                )
-            }
-            if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            try {
+                val chosen = DesktopNativeMatrixPicker.chooseSave(
+                    "brother-matrizes-projeto.flp",
+                    "FLP",
+                    "Salvar projeto original Brother Matrizes FLP",
+                    startInSaveDialogQaFile
+                ) ?: return@launch
                 runCatching {
-                    val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+                    val selected = chosen
                     if (startInSaveDialogQaFile != null) {
                         check(selected == startInSaveDialogQaFile) {
                             "Seleção do Salvar como diferente da cópia QA."
@@ -1701,6 +1708,13 @@ private fun FielHomeHost(
                     }
                     snackbar.showSnackbar("Projeto FLP não salvo: ${error.message}")
                 }
+            } catch (error: Exception) {
+                snackbar.showSnackbar(
+                    "Não foi possível selecionar a pasta para salvar FLP: " +
+                        (error.message ?: "diálogo indisponível")
+                )
+            } finally {
+                matrixSaveChooserOpen = false
             }
         }
     }

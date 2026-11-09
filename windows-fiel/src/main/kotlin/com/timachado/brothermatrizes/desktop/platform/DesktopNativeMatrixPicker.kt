@@ -48,6 +48,7 @@ internal object DesktopNativeMatrixPicker {
         suggestedName: String,
         format: String,
         title: String,
+        preferredFile: Path? = null,
     ): JFileChooser {
         val extension = format.lowercase(Locale.ROOT)
         require(extension in extensions &&
@@ -59,7 +60,10 @@ internal object DesktopNativeMatrixPicker {
         }
         return JFileChooser().apply {
             dialogTitle = title
-            selectedFile = File(suggestedName)
+            selectedFile = preferredFile?.toFile() ?: File(suggestedName)
+            if (preferredFile != null) {
+                currentDirectory = preferredFile.toAbsolutePath().normalize().parent.toFile()
+            }
             fileSelectionMode = JFileChooser.FILES_ONLY
             isAcceptAllFileFilterUsed = false
             fileFilter = FileNameExtensionFilter(
@@ -75,15 +79,48 @@ internal object DesktopNativeMatrixPicker {
         suggestedName: String,
         format: String,
         title: String,
+        preferredFile: Path? = null,
     ): Path? = withContext(Dispatchers.IO) {
         var result: Path? = null
         SwingUtilities.invokeAndWait {
-            val chooser = configuredSaveChooser(suggestedName, format, title)
+            val chooser = configuredSaveChooser(
+                suggestedName, format, title, preferredFile
+            )
             if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
                 result = chooser.selectedFile?.toPath()?.toAbsolutePath()?.normalize()
             }
         }
         result
+    }
+
+    /** Folder selection for the original Android FLP library on Windows. */
+    fun configuredDirectoryChooser(
+        title: String,
+        preferredFolder: Path? = null,
+    ): JFileChooser {
+        require(title.isNotBlank()) { "Informe a ação do seletor de pasta." }
+        return JFileChooser().apply {
+            dialogTitle = title
+            fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            isAcceptAllFileFilterUsed = false
+            if (preferredFolder != null) {
+                currentDirectory = preferredFolder.toAbsolutePath().normalize().toFile()
+            }
+        }
+    }
+
+    suspend fun chooseDirectory(
+        title: String,
+        preferredFolder: Path? = null,
+    ): Path? = withContext(Dispatchers.IO) {
+        var selected: Path? = null
+        SwingUtilities.invokeAndWait {
+            val chooser = configuredDirectoryChooser(title, preferredFolder)
+            if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                selected = chooser.selectedFile?.toPath()?.toAbsolutePath()?.normalize()
+            }
+        }
+        selected
     }
 
     fun validateSelectedFile(selected: Path): Path {

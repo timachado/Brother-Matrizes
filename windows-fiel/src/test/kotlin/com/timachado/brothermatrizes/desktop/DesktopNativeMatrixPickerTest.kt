@@ -49,6 +49,35 @@ class DesktopNativeMatrixPickerTest {
     }
 
     @Test
+    fun projectSaveChooserKeepsQaDestinationAndLibraryPickerUsesFolderOnly() {
+        val root = Files.createTempDirectory("bm-flp-native-dialog-")
+        try {
+            val qaTarget = root.resolve("qa-project-original.flp")
+            val save = DesktopNativeMatrixPicker.configuredSaveChooser(
+                "brother-matrizes-projeto.flp", "FLP",
+                "Salvar projeto original Brother Matrizes FLP", qaTarget
+            )
+            assertEquals(qaTarget.toFile().absolutePath, save.selectedFile.absolutePath)
+            assertEquals(JFileChooser.FILES_ONLY, save.fileSelectionMode)
+            assertFalse(save.isAcceptAllFileFilterUsed)
+            assertTrue(save.fileFilter.accept(File("matriz.FLP")))
+            assertFalse(save.fileFilter.accept(File("program.exe")))
+            val folder = DesktopNativeMatrixPicker.configuredDirectoryChooser(
+                "Selecionar pasta FLP", root
+            )
+            assertEquals(JFileChooser.DIRECTORIES_ONLY, folder.fileSelectionMode)
+            assertFalse(folder.isAcceptAllFileFilterUsed)
+            assertEquals(root.toFile().absolutePath, folder.currentDirectory.absolutePath)
+            assertFalse(Files.exists(qaTarget))
+        } finally {
+            Files.walk(root).use { paths ->
+                paths.sorted(Comparator.reverseOrder())
+                    .forEach(Files::deleteIfExists)
+            }
+        }
+    }
+
+    @Test
     fun invalidSelectionNeverChangesLocalFilesOrBypassesFilter() {
         val root = Files.createTempDirectory("bm-open-matrix-")
         try {

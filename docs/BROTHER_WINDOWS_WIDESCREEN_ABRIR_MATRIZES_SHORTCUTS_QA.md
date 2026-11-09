@@ -54,3 +54,16 @@ A criação de atalhos é iniciada por ação explícita do usuário.
 - QA offline verifica filtros de Salvar como nos formatos PES/DST/JEF/FLP e
   rejeição de nomes malformados, sem gravar ou enviar arquivos.
 - Salvar projeto FLP mantém seu próprio fluxo pré-existente, testado pelo CI.
+
+## Fechamento parcial: Salvar FLP e pasta da biblioteca (09/11/2026)
+
+O projeto Windows agora compartilha o mesmo seletor Swing executado na EDT
+com o leitor de matrizes, a exportação e o salvamento de projetos FLP.
+`Salvar projeto original FLP` aguarda o diálogo com `Dispatchers.IO`,
+protege contra diálogos duplicados, limpa o estado em `finally` e preserva
+a gravação `CREATE_NEW`, o teste de tentativa de sobrescrita e o round-trip
+dos dados `editableName`.
+
+`Selecionar pasta FLP` usa `DIRECTORIES_ONLY` sem bloquear a coroutine
+Compose, mantém favoritos/recentes de outras pastas e nunca consome cotas.
+Testes verificam filtro nativo, caminho de QA e ausência de escrita na seleção.
