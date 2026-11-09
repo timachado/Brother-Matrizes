@@ -48,3 +48,20 @@ Se a resposta desaparecer ou o servidor antigo devolver 400, o marcador `RESERVE
 **Limite comercial:** o novo adaptador é **Free V2 somente**. No código da Edge Function preparado na branch, `reserve_v2` retorna 503 para Pro; recibos **Pro V2** exigem ativação separada de RPC/Edge Function/entitlement. Não usar `pro_<UUID>` efêmero legado nem permitir importação Pro por fallback. O backend V2 e o OAuth de QA devem ser homologados primeiro em ambiente isolado, com aprovação explícita antes de mudanças no serviço oficial.
 
 **Evidência automatizada adicionada:** `DesktopBrotherFontUsageGatewayTest` verifica payload V2, replays, recusa de respostas legadas/Pro e UUID errado; `DesktopCommercialFontFreeV2JournalTest` reproduz resposta perdida, confirma UUID persistido e nenhuma reserva repetida; `DesktopWindowsFontImportOptInTest` exige todas as aprovações. Sem conta real, HTTP de produção ou fonte de cliente.
+
+
+## Preflight Free V2 sem consumo de cotas — revisão 09/11/2026
+
+**Fato conferido por leitura autorizada do Supabase:** o serviço oficial `brother-usage` permanece **ACTIVE, versão 7**, sem `reserve_v2`, `reserve_pro_v2` ou `status_pro_v2`. O projeto está `ACTIVE_HEALTHY`. Nenhum deploy, migração ou dado de produção foi alterado.
+
+**Problema prevenido:** antes desta revisão, ao habilitar manualmente a importação Windows e apontá-la para o backend legado V1, o aplicativo podia criar `RESERVE_UNKNOWN` no journal local **antes** da primeira chamada `reserve_v2`, que seria recusada. Esse estado de segurança bloqueia novas importações até revisão, mesmo quando o servidor nunca chegou a reservar uma cota.
+
+**Correção isolada na branch draft #226:**
+
+- A Edge Function proposta aceita a ação autenticada `preflight_v2` com somente `action` e `operation`. Reutiliza verificação de usuário Google e serviço `brother-entitlement`; responde `{operation, protocol:"free_v2", ready}`, em que `ready` só é verdadeiro se a **flag server-side Free V2** estiver ativa e a conta autenticada **não** for Pro. Não consulta nem escreve tabelas de reserva e não desconta cotas.
+- Os adaptadores HTTP concretos `DesktopBrotherArchiveUsageGateway` e `DesktopBrotherFontUsageGateway` exigem resposta exata, booleano JSON `ready:true`, protocolo `free_v2` e operação correspondente. Contrato V1, resposta alterada, texto `"true"`, falha HTTP ou indisponibilidade bloqueiam a importação.
+- `DesktopArchiveCommercialImportGate` e `DesktopCommercialFontImportGate` executam o preflight **depois da validação local/identidade, mas antes de `journal.begin`**. Sem confirmação, não há `reserve_v2`, `finalize`, entrada pendente nem publicação de matriz/fonte.
+- Testes Kotlin offline cobrem aceitação/rejeição da resposta, backend 400 legado, nenhum envio de reserva e journal vazio. Fakes legadas de teste mantêm seus contratos próprios.
+- **A verificação não substitui a aprovação do banco/RPC, conta e cotas em staging.** `ready` informa uma configuração autorizada pelo servidor, não prova que sua migração foi aplicada. As flags adicionais de QA continuam desligadas por padrão. O Android V1 mantém as rotas existentes.
+
+**Resultado a registrar quando o CI terminar:** ver os checks do commit da revisão; não declarar publicação comercial sem teste real. O proprietário confirmou login realizado no Windows; não solicitar repetição desse passo sem uma falha reproduzível de autenticação, especificando o cenário.
