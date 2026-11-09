@@ -1948,7 +1948,7 @@ private fun FielHomeHost(
                             accountQaEnvironment != null &&
                             DesktopWindowsAccountQaOptIn.archiveImportEnabled()
                         ) {
-                            { originalPreview, selected ->
+                            { originalPreview, selected, password ->
                                 val localFolder = catalog?.folder
                                     ?: error("Selecione primeiro uma pasta FLP na Biblioteca.")
                                 // Explicit operator QA: the normal Windows
@@ -1960,7 +1960,7 @@ private fun FielHomeHost(
                                 ) { "Importação sem homologação V2 está bloqueada." }
                                 val committed = withContext(Dispatchers.IO) {
                                     importer.importOne(
-                                        sourceArchive, originalPreview, selected
+                                        sourceArchive, originalPreview, selected, password
                                     )
                                 }
                                 if (committed.created) {
