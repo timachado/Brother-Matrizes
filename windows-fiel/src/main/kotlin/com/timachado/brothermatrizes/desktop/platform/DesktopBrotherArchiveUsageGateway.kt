@@ -64,7 +64,7 @@ internal class DesktopBrotherArchiveUsageGateway(
     },
     private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader,
-    DesktopArchiveIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
+    DesktopArchiveIdempotentUsageGateway, DesktopUsageV2Preflight {
     constructor(
         publishableKey: String,
         versionCode: Int,
@@ -98,7 +98,7 @@ internal class DesktopBrotherArchiveUsageGateway(
     }
 
     /** No reserve/finalize side effects; fail closed on deployed Android V1. */
-    override suspend fun ensureFreeV2Ready(accessToken: String, operation: String) {
+    override suspend fun ensureV2Ready(accessToken: String, operation: String) {
         require(operation in setOf("import_font", "import_matrix")) {
             "Operação de importação inválida para diagnóstico V2."
         }

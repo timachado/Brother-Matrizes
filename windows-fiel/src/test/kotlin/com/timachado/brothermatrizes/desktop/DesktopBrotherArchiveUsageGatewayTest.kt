@@ -65,7 +65,7 @@ class DesktopBrotherArchiveUsageGatewayTest {
         for (operation in listOf("import_font", "import_matrix")) {
             val ok = FakeConnection(expectedEndpoint, 200, "application/json",
                 """{"operation":"$operation","protocol":"free_v2","ready":true}""")
-            client(ok).ensureFreeV2Ready(token, operation)
+            client(ok).ensureV2Ready(token, operation)
             assertEquals("preflight_v2",
                 ok.request()["action"]?.jsonPrimitive?.content)
             assertEquals(operation,
@@ -82,7 +82,7 @@ class DesktopBrotherArchiveUsageGatewayTest {
         for (body in rejected) {
             val fake = FakeConnection(expectedEndpoint, 200, "application/json", body)
             assertFailsWith<IllegalStateException> {
-                client(fake).ensureFreeV2Ready(token, "import_matrix")
+                client(fake).ensureV2Ready(token, "import_matrix")
             }
             assertTrue(fake.disconnected)
             assertEquals("preflight_v2",
@@ -91,7 +91,7 @@ class DesktopBrotherArchiveUsageGatewayTest {
         val legacy = FakeConnection(expectedEndpoint, 400, "application/json",
             """{"message":"unsupported action"}""")
         assertFailsWith<IllegalStateException> {
-            client(legacy).ensureFreeV2Ready(token, "import_matrix")
+            client(legacy).ensureV2Ready(token, "import_matrix")
         }
         assertTrue(legacy.disconnected)
 
@@ -101,7 +101,7 @@ class DesktopBrotherArchiveUsageGatewayTest {
             error("Invalid preflight must never access network")
         }
         assertFailsWith<IllegalArgumentException> {
-            gateway.ensureFreeV2Ready(token, "create_license")
+            gateway.ensureV2Ready(token, "create_license")
         }
         assertEquals(0, createdConnections)
     }

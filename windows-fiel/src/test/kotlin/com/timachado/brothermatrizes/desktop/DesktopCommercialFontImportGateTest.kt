@@ -2,7 +2,7 @@ package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopCommercialFontImportGate
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
-import com.timachado.brothermatrizes.desktop.platform.DesktopUsageFreeV2Preflight
+import com.timachado.brothermatrizes.desktop.platform.DesktopUsageV2Preflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFontLibrary
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
@@ -78,8 +78,8 @@ class DesktopCommercialFontImportGateTest {
         var attemptedReserve = 0
         var attemptedFinalize = 0
         var attemptedPreflight = 0
-        val offline = object : DesktopFontUsageGateway, DesktopUsageFreeV2Preflight {
-            override suspend fun ensureFreeV2Ready(
+        val offline = object : DesktopFontUsageGateway, DesktopUsageV2Preflight {
+            override suspend fun ensureV2Ready(
                 accessToken: String, operation: String
             ) {
                 attemptedPreflight++

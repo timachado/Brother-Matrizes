@@ -71,6 +71,54 @@ class DesktopBrotherProV2QaGatewayTest {
     )
 
     @Test
+    fun proV2PreflightRequiresExactServerApprovalAndNeverCreatesReceipt() =
+        runBlocking {
+            val endpoint = URL(
+                "https://" + qaRef + ".supabase.co/functions/v1/brother-usage"
+            )
+            for (operation in listOf("import_font", "import_matrix")) {
+                val accepted = FakeHttp(endpoint,
+                    body = """{"operation":"$operation","protocol":"pro_v2","ready":true}""")
+                client(accepted).ensureV2Ready(token, operation)
+                assertEquals("preflight_v2",
+                    accepted.payload()["action"]?.jsonPrimitive?.content)
+                assertEquals(operation,
+                    accepted.payload()["operation"]?.jsonPrimitive?.content)
+                assertEquals(2, accepted.payload().keys.size)
+                assertFalse(accepted.payload().containsKey("client_request_id"))
+                assertTrue(accepted.closed)
+            }
+            val denied = listOf(
+                """{"operation":"import_matrix","protocol":"pro_v2","ready":false}""",
+                """{"operation":"import_matrix","protocol":"pro_v2","ready":"true"}""",
+                """{"operation":"import_matrix","protocol":"free_v2","ready":true}""",
+                """{"operation":"import_font","protocol":"pro_v2","ready":true}"""
+            )
+            for (reply in denied) {
+                val fake = FakeHttp(endpoint, body = reply)
+                assertFailsWith<IllegalStateException> {
+                    client(fake).ensureV2Ready(token, "import_matrix")
+                }
+                assertTrue(fake.closed)
+            }
+            val oldBackend = FakeHttp(endpoint, status = 400,
+                body = """{"message":"unsupported action"}""")
+            assertFailsWith<IllegalStateException> {
+                client(oldBackend).ensureV2Ready(token, "import_matrix")
+            }
+            assertTrue(oldBackend.closed)
+            var attempts = 0
+            val gateway = DesktopBrotherProV2QaGateway(key, 196, qaRef) {
+                attempts++
+                error("Nenhum acesso de rede permitido para operação inválida.")
+            }
+            assertFailsWith<IllegalArgumentException> {
+                gateway.ensureV2Ready(token, "grant_pro")
+            }
+            assertEquals(0, attempts)
+        }
+
+    @Test
     fun proV2CannotTargetOfficialProductionOrUsePrivateKey() {
         var opened = 0
         assertFailsWith<IllegalArgumentException> {

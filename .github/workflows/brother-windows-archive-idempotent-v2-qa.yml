@@ -13,6 +13,8 @@ on:
       - "supabase/functions/brother-usage/reserve-v2_test.ts"
       - "supabase/functions/brother-usage/free-v2-route.ts"
       - "supabase/functions/brother-usage/free-v2-route_test.ts"
+      - "supabase/functions/brother-usage/protocol-capability-v2.ts"
+      - "supabase/functions/brother-usage/protocol-capability-v2_test.ts"
       - ".github/scripts/brother_usage_v2_ephemeral_pg.sh"
       - "docs/BROTHER_WINDOWS_RESERVA_IDEMPOTENTE_V2_QA.md"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
@@ -67,12 +69,15 @@ jobs:
           deno check supabase/functions/brother-usage/reserve-v2_test.ts
           deno check supabase/functions/brother-usage/free-v2-route.ts
           deno check supabase/functions/brother-usage/free-v2-route_test.ts
+          deno check supabase/functions/brother-usage/protocol-capability-v2.ts
+          deno check supabase/functions/brother-usage/protocol-capability-v2_test.ts
           echo "BROTHER_V2_DENO_TYPE_CHECK_OK"
       - name: Simular a mesma UUID e primeira resposta perdida, sem rede
         shell: bash
         run: |
           deno test --no-check supabase/functions/brother-usage/reserve-v2_test.ts
           deno test --no-check supabase/functions/brother-usage/free-v2-route_test.ts
+          deno test --no-check supabase/functions/brother-usage/protocol-capability-v2_test.ts
           deno test --no-check supabase/functions/brother-usage/read-status_test.ts
           echo "BROTHER_V2_DENO_IDEMPOTENT_FAKE_RPC_OK"
 

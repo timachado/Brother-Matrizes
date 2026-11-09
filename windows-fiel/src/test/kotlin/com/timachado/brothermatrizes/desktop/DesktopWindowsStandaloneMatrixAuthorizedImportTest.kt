@@ -13,7 +13,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
-import com.timachado.brothermatrizes.desktop.platform.DesktopUsageFreeV2Preflight
+import com.timachado.brothermatrizes.desktop.platform.DesktopUsageV2Preflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsStandaloneMatrixAuthorizedImport
 import java.nio.file.Files
 import java.nio.file.Path
@@ -31,14 +31,14 @@ import kotlin.test.assertTrue
  */
 class DesktopWindowsStandaloneMatrixAuthorizedImportTest {
     private class SyntheticFreeV2 : DesktopArchiveUsageGateway,
-        DesktopArchiveIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
+        DesktopArchiveIdempotentUsageGateway, DesktopUsageV2Preflight {
         var reserves = 0
         val completed = mutableListOf<Boolean>()
         var failBeforeReply = false
         var preflightReady = true
         var preflightChecks = 0
         var lastId = ""
-        override suspend fun ensureFreeV2Ready(
+        override suspend fun ensureV2Ready(
             accessToken: String, operation: String
         ) {
             assertEquals("synthetic-verified-token-no-network", accessToken)

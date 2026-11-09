@@ -58,7 +58,7 @@ class DesktopBrotherFontUsageGatewayTest {
         )
         val success = FakeConnection(endpoint,
             response = """{"operation":"import_font","protocol":"free_v2","ready":true}""")
-        client(success).ensureFreeV2Ready("verified-access-token", "import_font")
+        client(success).ensureV2Ready("verified-access-token", "import_font")
         assertEquals(
             """{"action":"preflight_v2","operation":"import_font"}""",
             success.sentPayload()
@@ -73,7 +73,7 @@ class DesktopBrotherFontUsageGatewayTest {
         )) {
             val fake = FakeConnection(endpoint, response = body)
             assertFailsWith<IllegalStateException> {
-                client(fake).ensureFreeV2Ready("verified-access-token", "import_font")
+                client(fake).ensureV2Ready("verified-access-token", "import_font")
             }
             assertEquals(
                 """{"action":"preflight_v2","operation":"import_font"}""",
@@ -85,7 +85,7 @@ class DesktopBrotherFontUsageGatewayTest {
         val oldServer = FakeConnection(endpoint, status = 400,
             response = """{"message":"unsupported action"}""")
         assertFailsWith<IllegalStateException> {
-            client(oldServer).ensureFreeV2Ready(
+            client(oldServer).ensureV2Ready(
                 "verified-access-token", "import_font")
         }
         assertTrue(oldServer.disconnected)
@@ -95,7 +95,7 @@ class DesktopBrotherFontUsageGatewayTest {
             error("Never connect")
         }
         assertFailsWith<IllegalArgumentException> {
-            gateway.ensureFreeV2Ready("verified-access-token", "import_matrix")
+            gateway.ensureV2Ready("verified-access-token", "import_matrix")
         }
         assertEquals(0, connections)
     }

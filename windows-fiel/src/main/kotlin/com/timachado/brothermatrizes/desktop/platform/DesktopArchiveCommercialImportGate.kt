@@ -42,8 +42,8 @@ internal interface DesktopArchiveUsageGateway {
  * Only concrete HTTP adapters implement this; synthetic V1/V2 test doubles are
  * unaffected. The returned result never confers entitlement or quota.
  */
-internal interface DesktopUsageFreeV2Preflight {
-    suspend fun ensureFreeV2Ready(accessToken: String, operation: String)
+internal interface DesktopUsageV2Preflight {
+    suspend fun ensureV2Ready(accessToken: String, operation: String)
 }
 
 internal data class DesktopArchiveImportCommit(
@@ -132,8 +132,8 @@ internal class DesktopArchiveCommercialImportGate(
         // Check the deployed server capability before creating RESERVE_UNKNOWN.
         // Legacy production V1 must not strand a new local marker just because
         // it rejects reserve_v2. This preflight MUST NOT reserve any quota.
-        if (usage is DesktopUsageFreeV2Preflight) {
-            usage.ensureFreeV2Ready(
+        if (usage is DesktopUsageV2Preflight) {
+            usage.ensureV2Ready(
                 token,
                 when (item.category) {
                     DesktopArchiveInventory.Category.MATRIX -> "import_matrix"

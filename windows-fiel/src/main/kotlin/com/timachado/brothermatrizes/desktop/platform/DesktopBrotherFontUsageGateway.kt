@@ -24,7 +24,7 @@ internal class DesktopBrotherFontUsageGateway(
     private val openConnection: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
     }
-) : DesktopFontIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
+) : DesktopFontIdempotentUsageGateway, DesktopUsageV2Preflight {
     private val endpoint = URL(
         "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
     )
@@ -53,7 +53,7 @@ internal class DesktopBrotherFontUsageGateway(
     }
 
     /** Read-only: server must confirm Free V2 before a journal is created. */
-    override suspend fun ensureFreeV2Ready(accessToken: String, operation: String) {
+    override suspend fun ensureV2Ready(accessToken: String, operation: String) {
         require(operation == "import_font") {
             "Diagnóstico V2 da fonte só permite import_font."
         }

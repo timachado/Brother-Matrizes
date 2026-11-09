@@ -65,3 +65,14 @@ Se a resposta desaparecer ou o servidor antigo devolver 400, o marcador `RESERVE
 - **A verificação não substitui a aprovação do banco/RPC, conta e cotas em staging.** `ready` informa uma configuração autorizada pelo servidor, não prova que sua migração foi aplicada. As flags adicionais de QA continuam desligadas por padrão. O Android V1 mantém as rotas existentes.
 
 **Resultado a registrar quando o CI terminar:** ver os checks do commit da revisão; não declarar publicação comercial sem teste real. O proprietário confirmou login realizado no Windows; não solicitar repetição desse passo sem uma falha reproduzível de autenticação, especificando o cenário.
+
+
+## Preflight Pro V2 staging — extensão da proteção (09/11/2026)
+
+O preflight autenticado `preflight_v2` identifica o protocolo a partir do entitlement **do servidor**: `free_v2` para conta Free e `pro_v2` para conta Pro, com flags server-side separadas `BROTHER_FREE_V2_ENABLED` e `BROTHER_PRO_V2_ENABLED`. A resposta `ready` é booleana e não cria recibos, não lê arquivos e não modifica quotas. É apenas sinal de configuração habilitada; não comprova RPC implantada.
+
+O adapter `DesktopBrotherProV2QaGateway` continua **proibindo** o ref de produção e só opera num projeto staging diferente. Ele agora exige `preflight_v2` com `protocol=pro_v2`, `ready=true` e operação exata **antes** de o gate criar um registro local `RESERVE_UNKNOWN`. Falsos positivos, HTTP 400 da versão V1, opção Pro desligada e respostas de protocolo Free bloqueiam sem reserva.
+
+As interfaces dos gates Windows foram generalizadas para `DesktopUsageV2Preflight` e `ensureV2Ready`. Fontes Free e arquivos ZIP/7Z continuam usando o contrato Free V2; arquivo Pro em staging usa protocolo Pro V2. Os testes de gateway fake, de importação e do contrato de capacidade não usam contas comerciais ou Supabase real.
+
+**Não houve implantação:** produção permanece com `brother-usage` V7 e RPCs legadas; nenhuma flag, migração, RPC, licença, dados comerciais ou Android foi alterado. A homologação em staging de banco descartável deve preceder qualquer deploy comercial.

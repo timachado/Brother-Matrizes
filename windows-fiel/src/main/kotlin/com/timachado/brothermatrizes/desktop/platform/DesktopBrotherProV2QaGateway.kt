@@ -31,7 +31,7 @@ internal class DesktopBrotherProV2QaGateway(
         it.openConnection() as HttpURLConnection
     }
 ) : DesktopArchiveUsageGateway, DesktopArchiveIdempotentUsageGateway,
-    DesktopArchiveQuotaStatusReader {
+    DesktopArchiveQuotaStatusReader, DesktopUsageV2Preflight {
 
     override val reservationProtocol =
         DesktopArchiveQuotaJournal.ReservationProtocol.PRO_V2
@@ -60,6 +60,23 @@ internal class DesktopBrotherProV2QaGateway(
             endpoint.path == "/functions/v1/brother-usage" &&
             endpoint.query == null && endpoint.ref == null) {
             "Endpoint staging inesperado."
+        }
+    }
+
+    /** Read-only staging gate: never create a Pro journal on legacy servers. */
+    override suspend fun ensureV2Ready(accessToken: String, operation: String) {
+        require(operation == "import_font" || operation == "import_matrix") {
+            "A operação Pro V2 para diagnóstico é inválida."
+        }
+        val response = post(accessToken, buildJsonObject {
+            put("action", "preflight_v2")
+            put("operation", operation)
+        })
+        check(response.text("operation") == operation &&
+            response.text("protocol") == "pro_v2" &&
+            response.bool("ready") == true) {
+            "O servidor staging ainda não confirmou Pro V2. " +
+                "Nenhuma cota nem arquivo foi criado."
         }
     }
 

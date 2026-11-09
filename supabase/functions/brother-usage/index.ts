@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { describeV2Capability } from "./protocol-capability-v2.ts";
 import { readKnownImportStatus } from "./read-status.ts";
 import { handleFreeV2Reserve } from "./free-v2-route.ts";
 import { handleProV2 } from "./pro-v2-route.ts";
@@ -207,11 +208,12 @@ Deno.serve(async (req: Request) => {
   // cannot spend a quota. Existing Android V1 actions are untouched.
   // A Pro account must not be misled into the still-disabled Free V2 path.
   if (payload.action === "preflight_v2") {
-    return reply({
-      operation: payload.operation,
-      protocol: "free_v2",
-      ready: freeV2Enabled && !isPro,
-    });
+    return reply(describeV2Capability({
+      operation: payload.operation as "import_font" | "import_matrix",
+      isPro,
+      freeV2Enabled,
+      proV2Enabled,
+    }));
   }
 
   // Authenticated Pro V2 is staged behind an opt-in flag. All permission

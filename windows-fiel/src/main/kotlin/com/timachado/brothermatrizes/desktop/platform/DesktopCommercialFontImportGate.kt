@@ -106,8 +106,8 @@ internal class DesktopCommercialFontImportGate(
 
         // Do not create an ambiguous quota marker when the deployed backend
         // still supports only Android V1. The HTTP preflight is read-only.
-        if (usage is DesktopUsageFreeV2Preflight) {
-            usage.ensureFreeV2Ready(token, "import_font")
+        if (usage is DesktopUsageV2Preflight) {
+            usage.ensureV2Ready(token, "import_font")
         }
 
         // Persist a nonidentifying fingerprint and RESERVE_UNKNOWN first.
