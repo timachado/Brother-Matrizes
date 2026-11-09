@@ -24,7 +24,7 @@ internal class DesktopBrotherFontUsageGateway(
     private val openConnection: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
     }
-) : DesktopFontUsageGateway {
+) : DesktopFontIdempotentUsageGateway {
     private val endpoint = URL(
         "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
     )
@@ -61,6 +61,36 @@ internal class DesktopBrotherFontUsageGateway(
         return body.string("request_key").also {
             check(keyPattern.matches(it)) { "Reserva de fonte inválida." }
         }
+    }
+
+    /**
+     * Free V2 only. The server must deploy the reviewed reserve_v2 RPC before
+     * QA can enable this path. The current legacy production function fails
+     * closed; Pro users must NOT be switched to ephemeral Pro V1 receipts.
+     */
+    override suspend fun reserveFontOnce(
+        accessToken: String,
+        clientRequestId: String
+    ): String {
+        require(
+            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                .matches(clientRequestId)
+        ) { "Identificador idempotente de fonte inválido." }
+        val response = post(
+            accessToken,
+            """{"action":"reserve_v2","operation":"import_font","client_request_id":"$clientRequestId"}"""
+        )
+        val expected = "usage_$clientRequestId"
+        val replayed = (response["replayed"] as? JsonPrimitive)
+            ?.takeUnless { it.isString }?.booleanOrNull
+        check(response.bool("allowed") &&
+            response.string("operation") == "import_font" &&
+            response.string("request_key") == expected &&
+            response.string("state") == "reserved" &&
+            replayed != null) {
+            "Servidor não confirmou reserva Free V2 idempotente da fonte."
+        }
+        return expected
     }
 
     override suspend fun finalizeFont(
