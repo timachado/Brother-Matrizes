@@ -188,6 +188,12 @@ class DesktopWindowsFullGoogleQaFlowTest {
                 assertFailsWith<IllegalStateException> {
                     account.restoreAndVerify()
                 }
+                assertFailsWith<IllegalStateException> {
+                    account.verifiedAccessTokenForQa()
+                }
+                assertFailsWith<IllegalStateException> {
+                    account.accountPreview()
+                }
                 assertEquals(0, openedBrowser)
                 assertEquals(0, requests)
             }
@@ -242,6 +248,35 @@ class DesktopWindowsFullGoogleQaFlowTest {
                 assertTrue(Files.exists(folder.resolve("qa-brother-account-$officialRef")
                     .resolve("session.v1.dpapi")))
                 assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+            }
+            // Reopen a previously valid DPAPI session WITHOUT the operator's
+            // redirect signoff. Neither bearer nor account should be exposed
+            // and not one authentication/entitlement request may happen.
+            DesktopWindowsGoogleQaEnvironment.openForQa(
+                publishableKey = key,
+                target = DesktopBrotherBackendTarget.official(),
+                folder = folder,
+                browser = DesktopExternalBrowser {
+                    error("Unreviewed DPAPI session must not launch browser")
+                },
+                connectionFactory = connector
+            ).use { unreviewed ->
+                val before = requests.size
+                assertFailsWith<IllegalStateException> {
+                    unreviewed.verifiedAccessTokenForQa()
+                }
+                assertFailsWith<IllegalStateException> {
+                    unreviewed.accountPreview()
+                }
+                assertFailsWith<IllegalStateException> {
+                    unreviewed.restoreAndVerify()
+                }
+                assertEquals(before, requests.size)
+                // Keep existing DPAPI bytes unchanged for later reviewed QA;
+                // closing an unreviewed controller cannot grant access.
+                assertTrue(Files.exists(folder.resolve(
+                    "qa-brother-account-$officialRef"
+                ).resolve("session.v1.dpapi")))
             }
             DesktopWindowsGoogleQaEnvironment.openForQa(
                 publishableKey = key,
