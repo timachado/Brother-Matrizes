@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPendingFontQuotaReview
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceRedirectPreflight
@@ -96,6 +97,7 @@ internal fun DesktopAccountQaScreen(
     var busy by remember { mutableStateOf(false) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
     var pendingFontQuotaStatus by remember { mutableStateOf<String?>(null) }
+    var remoteFontQuotaStatus by remember { mutableStateOf<String?>(null) }
     var loopbackStatus by remember { mutableStateOf<String?>(null) }
     var pastedAllowlist by remember { mutableStateOf("") }
     var allowlistReview by remember { mutableStateOf<String?>(null) }
@@ -106,6 +108,7 @@ internal fun DesktopAccountQaScreen(
         scope.launch {
             busy = true
             try {
+                remoteFontQuotaStatus = null
                 summary = action()
                 info = if (summary == null) {
                     "Não existe uma sessão Google validada neste computador."
@@ -353,6 +356,47 @@ internal fun DesktopAccountQaScreen(
                 Text(checkNotNull(pendingFontQuotaStatus), color = FioText)
             }
 
+            // Explicit QA-only server status lookup of an EXISTING local
+            // import_font reservation. Never reserves, settles or clears it.
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy && summary != null,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        remoteFontQuotaStatus = null
+                        try {
+                            val review = checkNotNull(
+                                DesktopWindowsAccountQaOptIn.remoteFontQuotaReviewForQa(
+                                    qaEnvironment
+                                )
+                            ) { "Diagnóstico remoto não autorizado." }
+                            val report = withContext(Dispatchers.IO) {
+                                review.inspectWindowsDefault()
+                            }
+                            remoteFontQuotaStatus = report.userMessage()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            remoteFontQuotaStatus =
+                                "Não foi possível confirmar a cota no servidor. " +
+                                    "Nenhum registro foi liberado; revisão manual obrigatória."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            ) { Text("Conferir reserva de fonte no servidor — QA somente leitura") }
+            if (remoteFontQuotaStatus != null) {
+                Text(checkNotNull(remoteFontQuotaStatus), color = FioText)
+            }
+            Text(
+                "Consulta somente após login Google de QA validado. " +
+                    "Nenhuma confirmação remota libera automaticamente " +
+                    "fontes ou descontos de cota.",
+                color = FioTextMuted
+            )
+
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
@@ -433,6 +477,7 @@ internal fun DesktopAccountQaScreen(
                         try {
                             qaEnvironment.logout()
                             summary = null
+                            remoteFontQuotaStatus = null
                             info = "Sessão Windows encerrada; credenciais locais removidas."
                         } catch (_: Exception) {
                             summary = null
