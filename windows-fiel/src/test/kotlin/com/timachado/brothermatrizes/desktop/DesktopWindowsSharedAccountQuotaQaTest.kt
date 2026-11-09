@@ -42,7 +42,6 @@ class DesktopWindowsSharedAccountQuotaQaTest {
     private val refresh = "offline_google_refresh_token_123456789012345"
     private val userId = "11111111-2222-4333-8444-555555555555"
     private val email = "shared-qa@example.invalid"
-    private val reservation = "usage_12345678-1234-1234-1234-123456789abc"
 
     private class FakeEndpoint(
         url: URL,
@@ -75,6 +74,8 @@ class DesktopWindowsSharedAccountQuotaQaTest {
         val folder = Files.createTempDirectory("brother-shared-quota-qa-")
         val calls = mutableListOf<String>()
         val finalized = mutableListOf<Boolean>()
+        val reservedIds = mutableListOf<String>()
+        var latestRequestKey: String? = null
         val fakeConnections: (URL) -> HttpURLConnection = { url ->
             assertEquals("$ref.supabase.co", url.host)
             assertEquals("https", url.protocol)
@@ -91,11 +92,29 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                     """.trimIndent()
                     "/functions/v1/brother-usage" -> {
                         when {
-                            request.contains("\"action\":\"reserve\"") &&
-                                request.contains("\"operation\":\"import_font\"") ->
-                                """{"allowed":true,"operation":"import_font","request_key":"$reservation"}"""
+                            request.contains("\"action\":\"reserve_v2\"") &&
+                                request.contains("\"operation\":\"import_font\"") -> {
+                                // Mirror the staged Free V2 server contract
+                                // with an exact idempotent UUID from the
+                                // journal. No real server or quota is touched.
+                                val id = Regex(
+                                    """"client_request_id":"([0-9a-f-]{36})""""
+                                ).find(request)?.groupValues?.get(1)
+                                    ?: error("Free V2 missing persisted UUID")
+                                check(Regex(
+                                    "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                ).matches(id)) {
+                                    "Request ID must be UUIDv4"
+                                }
+                                check(id !in reservedIds) {
+                                    "Duplicate Free V2 reservation from a new local import"
+                                }
+                                reservedIds += id
+                                latestRequestKey = "usage_$id"
+                                """{"allowed":true,"operation":"import_font","request_key":"usage_$id","state":"reserved","replayed":false}"""
+                            }
                             request.contains("\"action\":\"finalize\"") &&
-                                request.contains("\"request_key\":\"$reservation\"") -> {
+                                request.contains("\"request_key\":\"${latestRequestKey}\"") -> {
                                 val success = when {
                                     request.contains("\"success\":true") -> true
                                     request.contains("\"success\":false") -> false
@@ -152,6 +171,8 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                 assertEquals(first.id, duplicate.id)
                 assertEquals(1, library.list().size)
                 assertEquals(listOf(true, false), finalized)
+                assertEquals(2, reservedIds.size)
+                assertEquals(2, reservedIds.distinct().size)
                 assertEquals(1, calls.count {
                     it == "/functions/v1/brother-entitlement"
                 })
