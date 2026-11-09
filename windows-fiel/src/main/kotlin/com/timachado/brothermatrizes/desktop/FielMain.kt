@@ -88,6 +88,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsPreferences
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsAutoCheck
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -797,6 +799,39 @@ private fun FielHomeHost(
     }
     val telegramSearchAccess = remember(accountQaEnvironment) {
         DesktopWindowsAccountQaOptIn.telegramSearchAccessForQa(accountQaEnvironment)
+    }
+
+    // Optional public Android news alerts while THIS Windows UI is open.
+    // The default is OFF; screenshot QA and shell-file tests never poll.
+    val newsPreferences = remember { DesktopWindowsNewsPreferences() }
+    val initialNewsState = remember(newsPreferences) {
+        runCatching { newsPreferences.load() }
+    }
+    var automaticNewsEnabled by remember {
+        mutableStateOf(initialNewsState.getOrNull()?.enabled == true)
+    }
+    val normalWindowsSession = !disableRecentRecovery &&
+        !startInCreate && !startInAccountQa && !startInFontsQa &&
+        !startInTransferQa && !startInDrawingQa && !startInArchiveQa &&
+        !startInNameEditorQa && !startInNameEditorApplyQa &&
+        !startInNameEditorKeyboardQa && !startInNameEditorCtrlAQa &&
+        startInChooserQaFile == null && startInLaunchDocument == null &&
+        startInSaveDialogQaFile == null
+    LaunchedEffect(automaticNewsEnabled, normalWindowsSession) {
+        if (!automaticNewsEnabled || !normalWindowsSession) return@LaunchedEffect
+        val checker = DesktopWindowsNewsAutoCheck(newsPreferences)
+        while (true) {
+            try {
+                withContext(Dispatchers.IO) { checker.checkOnce() }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Offline / temporary failure: preserve consent and marker,
+                // never claim a Windows release or repeatedly display errors.
+            }
+            // In-process only; closing the Compose host cancels this watcher.
+            delay(6L * 60 * 60 * 1_000)
+        }
     }
 
     var area by remember {
@@ -2029,7 +2064,16 @@ private fun FielHomeHost(
                 // Firebase Android push remains a documented parity gate.
                 DesktopBrotherCommunityScreen(
                     onBack = { detail = ActiveDetail.NONE },
-                    versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL
+                    versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL,
+                    automaticAndroidNewsEnabled = automaticNewsEnabled,
+                    onAndroidNewsConsentChange = { enable ->
+                        val applied = withContext(Dispatchers.IO) {
+                            DesktopWindowsNewsAutoCheck(newsPreferences)
+                                .setEnabled(enable)
+                        }
+                        automaticNewsEnabled = applied
+                        true
+                    }
                 )
             } else if (area == HomeArea.CREATE) {
                 CreateNameScreen(
