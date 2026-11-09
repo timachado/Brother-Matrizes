@@ -24,6 +24,26 @@ internal object DesktopRecoveredAndroidFontPreflight {
     data class Report(val items: List<Item>) {
         val readableCount: Int get() = items.count { it.readableOutlines }
         val blockedCount: Int get() = items.size - readableCount
+
+        /** Presentation only: no font activation, network or quota action. */
+        fun displayText(): String = buildString {
+            appendLine("Fontes recuperadas de backup Android")
+            appendLine("Compatíveis para inspeção: $readableCount")
+            appendLine("Exigem revisão: $blockedCount")
+            appendLine()
+            if (items.isEmpty()) {
+                appendLine("Nenhuma fonte TTF/OTF recuperada nesta pasta.")
+            } else {
+                items.forEach { item ->
+                    append(if (item.readableOutlines) "[Legível] " else "[Revisar] ")
+                    appendLine(item.displayName)
+                    appendLine("   Arquivo: ${item.fileName}")
+                }
+            }
+            appendLine()
+            appendLine("Somente leitura. Nenhuma fonte foi ativada na biblioteca comercial.")
+            append("Uso no Criar Nome exige autorização oficial e cota válida.")
+        }
     }
 
     fun inspect(recoveredFontsFolder: Path): Report {
