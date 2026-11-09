@@ -33,3 +33,18 @@ O sinalizador é uma barreira de operador, **não uma detecção automática de 
 6. Permanecem pendentes assinatura do executável, testes completos em Windows real e publicação no site da T.I. Machado.
 
 **Status desta revisão:** documentação e trava do Windows implementadas; homologação do servidor e publicação comercial pendentes.
+
+
+## Contrato idempotente de importação de fontes Free V2 — 09/11/2026
+
+**Auditoria somente leitura da implantação atual:** projeto oficial `dwpcddiramxlhavdmmyn` consultado como `ACTIVE_HEALTHY`; Edge Function `brother-usage` versão **7**, que NÃO implementa `reserve_v2`, `reserve_pro_v2`, `status_pro_v2`. O catálogo `pg_proc` de `public` mantém as RPCs legadas `brother_matrizes_reserve_import` e `brother_matrizes_finalize_import`, mas ainda não contém as operações V2 propostas. Nenhuma modificação de banco/Edge Function foi feita.
+
+**Mudança no Windows, somente na PR de QA:** `DesktopCommercialFontImportGate` diferencia os gateways locais sintéticos do adaptador HTTP real `DesktopFontIdempotentUsageGateway`. Para um gateway real, exige journal durável e grava `FREE_V2` + UUIDv4 **antes de abrir conexão**; então chama `reserveFontOnce(accessToken, pending.localId)`, transmitindo `action=reserve_v2`, `operation=import_font` e `client_request_id`. Exige recibo `usage_<UUID>`, estado `reserved`, operação exata e booleano JSON `replayed`. Não chama `reserve` legado na importação real Windows. O caminho das fakes V1 continua nos testes isolados.
+
+Se a resposta desaparecer ou o servidor antigo devolver 400, o marcador `RESERVE_UNKNOWN` permanece, não há fonte publicada nem nova reserva em retry. A reconciliação continua manual. Isso é intencional para não cobrar ou liberar matriz/fonte com estado incerto.
+
+**Portas de habilitação QA:** `BROTHER_WINDOWS_QA_GOOGLE_AUTH=enabled`, chave pública, `BROTHER_WINDOWS_QA_REDIRECT_REVIEWED=enabled`, `BROTHER_WINDOWS_QA_FONT_V2_BACKEND_REVIEWED=enabled` e `BROTHER_WINDOWS_QA_FONT_IMPORT=enabled`, mais controlador Google validado. Os valores são declarações do operador e **não garantem implantação, autenticação real, assinatura ou cotas disponíveis**. Nunca habilitar contra produção V1. O pacote público tem essas opções desligadas.
+
+**Limite comercial:** o novo adaptador é **Free V2 somente**. No código da Edge Function preparado na branch, `reserve_v2` retorna 503 para Pro; recibos **Pro V2** exigem ativação separada de RPC/Edge Function/entitlement. Não usar `pro_<UUID>` efêmero legado nem permitir importação Pro por fallback. O backend V2 e o OAuth de QA devem ser homologados primeiro em ambiente isolado, com aprovação explícita antes de mudanças no serviço oficial.
+
+**Evidência automatizada adicionada:** `DesktopBrotherFontUsageGatewayTest` verifica payload V2, replays, recusa de respostas legadas/Pro e UUID errado; `DesktopCommercialFontFreeV2JournalTest` reproduz resposta perdida, confirma UUID persistido e nenhuma reserva repetida; `DesktopWindowsFontImportOptInTest` exige todas as aprovações. Sem conta real, HTTP de produção ou fonte de cliente.
