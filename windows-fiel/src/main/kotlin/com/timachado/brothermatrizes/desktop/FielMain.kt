@@ -999,10 +999,15 @@ private fun FielHomeHost(
     var favorites by remember { mutableStateOf(initialData.favorites) }
     var recentProjectIds by remember { mutableStateOf(initialData.recents) }
     var selectedLibraryFolder by remember { mutableStateOf(initialData.selectedFolder) }
-    // Review only recovered Android backup fonts; this never imports or
-    // exposes them to the paid font catalog, nor requests Google/quotas.
+    // Android backup font review is local/read-only. Never call Swing modal
+    // dialogs on the Compose dispatcher or create a commercial font import.
+    var recoveredFontsPreflightBusy by remember { mutableStateOf(false) }
     LaunchedEffect(recoveredFontsReviewRequest) {
-        if (recoveredFontsReviewRequest > 0) {
+        if (recoveredFontsReviewRequest <= 0 || recoveredFontsPreflightBusy) {
+            return@LaunchedEffect
+        }
+        recoveredFontsPreflightBusy = true
+        try {
             val suggested = selectedLibraryFolder?.let { saved ->
                 runCatching { Path.of(saved).toAbsolutePath().normalize().resolve("fonts") }
                     .getOrNull()
@@ -1010,39 +1015,37 @@ private fun FielHomeHost(
             val folder = if (suggested != null &&
                 Files.isDirectory(suggested, LinkOption.NOFOLLOW_LINKS)) {
                 suggested
-            } else {
-                val picker = JFileChooser().apply {
-                    dialogTitle = "Selecionar a pasta fonts recuperada do backup Android"
-                    fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-                }
-                if (picker.showOpenDialog(null) == JFileChooser.APPROVE_OPTION)
-                    picker.selectedFile.toPath().toAbsolutePath().normalize()
-                else null
-            }
+            } else DesktopNativeMatrixPicker.chooseDirectory(
+                "Selecionar pasta fonts recuperada do backup Android",
+                selectedLibraryFolder?.let { Path.of(it) }
+            )
             if (folder != null) {
-                runCatching {
-                    withContext(Dispatchers.IO) {
-                        DesktopRecoveredAndroidFontPreflight.inspect(folder)
+                val report = withContext(Dispatchers.IO) {
+                    DesktopRecoveredAndroidFontPreflight.inspect(folder)
+                }
+                withContext(Dispatchers.IO) {
+                    javax.swing.SwingUtilities.invokeAndWait {
+                        val textArea = JTextArea(report.displayText(), 18, 64).apply {
+                            isEditable = false
+                            lineWrap = true
+                            wrapStyleWord = true
+                            caretPosition = 0
+                        }
+                        JOptionPane.showMessageDialog(
+                            null, JScrollPane(textArea),
+                            "Brother Matrizes — fontes recuperadas (somente leitura)",
+                            JOptionPane.INFORMATION_MESSAGE
+                        )
                     }
-                }.fold(onSuccess = { report ->
-                    val textArea = JTextArea(report.displayText(), 18, 64).apply {
-                        isEditable = false
-                        lineWrap = true
-                        wrapStyleWord = true
-                        caretPosition = 0
-                    }
-                    JOptionPane.showMessageDialog(
-                        null, JScrollPane(textArea),
-                        "Brother Matrizes — fontes recuperadas (somente leitura)",
-                        JOptionPane.INFORMATION_MESSAGE
-                    )
-                }, onFailure = { error ->
-                    snackbar.showSnackbar(
-                        "Não foi possível consultar fontes do backup: " +
-                            (error.message ?: "pasta ou arquivo incompatível")
-                    )
-                })
+                }
             }
+        } catch (error: Exception) {
+            snackbar.showSnackbar(
+                "Não foi possível consultar fontes do backup: " +
+                    (error.message ?: "pasta ou arquivo incompatível")
+            )
+        } finally {
+            recoveredFontsPreflightBusy = false
         }
     }
     // Exact Android SentMatrixRecord fields, stored independently from FLP
