@@ -97,6 +97,69 @@ internal object DesktopWindowsAccountQaOptIn {
         )
     }
 
+    /**
+     * Explicitly isolated developer QA for the ORIGINAL Android archive
+     * selection with server-authorized import_matrix/import_font.
+     *
+     * Current official production V1 does NOT support reserve_v2.
+     * Enabling these flags is a human operator assertion, not proof of
+     * deployment, license or safety. Normal Windows packages leave OFF.
+     */
+    internal fun archiveImportEnabled(
+        environment: Map<String, String> = System.getenv()
+    ): Boolean =
+        environment["BROTHER_WINDOWS_QA_ARCHIVE_IMPORT"] == "enabled" &&
+            environment["BROTHER_WINDOWS_QA_ARCHIVE_V2_BACKEND_REVIEWED"] == "enabled" &&
+            redirectReviewedForQa(environment)
+
+    /** Called only by an explicit import click, never by screen composition. */
+    fun archiveImportForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        projectFolder: java.nio.file.Path?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopWindowsArchiveAuthorizedImport? {
+        if (qaEnvironment == null || projectFolder == null ||
+            !archiveImportEnabled(environment)) return null
+        val key = publicKeyFromEnvironment(environment) ?: return null
+        val root = DesktopWindowsDpapiSessionStore.defaultUserDataFolder()
+        check(!java.nio.file.Files.isSymbolicLink(root) &&
+            java.nio.file.Files.isDirectory(
+                root, java.nio.file.LinkOption.NOFOLLOW_LINKS
+            )) { "Diretório privado QA não está preparado." }
+        val project = projectFolder.toAbsolutePath().normalize()
+        check(!java.nio.file.Files.isSymbolicLink(project) &&
+            java.nio.file.Files.isDirectory(
+                project, java.nio.file.LinkOption.NOFOLLOW_LINKS
+            )) { "Selecione uma Biblioteca FLP real antes de importar." }
+        val fonts = root.resolve("fonts")
+        val audit = root.resolve("archive-import-usage-journal")
+        for (directory in listOf(fonts, audit)) {
+            check(directory.parent == root &&
+                !java.nio.file.Files.isSymbolicLink(directory)) {
+                "Caminho de importação QA inseguro."
+            }
+            if (!java.nio.file.Files.exists(
+                    directory, java.nio.file.LinkOption.NOFOLLOW_LINKS
+                )) java.nio.file.Files.createDirectory(directory)
+            check(!java.nio.file.Files.isSymbolicLink(directory) &&
+                java.nio.file.Files.isDirectory(
+                    directory, java.nio.file.LinkOption.NOFOLLOW_LINKS
+                )) { "Diretório de importação QA inválido." }
+        }
+        return DesktopWindowsArchiveAuthorizedImport(
+            usage = DesktopBrotherArchiveUsageGateway(
+                publishableKey = key,
+                versionCode = DesktopAndroidBaseline.VERSION_CODE
+            ),
+            session = DesktopVerifiedFontSession {
+                qaEnvironment.verifiedAccessTokenForQa()
+            },
+            journal = DesktopArchiveQuotaJournal(audit),
+            projectFolder = project,
+            fontFolder = fonts
+        )
+    }
+
     /** Same official Google/PKCE controller as Minha Conta and DaFont. */
     fun telegramSearchAccessForQa(
         qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
