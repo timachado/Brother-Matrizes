@@ -60,7 +60,8 @@ internal class DesktopArchiveSelectiveImportFactory(
     private val originalArchive: Path,
     private val expectedPreview: DesktopArchiveInventory.Preview,
     private val validatedSinkFactory: DesktopArchiveValidatedSinkFactory,
-    private val cancelled: () -> Boolean = { false }
+    private val cancelled: () -> Boolean = { false },
+    private val archivePassword: CharArray? = null
 ) : DesktopArchiveOwnershipAwareImportFactory {
     override val supportsDurableOwnership: Boolean
         get() = validatedSinkFactory is DesktopArchiveOwnershipAwareSinkFactory
@@ -101,7 +102,8 @@ internal class DesktopArchiveSelectiveImportFactory(
                         originalArchive,
                         expectedPreview,
                         item,
-                        cancelled = { !callerContext.isActive || cancelled() }
+                        cancelled = { !callerContext.isActive || cancelled() },
+                        password = archivePassword
                     )
                 }
                 return try {
