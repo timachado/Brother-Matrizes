@@ -10,6 +10,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedMatrixExpor
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Comparator
+import java.util.concurrent.TimeUnit
+import org.junit.jupiter.api.Timeout
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -17,6 +19,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /** Uses synthetic "Edvaldo"; never handles a customer's Defender-blocked file. */
+// Prevent a corrupt/edge-case embroidery parser from silently stalling the
+// entire Windows QA build. This timeout is QA-only and never weakens the app.
+@Timeout(value = 30, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class DesktopVerifiedMatrixExportTest {
     private fun design() = TextLayoutGenerator.generate(
         TextLayoutOptions(
