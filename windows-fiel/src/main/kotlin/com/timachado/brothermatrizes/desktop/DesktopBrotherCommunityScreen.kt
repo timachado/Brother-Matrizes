@@ -46,8 +46,10 @@ internal fun DesktopBrotherCommunityScreen(
     openBrowser: (URI) -> Unit = DesktopBrotherCommunityLinks::openWebsite,
     openMail: (URI) -> Unit = DesktopBrotherCommunityLinks::openEmailDraft,
     automaticAndroidNewsEnabled: Boolean = false,
+    automaticWindowsReleaseEnabled: Boolean = false,
     allowPublicGroupLookup: Boolean = true,
-    onAndroidNewsConsentChange: suspend (Boolean) -> Boolean = { false }
+    onAndroidNewsConsentChange: suspend (Boolean) -> Boolean = { false },
+    onWindowsReleaseConsentChange: suspend (Boolean) -> Boolean = { false }
 ) {
     var feedbackOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
@@ -60,6 +62,7 @@ internal fun DesktopBrotherCommunityScreen(
     }
     var checkingNews by remember { mutableStateOf(false) }
     var checkingWindowsNews by remember { mutableStateOf(false) }
+    var savingWindowsConsent by remember { mutableStateOf(false) }
     var windowsReleaseInfo by remember { mutableStateOf<String?>(null) }
 
     // Same priority and fallback as the Android Community screen. Public
@@ -204,6 +207,54 @@ internal fun DesktopBrotherCommunityScreen(
                         "Verificar novidades oficiais Windows")
                 }
                 windowsReleaseInfo?.let { Text(it, color = FioTextMuted) }
+                Text(
+                    "Opcional: verificar lançamentos oficiais Windows a cada " +
+                        "6 horas enquanto o Brother Matrizes estiver aberto. " +
+                        "Este consentimento é independente dos avisos Android; " +
+                        "nunca faz download ou instalação automática.",
+                    color = FioTextMuted
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !checkingWindowsNews && !savingWindowsConsent,
+                    onClick = {
+                        scope.launch {
+                            savingWindowsConsent = true
+                            try {
+                                val enable = !automaticWindowsReleaseEnabled
+                                val changed = onWindowsReleaseConsentChange(enable)
+                                windowsReleaseInfo = if (changed && enable)
+                                    "Avisos Windows ativados neste PC. Se o canal " +
+                                        "ainda não tiver release publicado, não " +
+                                        "será exibida nenhuma notificação."
+                                else if (changed)
+                                    "Avisos automáticos Windows desativados neste PC."
+                                else
+                                    "Avisos Windows indisponíveis nesta execução."
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                windowsReleaseInfo =
+                                    "Não foi possível validar o canal ou salvar " +
+                                        "o consentimento Windows; nenhuma ativação aplicada."
+                            } finally {
+                                savingWindowsConsent = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (savingWindowsConsent) "Salvando…" else
+                        if (automaticWindowsReleaseEnabled)
+                            "Desativar avisos automáticos Windows"
+                        else "Ativar avisos automáticos Windows")
+                }
+                Text(
+                    if (automaticWindowsReleaseEnabled)
+                        "Avisos Windows: ativados por consentimento."
+                    else
+                        "Avisos Windows: desativados por padrão.",
+                    color = FioTextMuted
+                )
             }
         }
         Card(
