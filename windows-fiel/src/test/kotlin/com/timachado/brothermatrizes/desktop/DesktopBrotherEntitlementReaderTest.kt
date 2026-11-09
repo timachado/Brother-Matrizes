@@ -46,7 +46,11 @@ class DesktopBrotherEntitlementReaderTest {
         pro: String = "false",
         status: String = "active",
         authenticated: String = "true"
-    ): String = """{"authenticated":$authenticated,"user":{"id":"$id","email":"$email"},"planCode":"$plan","status":"$status","pro":$pro}"""
+    ): String {
+        val period = if (plan in setOf("trial", "pro_monthly", "pro_yearly"))
+            "\"2099-01-01T00:00:00Z\"" else "null"
+        return """{"authenticated":$authenticated,"user":{"id":"$id","email":"$email"},"planCode":"$plan","status":"$status","pro":$pro,"commercialConfigured":true,"trialStatus":"eligible","currentPeriodEnd":$period}"""
+    }
 
     @Test
     fun readsFreeAndServerApprovedPaidPlansWithoutWritingCommercialState() = runBlocking {
