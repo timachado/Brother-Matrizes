@@ -25,6 +25,14 @@ CLI instalado, homologar em banco descartável com pgTAP e revisar
 advisors, RLS, concorrência e permissões. A aprovação para implantar
 precisa ser uma etapa separada.
 
+## Porta de ativação Free V2 independente (09/11/2026)
+
+**Proteção incluída somente no código da PR, ainda sem deploy:** o roteador `brother-usage/index.ts` aceita `reserve_v2` apenas quando a variável **de servidor** `BROTHER_FREE_V2_ENABLED` é exatamente `true`. Ausente, `false`, `1` ou qualquer outra configuração, responde HTTP 503 antes de acessar a autoridade de licença ou o RPC. A operação **não** é ativada por login Google, chave publicável, flag Windows ou pela mera existência da função SQL. O arquivo `free-v2-route.ts` reforça a negação antes de chamar o RPC, mesmo se o roteador for alterado depois.
+
+O bloqueio Free V2 é **independente** de `BROTHER_PRO_V2_ENABLED`: não habilita Pro, não modifica `reserve` e `finalize` legados do Android e não cria licença. Testes sem rede `free-v2-route_test.ts` verificam ausência de acesso ao banco com rollout desligado, UUID idêntico no replay e rejeição de resposta Pro para reserva Free.
+
+Para homologação futura, revisar as RPCs SQL e RLS num **PostgreSQL descartável** primeiro; depois exigir projeto autorizado, conta Google de QA, evidência do allowlist OAuth e auditoria de recuperação. Não configurar a flag no Supabase de produção até aprovação específica da mudança comercial. A revisão do ambiente real e o deploy não foram executados aqui.
+
 ## Contrato aditivo
 
 Nova ação HTTP:
