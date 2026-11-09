@@ -53,6 +53,7 @@ internal fun DesktopTelegramMatrixSearchScreen(
     projects: List<SavedProjectSummary>,
     onBack: () -> Unit,
     onOpenLocalFile: () -> Unit,
+    onImportLocalFile: (() -> Unit)? = null,
     onRequireGoogle: () -> Unit,
     onOpenSavedProject: (SavedProjectSummary) -> Unit,
     access: DesktopTelegramSearchAccess = DesktopTelegramSearchUnavailable
@@ -113,10 +114,17 @@ internal fun DesktopTelegramMatrixSearchScreen(
         OutlinedButton(
             onClick = onOpenLocalFile, modifier = Modifier.fillMaxWidth()
         ) { Text("Abrir arquivo do Telegram / Arquivos") }
+        if (onImportLocalFile != null) {
+            OutlinedButton(
+                onClick = onImportLocalFile,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Importar matriz PES/DST/JEF com conta e cota") }
+        }
         Text(
             "Como no Android, a pesquisa em grupos privados ocorre no próprio Telegram. " +
-                "O Windows não acessa suas mensagens. Nesta QA, abrir arquivo local permite " +
-                "visualizar a matriz, mas ainda não a importa para a Biblioteca com cota comercial.",
+                "O Windows não acessa suas mensagens. Abrir um arquivo permite visualizar " +
+                "a matriz; importar para a Biblioteca exige conta verificada, " +
+                "permissão comercial e cota do servidor.",
             color = FioTextMuted,
             fontSize = 11.sp,
             modifier = Modifier.padding(vertical = 9.dp)
