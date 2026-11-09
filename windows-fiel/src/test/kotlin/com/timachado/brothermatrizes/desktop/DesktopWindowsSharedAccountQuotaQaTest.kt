@@ -75,6 +75,7 @@ class DesktopWindowsSharedAccountQuotaQaTest {
         val calls = mutableListOf<String>()
         val finalized = mutableListOf<Boolean>()
         val reservedIds = mutableListOf<String>()
+        val preflightRequests = mutableListOf<String>()
         var latestRequestKey: String? = null
         val fakeConnections: (URL) -> HttpURLConnection = { url ->
             assertEquals("$ref.supabase.co", url.host)
@@ -92,6 +93,12 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                     """.trimIndent()
                     "/functions/v1/brother-usage" -> {
                         when {
+                            request.contains("\"action\":\"preflight_v2\"") &&
+                                request.contains("\"operation\":\"import_font\"") -> {
+                                // Read-only check: no UUID, reservation or quota.
+                                preflightRequests += request
+                                """{"operation":"import_font","protocol":"free_v2","ready":true}"""
+                            }
                             request.contains("\"action\":\"reserve_v2\"") &&
                                 request.contains("\"operation\":\"import_font\"") -> {
                                 // Mirror the staged Free V2 server contract
@@ -173,10 +180,12 @@ class DesktopWindowsSharedAccountQuotaQaTest {
                 assertEquals(listOf(true, false), finalized)
                 assertEquals(2, reservedIds.size)
                 assertEquals(2, reservedIds.distinct().size)
+                assertEquals(2, preflightRequests.size)
+                assertTrue(preflightRequests.all { !it.contains("client_request_id") })
                 assertEquals(1, calls.count {
                     it == "/functions/v1/brother-entitlement"
                 })
-                assertEquals(4, calls.count {
+                assertEquals(6, calls.count {
                     it == "/functions/v1/brother-usage"
                 })
                 session.logout()
