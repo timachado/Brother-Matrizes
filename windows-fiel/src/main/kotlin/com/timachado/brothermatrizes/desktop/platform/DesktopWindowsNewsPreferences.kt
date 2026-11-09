@@ -92,14 +92,26 @@ internal class DesktopWindowsNewsPreferences(
     companion object {
         private const val HEADER = "BROTHER_MATRIZES_WINDOWS_NEWS_V1"
 
-        private fun defaultFile(): Path {
+        /**
+         * Windows release alerts NEVER inherit Android-news consent,
+         * stored version or defaults. Same atomic encoding, distinct file.
+         * Does not create the file until the user explicitly opts in.
+         */
+        fun forWindowsReleases(): DesktopWindowsNewsPreferences =
+            DesktopWindowsNewsPreferences(
+                defaultFolder().resolve("windows-official-release-notices-v1.txt")
+            )
+
+        private fun defaultFolder(): Path {
             val root = System.getenv("LOCALAPPDATA")
                 ?.takeIf { it.isNotBlank() }?.let { Path.of(it) }
                 ?: Path.of(System.getProperty("user.home"), ".local", "share")
             return root.toAbsolutePath().normalize()
                 .resolve("T.I. Machado")
                 .resolve("Brother Matrizes")
-                .resolve("windows-news-v1.txt")
         }
+
+        private fun defaultFile(): Path =
+            defaultFolder().resolve("windows-news-v1.txt")
     }
 }
