@@ -47,7 +47,7 @@ internal object DesktopWindowsPortableShortcuts {
         // PowerShell code. No ExecutionPolicy bypass, admin, Defender edits.
         val processBuilder = ProcessBuilder(
             "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive",
-            "-Command", "& $env:BM_PORTABLE_SCRIPT; exit $LASTEXITCODE"
+            "-Command", "& \$env:BM_PORTABLE_SCRIPT; exit \$LASTEXITCODE"
         ).directory(root.toFile()).redirectErrorStream(true)
         processBuilder.environment()["BM_PORTABLE_SCRIPT"] = script.toString()
         val process = processBuilder.start()
