@@ -23,6 +23,18 @@ CREATE TABLE public.brother_matrizes_import_usage (
 );
 CREATE INDEX brother_matrizes_import_usage_user_period_idx
   ON public.brother_matrizes_import_usage(user_id, operation, period_start);
+-- Isolated stub representing the EXISTING Android V1 finalization signature.
+-- The QA here tests only routine presence / privileges, never grants quotas.
+CREATE FUNCTION public.brother_matrizes_finalize_import(
+  p_user_id uuid, p_operation text, p_request_key text, p_success boolean
+) RETURNS boolean LANGUAGE sql SECURITY INVOKER SET search_path TO ''
+AS $body$ SELECT FALSE $body$;
+REVOKE ALL ON FUNCTION public.brother_matrizes_finalize_import(
+  uuid,text,text,boolean
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.brother_matrizes_finalize_import(
+  uuid,text,text,boolean
+) TO service_role;
 SQL
 
 python3 - <<'PY'
@@ -205,4 +217,21 @@ for role in anon authenticated; do
     exit 1
   fi
 done
+# A missing finalization RPC must turn the read-only readiness OFF.
+psql -X -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+DROP FUNCTION public.brother_matrizes_finalize_import(uuid,text,text,boolean);
+SET ROLE service_role;
+DO $assert$
+DECLARE v jsonb;
+BEGIN
+  SELECT public.brother_matrizes_v2_capability_probe() INTO v;
+  IF v->>'free_v2' <> 'false' THEN
+    RAISE EXCEPTION 'Free V2 accepted missing finalization RPC: %', v;
+  END IF;
+END
+$assert$;
+RESET ROLE;
+ROLLBACK;
+SQL
 echo "BROTHER_V2_SQL_CAPABILITY_FREE_ONLY_READONLY_OK"

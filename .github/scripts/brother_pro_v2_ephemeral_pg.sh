@@ -291,4 +291,23 @@ for role in anon authenticated; do
     exit 1
   fi
 done
+# Fail closed when Pro finalization disappears even with reserve installed.
+psql -X -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+DROP FUNCTION public.brother_matrizes_finalize_pro_import_v2(
+  uuid,text,uuid,boolean
+);
+SET ROLE service_role;
+DO $assert$
+DECLARE v jsonb;
+BEGIN
+  SELECT public.brother_matrizes_v2_capability_probe() INTO v;
+  IF v->>'pro_v2' <> 'false' THEN
+    RAISE EXCEPTION 'Pro V2 accepted missing finalization RPC: %', v;
+  END IF;
+END
+$assert$;
+RESET ROLE;
+ROLLBACK;
+SQL
 echo "BROTHER_V2_SQL_CAPABILITY_PRO_ONLY_READONLY_OK"

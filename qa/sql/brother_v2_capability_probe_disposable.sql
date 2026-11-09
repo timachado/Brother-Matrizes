@@ -11,6 +11,20 @@ AS $probe$
       AND pg_catalog.to_regprocedure(
         'public.brother_matrizes_reserve_import_v2(uuid,text,uuid)'
       ) IS NOT NULL
+      AND pg_catalog.to_regprocedure(
+        'public.brother_matrizes_finalize_import(uuid,text,text,boolean)'
+      ) IS NOT NULL
+      -- This V2 path uses the existing Android V1 finalization receipt.
+      AND NOT COALESCE(pg_catalog.has_function_privilege(
+        'anon',
+        pg_catalog.to_regprocedure(
+          'public.brother_matrizes_finalize_import(uuid,text,text,boolean)'
+        ), 'EXECUTE'), TRUE)
+      AND NOT COALESCE(pg_catalog.has_function_privilege(
+        'authenticated',
+        pg_catalog.to_regprocedure(
+          'public.brother_matrizes_finalize_import(uuid,text,text,boolean)'
+        ), 'EXECUTE'), TRUE)
       AND NOT COALESCE(pg_catalog.has_function_privilege(
         'anon',
         pg_catalog.to_regprocedure(
@@ -38,6 +52,26 @@ AS $probe$
       AND pg_catalog.to_regprocedure(
         'public.brother_matrizes_finalize_pro_import_v2(uuid,text,uuid,boolean)'
       ) IS NOT NULL
+      AND NOT COALESCE(pg_catalog.has_function_privilege(
+        'anon',
+        pg_catalog.to_regprocedure(
+          'public.brother_matrizes_finalize_pro_import_v2(uuid,text,uuid,boolean)'
+        ), 'EXECUTE'), TRUE)
+      AND NOT COALESCE(pg_catalog.has_function_privilege(
+        'authenticated',
+        pg_catalog.to_regprocedure(
+          'public.brother_matrizes_finalize_pro_import_v2(uuid,text,uuid,boolean)'
+        ), 'EXECUTE'), TRUE)
+      AND NOT COALESCE(pg_catalog.has_table_privilege(
+        'anon',
+        pg_catalog.to_regclass(
+          'public.brother_matrizes_pro_import_receipts'
+        ), 'SELECT'), TRUE)
+      AND NOT COALESCE(pg_catalog.has_table_privilege(
+        'authenticated',
+        pg_catalog.to_regclass(
+          'public.brother_matrizes_pro_import_receipts'
+        ), 'SELECT'), TRUE)
       AND NOT COALESCE(pg_catalog.has_function_privilege(
         'anon',
         pg_catalog.to_regprocedure(

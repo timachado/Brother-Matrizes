@@ -55,3 +55,16 @@ completa de reserva/finalização, identidade, concorrência e cobranças.
 
 Nenhum certificado, chave, senha de usuário ou service_role é necessário
 para rodar a suíte isolada.
+
+### Reforço de finalização (mesma revisão)
+
+A leitura de readiness agora também exige:
+- Free V2: finalizador legado Android `brother_matrizes_finalize_import(uuid,text,text,boolean)`
+  presente e sem `EXECUTE` para `anon`/`authenticated`. A assinatura foi
+  conferida **apenas por SELECT em `pg_catalog.pg_proc` na produção**, sem
+  consultar ou alterar qualquer dado comercial.
+- Pro V2: `brother_matrizes_finalize_pro_import_v2` presente,
+  execução negada a clientes, tabela de recibos Pro com RLS habilitado
+  e leitura da tabela negada a `anon`/`authenticated`.
+- Os testes PostgreSQL Docker removem cada finalizador em transação
+  `ROLLBACK` e exigem `ready=false`. Nunca são executados no Supabase.
