@@ -844,7 +844,7 @@ val copyAndroidExtractorScreen by tasks.registering {
             """    archivePath: Path,
     onBack: () -> Unit,
     onPreviewMatrix: suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit,
-    onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem) -> Unit)? = null"""
+    onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit)? = null"""
         )
         change("    val context = LocalContext.current\n", "")
         change("archiveUri", "archivePath")
@@ -908,8 +908,7 @@ val copyAndroidExtractorScreen by tasks.registering {
                 val chosen = archive.entries.filter { it.index in selected }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !importing && archive.format == com.timachado.brothermatrizes.core.archive.ArchiveFormat.ZIP &&
-                        chosen.size == 1,
+                    enabled = !importing && chosen.size == 1,
                     onClick = {
                         val item = chosen.single()
                         val approval = javax.swing.JOptionPane.showConfirmDialog(
@@ -918,7 +917,7 @@ val copyAndroidExtractorScreen by tasks.registering {
                                 "Confirme que você possui autorização de uso.\\n" +
                                 "A conta Google será verificada e uma cota REAL " +
                                 "poderá ser consumida. Cancelar não reserva cota.",
-                            "Brother Matrizes — autorizar importação ZIP",
+                            "Brother Matrizes — autorizar importação",
                             javax.swing.JOptionPane.YES_NO_OPTION,
                             javax.swing.JOptionPane.WARNING_MESSAGE
                         )
@@ -926,19 +925,21 @@ val copyAndroidExtractorScreen by tasks.registering {
                             importing = true
                             report = ""
                             scope.launch {
+                                val secret = password.toCharArray()
                                 try {
-                                    onAuthorizedImport(archive, item)
+                                    onAuthorizedImport(archive, item, secret)
                                     report = "Item importado e confirmado na Biblioteca."
                                 } catch (failure: Exception) {
                                     report = "Importação bloqueada ou sem cota confirmada. " +
                                         "Verifique Minha Conta e o histórico de cotas."
                                 } finally {
+                                    secret.fill(0.toChar())
                                     importing = false
                                 }
                             }
                         }
                     }
-                ) { Text("IMPORTAR ITEM ZIP COM CONTA E COTA") }
+                ) { Text("IMPORTAR ITEM COM CONTA E COTA") }
             }
             Text(
                 "A interface e o extrator são os originais do Android. " +
