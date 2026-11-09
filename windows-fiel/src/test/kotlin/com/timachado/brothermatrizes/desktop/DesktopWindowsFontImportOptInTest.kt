@@ -85,10 +85,10 @@ class DesktopWindowsFontImportOptInTest {
         assertTrue(host.contains("DesktopWindowsAccountQaOptIn.archiveImportForQa("))
         val script = Files.readString(Path.of("build.gradle.kts"))
         assertTrue(script.contains(
-            "onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem) -> Unit)? = null"
+            "onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem, CharArray) -> Unit)? = null"
         ))
         assertTrue(script.contains(
-            "IMPORTAR ITEM ZIP COM CONTA E COTA"
+            "IMPORTAR ITEM COM CONTA E COTA"
         ))
     }
 
