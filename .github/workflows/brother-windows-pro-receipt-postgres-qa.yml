@@ -1,6 +1,9 @@
 name: Brother Matrizes - recibos Pro V2 PostgreSQL descartavel (QA)
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/windows-fiel-android-1-11-8-20261106
@@ -81,7 +84,7 @@ jobs:
           assert 'import { handleProV2 } from "./pro-v2-route.ts"' in main
           assert 'Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true"' in main
           assert 'typeof payload.action === "string"' in main
-          assert '["reserve_pro_v2", "finalize_pro_v2"].includes(payload.action)' in main
+          assert '["reserve_pro_v2", "finalize_pro_v2", "status_pro_v2"].includes(payload.action)' in main
           assert 'handleProV2({' in main
           assert 'admin.rpc("brother_matrizes_reserve_pro_import_v2", args)' in main
           assert '"brother_matrizes_finalize_pro_import_v2", args' in main
