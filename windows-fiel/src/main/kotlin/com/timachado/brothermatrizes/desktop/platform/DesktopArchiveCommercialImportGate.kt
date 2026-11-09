@@ -109,13 +109,16 @@ internal class DesktopArchiveCommercialImportGate(
         }
         // It must be IMPOSSIBLE to attach a live quota adapter without an
         // explicit crash journal. The normal Windows UI has neither.
-        check(usage !is DesktopBrotherArchiveUsageGateway || journal != null) {
-            "O serviço comercial exige registro durável de reservas."
+        // Every V2 HTTP adapter, including a future isolated Pro V2 one,
+        // must prove journal persistence and durable output ownership.
+        // Do not restrict this check to the original Free V2 class.
+        check(usage !is DesktopArchiveIdempotentUsageGateway || journal != null) {
+            "O serviço V2 exige registro durável de reservas."
         }
-        check(usage !is DesktopBrotherArchiveUsageGateway ||
+        check(usage !is DesktopArchiveIdempotentUsageGateway ||
             (importer is DesktopArchiveOwnershipAwareImportFactory &&
                 importer.supportsDurableOwnership)) {
-            "O serviço comercial exige rastreamento durável da saída local."
+            "O serviço V2 exige rastreamento durável da saída local."
         }
 
         // Persist RESERVE_UNKNOWN BEFORE making the network call. Even a
