@@ -100,6 +100,29 @@ internal object DesktopWindowsAccountQaOptIn {
         )
     }
 
+    /**
+     * Diagnose an existing font import quota marker with the already
+     * verified QA Google session. Construction is offline; the server status
+     * query happens ONLY after the user clicks the QA review button.
+     *
+     * This does not depend on the separate commercial import opt-in.
+     * It never creates a reservation, activates a font or clears a marker.
+     */
+    fun remoteFontQuotaReviewForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopWindowsRemoteFontQuotaQaReview? {
+        val key = publicKeyFromEnvironment(environment) ?: return null
+        if (qaEnvironment == null) return null
+        return DesktopWindowsRemoteFontQuotaQaReview(
+            statusReader = DesktopBrotherKnownQuotaStatusReader(
+                publishableKey = key,
+                versionCode = DesktopAndroidBaseline.VERSION_CODE
+            ),
+            verifiedQaToken = { qaEnvironment.verifiedAccessTokenForQa() }
+        )
+    }
+
     fun openWhenOptedIn(): DesktopWindowsGoogleQaEnvironment? {
         val environment = System.getenv()
         val key = publicKeyFromEnvironment(environment) ?: return null
