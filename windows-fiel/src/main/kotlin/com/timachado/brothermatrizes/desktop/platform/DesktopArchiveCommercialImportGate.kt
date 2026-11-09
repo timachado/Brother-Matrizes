@@ -38,6 +38,14 @@ internal interface DesktopArchiveUsageGateway {
     )
 }
 
+/** Strict, read-only server check, performed before a crash-journal reservation.
+ * Only concrete HTTP adapters implement this; synthetic V1/V2 test doubles are
+ * unaffected. The returned result never confers entitlement or quota.
+ */
+internal interface DesktopUsageFreeV2Preflight {
+    suspend fun ensureFreeV2Ready(accessToken: String, operation: String)
+}
+
 internal data class DesktopArchiveImportCommit(
     val created: Boolean,
     val itemId: String?
@@ -119,6 +127,19 @@ internal class DesktopArchiveCommercialImportGate(
             (importer is DesktopArchiveOwnershipAwareImportFactory &&
                 importer.supportsDurableOwnership)) {
             "O serviço V2 exige rastreamento durável da saída local."
+        }
+
+        // Check the deployed server capability before creating RESERVE_UNKNOWN.
+        // Legacy production V1 must not strand a new local marker just because
+        // it rejects reserve_v2. This preflight MUST NOT reserve any quota.
+        if (usage is DesktopUsageFreeV2Preflight) {
+            usage.ensureFreeV2Ready(
+                token,
+                when (item.category) {
+                    DesktopArchiveInventory.Category.MATRIX -> "import_matrix"
+                    DesktopArchiveInventory.Category.FONT -> "import_font"
+                }
+            )
         }
 
         // Persist RESERVE_UNKNOWN BEFORE making the network call. Even a
