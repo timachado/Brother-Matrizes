@@ -90,6 +90,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPlansPresentation
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsWordPressHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsPreferences
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsAutoCheck
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsOfficialReleaseAutoCheck
@@ -2091,15 +2092,33 @@ private fun FielHomeHost(
                             "Teste PRO requer autenticação e ativação no serviço oficial."
                         ) }
                     },
-                    onOpenPlan = {
-                        scope.launch { snackbar.showSnackbar(
-                            "Contratação deve ser concluída no canal oficial após homologação da conta Windows."
-                        ) }
+                    onOpenPlan = { planCode ->
+                        // Exactly the Android commercial browser destinations.
+                        // A browser checkout cannot issue local Pro entitlement.
+                        scope.launch {
+                            runCatching {
+                                DesktopWindowsWordPressHandoff.openApproved(
+                                    DesktopWindowsWordPressHandoff.plan(planCode)
+                                )
+                            }.onFailure {
+                                snackbar.showSnackbar(
+                                    "Não foi possível abrir o plano no site oficial."
+                                )
+                            }
+                        }
                     },
                     onOpenWebAccount = {
-                        scope.launch { snackbar.showSnackbar(
-                            "Consulte suas licenças pelo portal oficial; autenticação Windows ainda em homologação."
-                        ) }
+                        scope.launch {
+                            runCatching {
+                                DesktopWindowsWordPressHandoff.openApproved(
+                                    DesktopWindowsWordPressHandoff.account()
+                                )
+                            }.onFailure {
+                                snackbar.showSnackbar(
+                                    "Não foi possível abrir o portal de licenças."
+                                )
+                            }
+                        }
                     }
                 )
             } else if (detail == ActiveDetail.COMMUNITY) {
