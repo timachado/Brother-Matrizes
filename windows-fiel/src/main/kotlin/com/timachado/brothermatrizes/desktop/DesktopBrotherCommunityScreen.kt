@@ -43,7 +43,9 @@ internal fun DesktopBrotherCommunityScreen(
     onBack: () -> Unit,
     versionName: String = "Windows QA",
     openBrowser: (URI) -> Unit = DesktopBrotherCommunityLinks::openWebsite,
-    openMail: (URI) -> Unit = DesktopBrotherCommunityLinks::openEmailDraft
+    openMail: (URI) -> Unit = DesktopBrotherCommunityLinks::openEmailDraft,
+    automaticAndroidNewsEnabled: Boolean = false,
+    onAndroidNewsConsentChange: suspend (Boolean) -> Boolean = { false }
 ) {
     var feedbackOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
@@ -264,11 +266,51 @@ internal fun DesktopBrotherCommunityScreen(
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Notificações push", fontWeight = FontWeight.Bold, color = FioText)
                 Text(
-                    "Avisos locais do Windows podem ser solicitados manualmente " +
-                        "após consultar novidades. Não existe assinatura push, " +
-                        "verificação automática em segundo plano nem instalador " +
-                        "Windows publicado neste canal. O Firebase/FCM do Android " +
-                        "ainda depende de homologação de serviço específico no PC.",
+                    "Avisos automáticos de novidades Android, enquanto este " +
+                        "aplicativo Windows estiver aberto. A verificação é " +
+                        "feita no máximo a cada 6 horas e cada versão é avisada " +
+                        "uma vez. Não instala serviço, não executa downloads " +
+                        "e não representa Firebase push ou atualização Windows.",
+                    color = FioTextMuted
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !checkingNews,
+                    onClick = {
+                        scope.launch {
+                            checkingNews = true
+                            try {
+                                val next = !automaticAndroidNewsEnabled
+                                val changed = onAndroidNewsConsentChange(next)
+                                status = if (changed && next)
+                                    "Avisos ativados. A versão Android atual foi " +
+                                        "registrada sem notificação antiga. " +
+                                        "O recurso para ao fechar o Brother Matrizes."
+                                else if (changed)
+                                    "Avisos automáticos desativados neste PC."
+                                else
+                                    "A opção automática não está disponível " +
+                                        "nesta execução do aplicativo."
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                status = "Não foi possível salvar a preferência " +
+                                    "de avisos ou verificar a versão oficial. " +
+                                    "Nenhuma mudança foi ativada."
+                            } finally {
+                                checkingNews = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (automaticAndroidNewsEnabled)
+                        "Desativar avisos automáticos do Android"
+                    else "Ativar avisos automáticos do Android")
+                }
+                Text(
+                    "Consentimento: " + if (automaticAndroidNewsEnabled)
+                        "ativo para esta conta do Windows (não é assinatura Pro)"
+                    else "desativado por padrão",
                     color = FioTextMuted
                 )
             }
