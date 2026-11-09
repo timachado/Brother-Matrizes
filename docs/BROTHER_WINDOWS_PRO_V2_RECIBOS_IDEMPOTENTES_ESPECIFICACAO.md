@@ -150,3 +150,18 @@ Para `finalize_pro_v2`, apenas a identidade `getUser` e a propriedade da reserva
 **Evidências:** [CI #42411506522](https://github.com/timachado/Brother-Matrizes/actions/runs/42411506522) aprovada com compilação de toda a Edge Function (`deno check`), **7 testes do roteador + 10 testes Pro** e testes SQL sobre PostgreSQL 16 descartável; [guarda Pro #42411509845](https://github.com/timachado/Brother-Matrizes/actions/runs/42411509845) aprovada.
 
 **Bloqueadores remanescentes do portão comercial #2:** migração oficial Supabase CLI, staging independente, grants/RLS com usuários reais de QA, validação de redirect Google Windows, revisão de segredo e variável do ambiente e aprovação separada para publicação. Nenhum destes bloqueadores foi encerrado pelos testes offline. Nenhuma versão EXE nova foi gerada neste ciclo.
+
+
+## Transporte Windows Pro V2 restrito a staging — 09/11/2026
+
+Foi acrescentado `DesktopBrotherProV2QaGateway` **somente ao código de QA**. Ele implementa `DesktopArchiveIdempotentUsageGateway` com protocolo persistido `PRO_V2`, enviando os formatos `reserve_pro_v2`, `finalize_pro_v2` e `status_pro_v2` já previstos no backend de branch. Em nenhum momento este adaptador cria uma assinatura, ativa Pro, processa pagamento ou autoriza a importação por uma configuração local.
+
+**Bloqueio técnico contra produção:** seu construtor exige `stagingProjectRef` explicitamente e **rejeita** o ID oficial `dwpcddiramxlhavdmmyn`. Não há referência default a projeto staging nem conexão à interface Windows. Logo, nenhum usuário do pacote QA pode ativar o fluxo comercial com um botão existente ou apenas com flags do ambiente. A primeira integração real exige um projeto staging autorizado, mais aprovação separada antes de alterar o bloqueio do ID oficial.
+
+**Garantias de recibo:** reserva recebe exclusivamente UUIDv4 já persistido, exige `pro_<UUID>`, `allowed:true`, `pro:true`, `state:reserved`, operação exata e `replayed` booleano JSON. A finalização recusa respostas legadas `{"ok":true}`; exige chave, operação, estado `completed`/`failed` de acordo com o resultado e booleano `replayed`. A consulta `status_pro_v2` é somente leitura, não apaga journal nem resolve reserva. O método `reserve` V1 **sempre** falha em vez de emitir recibos efêmeros.
+
+**Reforço do portão:** `DesktopArchiveCommercialImportGate` passou a exigir journal durável e importador com identidade/ownership persistidos de **qualquer** `DesktopArchiveIdempotentUsageGateway` (Free ou Pro), e não somente da classe original Free. Sem essas duas garantias não há requisição ao servidor. No Pro V2 o journal grava `PRO_V2` e UUID antes da primeira reserva; bloqueia reenvio automático após perda de resposta.
+
+**Testes:** `DesktopBrotherProV2QaGatewayTest` utiliza exclusivamente `HttpURLConnection` simulada, sem navegador, Supabase real, pagamento, assinatura, cliente ou fonte de terceiros. Abrange impossibilidade de selecionar produção, recibos de fonte/matriz, replay, finalização, consulta de estado, negação de resposta legada, UUID incorreto e importação sem journal. Incluído na compilação Windows portátil. O sucesso do CI não é homologação no staging real.
+
+**Pendências:** criar/homologar ambiente de staging autorizado, aplicar migração sob revisão, validar RLS/grants/recibos, reproduzir Google/PKCE com conta de QA e realizar testes físicos Windows. A Edge Function de produção versão 7 continua sem essas rotas; o Android oficial não foi alterado.
