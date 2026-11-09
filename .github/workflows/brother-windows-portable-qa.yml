@@ -470,7 +470,7 @@ jobs:
             windows-fiel/build/qa/archive-inventory-windows-qa.png
             windows-fiel/build/qa/create-name-windows-original-port.png
             windows-fiel/build/qa/name-editor-windows-original-port.png
-          windows-fiel/build/qa/chooser-pes-viewer.png
-          windows-fiel/build/qa/chooser-flp-viewer.png
+            windows-fiel/build/qa/chooser-pes-viewer.png
+            windows-fiel/build/qa/chooser-flp-viewer.png
           if-no-files-found: warn
           retention-days: 7
