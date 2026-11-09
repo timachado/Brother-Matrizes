@@ -1,6 +1,9 @@
 name: Brother Matrizes - recibos Pro V2 isolados (QA)
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/windows-fiel-android-1-11-8-20261106
