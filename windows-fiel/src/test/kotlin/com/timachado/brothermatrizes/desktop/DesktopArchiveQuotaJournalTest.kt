@@ -5,6 +5,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveImportCommit
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveImportFactory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveItemTransaction
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveOutputEvidenceRecorder
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveOwnershipAwareImportFactory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveIdempotentUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
@@ -90,6 +92,40 @@ class DesktopArchiveQuotaJournalTest {
             Files.deleteIfExists(file)
         }
     }
+
+    /**
+     * The V2 contract requires a file whose identity is journalled both
+     * BEFORE publication and AFTER byte verification. This fake applies
+     * only in synthetic tests, never in a customer library.
+     */
+    private fun v2OwnershipFactory(output: Path): DesktopArchiveOwnershipAwareImportFactory =
+        object : DesktopArchiveOwnershipAwareImportFactory {
+            override val supportsDurableOwnership = true
+
+            override suspend fun begin(item: DesktopArchiveInventory.Item):
+                DesktopArchiveItemTransaction =
+                    error("V2 must use beginWithEvidence")
+
+            override suspend fun beginWithEvidence(
+                item: DesktopArchiveInventory.Item,
+                recorder: DesktopArchiveOutputEvidenceRecorder
+            ): DesktopArchiveItemTransaction = object : DesktopArchiveItemTransaction {
+                override suspend fun apply(): DesktopArchiveImportCommit {
+                    val bytes = byteArrayOf(1, 2, 3)
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(bytes)
+                        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                    recorder.beforePublish(output.fileName.toString(), digest)
+                    Files.write(output, bytes)
+                    recorder.afterVerified(output.fileName.toString(), digest)
+                    return DesktopArchiveImportCommit(true, output.fileName.toString())
+                }
+
+                override suspend fun rollback() {
+                    Files.deleteIfExists(output)
+                }
+            }
+        }
 
     @Test
     fun persistsOpaqueRecordBeforeNetworkAndNeverStoresBearerOrOriginalArchiveName() {
@@ -308,7 +344,7 @@ class DesktopArchiveQuotaJournalTest {
     fun gateUsesPersistedUuidForV2AndNeverInvokesLegacyReserve() = runBlocking {
         withFolder { folder ->
             val journal = DesktopArchiveQuotaJournal(folder)
-            val output = folder.resolve("new-v2.pes")
+            val output = folder.resolve("archive-pes-" + "a".repeat(64) + ".flp")
             var requestId: String? = null
             var legacyCalls = 0
             var finalizeCalls = 0
@@ -347,9 +383,8 @@ class DesktopArchiveQuotaJournalTest {
                     finalizeCalls++
                 }
             }
-            val tx = Tx(output)
             val gate = DesktopArchiveCommercialImportGate(
-                gateway, verified, DesktopArchiveImportFactory { tx }, journal
+                gateway, verified, v2OwnershipFactory(output), journal
             )
             val result = gate.importOne(matrix())
             assertTrue(result.created)
@@ -392,7 +427,9 @@ class DesktopArchiveQuotaJournalTest {
             }
             val gate = DesktopArchiveCommercialImportGate(
                 gateway, verified,
-                DesktopArchiveImportFactory { error("No importer after lost response") },
+                v2OwnershipFactory(
+                    folder.resolve("archive-pes-" + "a".repeat(64) + ".flp")
+                ),
                 journal
             )
             assertFailsWith<IllegalStateException> { gate.importOne(matrix()) }
