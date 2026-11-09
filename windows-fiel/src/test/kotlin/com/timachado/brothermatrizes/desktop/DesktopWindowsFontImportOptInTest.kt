@@ -93,6 +93,53 @@ class DesktopWindowsFontImportOptInTest {
     }
 
     @Test
+    fun telegramMatrixImportRequiresItsOwnOptInAndSharesArchiveJournal() {
+        val telegram = "BROTHER_WINDOWS_QA_TELEGRAM_IMPORT"
+        val archive = "BROTHER_WINDOWS_QA_ARCHIVE_IMPORT"
+        val backend = "BROTHER_WINDOWS_QA_ARCHIVE_V2_BACKEND_REVIEWED"
+        val redirect = "BROTHER_WINDOWS_QA_REDIRECT_REVIEWED"
+        val approved = enabled + (telegram to "enabled") +
+            (archive to "enabled") + (backend to "enabled") +
+            (redirect to "enabled")
+        assertFalse(DesktopWindowsAccountQaOptIn.telegramImportEnabled(emptyMap()))
+        assertFalse(DesktopWindowsAccountQaOptIn.telegramImportEnabled(enabled))
+        for (missing in listOf(
+            telegram, archive, backend, redirect,
+            "BROTHER_WINDOWS_QA_GOOGLE_AUTH",
+            "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY"
+        )) {
+            assertFalse(DesktopWindowsAccountQaOptIn.telegramImportEnabled(
+                approved - missing
+            ))
+        }
+        assertFalse(DesktopWindowsAccountQaOptIn.telegramImportEnabled(
+            approved + (telegram to "true")
+        ))
+        assertTrue(DesktopWindowsAccountQaOptIn.telegramImportEnabled(approved))
+        assertNull(DesktopWindowsAccountQaOptIn.telegramImportForQa(
+            null, null, approved
+        ))
+        val host = Files.readString(Path.of(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+        ))
+        assertTrue(host.contains("DesktopWindowsAccountQaOptIn.telegramImportEnabled()"))
+        assertTrue(host.contains("DesktopWindowsAccountQaOptIn.telegramImportForQa("))
+        assertTrue(host.contains("gate.importStandaloneMatrix(selected)"))
+        val screen = Files.readString(Path.of(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/" +
+                "DesktopTelegramMatrixSearchScreen.kt"
+        ))
+        assertTrue(screen.contains("onImportLocalFile: (() -> Unit)? = null"))
+        assertTrue(screen.contains("if (onImportLocalFile != null)"))
+        val shared = Files.readString(Path.of(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/" +
+                "DesktopWindowsArchiveAuthorizedImport.kt"
+        ))
+        assertTrue(shared.contains("DesktopWindowsStandaloneMatrixAuthorizedImport("))
+        assertTrue(shared.contains("journal = journal"))
+    }
+
+    @Test
     fun remoteReservationInspectionRequiresSeparateReviewedBackendRollout() {
         val v2 = "BROTHER_WINDOWS_QA_KNOWN_QUOTA_STATUS_V2"
         // The current production Edge Function supports legacy aggregate
