@@ -45,7 +45,7 @@ class DesktopRecoveredAndroidFontPreflightTest {
             assertFalse(Files.exists(parent.resolve("font-library")))
             assertEquals(2L, Files.list(folder).use { it.count() })
         } finally {
-            Files.walk(parent).use { it.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
+            Files.walk(parent).use { it.sorted(Comparator.reverseOrder()).forEach { entry -> Files.deleteIfExists(entry) } }
         }
     }
 
@@ -63,7 +63,7 @@ class DesktopRecoveredAndroidFontPreflightTest {
             }
             assertFalse(Files.exists(parent.resolve("font-library")))
         } finally {
-            Files.walk(parent).use { it.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
+            Files.walk(parent).use { it.sorted(Comparator.reverseOrder()).forEach { entry -> Files.deleteIfExists(entry) } }
         }
     }
 }
