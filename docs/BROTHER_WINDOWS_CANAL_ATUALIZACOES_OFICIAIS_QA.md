@@ -45,3 +45,19 @@ O aplicativo verifica HTTPS, host e caminho imutáveis, ignora redirecionamentos
 - Workflow `.github/workflows/brother-windows-portable-qa.yml` compila e executa esses testes sem conectar à rede de produção. A confirmação do novo workflow deve ser registrada separadamente.
 
 **Esta etapa não publica release, não altera WordPress, Supabase, Android comercial ou arquivos de usuários.**
+
+
+## Consentimento de avisos automáticos para Windows (09/11/2026)
+
+O pacote QA passa a ter duas preferências independentes, ambas inicialmente **desativadas**:
+
+- **Novidades Android no Windows:** `windows-news-v1.txt`, leitura de `updates/stable.json`.
+- **Releases Windows:** `windows-official-release-notices-v1.txt`, leitura EXCLUSIVA de `updates/windows/stable.json`.
+
+A escolha sobre Android jamais habilita o recebimento automático de anúncios Windows e vice-versa. O registro local armazena somente a escolha e o maior `versionCode` já informado. O app só consulta o feed Windows **enquanto a janela normal está aberta**, no máximo a cada **6 horas**; modo captura/QA é silencioso. Nenhum serviço residente, inicialização com Windows, FCM, agendamento externo ou serviço em nuvem é criado.
+
+Ao habilitar, a consulta inicial registra a versão já publicada como conhecida, sem notificar notícias antigas. Caso o manifesto retorne **404**, a preferência pode ser habilitada, mas **não há qualquer anúncio**; quando ocorrer a primeira publicação real, essa será a primeira mensagem. Em erro de rede ou manifesto inválido, uma nova ativação falha sem persistir consentimento. Ao desabilitar, a próxima consulta não acontece. Após reiniciar o aplicativo, o mesmo número de versão não produz outro aviso, inclusive quando o sistema não disponibilizou a notificação nativa.
+
+**Não é atualização automática:** o leitor apenas oferece texto, não consome campos de download, não instala binários e não abre URLs do manifesto. Também não valida o direito comercial do usuário. Nenhum manifesto de versão Windows foi criado em `main` nesta etapa.
+
+**QA unitária:** `DesktopWindowsOfficialReleaseAutoCheckTest` valida opt-in independente, canal não publicado, versão seguinte, reinício, erro de rede, desistência durante consulta e sistema sem bandeja de notificação. O workflow Windows portable deve compilar e executar esses testes com dados sintéticos.
