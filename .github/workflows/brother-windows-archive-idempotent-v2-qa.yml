@@ -1,6 +1,9 @@
 name: Brother Matrizes - reserva idempotente V2 (QA sem producao)
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/windows-fiel-android-1-11-8-20261106
