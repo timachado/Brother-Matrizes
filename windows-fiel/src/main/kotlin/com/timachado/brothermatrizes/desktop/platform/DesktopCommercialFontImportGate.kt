@@ -104,6 +104,12 @@ internal class DesktopCommercialFontImportGate(
             "Fonte TTF/OTF inválida ou maior que 12 MB."
         }
 
+        // Do not create an ambiguous quota marker when the deployed backend
+        // still supports only Android V1. The HTTP preflight is read-only.
+        if (usage is DesktopUsageFreeV2Preflight) {
+            usage.ensureFreeV2Ready(token, "import_font")
+        }
+
         // Persist a nonidentifying fingerprint and RESERVE_UNKNOWN first.
         val selected = DesktopArchiveInventory.Item(
             index = 0, entryName = file.fileName.toString(),
