@@ -1,4 +1,7 @@
-import { describeV2Capability } from "./protocol-capability-v2.ts";
+import {
+  describeV2Capability,
+  confirmV2DatabaseCapability,
+} from "./protocol-capability-v2.ts";
 
 function equal(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -32,4 +35,35 @@ Deno.test("V2 capability rejects non-import operations", () => {
     rejected = true;
   }
   equal(rejected, true);
+});
+
+Deno.test("V2 never announces readiness without installed SQL, even if flags are ON", () => {
+  for (const operation of ["import_font", "import_matrix"] as const) {
+    for (const isPro of [false, true]) {
+      const configured = describeV2Capability({
+        operation, isPro, freeV2Enabled: true, proV2Enabled: true,
+      });
+      for (const missing of [
+        null, undefined, [], "", {}, { free_v2: "true", pro_v2: "true" },
+        { free_v2: true, pro_v2: false }, { free_v2: false, pro_v2: true },
+      ]) {
+        const expected = typeof missing === "object" && missing !== null &&
+          !Array.isArray(missing) &&
+          (missing as Record<string, unknown>)[configured.protocol] === true;
+        equal(confirmV2DatabaseCapability(configured, missing), {
+          ...configured, ready: expected,
+        });
+      }
+      equal(confirmV2DatabaseCapability(
+        configured, { free_v2: true, pro_v2: true },
+      ), { ...configured, ready: true });
+    }
+  }
+  const off = describeV2Capability({
+    operation: "import_font", isPro: false,
+    freeV2Enabled: false, proV2Enabled: true,
+  });
+  equal(confirmV2DatabaseCapability(
+    off, { free_v2: true, pro_v2: true },
+  ), { ...off, ready: false });
 });

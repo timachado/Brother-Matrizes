@@ -182,3 +182,27 @@ actual="$(psql -X -t -A -c "SELECT count(*) FROM public.brother_matrizes_import_
 [[ "$actual" == "5" ]] || { echo "Concurrent monthly matrix quota created $actual rows; expected 5" >&2; exit 1; }
 
 echo "BROTHER_V2_DISPOSABLE_POSTGRES_CONCURRENT_AND_QUOTA_QA_OK"
+
+# Additional schema-readiness handshake, read-only and service_role-only.
+# This fixture is executed only after the Free V2 QA RPC was installed.
+psql -X -v ON_ERROR_STOP=1 -f qa/sql/brother_v2_capability_probe_disposable.sql
+psql -X -v ON_ERROR_STOP=1 <<'SQL'
+SET ROLE service_role;
+DO $assert$
+DECLARE v jsonb;
+BEGIN
+  SELECT public.brother_matrizes_v2_capability_probe() INTO v;
+  IF v->>'free_v2' <> 'true' OR v->>'pro_v2' <> 'false' THEN
+    RAISE EXCEPTION 'Free V2 schema readiness incorrect: %', v;
+  END IF;
+END
+$assert$;
+RESET ROLE;
+SQL
+for role in anon authenticated; do
+  if psql -X -v ON_ERROR_STOP=1 -c "SET ROLE $role; SELECT public.brother_matrizes_v2_capability_probe();" >/dev/null 2>&1; then
+    echo "Untrusted $role could call capability probe" >&2
+    exit 1
+  fi
+done
+echo "BROTHER_V2_SQL_CAPABILITY_FREE_ONLY_READONLY_OK"

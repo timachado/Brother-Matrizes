@@ -17,3 +17,24 @@ export function describeV2Capability(input: {
   }
   return { operation: input.operation, protocol: "free_v2", ready: input.freeV2Enabled === true };
 }
+
+/**
+ * DB readiness is an independent, authenticated, read-only server probe.
+ * A feature flag alone MUST NEVER claim a capability is deployable.
+ * Malformed responses or a missing SQL probe always fail closed.
+ */
+export function confirmV2DatabaseCapability(
+  configured: ReturnType<typeof describeV2Capability>,
+  databaseSnapshot: unknown,
+): ReturnType<typeof describeV2Capability> {
+  const snapshot = databaseSnapshot !== null &&
+      typeof databaseSnapshot === "object" &&
+      !Array.isArray(databaseSnapshot)
+    ? databaseSnapshot as Record<string, unknown>
+    : null;
+  const installed = snapshot?.[configured.protocol] === true;
+  return {
+    ...configured,
+    ready: configured.ready === true && installed,
+  };
+}

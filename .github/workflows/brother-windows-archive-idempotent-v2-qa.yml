@@ -15,6 +15,7 @@ on:
       - "supabase/functions/brother-usage/free-v2-route_test.ts"
       - "supabase/functions/brother-usage/protocol-capability-v2.ts"
       - "supabase/functions/brother-usage/protocol-capability-v2_test.ts"
+      - "qa/sql/brother_v2_capability_probe_disposable.sql"
       - ".github/scripts/brother_usage_v2_ephemeral_pg.sh"
       - "docs/BROTHER_WINDOWS_RESERVA_IDEMPOTENTE_V2_QA.md"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
@@ -53,6 +54,9 @@ jobs:
             'admin.rpc("brother_matrizes_reserve_import"',
             'admin.rpc("brother_matrizes_finalize_import"',
             'if (isPro) return reply({',
+            'admin.rpc(',
+            '"brother_matrizes_v2_capability_probe"',
+            'confirmV2DatabaseCapability(configured, capabilityRows)',
           ]
           assert all(x in server for x in required), "V1 or disabled Pro V2 changed"
           assert 'NÃO EXECUTAR' in draft

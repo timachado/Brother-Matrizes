@@ -9,6 +9,7 @@ on:
       - feature/windows-fiel-android-1-11-8-20261106
     paths:
       - "qa/sql/brother_pro_v2_receipts_ephemeral.sql"
+      - "qa/sql/brother_v2_capability_probe_disposable.sql"
       - ".github/scripts/brother_pro_v2_ephemeral_pg.sh"
       - "supabase/functions/brother-usage/pro-receipt-v2.ts"
       - "supabase/functions/brother-usage/pro-receipt-v2_test.ts"

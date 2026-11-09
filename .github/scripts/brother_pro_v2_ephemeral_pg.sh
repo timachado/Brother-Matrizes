@@ -268,3 +268,27 @@ actual="$(psql -X -t -A -c "
 }
 
 echo "BROTHER_PRO_V2_DISPOSABLE_POSTGRES_LOCK_RLS_REPLAY_FINALIZE_OK"
+
+# The same V2 capability probe MUST be installed in an actual staging DB
+# before an enabled Edge Function claims that Pro V2 is ready.
+psql -X -v ON_ERROR_STOP=1 -f qa/sql/brother_v2_capability_probe_disposable.sql
+psql -X -v ON_ERROR_STOP=1 <<'SQL'
+SET ROLE service_role;
+DO $assert$
+DECLARE v jsonb;
+BEGIN
+  SELECT public.brother_matrizes_v2_capability_probe() INTO v;
+  IF v->>'pro_v2' <> 'true' OR v->>'free_v2' <> 'false' THEN
+    RAISE EXCEPTION 'Pro V2 schema readiness incorrect: %', v;
+  END IF;
+END
+$assert$;
+RESET ROLE;
+SQL
+for role in anon authenticated; do
+  if psql -X -v ON_ERROR_STOP=1 -c "SET ROLE $role; SELECT public.brother_matrizes_v2_capability_probe();" >/dev/null 2>&1; then
+    echo "Untrusted $role could call capability probe" >&2
+    exit 1
+  fi
+done
+echo "BROTHER_V2_SQL_CAPABILITY_PRO_ONLY_READONLY_OK"
