@@ -50,6 +50,49 @@ class DesktopWindowsFontImportOptInTest {
     }
 
     @Test
+    fun archiveImportRequiresSeparateReviewedV2ConsentAndVerifiedGoogle() {
+        val import = "BROTHER_WINDOWS_QA_ARCHIVE_IMPORT"
+        val backend = "BROTHER_WINDOWS_QA_ARCHIVE_V2_BACKEND_REVIEWED"
+        val redirect = "BROTHER_WINDOWS_QA_REDIRECT_REVIEWED"
+        val approved = enabled + (import to "enabled") +
+            (backend to "enabled") + (redirect to "enabled")
+        assertFalse(DesktopWindowsAccountQaOptIn.archiveImportEnabled(emptyMap()))
+        assertFalse(DesktopWindowsAccountQaOptIn.archiveImportEnabled(enabled))
+        for (missing in listOf(
+            import, backend, redirect,
+            "BROTHER_WINDOWS_QA_GOOGLE_AUTH",
+            "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY"
+        )) {
+            assertFalse(DesktopWindowsAccountQaOptIn.archiveImportEnabled(
+                approved - missing
+            ))
+        }
+        assertFalse(DesktopWindowsAccountQaOptIn.archiveImportEnabled(
+            approved + (backend to "true")
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.archiveImportEnabled(
+            approved + (import to "true")
+        ))
+        assertTrue(DesktopWindowsAccountQaOptIn.archiveImportEnabled(approved))
+        assertNull(DesktopWindowsAccountQaOptIn.archiveImportForQa(
+            null, null, approved
+        ))
+
+        val host = Files.readString(Path.of(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+        ))
+        assertTrue(host.contains("DesktopWindowsAccountQaOptIn.archiveImportEnabled()"))
+        assertTrue(host.contains("DesktopWindowsAccountQaOptIn.archiveImportForQa("))
+        val script = Files.readString(Path.of("build.gradle.kts"))
+        assertTrue(script.contains(
+            "onAuthorizedImport: (suspend (ArchiveInventory, ArchiveItem) -> Unit)? = null"
+        ))
+        assertTrue(script.contains(
+            "IMPORTAR ITEM ZIP COM CONTA E COTA"
+        ))
+    }
+
+    @Test
     fun remoteReservationInspectionRequiresSeparateReviewedBackendRollout() {
         val v2 = "BROTHER_WINDOWS_QA_KNOWN_QUOTA_STATUS_V2"
         // The current production Edge Function supports legacy aggregate
