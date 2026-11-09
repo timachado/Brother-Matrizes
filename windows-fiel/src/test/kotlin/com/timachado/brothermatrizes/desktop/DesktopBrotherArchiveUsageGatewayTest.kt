@@ -61,6 +61,52 @@ class DesktopBrotherArchiveUsageGatewayTest {
     }
 
     @Test
+    fun freeV2PreflightIsReadOnlyAndRejectsLegacyOrForgedCapability() = runBlocking {
+        for (operation in listOf("import_font", "import_matrix")) {
+            val ok = FakeConnection(expectedEndpoint, 200, "application/json",
+                """{"operation":"$operation","protocol":"free_v2","ready":true}""")
+            client(ok).ensureFreeV2Ready(token, operation)
+            assertEquals("preflight_v2",
+                ok.request()["action"]?.jsonPrimitive?.content)
+            assertEquals(operation,
+                ok.request()["operation"]?.jsonPrimitive?.content)
+            assertEquals(2, ok.request().keys.size)
+            assertTrue(ok.disconnected)
+        }
+        val rejected = listOf(
+            """{"operation":"import_matrix","protocol":"free_v2","ready":false}""",
+            """{"operation":"import_matrix","protocol":"free_v2","ready":"true"}""",
+            """{"operation":"import_matrix","protocol":"legacy_v1","ready":true}""",
+            """{"operation":"import_font","protocol":"free_v2","ready":true}"""
+        )
+        for (body in rejected) {
+            val fake = FakeConnection(expectedEndpoint, 200, "application/json", body)
+            assertFailsWith<IllegalStateException> {
+                client(fake).ensureFreeV2Ready(token, "import_matrix")
+            }
+            assertTrue(fake.disconnected)
+            assertEquals("preflight_v2",
+                fake.request()["action"]?.jsonPrimitive?.content)
+        }
+        val legacy = FakeConnection(expectedEndpoint, 400, "application/json",
+            """{"message":"unsupported action"}""")
+        assertFailsWith<IllegalStateException> {
+            client(legacy).ensureFreeV2Ready(token, "import_matrix")
+        }
+        assertTrue(legacy.disconnected)
+
+        var createdConnections = 0
+        val gateway = DesktopBrotherArchiveUsageGateway(publishable, 195) {
+            createdConnections++
+            error("Invalid preflight must never access network")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            gateway.ensureFreeV2Ready(token, "create_license")
+        }
+        assertEquals(0, createdConnections)
+    }
+
+    @Test
     fun reservesMatrixAndFontUsingRealAndroidRequestShapeAndHeaders() = runBlocking {
         for ((category, operation) in listOf(
             DesktopArchiveInventory.Category.MATRIX to "import_matrix",
