@@ -46,12 +46,20 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
      * atomic Google identity check against the same official Supabase Auth
      * used by Android. Never exposes the token to Compose state or logs.
      */
-    suspend fun verifiedAccessTokenForQa(): String =
-        account.verifiedAccessTokenForQa(identityVerifier)
+    suspend fun verifiedAccessTokenForQa(): String {
+        check(redirectReviewedForQa) {
+            "Acesso ao token Google QA bloqueado até revisão do retorno OAuth."
+        }
+        return account.verifiedAccessTokenForQa(identityVerifier)
+    }
 
     /** Server verified but informational; never grants importing privileges. */
-    suspend fun accountPreview(): DesktopServerAccountSnapshot =
-        account.accountPreviewForQa(identityVerifier, entitlementReader)
+    suspend fun accountPreview(): DesktopServerAccountSnapshot {
+        check(redirectReviewedForQa) {
+            "Consulta da conta Google QA bloqueada até revisão do retorno OAuth."
+        }
+        return account.accountPreviewForQa(identityVerifier, entitlementReader)
+    }
 
     /** Public /auth/v1/settings: does not log in or verify redirect URLs. */
     suspend fun googleProviderReadiness(): DesktopGoogleProviderReadiness.Snapshot =
