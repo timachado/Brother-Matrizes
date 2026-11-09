@@ -1,6 +1,8 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopCommercialFontImportGate
+import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
+import com.timachado.brothermatrizes.desktop.platform.DesktopUsageFreeV2Preflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopImportedFontLibrary
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
@@ -64,6 +66,59 @@ class DesktopCommercialFontImportGateTest {
             Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
         ).firstOrNull { Files.isRegularFile(it) }
             ?: error("Nenhuma fonte TTF de teste disponível no runner.")
+    }
+
+    @Test
+    fun `backend V1 recusa preflight de fonte antes de criar journal`() = runBlocking {
+        val root = Files.createTempDirectory("bm-font-preflight-v1-")
+        val fonts = Files.createDirectory(root.resolve("fonts"))
+        val journal = DesktopArchiveQuotaJournal(
+            Files.createDirectory(root.resolve("journal"))
+        )
+        var attemptedReserve = 0
+        var attemptedFinalize = 0
+        var attemptedPreflight = 0
+        val offline = object : DesktopFontUsageGateway, DesktopUsageFreeV2Preflight {
+            override suspend fun ensureFreeV2Ready(
+                accessToken: String, operation: String
+            ) {
+                attemptedPreflight++
+                assertEquals("token-from-verified-session", accessToken)
+                assertEquals("import_font", operation)
+                error("Servidor comercial V1 (simulado) não habilitou Free V2")
+            }
+            override suspend fun reserveFont(accessToken: String): String {
+                attemptedReserve++
+                error("Reserva não pode acontecer depois do preflight reprovado")
+            }
+            override suspend fun finalizeFont(
+                accessToken: String, requestKey: String, success: Boolean
+            ) {
+                attemptedFinalize++
+                error("Não há reserva para finalizar")
+            }
+        }
+        try {
+            val gate = DesktopCommercialFontImportGate(
+                library = DesktopImportedFontLibrary(fonts),
+                verifiedSession = verifiedSession,
+                usage = offline,
+                journal = journal
+            )
+            assertFailsWith<IllegalStateException> {
+                gate.importFont(fontFixture())
+            }
+            assertEquals(1, attemptedPreflight)
+            assertEquals(0, attemptedReserve)
+            assertEquals(0, attemptedFinalize)
+            assertTrue(journal.listPending().isEmpty())
+            assertTrue(DesktopImportedFontLibrary(fonts).list().isEmpty())
+        } finally {
+            Files.walk(root).use { paths ->
+                paths.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(Files::deleteIfExists)
+            }
+        }
     }
 
     @Test
