@@ -8,6 +8,8 @@ on:
       - "supabase/functions/brother-usage/index.ts"
       - "supabase/functions/brother-usage/reserve-v2.ts"
       - "supabase/functions/brother-usage/reserve-v2_test.ts"
+      - "supabase/functions/brother-usage/free-v2-route.ts"
+      - "supabase/functions/brother-usage/free-v2-route_test.ts"
       - ".github/scripts/brother_usage_v2_ephemeral_pg.sh"
       - "docs/BROTHER_WINDOWS_RESERVA_IDEMPOTENTE_V2_QA.md"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
@@ -39,7 +41,9 @@ jobs:
           draft = Path('docs/BROTHER_WINDOWS_RESERVA_IDEMPOTENTE_V2_QA.md').read_text()
           required = [
             'payload.action === "reserve_v2"',
-            'readKnownImportStatus(', 'reserveImportV2(',
+            'readKnownImportStatus(', 'handleFreeV2Reserve(',
+            'Deno.env.get("BROTHER_FREE_V2_ENABLED") === "true"',
+            'if (payload.action === "reserve_v2" && !freeV2Enabled)',
             'admin.rpc("brother_matrizes_reserve_import_v2"',
             'admin.rpc("brother_matrizes_reserve_import"',
             'admin.rpc("brother_matrizes_finalize_import"',
@@ -58,11 +62,14 @@ jobs:
         run: |
           deno check supabase/functions/brother-usage/reserve-v2.ts
           deno check supabase/functions/brother-usage/reserve-v2_test.ts
+          deno check supabase/functions/brother-usage/free-v2-route.ts
+          deno check supabase/functions/brother-usage/free-v2-route_test.ts
           echo "BROTHER_V2_DENO_TYPE_CHECK_OK"
       - name: Simular a mesma UUID e primeira resposta perdida, sem rede
         shell: bash
         run: |
           deno test --no-check supabase/functions/brother-usage/reserve-v2_test.ts
+          deno test --no-check supabase/functions/brother-usage/free-v2-route_test.ts
           deno test --no-check supabase/functions/brother-usage/read-status_test.ts
           echo "BROTHER_V2_DENO_IDEMPOTENT_FAKE_RPC_OK"
 
