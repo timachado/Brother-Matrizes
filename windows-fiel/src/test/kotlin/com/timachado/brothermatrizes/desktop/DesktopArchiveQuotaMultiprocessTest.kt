@@ -79,15 +79,32 @@ class DesktopArchiveQuotaMultiprocessTest {
         }
     }
 
+    /**
+     * After destroyForcibly(), Windows may hold the redirected holder.log
+     * briefly even though the child JVM is gone. Retry ONLY cleanup of
+     * ephemeral QA files; never retry quota reservation or weaken assertions.
+     */
+    private fun deleteQaFile(path: Path) {
+        repeat(40) { attempt ->
+            try {
+                Files.deleteIfExists(path)
+                return
+            } catch (busy: java.nio.file.FileSystemException) {
+                if (attempt == 39) throw busy
+                Thread.sleep(100)
+            }
+        }
+    }
+
     private inline fun sandbox(action: (Path) -> Unit) {
         val root = Files.createTempDirectory("brother-quota-multiprocess-")
         try {
             action(root)
         } finally {
             Files.list(root).use { stream ->
-                stream.forEach(Files::deleteIfExists)
+                stream.forEach { deleteQaFile(it) }
             }
-            Files.deleteIfExists(root)
+            deleteQaFile(root)
         }
     }
 
