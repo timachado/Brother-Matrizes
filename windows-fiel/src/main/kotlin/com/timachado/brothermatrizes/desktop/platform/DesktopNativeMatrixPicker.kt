@@ -54,7 +54,7 @@ internal object DesktopNativeMatrixPicker {
             suggestedName.isNotBlank() &&
             suggestedName == Path.of(suggestedName).fileName.toString() &&
             suggestedName.lowercase(Locale.ROOT).endsWith(".$extension") &&
-            suggestedName.none { it == '\\u0000' || it == '\\n' || it == '\\r' }) {
+            suggestedName.none { it.code < 32 }) {
             "Nome e extensão de matriz incompatíveis com Salvar como."
         }
         return JFileChooser().apply {
