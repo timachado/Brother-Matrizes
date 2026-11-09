@@ -37,10 +37,10 @@ internal class DesktopOfficialWindowsReleaseNotice(
         val releaseTag: String
     ) {
         fun displayText(): String = buildString {
-            append("Versão oficial Windows ").append(versionName).append(".\\n")
+            append("Versão oficial Windows ").append(versionName).append(".\n")
             if (highlights.isEmpty()) append("Consulte a página oficial para detalhes.")
-            else highlights.forEach { append("• ").append(it).append('\\n') }
-            append("\\nAviso informativo: nenhum executável será baixado, ")
+            else highlights.forEach { append("• ").append(it).append('\n') }
+            append("\nAviso informativo: nenhum executável será baixado, ")
             append("instalado ou executado automaticamente.")
         }
     }
@@ -108,7 +108,7 @@ internal class DesktopOfficialWindowsReleaseNotice(
                 versionCode = versionCode,
                 releaseTag = releaseTag,
                 highlights = root.string("releaseNotes")
-                    .split(';', '\\n')
+                    .split(';', '\n')
                     .map { it.trim().replace(Regex("[\\r\\t]+"), " ") }
                     .filter { it.length in 12..160 && !it.contains("://") }
                     .distinct().take(3)
