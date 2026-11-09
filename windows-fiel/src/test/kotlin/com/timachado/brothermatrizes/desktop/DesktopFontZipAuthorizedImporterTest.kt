@@ -27,7 +27,7 @@ class DesktopFontZipAuthorizedImporterTest {
         val base = Path.of(System.getenv("WINDIR") ?: "C:\\Windows", "Fonts")
         return listOf("arial.ttf", "segoeui.ttf", "tahoma.ttf")
             .map(base::resolve)
-            .firstOrNull(Files::isRegularFile)
+            .firstOrNull { Files.isRegularFile(it) }
             ?: error("Fonte Windows TTF de QA indisponível.")
     }
 
