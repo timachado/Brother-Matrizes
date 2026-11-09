@@ -88,6 +88,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPlansPresentation
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsPreferences
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsAutoCheck
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsOfficialReleaseAutoCheck
@@ -792,6 +794,11 @@ private fun FielHomeHost(
     val accountQaEnvironment = remember {
         runCatching { DesktopWindowsAccountQaOptIn.openWhenOptedIn() }
             .getOrNull()
+    }
+    // In-memory, read-only server facts for the ORIGINAL Android plans UI.
+    // Never saved as an entitlement and never passed to a quota/import gate.
+    var verifiedServerAccount by remember(accountQaEnvironment) {
+        mutableStateOf<DesktopServerAccountSnapshot?>(null)
     }
     DisposableEffect(accountQaEnvironment) {
         onDispose { accountQaEnvironment?.close() }
@@ -2077,7 +2084,7 @@ private fun FielHomeHost(
                 // A conta do Windows ainda não é homologada comercialmente:
                 // nunca inferir plano Pro por estado local ou simular checkout.
                 BrotherPlansScreen(
-                    account = null,
+                    account = DesktopWindowsPlansPresentation.displayOnly(verifiedServerAccount),
                     onBack = { detail = ActiveDetail.NONE; area = HomeArea.ACCOUNT },
                     onActivateTrial = {
                         scope.launch { snackbar.showSnackbar(
@@ -2137,8 +2144,22 @@ private fun FielHomeHost(
                 // O preview do servidor não autoriza recursos comerciais.
                 DesktopAccountQaScreen(
                     onBack = { area = HomeArea.HOME },
-                    onPlans = { detail = ActiveDetail.PLANS },
-                    qaEnvironment = accountQaEnvironment
+                    onPlans = {
+                        // Revalidate on each explicit visit. If offline,
+                        // expired, revoked or not signed in, show only public
+                        // plan cards; never reuse a stale Pro banner.
+                        scope.launch {
+                            verifiedServerAccount = null
+                            verifiedServerAccount = runCatching {
+                                withContext(Dispatchers.IO) {
+                                    accountQaEnvironment?.accountPreview()
+                                }
+                            }.getOrNull()
+                            detail = ActiveDetail.PLANS
+                        }
+                    },
+                    qaEnvironment = accountQaEnvironment,
+                    onServerAccountVerified = { verifiedServerAccount = it }
                 )
             } else if (area == HomeArea.FONTS) {
                 // Catálogo real de presets Android; importação TTF/OTF
