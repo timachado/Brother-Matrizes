@@ -57,7 +57,8 @@ internal class DesktopOfficialCommunityGroupResolver(
             conn.setRequestProperty("Accept", "application/json")
             if (conn.responseCode != HttpURLConnection.HTTP_OK) return null
             val mime = conn.contentType.orEmpty().substringBefore(';').trim().lowercase()
-            if (mime != "application/json" && !mime.endsWith("+json")) return null
+            if (mime != "application/json" && !mime.endsWith("+json") &&
+                !(source.host == "raw.githubusercontent.com" && mime == "text/plain")) return null
             val body = Json.parseToJsonElement(readLimited(conn.inputStream)) as? JsonObject
                 ?: return null
             if (source.host == "raw.githubusercontent.com" &&
