@@ -64,7 +64,7 @@ internal class DesktopBrotherArchiveUsageGateway(
     },
     private val projectRef: String = "dwpcddiramxlhavdmmyn"
 ) : DesktopArchiveUsageGateway, DesktopArchiveQuotaStatusReader,
-    DesktopArchiveIdempotentUsageGateway {
+    DesktopArchiveIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
     constructor(
         publishableKey: String,
         versionCode: Int,
@@ -94,6 +94,23 @@ internal class DesktopBrotherArchiveUsageGateway(
             endpoint.path == "/functions/v1/brother-usage" &&
             endpoint.query == null && endpoint.ref == null) {
             "Endpoint de cotas não autorizado."
+        }
+    }
+
+    /** No reserve/finalize side effects; fail closed on deployed Android V1. */
+    override suspend fun ensureFreeV2Ready(accessToken: String, operation: String) {
+        require(operation in setOf("import_font", "import_matrix")) {
+            "Operação de importação inválida para diagnóstico V2."
+        }
+        val response = post(accessToken, buildJsonObject {
+            put("action", "preflight_v2")
+            put("operation", operation)
+        })
+        check(response.text("operation") == operation &&
+            response.text("protocol") == "free_v2" &&
+            response.boolean("ready")) {
+            "O serviço oficial ainda não disponibilizou cotas Free V2 para Windows. " +
+                "Nenhuma reserva nem arquivo foi criado."
         }
     }
 
