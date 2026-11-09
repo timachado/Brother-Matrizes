@@ -108,10 +108,24 @@ internal object DesktopWindowsAccountQaOptIn {
      * This does not depend on the separate commercial import opt-in.
      * It never creates a reservation, activates a font or clears a marker.
      */
+    /**
+     * Extra deployment gate: the CURRENT official production brother-usage
+     * Edge Function has only legacy aggregate "status", not the per-request
+     * status/status_pro_v2 contract in the staged branch. An explicit QA
+     * operator must verify the new backend is deployed before opting in.
+     * This flag NEVER grants commercial import or a subscription.
+     */
+    internal fun knownQuotaStatusV2Enabled(
+        environment: Map<String, String>
+    ): Boolean =
+        environment["BROTHER_WINDOWS_QA_KNOWN_QUOTA_STATUS_V2"] == "enabled" &&
+            publicKeyFromEnvironment(environment) != null
+
     fun remoteFontQuotaReviewForQa(
         qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
         environment: Map<String, String> = System.getenv()
     ): DesktopWindowsRemoteFontQuotaQaReview? {
+        if (!knownQuotaStatusV2Enabled(environment)) return null
         val key = publicKeyFromEnvironment(environment) ?: return null
         if (qaEnvironment == null) return null
         return DesktopWindowsRemoteFontQuotaQaReview(
