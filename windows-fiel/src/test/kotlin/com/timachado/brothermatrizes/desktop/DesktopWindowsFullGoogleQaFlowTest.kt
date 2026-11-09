@@ -137,7 +137,7 @@ class DesktopWindowsFullGoogleQaFlowTest {
             val reader = DesktopBrotherEntitlementReader(key) { url ->
                 assertEquals("/functions/v1/brother-entitlement", url.path)
                 HttpFake(url,
-                    """{"authenticated":true,"user":{"id":"$uid","email":"$email"},"planCode":"pro_lifetime","pro":true,"status":"active"}""")
+                    """{"authenticated":true,"user":{"id":"$uid","email":"$email"},"planCode":"pro_lifetime","pro":true,"status":"active","commercialConfigured":true}""")
             }
             DesktopWindowsAuthQaController.open(
                 DesktopWindowsAuthQaController.googleSignInSource(coordinator),
