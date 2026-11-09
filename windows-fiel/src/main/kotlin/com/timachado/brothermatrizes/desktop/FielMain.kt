@@ -1943,7 +1943,46 @@ private fun FielHomeHost(
                             } finally {
                                 Files.deleteIfExists(temporaryFolder)
                             }
-                        }
+                        },
+                        onAuthorizedImport = if (
+                            accountQaEnvironment != null &&
+                            DesktopWindowsAccountQaOptIn.archiveImportEnabled()
+                        ) {
+                            { originalPreview, selected ->
+                                val localFolder = catalog?.folder
+                                    ?: error("Selecione primeiro uma pasta FLP na Biblioteca.")
+                                // Explicit operator QA: the normal Windows
+                                // package has no archive import callback.
+                                val importer = checkNotNull(
+                                    DesktopWindowsAccountQaOptIn.archiveImportForQa(
+                                        accountQaEnvironment, localFolder
+                                    )
+                                ) { "Importação sem homologação V2 está bloqueada." }
+                                val committed = withContext(Dispatchers.IO) {
+                                    importer.importOne(
+                                        sourceArchive, originalPreview, selected
+                                    )
+                                }
+                                if (committed.created) {
+                                    if (selected.category ==
+                                        com.timachado.brothermatrizes.core.archive.ArchiveCategory.MATRIX
+                                    ) {
+                                        // Refresh only after the server has
+                                        // acknowledged the import transaction.
+                                        catalog = withContext(Dispatchers.IO) {
+                                            DesktopProjectCatalog.scan(localFolder)
+                                        }
+                                    }
+                                    snackbar.showSnackbar(
+                                        "Item validado, autorizado pelo servidor e salvo na Biblioteca."
+                                    )
+                                } else {
+                                    snackbar.showSnackbar(
+                                        "Item já existente; nenhuma nova importação foi gravada."
+                                    )
+                                }
+                            }
+                        } else null
                     )
                 } else {
                     // Legacy synthetic capture still opens the same preview.
