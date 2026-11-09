@@ -177,6 +177,46 @@ class DesktopWindowsStandaloneMatrixAuthorizedImportTest {
         }
 
     @Test
+    fun peDesignPcPesV6ImportsWithoutAffectingBrotherMachineProfile() =
+        withLibrary { root, projects, fonts, journal ->
+            // PC PES v6 is the explicit Android PE-DESIGN export profile.
+            // Test its existing Windows parser and FLP import, not PE-DESIGN itself.
+            val design = TextLayoutGenerator.generate(
+                TextLayoutOptions(
+                    textOptions = TextMatrixOptions(
+                        text = "Lia", heightMm = 12f,
+                        style = TextStitchStyle.RUNNING
+                    )
+                )
+            ).getOrThrow()
+            val machinePes = MatrixConverter.convert(design, "PES").getOrThrow()
+            val pcPes = MatrixConverter.convertForPeDesign(design).getOrThrow()
+            assertTrue(
+                pcPes.bytes.copyOfRange(0, 8)
+                    .toString(Charsets.US_ASCII) == "#PES0060",
+                "Perfil PE-DESIGN precisa manter o cabeçalho PES v6."
+            )
+            assertFalse(machinePes.bytes.contentEquals(pcPes.bytes))
+
+            val selected = root.resolve("Lia-PE-DESIGN.pes")
+            Files.write(selected, pcPes.bytes)
+            val usage = SyntheticFreeV2()
+            val imported = gate(usage, projects, fonts, journal).importOne(selected)
+            assertTrue(imported.created)
+            val reopened = DesktopEmbroideryFiles.open(
+                projects.resolve(checkNotNull(imported.itemId))
+            )
+            assertEquals("PES", reopened.format)
+            assertTrue(reopened.points.count {
+                it.command == StitchCommand.STITCH
+            } > 10)
+            assertEquals(1, usage.reserves)
+            assertEquals(listOf(true), usage.completed)
+            assertTrue(journal.listPending().isEmpty())
+            assertContentEquals(pcPes.bytes, Files.readAllBytes(selected))
+        }
+
+    @Test
     fun invalidLocalFileNeverCreatesReservationOrProject() =
         withLibrary { root, projects, fonts, journal ->
             val qaServer = SyntheticFreeV2()
