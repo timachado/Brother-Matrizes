@@ -31,6 +31,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopReadOnlyFontAnalyzer
 import com.timachado.brothermatrizes.desktop.platform.DesktopExternalFontRunningPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipPreview
+import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipAuthorizedImporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
@@ -44,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.swing.JFileChooser
+import javax.swing.JOptionPane
 import javax.swing.filechooser.FileNameExtensionFilter
 import java.nio.file.Path
 import kotlinx.coroutines.withContext
@@ -174,6 +176,9 @@ internal fun DesktopFontCatalogScreen(
     var catalogStatus by remember { mutableStateOf<String?>(null) }
     var zipBusy by remember { mutableStateOf(false) }
     var zipPreview by remember { mutableStateOf<DesktopFontZipPreview.Result?>(null) }
+    var zipSelectedPath by remember { mutableStateOf<Path?>(null) }
+    var zipImportBusy by remember { mutableStateOf(false) }
+    var zipImportStatus by remember { mutableStateOf<String?>(null) }
     var zipError by remember { mutableStateOf<String?>(null) }
 
     fun inspectFontZipReadOnly() {
@@ -188,12 +193,16 @@ internal fun DesktopFontCatalogScreen(
         val selected = chooser.selectedFile.toPath()
         zipBusy = true
         zipPreview = null
+        zipSelectedPath = null
+        zipImportStatus = null
         zipError = null
         scope.launch {
             try {
-                zipPreview = withContext(Dispatchers.IO) {
+                val checked = withContext(Dispatchers.IO) {
                     DesktopFontZipPreview.inspect(selected)
                 }
+                zipPreview = checked
+                zipSelectedPath = selected
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -202,6 +211,49 @@ internal fun DesktopFontCatalogScreen(
                         "Nenhum arquivo foi extraído ou importado."
             } finally {
                 zipBusy = false
+            }
+        }
+    }
+
+    fun importReviewedZipFont(font: DesktopFontZipPreview.Font) {
+        val gate = importGate ?: return
+        val source = zipSelectedPath ?: return
+        val reviewed = zipPreview ?: return
+        if (zipImportBusy || zipBusy || importBusy) return
+        val consent = JOptionPane.showConfirmDialog(
+            null,
+            "Importar a fonte ${font.name} do ZIP analisado?\\n" +
+                "Confirme que você possui autorização de uso.\\n" +
+                "Esta ação verificará a conta Google no servidor e poderá " +
+                "consumir uma cota de importação TTF/OTF.\\n" +
+                "Cancelar não consome cota.",
+            "Brother Matrizes — confirmar importação de fonte",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        )
+        if (consent != JOptionPane.YES_OPTION) return
+        zipImportBusy = true
+        zipImportStatus = "Validando pacote e autorização da conta…"
+        scope.launch {
+            try {
+                val imported = withContext(Dispatchers.IO) {
+                    DesktopFontZipAuthorizedImporter.importOne(
+                        source, reviewed, font, gate
+                    )
+                }
+                snapshot = withContext(Dispatchers.IO) { reader.snapshot() }
+                failed = false
+                zipImportStatus =
+                    "${imported.displayName}: fonte importada na Biblioteca. " +
+                        "Disponível em Criar Nome."
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                zipImportStatus =
+                    "Importação não confirmada. A fonte não foi liberada; " +
+                        "verifique Minha Conta e eventuais cotas pendentes."
+            } finally {
+                zipImportBusy = false
             }
         }
     }
@@ -436,14 +488,15 @@ internal fun DesktopFontCatalogScreen(
                             else "Selecionar ZIP de fontes (sem importar)")
                     }
                     Text(
-                        "Verifique as fontes TTF/OTF contidas no ZIP, exatamente como " +
-                            "na etapa de seleção Android. Não extrai, salva, converte " +
-                            "nem consome cotas nesta QA.",
+                        "Analise primeiro o ZIP com as verificações do Android. " +
+                            "A seleção não consome cota; para importar uma fonte " +
+                            "é necessário login verificado e confirmação explícita.",
                         color = FioTextMuted
                     )
                     if (zipError != null) {
                         Text(checkNotNull(zipError), color = FioGold)
                     }
+                    zipImportStatus?.let { Text(it, color = FioGold) }
                     if (zipPreview != null) {
                         val report = checkNotNull(zipPreview)
                         Text(
@@ -455,7 +508,10 @@ internal fun DesktopFontCatalogScreen(
                             if (report.fontCount == 0)
                                 "Este ZIP não contém fontes compatíveis para análise."
                             else
-                                "Prévia abaixo. Importação comercial ainda indisponível.",
+                                if (importGate == null)
+                                    "Prévia abaixo. Entre com a conta validada para importar."
+                                else
+                                    "Escolha cada fonte para importar com autorização e cota.",
                             color = FioTextMuted
                         )
                     }
@@ -472,10 +528,19 @@ internal fun DesktopFontCatalogScreen(
                     Column(Modifier.padding(12.dp)) {
                         Text(font.name, color = FioText, fontWeight = FontWeight.Bold)
                         Text(
-                            "${font.format} · ${font.sizeBytes / 1024} KB · " +
-                                "apenas pré-visualização",
+                            "${font.format} · ${font.sizeBytes / 1024} KB",
                             color = FioTextMuted
                         )
+                        if (importGate != null) {
+                            OutlinedButton(
+                                onClick = { importReviewedZipFont(font) },
+                                enabled = !zipBusy && !zipImportBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(if (zipImportBusy)
+                                "Validando importação…" else
+                                "Importar com autorização e confirmação da cota")
+                            }
+                        }
                     }
                 }
             }
