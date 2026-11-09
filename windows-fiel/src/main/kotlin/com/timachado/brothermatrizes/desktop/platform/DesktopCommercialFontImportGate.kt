@@ -27,6 +27,15 @@ internal interface DesktopFontUsageGateway {
     suspend fun finalizeFont(accessToken: String, requestKey: String, success: Boolean)
 }
 
+/**
+ * The live Windows HTTP adapter MUST reserve using the UUID written to the
+ * crash journal before network I/O. Legacy V1 reserve() stays available only
+ * for existing offline test doubles and the original Android contract.
+ */
+internal interface DesktopFontIdempotentUsageGateway : DesktopFontUsageGateway {
+    suspend fun reserveFontOnce(accessToken: String, clientRequestId: String): String
+}
+
 /** Falha fechada para toda a aplicação Windows enquanto não houver OAuth homologado. */
 internal object WindowsFontSessionUnavailable : DesktopVerifiedFontSession {
     override suspend fun accessToken(): String =
@@ -102,8 +111,19 @@ internal class DesktopCommercialFontImportGate(
             extension = extension, sizeBytes = Files.size(file),
             category = DesktopArchiveInventory.Category.FONT
         )
-        var pending = journal?.begin(selected)
-        val reservation = usage.reserveFont(token)
+        val protocol = if (usage is DesktopFontIdempotentUsageGateway)
+            DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2
+        else DesktopArchiveQuotaJournal.ReservationProtocol.LEGACY_UNKNOWN
+        // A free V2 request is journalled BEFORE the first HTTP call.
+        // Pro V2 requires a separate persisted receipt: never silently
+        // fall back to Pro V1 or mint another UUID after any uncertainty.
+        var pending = journal?.begin(selected, protocol)
+        val reservation = if (usage is DesktopFontIdempotentUsageGateway) {
+            val persisted = checkNotNull(pending) {
+                "Reserva idempotente de fonte exige journal durável."
+            }
+            usage.reserveFontOnce(token, persisted.localId)
+        } else usage.reserveFont(token)
         check(serverReservation.matches(reservation)) {
             "Reserva de importação inválida recebida do servidor."
         }
