@@ -160,6 +160,27 @@ internal object DesktopWindowsAccountQaOptIn {
         )
     }
 
+    /**
+     * Import matrix from a local Telegram download or file picker only after
+     * archive Free V2 and an INDEPENDENT Telegram import opt-in. Share the
+     * SAME durable journal and verified account as the Archive Extractor.
+     * No Telegram chat/message access, auto-download or local entitlement.
+     */
+    internal fun telegramImportEnabled(
+        environment: Map<String, String> = System.getenv()
+    ): Boolean =
+        environment["BROTHER_WINDOWS_QA_TELEGRAM_IMPORT"] == "enabled" &&
+            archiveImportEnabled(environment)
+
+    fun telegramImportForQa(
+        qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+        projectFolder: java.nio.file.Path?,
+        environment: Map<String, String> = System.getenv()
+    ): DesktopWindowsArchiveAuthorizedImport? =
+        if (telegramImportEnabled(environment)) {
+            archiveImportForQa(qaEnvironment, projectFolder, environment)
+        } else null
+
     /** Same official Google/PKCE controller as Minha Conta and DaFont. */
     fun telegramSearchAccessForQa(
         qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
