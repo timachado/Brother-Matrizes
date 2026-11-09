@@ -83,7 +83,7 @@ class DesktopCommercialFontFreeV2JournalTest {
             } finally {
                 Files.walk(root).use { paths ->
                     paths.sorted(java.util.Comparator.reverseOrder())
-                        .forEach(Files::deleteIfExists)
+                        .forEach { Files.deleteIfExists(it) }
                 }
             }
         }
