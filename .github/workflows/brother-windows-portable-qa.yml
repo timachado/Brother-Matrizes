@@ -231,6 +231,12 @@ jobs:
           if (!(Test-Path $accountScreenshot) -or (Get-Item $accountScreenshot).Length -lt 10000) {
             throw "Minha Conta do launcher portable nao foi renderizada."
           }
+          $communityScreenshot = "windows-fiel/build/qa/community-windows-official-news-qa.png"
+          $runCommunity = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-community-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($runCommunity.ExitCode -ne 0) { throw "O launcher portable falhou na Comunidade Windows: $($runCommunity.ExitCode)" }
+          if (!(Test-Path $communityScreenshot) -or (Get-Item $communityScreenshot).Length -lt 10000) {
+            throw "Comunidade e avisos oficiais Windows nao renderizados no launcher portable."
+          }
           $fontsScreenshot = "windows-fiel/build/qa/fonts-windows-readonly-qa.png"
           $runFonts = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-fonts-qa") -WorkingDirectory $working -PassThru -Wait
           if ($runFonts.ExitCode -ne 0) { throw "O launcher portable falhou na Biblioteca de Fontes: $($runFonts.ExitCode)" }
@@ -412,6 +418,7 @@ jobs:
           path: |
             windows-fiel/build/qa/home-windows-original-port.png
             windows-fiel/build/qa/account-windows-readonly-qa.png
+            windows-fiel/build/qa/community-windows-official-news-qa.png
             windows-fiel/build/qa/fonts-windows-readonly-qa.png
             windows-fiel/build/qa/machine-transfer-windows-qa.png
             windows-fiel/build/qa/create-drawing-windows-qa.png
