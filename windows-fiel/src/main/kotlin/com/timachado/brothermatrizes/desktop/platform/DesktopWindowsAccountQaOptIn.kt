@@ -65,15 +65,16 @@ internal object DesktopWindowsAccountQaOptIn {
     }
 
     /**
-     * The only opt-in entry point for a REAL import_font reservation.
-     *
-     * TWO independent opt-ins are needed, plus an existing verified Google
-     * QA controller. Default Windows packages expose no import gate.
-     * Never persist the publishable key, bearer or plan as local entitlement.
+     * QA-only Free V2 font import requires FOUR independent operator gates:
+     * Google QA, reviewed OAuth redirect, reviewed/deployed V2 backend and
+     * deliberate font import. None proves commercial entitlement or enables
+     * Pro V2. Without every gate, the UI gets no real quota adapter.
+     * Real import is server-authorized, never inferred from these flags.
      */
     internal fun fontImportEnabled(environment: Map<String, String>): Boolean =
         environment["BROTHER_WINDOWS_QA_FONT_IMPORT"] == "enabled" &&
-            publicKeyFromEnvironment(environment) != null
+            environment["BROTHER_WINDOWS_QA_FONT_V2_BACKEND_REVIEWED"] == "enabled" &&
+            redirectReviewedForQa(environment)
 
     fun fontImportGateForQa(
         qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
