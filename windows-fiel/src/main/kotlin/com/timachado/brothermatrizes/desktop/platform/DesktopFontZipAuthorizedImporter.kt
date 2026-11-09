@@ -56,7 +56,7 @@ internal object DesktopFontZipAuthorizedImporter {
             }
             // The gate revalidates source and verifies Google + quota itself.
             // Temporary extraction is always deleted, including on errors.
-            gate.importFont(stage.file, selected.name.substringBeforeLast('.'))
+            gate.importFont(stage.file, selected.name)
         }
     }
 }
