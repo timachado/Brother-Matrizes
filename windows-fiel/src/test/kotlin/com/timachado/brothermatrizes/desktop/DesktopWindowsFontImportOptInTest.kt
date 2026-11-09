@@ -35,6 +35,52 @@ class DesktopWindowsFontImportOptInTest {
     }
 
     @Test
+    fun remoteReservationInspectionRequiresSeparateReviewedBackendRollout() {
+        val v2 = "BROTHER_WINDOWS_QA_KNOWN_QUOTA_STATUS_V2"
+        // The current production Edge Function supports legacy aggregate
+        // status only. Merely enabling Google or font import cannot enable
+        // a per-request status endpoint which is not deployed.
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            emptyMap()
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            enabled
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            mapOf(v2 to "enabled")
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            (enabled - "BROTHER_WINDOWS_QA_GOOGLE_AUTH") + (v2 to "enabled")
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            (enabled - "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY") +
+                (v2 to "enabled")
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            enabled + (v2 to "true")
+        ))
+        val qaReady = enabled + (v2 to "enabled")
+        assertTrue(DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+            qaReady
+        ))
+        assertNull(DesktopWindowsAccountQaOptIn.remoteFontQuotaReviewForQa(
+            null, qaReady
+        ))
+        assertNull(DesktopWindowsAccountQaOptIn.remoteFontQuotaReviewForQa(
+            null, enabled
+        ))
+
+        val screen = Files.readString(Path.of(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/" +
+                "DesktopAccountQaScreen.kt"
+        ))
+        assertTrue(screen.contains(
+            "DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled("
+        ))
+        assertTrue(screen.contains("Consulta remota desabilitada"))
+    }
+
+    @Test
     fun standardUiCannotExposeCommercialImportWithoutOptIn() {
         val source = Files.readString(Path.of(
             "src/main/kotlin/com/timachado/brothermatrizes/desktop/" +
