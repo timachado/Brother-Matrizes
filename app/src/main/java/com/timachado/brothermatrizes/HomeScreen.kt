@@ -73,7 +73,10 @@ fun HomeScreen(
     onClearRecent: () -> Unit,
     onUnavailable: (String) -> Unit,
     onCommunity: () -> Unit,
-    updateRefreshRequest: Int = 0
+    updateRefreshRequest: Int = 0,
+    // Windows desktop can open a native file picker on first action.
+    // Android keeps its existing Home behavior (default false).
+    openViaPickerWhenNoRecent: Boolean = false
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -240,7 +243,7 @@ fun HomeScreen(
                 enabled = true
             ) {
                 if (
-                    recent != null
+                    recent != null || openViaPickerWhenNoRecent
                 ) {
                     onSimulate()
                 } else {
@@ -268,7 +271,7 @@ fun HomeScreen(
                 enabled = true
             ) {
                 if (
-                    recent != null
+                    recent != null || openViaPickerWhenNoRecent
                 ) {
                     onEdit()
                 } else {
@@ -296,7 +299,7 @@ fun HomeScreen(
                 enabled = true
             ) {
                 if (
-                    recent != null
+                    recent != null || openViaPickerWhenNoRecent
                 ) {
                     onConvert()
                 } else {
@@ -324,7 +327,7 @@ fun HomeScreen(
                 enabled = true
             ) {
                 if (
-                    recent != null
+                    recent != null || openViaPickerWhenNoRecent
                 ) {
                     onTransfer()
                 } else {

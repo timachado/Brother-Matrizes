@@ -2565,6 +2565,7 @@ private fun FielHomeHost(
                         }
                     },
                     onUnavailable = { text -> informNotPorted(text) },
+                    openViaPickerWhenNoRecent = true,
                     onCommunity = {
                         area = HomeArea.HOME
                         detail = ActiveDetail.COMMUNITY
