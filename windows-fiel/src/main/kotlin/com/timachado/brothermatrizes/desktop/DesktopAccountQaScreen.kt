@@ -358,9 +358,14 @@ internal fun DesktopAccountQaScreen(
 
             // Explicit QA-only server status lookup of an EXISTING local
             // import_font reservation. Never reserves, settles or clears it.
+            // Disabled on the currently deployed legacy backend; operator
+            // must verify staging rollout before enabling the extra QA flag.
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !busy && summary != null,
+                enabled = !busy && summary != null &&
+                    DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+                        System.getenv()
+                    ),
                 onClick = {
                     scope.launch {
                         busy = true
@@ -391,9 +396,15 @@ internal fun DesktopAccountQaScreen(
                 Text(checkNotNull(remoteFontQuotaStatus), color = FioText)
             }
             Text(
-                "Consulta somente após login Google de QA validado. " +
-                    "Nenhuma confirmação remota libera automaticamente " +
-                    "fontes ou descontos de cota.",
+                if (DesktopWindowsAccountQaOptIn.knownQuotaStatusV2Enabled(
+                    System.getenv()
+                ))
+                    "Apenas homologação V2: nenhuma confirmação remota libera " +
+                        "fontes ou descontos de cota automaticamente."
+                else
+                    "Consulta remota desabilitada: a função brother-usage " +
+                        "publicada ainda não possui status individual V2. " +
+                        "É necessária homologação separada do backend.",
                 color = FioTextMuted
             )
 
