@@ -442,9 +442,21 @@ internal fun DesktopAccountQaScreen(
                 color = FioTextMuted
             )
 
+            Text(
+                if (DesktopWindowsAccountQaOptIn.redirectReviewedForQa())
+                    "Login Google permitido apenas para teste explícito com " +
+                        "conta dedicada de QA. Isso não homologa o retorno OAuth."
+                else
+                    "Login Google bloqueado: conferir Redirect URLs no painel " +
+                        "Supabase e habilitar manualmente " +
+                        "BROTHER_WINDOWS_QA_REDIRECT_REVIEWED=enabled em ambiente QA. " +
+                        "Não utilizar contas de clientes ou produção.",
+                color = FioTextMuted
+            )
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !busy,
+                enabled = !busy &&
+                    DesktopWindowsAccountQaOptIn.redirectReviewedForQa(),
                 onClick = {
                     runAccountAction {
                         qaEnvironment.signIn()
@@ -457,7 +469,8 @@ internal fun DesktopAccountQaScreen(
 
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !busy,
+                enabled = !busy &&
+                    DesktopWindowsAccountQaOptIn.redirectReviewedForQa(),
                 onClick = {
                     runAccountAction {
                         if (qaEnvironment.restoreAndVerify()) {
