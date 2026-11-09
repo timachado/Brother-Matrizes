@@ -1,6 +1,7 @@
 package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
+import com.timachado.brothermatrizes.core.embroidery.StitchCommand
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutGenerator
 import com.timachado.brothermatrizes.core.embroidery.TextLayoutOptions
 import com.timachado.brothermatrizes.core.embroidery.TextMatrixOptions
@@ -9,6 +10,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveIdempotentUs
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
+import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsStandaloneMatrixAuthorizedImport
@@ -134,6 +136,43 @@ class DesktopWindowsStandaloneMatrixAuthorizedImportTest {
             assertEquals(2, qaServer.reserves)
             assertEquals(listOf(true, false), qaServer.completed)
             assertEquals(1, DesktopProjectCatalog.scan(projects).projects.size)
+            assertTrue(journal.listPending().isEmpty())
+        }
+
+    @Test
+    fun pesDstJefFilesImportIntoLibraryWithSingleFreeV2ReservationEach() =
+        withLibrary { root, projects, fonts, journal ->
+            // Full standalone import path; never uses a real account or quota.
+            val design = TextLayoutGenerator.generate(
+                TextLayoutOptions(
+                    textOptions = TextMatrixOptions(
+                        text = "Lia", heightMm = 12f,
+                        style = TextStitchStyle.RUNNING
+                    )
+                )
+            ).getOrThrow()
+            val qaServer = SyntheticFreeV2()
+            val importer = gate(qaServer, projects, fonts, journal)
+
+            for (format in listOf("PES", "DST", "JEF")) {
+                val selected = root.resolve("Lia.$format")
+                val bytes = MatrixConverter.convert(design, format).getOrThrow().bytes
+                Files.write(selected, bytes)
+                val imported = importer.importOne(selected)
+
+                assertTrue(imported.created, "Importação autorizada falhou: $format")
+                val flp = projects.resolve(checkNotNull(imported.itemId))
+                val reopened = DesktopEmbroideryFiles.open(flp)
+                assertEquals(format, reopened.format)
+                assertTrue(
+                    reopened.points.count { it.command == StitchCommand.STITCH } > 10,
+                    "As pontadas originais não foram preservadas: $format"
+                )
+                assertContentEquals(bytes, Files.readAllBytes(selected))
+            }
+            assertEquals(3, qaServer.reserves)
+            assertEquals(listOf(true, true, true), qaServer.completed)
+            assertEquals(3, DesktopProjectCatalog.scan(projects).projects.size)
             assertTrue(journal.listPending().isEmpty())
         }
 
