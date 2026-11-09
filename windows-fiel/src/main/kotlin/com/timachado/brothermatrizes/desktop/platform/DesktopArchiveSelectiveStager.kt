@@ -42,7 +42,8 @@ internal object DesktopArchiveSelectiveStager {
         expected: DesktopArchiveInventory.Preview,
         item: DesktopArchiveInventory.Item,
         cancelled: () -> Boolean = { false },
-        stagingParent: Path? = null // QA: test cleanup inside an isolated temporary folder
+        stagingParent: Path? = null, // QA: test cleanup inside an isolated temporary folder
+        password: CharArray? = null // transient; never logged or persisted
     ): Staged {
         // Synthetic screenshot previews have no fingerprint and can NEVER
         // become inputs to selective extraction or a quota transaction.
@@ -54,7 +55,7 @@ internal object DesktopArchiveSelectiveStager {
 
         // Detect replacement of the original archive between inspection
         // and extraction (including equal-length and equal-name tampering).
-        val examined = DesktopArchiveInventory.inspect(archive)
+        val examined = DesktopArchiveInventory.inspect(archive, password)
         require(examined.archiveSha256 == fingerprint &&
             examined.archiveName == expected.archiveName &&
             examined.format == expected.format &&
@@ -121,7 +122,11 @@ internal object DesktopArchiveSelectiveStager {
                         }
                         DesktopArchiveInventory.Format.SEVEN_Z -> {
                             SevenZFile.builder().setFile(archive.toFile())
-                                .setMaxMemoryLimitKiB(32768).get().use { seven ->
+                                .setMaxMemoryLimitKiB(32768)
+                                .apply {
+                                    if (password != null && password.isNotEmpty())
+                                        setPassword(password)
+                                }.get().use { seven ->
                                     var index = 0
                                     var found = false
                                     while (true) {
@@ -145,7 +150,10 @@ internal object DesktopArchiveSelectiveStager {
                             Archive(
                                 archive.toFile(), ArchiveOptions.builder()
                                     .maxDictionarySize(32L * 1024L * 1024L)
-                                    .build()
+                                    .apply {
+                                        if (password != null && password.isNotEmpty())
+                                            password(password)
+                                    }.build()
                             ).use { rar ->
                                 val entry = rar.fileHeaders.getOrNull(item.index)
                                     ?: error("Entrada RAR não encontrada.")
