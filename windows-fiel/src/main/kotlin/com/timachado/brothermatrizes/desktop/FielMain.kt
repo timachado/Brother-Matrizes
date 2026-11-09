@@ -2080,6 +2080,77 @@ private fun FielHomeHost(
                         detail = ActiveDetail.NONE
                         openProject()
                     },
+                    onImportLocalFile = if (
+                        accountQaEnvironment != null &&
+                        DesktopWindowsAccountQaOptIn.telegramImportEnabled()
+                    ) {
+                        {
+                            scope.launch {
+                                val selectedFolder = catalog?.folder
+                                if (selectedFolder == null) {
+                                    snackbar.showSnackbar(
+                                        "Selecione uma pasta FLP na Biblioteca para importar."
+                                    )
+                                } else {
+                                    val chooser = JFileChooser().apply {
+                                        dialogTitle = "Selecionar matriz do Telegram / Arquivos"
+                                        fileSelectionMode = JFileChooser.FILES_ONLY
+                                        fileFilter = javax.swing.filechooser.FileNameExtensionFilter(
+                                            "Matrizes PES, DST e JEF", "pes", "dst", "jef"
+                                        )
+                                        isAcceptAllFileFilterUsed = false
+                                    }
+                                    if (chooser.showOpenDialog(null) ==
+                                        JFileChooser.APPROVE_OPTION
+                                    ) {
+                                        val selected = chooser.selectedFile.toPath()
+                                            .toAbsolutePath().normalize()
+                                        val confirm = javax.swing.JOptionPane.showConfirmDialog(
+                                            null,
+                                            "Importar a matriz selecionada para a Biblioteca?\\n" +
+                                                "Confirme que você possui direito de uso.\\n" +
+                                                "O servidor verificará a conta e poderá consumir " +
+                                                "uma cota de importação.",
+                                            "Brother Matrizes — confirmar importação",
+                                            javax.swing.JOptionPane.YES_NO_OPTION,
+                                            javax.swing.JOptionPane.WARNING_MESSAGE
+                                        )
+                                        if (confirm == javax.swing.JOptionPane.YES_OPTION) {
+                                            try {
+                                                val gate = checkNotNull(
+                                                    DesktopWindowsAccountQaOptIn.telegramImportForQa(
+                                                        accountQaEnvironment, selectedFolder
+                                                    )
+                                                ) {
+                                                    "Importação de Telegram não homologada."
+                                                }
+                                                val saved = withContext(Dispatchers.IO) {
+                                                    gate.importStandaloneMatrix(selected)
+                                                }
+                                                if (saved.created) {
+                                                    catalog = withContext(Dispatchers.IO) {
+                                                        DesktopProjectCatalog.scan(selectedFolder)
+                                                    }
+                                                    snackbar.showSnackbar(
+                                                        "Matriz validada e salva na Biblioteca."
+                                                    )
+                                                } else {
+                                                    snackbar.showSnackbar(
+                                                        "Essa matriz já estava na Biblioteca."
+                                                    )
+                                                }
+                                            } catch (_: Exception) {
+                                                snackbar.showSnackbar(
+                                                    "Importação sem confirmação. Confira " +
+                                                        "Minha Conta e as cotas pendentes."
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else null,
                     onRequireGoogle = {
                         detail = ActiveDetail.NONE
                         area = HomeArea.ACCOUNT
