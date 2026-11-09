@@ -140,6 +140,7 @@ fun main(args: Array<String>) = application {
     val transferScreenshot = args.singleOrNull() == "--capture-machine-transfer-qa"
     val drawingScreenshot = args.singleOrNull() == "--capture-create-drawing-qa"
     val archiveScreenshot = args.singleOrNull() == "--capture-archive-qa"
+    val communityScreenshot = args.singleOrNull() == "--capture-community-qa"
     val nameEditorScreenshot = args.singleOrNull() == "--capture-name-editor-qa"
     val nameEditorScrollScreenshot = args.singleOrNull() == "--capture-name-editor-scroll-qa"
     val nameEditorCtrlAQa = args.singleOrNull() == "--qa-name-editor-ctrl-a-apply"
@@ -161,7 +162,7 @@ fun main(args: Array<String>) = application {
         compactScreenshot || wideScreenshot || createNameScreenshot ||
             editorCapture || fileChooserQa || saveDialogQa ||
                 accountScreenshot || fontsScreenshot || transferScreenshot ||
-                drawingScreenshot || archiveScreenshot
+                drawingScreenshot || archiveScreenshot || communityScreenshot
     // Um caminho vindo do Explorer abre a matriz diretamente no Viewer.
     // As capturas QA continuam aceitando somente suas flags explícitas.
     val launchDocument = if (screenshotMode) null
@@ -249,7 +250,7 @@ fun main(args: Array<String>) = application {
                 editorCapture || fileChooserQa || saveDialogQa ||
                     accountScreenshot || fontsScreenshot ||
                     transferScreenshot || drawingScreenshot ||
-                    archiveScreenshot -> DpSize(920.dp, 680.dp)
+                    archiveScreenshot || communityScreenshot -> DpSize(920.dp, 680.dp)
                 else -> DpSize(1000.dp, 860.dp)
             }
         )
@@ -619,7 +620,8 @@ fun main(args: Array<String>) = application {
                             kotlin.math.abs(green - 42) <= 10 &&
                             kotlin.math.abs(blue - 64) <= 11
                     }
-                    if (editorCapture || transferScreenshot || drawingScreenshot || archiveScreenshot) {
+                    if (editorCapture || transferScreenshot || drawingScreenshot ||
+                        archiveScreenshot || communityScreenshot) {
                         // Telas de detalhe usam tela cheia sem barra inferior.
                         // Exigir uma composição real rica em pixels, impedindo
                         // upload silencioso de janela vazia ou da área de trabalho.
@@ -650,6 +652,7 @@ fun main(args: Array<String>) = application {
                         transferScreenshot -> "machine-transfer-windows-qa.png"
                         drawingScreenshot -> "create-drawing-windows-qa.png"
                         archiveScreenshot -> "archive-inventory-windows-qa.png"
+                        communityScreenshot -> "community-windows-official-news-qa.png"
                         nameEditorScreenshot -> "name-editor-windows-original-port.png"
                         nameEditorScrollScreenshot -> "name-editor-windows-scrolled-qa.png"
                         wideScreenshot -> "home-windows-wide-original-port.png"
@@ -669,6 +672,7 @@ fun main(args: Array<String>) = application {
                             transferScreenshot -> "BROTHER_WINDOWS_MACHINE_TRANSFER_SCREENSHOT_OK "
                             drawingScreenshot -> "BROTHER_WINDOWS_CREATE_DRAWING_SCREENSHOT_OK "
                             archiveScreenshot -> "BROTHER_WINDOWS_ARCHIVE_PREVIEW_SCREENSHOT_OK "
+                            communityScreenshot -> "BROTHER_WINDOWS_COMMUNITY_SCREENSHOT_OK "
                             else -> "BROTHER_WINDOWS_FIEL_HOME_SCREENSHOT_OK "
                         }) +
                             "${bounds.width}x${bounds.height}"
@@ -688,6 +692,7 @@ fun main(args: Array<String>) = application {
                 startInTransferQa = transferScreenshot,
                 startInDrawingQa = drawingScreenshot,
                 startInArchiveQa = archiveScreenshot,
+                startInCommunityQa = communityScreenshot,
                 startInNameEditorQa = editorCapture,
                 startInNameEditorApplyQa = nameEditorApplyQa,
                 startInNameEditorKeyboardQa = nameEditorKeyboardQa,
@@ -764,6 +769,7 @@ private fun FielHomeHost(
     startInTransferQa: Boolean = false,
     startInDrawingQa: Boolean = false,
     startInArchiveQa: Boolean = false,
+    startInCommunityQa: Boolean = false,
     startInNameEditorQa: Boolean = false,
     startInNameEditorApplyQa: Boolean = false,
     startInNameEditorKeyboardQa: Boolean = false,
@@ -851,6 +857,7 @@ private fun FielHomeHost(
                 startInTransferQa -> ActiveDetail.TRANSFER
                 startInDrawingQa -> ActiveDetail.DRAWING
                 startInArchiveQa -> ActiveDetail.ARCHIVE_PREVIEW
+                startInCommunityQa -> ActiveDetail.COMMUNITY
                 startInSaveDialogQaFile != null -> ActiveDetail.VIEWER
                 else -> ActiveDetail.NONE
             }
@@ -2065,6 +2072,7 @@ private fun FielHomeHost(
                 DesktopBrotherCommunityScreen(
                     onBack = { detail = ActiveDetail.NONE },
                     versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL,
+                    allowPublicGroupLookup = !startInCommunityQa,
                     automaticAndroidNewsEnabled = automaticNewsEnabled,
                     onAndroidNewsConsentChange = { enable ->
                         val applied = withContext(Dispatchers.IO) {
