@@ -2,6 +2,7 @@ package com.timachado.brothermatrizes.desktop
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import com.timachado.brothermatrizes.HomeScreen
 import com.timachado.brothermatrizes.ArchiveExtractorScreen
@@ -86,6 +88,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
+import com.timachado.brothermatrizes.desktop.platform.DesktopNativeMatrixPicker
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPortableShortcuts
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
@@ -248,6 +252,9 @@ fun main(args: Array<String>) = application {
         title = "Brother Matrizes — Windows (QA interna)",
         icon = officialWindowIcon,
         state = WindowState(
+            // Full desktop use begins maximized; screenshot QA stays deterministic.
+            placement = if (screenshotMode) WindowPlacement.Floating
+                else WindowPlacement.Maximized,
             size = when {
                 compactScreenshot || createNameScreenshot -> DpSize(420.dp, 680.dp)
                 wideScreenshot -> DpSize(920.dp, 680.dp)
@@ -266,6 +273,7 @@ fun main(args: Array<String>) = application {
         var libraryFolderRequest by remember { mutableIntStateOf(0) }
         var archiveLaunchRequest by remember { mutableIntStateOf(0) }
         var recoveredFontsReviewRequest by remember { mutableIntStateOf(0) }
+        var shortcutLaunchRequest by remember { mutableIntStateOf(0) }
         if (!screenshotMode) {
             MenuBar {
                 Menu("Criar") {
@@ -276,6 +284,10 @@ fun main(args: Array<String>) = application {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
                     Item("Analisar ZIP / RAR / 7Z (somente leitura)…", onClick = { archiveLaunchRequest++ })
                     Item("Consultar fontes de backup Android (somente leitura)…", onClick = { recoveredFontsReviewRequest++ })
+                }
+                Menu("Windows") {
+                    Item("Criar atalhos no Menu Iniciar e Área de Trabalho",
+                        onClick = { shortcutLaunchRequest++ })
                 }
             }
         }
@@ -711,7 +723,8 @@ fun main(args: Array<String>) = application {
                 drawingLaunchRequest = drawingLaunchRequest,
                 archiveLaunchRequest = archiveLaunchRequest,
                 libraryFolderRequest = libraryFolderRequest,
-                recoveredFontsReviewRequest = recoveredFontsReviewRequest
+                recoveredFontsReviewRequest = recoveredFontsReviewRequest,
+                shortcutLaunchRequest = shortcutLaunchRequest
             )
         }
     }
@@ -788,7 +801,8 @@ private fun FielHomeHost(
     drawingLaunchRequest: Int = 0,
     archiveLaunchRequest: Int = 0,
     libraryFolderRequest: Int = 0,
-    recoveredFontsReviewRequest: Int = 0
+    recoveredFontsReviewRequest: Int = 0,
+    shortcutLaunchRequest: Int = 0
 ) {
     // Shared QA-only Google/DPAPI controller: one lock per window, retained
     // while navigating Minha Conta -> Fontes. Default build remains OFF.
@@ -960,6 +974,19 @@ private fun FielHomeHost(
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var matrixChooserOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(shortcutLaunchRequest) {
+        if (shortcutLaunchRequest <= 0) return@LaunchedEffect
+        val status = withContext(Dispatchers.IO) {
+            runCatching { DesktopWindowsPortableShortcuts.createForCurrentUser() }
+        }
+        snackbar.showSnackbar(
+            if (status.isSuccess)
+                "Atalhos criados no Menu Iniciar e na Área de Trabalho."
+            else "Atalhos não criados: " +
+                (status.exceptionOrNull()?.message ?: "verifique a pasta portátil")
+        )
+    }
     var catalog by remember { mutableStateOf<DesktopProjectCatalog.ScanResult?>(null) }
     val libraryStore = remember { DesktopLibraryActivityStore() }
     val initialLibraryState = remember(libraryStore) {
@@ -1652,23 +1679,15 @@ private fun FielHomeHost(
     }
 
     fun openProject(destination: ActiveDetail = ActiveDetail.VIEWER) {
+        // Keep Swing modal dialogs on EDT and Compose coroutines responsive.
+        if (matrixChooserOpen) return
+        matrixChooserOpen = true
         scope.launch {
-            val chooser = JFileChooser().apply {
-                dialogTitle = "Abrir matriz DST, PES, JEF ou projeto FLP"
-                fileSelectionMode = JFileChooser.FILES_ONLY
-                isAcceptAllFileFilterUsed = false
-                fileFilter = FileNameExtensionFilter(
-                    "Matrizes e projetos Brother Matrizes (*.dst, *.pes, *.jef, *.flp)",
-                    "dst", "pes", "jef", "flp"
-                )
-                if (startInChooserQaFile != null) {
-                    currentDirectory = startInChooserQaFile.parent.toFile()
-                    selectedFile = startInChooserQaFile.toFile()
-                }
-            }
-            if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-                val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            try {
+                val selected = DesktopNativeMatrixPicker.choose(startInChooserQaFile)
+                    ?: return@launch
                 runCatching {
+                    DesktopNativeMatrixPicker.validateSelectedFile(selected)
                     if (startInChooserQaFile != null) {
                         check(selected == startInChooserQaFile) {
                             "O seletor abriu arquivo diferente da cópia isolada de QA."
@@ -1718,6 +1737,13 @@ private fun FielHomeHost(
                 }.onFailure {
                     snackbar.showSnackbar("Não foi possível abrir a matriz: ${it.message}")
                 }
+            } catch (error: Exception) {
+                snackbar.showSnackbar(
+                    "Não foi possível selecionar a matriz: " +
+                        (error.message ?: "diálogo Windows indisponível")
+                )
+            } finally {
+                matrixChooserOpen = false
             }
         }
     }
@@ -1758,7 +1784,7 @@ private fun FielHomeHost(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
               NavigationBar(
                 modifier = Modifier
-                    .widthIn(max = 700.dp)
+                    .widthIn(max = 1280.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(28.dp))
@@ -1804,18 +1830,20 @@ private fun FielHomeHost(
             }
         }
     ) { padding ->
-        // Home mantém a hierarquia/hero originais do Android. As ferramentas
-        // de trabalho usam a largura de PC disponível sem redesenhar a UI:
-        // o editor, visualizador, simulador e desenhos admitem até 1060dp,
-        // enquanto Criar e Biblioteca admitem até 980dp. Em telas menores,
-        // fillMaxWidth preserva a responsividade do Compose.
-        val desktopMaxWidth = when {
-            detail != ActiveDetail.NONE -> 1060.dp
-            area == HomeArea.CREATE || area == HomeArea.LIBRARY -> 980.dp
-            else -> 700.dp
-        }
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-          Box(Modifier.widthIn(max = desktopMaxWidth).fillMaxWidth().fillMaxHeight()) {
+        // Every route uses the desktop-sized responsive host. Keep the
+        // official Android composables but remove narrow mobile-width caps.
+        BoxWithConstraints(
+            Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+          val desktopMaxWidth =
+              if (maxWidth >= 1400.dp) 1780.dp else maxWidth
+          val desktopGutter = if (maxWidth >= 1200.dp) 24.dp else 0.dp
+          Box(
+              Modifier.widthIn(max = desktopMaxWidth)
+                  .fillMaxWidth().fillMaxHeight()
+                  .padding(horizontal = desktopGutter)
+          ) {
             if (detail == ActiveDetail.VIEWER && activeDesign != null) {
                 val design = checkNotNull(activeDesign)
                 ViewerScreen(
