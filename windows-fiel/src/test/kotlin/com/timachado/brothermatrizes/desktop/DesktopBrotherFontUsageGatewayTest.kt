@@ -71,6 +71,74 @@ class DesktopBrotherFontUsageGatewayTest {
     }
 
     @Test
+    fun `reserva Free V2 usa ID persistido e exige recibo idempotente`() = runBlocking {
+        val id = "12345678-1234-4234-9234-123456789abc"
+        for (replayed in listOf(false, true)) {
+            val fake = FakeConnection(
+                URL("https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"),
+                response = """{"allowed":true,"operation":"import_font","request_key":"usage_$id","state":"reserved","replayed":$replayed}"""
+            )
+            val key = client(fake).reserveFontOnce("verified-access-token", id)
+            assertEquals("usage_$id", key)
+            assertEquals(
+                """{"action":"reserve_v2","operation":"import_font","client_request_id":"$id"}""",
+                fake.sentPayload()
+            )
+            assertTrue(fake.disconnected)
+        }
+    }
+
+    @Test
+    fun `V2 recusa resposta legada ou Pro antes de importar e nunca baixa fonte`() = runBlocking {
+        val id = "12345678-1234-4234-9234-123456789abc"
+        val cases = listOf(
+            """{"allowed":true,"operation":"import_font","request_key":"usage_$id"}""",
+            """{"allowed":true,"operation":"import_font","request_key":"pro_$id","state":"reserved","replayed":false}""",
+            """{"allowed":true,"operation":"import_matrix","request_key":"usage_$id","state":"reserved","replayed":false}""",
+            """{"allowed":true,"operation":"import_font","request_key":"usage_$id","state":"reserved","replayed":"false"}""",
+            """{"allowed":true,"operation":"import_font","request_key":"usage_$id","state":"completed","replayed":false}""",
+            """{"allowed":false,"operation":"import_font","request_key":"usage_$id","state":"reserved","replayed":false}"""
+        )
+        for (body in cases) {
+            val fake = FakeConnection(
+                URL("https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"),
+                response = body
+            )
+            assertFailsWith<IllegalStateException> {
+                client(fake).reserveFontOnce("verified-access-token", id)
+            }
+            assertTrue(fake.disconnected)
+        }
+        val legacyServer = FakeConnection(
+            URL("https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"),
+            status = 400, response = """{"message":"invalid"}"""
+        )
+        assertFailsWith<IllegalStateException> {
+            client(legacyServer).reserveFontOnce("verified-access-token", id)
+        }
+        assertEquals(
+            """{"action":"reserve_v2","operation":"import_font","client_request_id":"$id"}""",
+            legacyServer.sentPayload()
+        )
+    }
+
+    @Test
+    fun `reserva V2 nega UUID nao versionado antes de conectar`() = runBlocking {
+        var requests = 0
+        val gateway = DesktopBrotherFontUsageGateway(publishableKey, 196) {
+            requests++
+            error("Never connect with invalid client request key")
+        }
+        for (id in listOf("12345678-1234-1234-1234-123456789abc",
+            "wrong", "12345678-1234-4234-1234-123456789abc")) {
+            assertFailsWith<IllegalArgumentException> {
+                gateway.reserveFontOnce("verified-access-token", id)
+            }
+        }
+        assertEquals(0, requests)
+    }
+
+    @Test
     fun `finaliza reserva do servidor com sucesso verdadeiro e falso`() = runBlocking {
         for (success in listOf(true, false)) {
             val fake = FakeConnection(
