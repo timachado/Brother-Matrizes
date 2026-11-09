@@ -67,7 +67,9 @@ class DesktopNativeMatrixPickerTest {
             )
             assertEquals(JFileChooser.DIRECTORIES_ONLY, folder.fileSelectionMode)
             assertFalse(folder.isAcceptAllFileFilterUsed)
-            assertEquals(root.toFile().absolutePath, folder.currentDirectory.absolutePath)
+            // Windows may expand the user's 8.3 short directory alias:
+            // compare filesystem identity, not path string spelling.
+            assertTrue(Files.isSameFile(root, folder.currentDirectory.toPath()))
             assertFalse(Files.exists(qaTarget))
         } finally {
             Files.walk(root).use { paths ->
