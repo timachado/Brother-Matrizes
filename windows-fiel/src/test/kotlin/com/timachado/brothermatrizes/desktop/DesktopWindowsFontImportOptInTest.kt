@@ -18,18 +18,33 @@ class DesktopWindowsFontImportOptInTest {
     )
 
     @Test
-    fun newFontImportRequiresTwoIndependentOptInsAndAnExistingQaSession() {
+    fun realFontImportRequiresExplicitGoogleRedirectV2AndImportOptIns() {
+        val reviewer = "BROTHER_WINDOWS_QA_REDIRECT_REVIEWED"
+        val backend = "BROTHER_WINDOWS_QA_FONT_V2_BACKEND_REVIEWED"
+        val qaReady = enabled + (reviewer to "enabled") +
+            (backend to "enabled")
         assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(emptyMap()))
+        assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(enabled))
+        for (missing in listOf(
+            "BROTHER_WINDOWS_QA_FONT_IMPORT",
+            "BROTHER_WINDOWS_QA_GOOGLE_AUTH",
+            "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY",
+            reviewer,
+            backend
+        )) {
+            assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(
+                qaReady - missing
+            ))
+        }
         assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(
-            enabled - "BROTHER_WINDOWS_QA_FONT_IMPORT"
+            qaReady + (backend to "true")
         ))
         assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(
-            enabled - "BROTHER_WINDOWS_QA_GOOGLE_AUTH"
+            qaReady + (reviewer to "true")
         ))
-        assertFalse(DesktopWindowsAccountQaOptIn.fontImportEnabled(
-            enabled - "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY"
-        ))
-        assertTrue(DesktopWindowsAccountQaOptIn.fontImportEnabled(enabled))
+        assertTrue(DesktopWindowsAccountQaOptIn.fontImportEnabled(qaReady))
+        // An operator configuration alone NEVER invents a Google session.
+        assertNull(DesktopWindowsAccountQaOptIn.fontImportGateForQa(null, qaReady))
         assertNull(DesktopWindowsAccountQaOptIn.fontImportGateForQa(null, enabled))
         assertNull(DesktopWindowsAccountQaOptIn.fontImportGateForQa(null, emptyMap()))
     }
