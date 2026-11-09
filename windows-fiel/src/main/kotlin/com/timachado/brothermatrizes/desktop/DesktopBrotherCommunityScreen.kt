@@ -46,6 +46,7 @@ internal fun DesktopBrotherCommunityScreen(
     openBrowser: (URI) -> Unit = DesktopBrotherCommunityLinks::openWebsite,
     openMail: (URI) -> Unit = DesktopBrotherCommunityLinks::openEmailDraft,
     automaticAndroidNewsEnabled: Boolean = false,
+    allowPublicGroupLookup: Boolean = true,
     onAndroidNewsConsentChange: suspend (Boolean) -> Boolean = { false }
 ) {
     var feedbackOpen by remember { mutableStateOf(false) }
@@ -63,8 +64,10 @@ internal fun DesktopBrotherCommunityScreen(
 
     // Same priority and fallback as the Android Community screen. Public
     // read-only metadata; never opens a browser automatically or joins groups.
-    LaunchedEffect(Unit) {
-        officialGroup = DesktopOfficialCommunityGroupResolver().resolve()
+    LaunchedEffect(allowPublicGroupLookup) {
+        if (allowPublicGroupLookup) {
+            officialGroup = DesktopOfficialCommunityGroupResolver().resolve()
+        }
     }
 
     fun browse(uri: URI) {
