@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherCommunityLinks
+import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialCommunityGroupResolver
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -42,6 +44,13 @@ internal fun DesktopBrotherCommunityScreen(
     var message by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Sugestão") }
     var status by remember { mutableStateOf<String?>(null) }
+    var officialGroup by remember { mutableStateOf(DesktopBrotherCommunityLinks.group()) }
+
+    // Same priority and fallback as the Android Community screen. Public
+    // read-only metadata; never opens a browser automatically or joins groups.
+    LaunchedEffect(Unit) {
+        officialGroup = DesktopOfficialCommunityGroupResolver().resolve()
+    }
 
     fun browse(uri: URI) {
         try {
@@ -164,7 +173,7 @@ internal fun DesktopBrotherCommunityScreen(
                 )
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { browse(DesktopBrotherCommunityLinks.group()) }
+                    onClick = { browse(officialGroup) }
                 ) { Text("Entrar no grupo do WhatsApp") }
                 Text(
                     "Outros membros poderão visualizar seu telefone. Não compartilhe senhas ou arquivos sigilosos.",
