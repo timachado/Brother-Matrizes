@@ -13,6 +13,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveUsageGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopProjectCatalog
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
+import com.timachado.brothermatrizes.desktop.platform.DesktopUsageFreeV2Preflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsStandaloneMatrixAuthorizedImport
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,11 +31,21 @@ import kotlin.test.assertTrue
  */
 class DesktopWindowsStandaloneMatrixAuthorizedImportTest {
     private class SyntheticFreeV2 : DesktopArchiveUsageGateway,
-        DesktopArchiveIdempotentUsageGateway {
+        DesktopArchiveIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
         var reserves = 0
         val completed = mutableListOf<Boolean>()
         var failBeforeReply = false
+        var preflightReady = true
+        var preflightChecks = 0
         var lastId = ""
+        override suspend fun ensureFreeV2Ready(
+            accessToken: String, operation: String
+        ) {
+            assertEquals("synthetic-verified-token-no-network", accessToken)
+            assertEquals("import_matrix", operation)
+            preflightChecks++
+            check(preflightReady) { "Servidor V2 ainda indisponível (QA)." }
+        }
         override suspend fun reserve(
             accessToken: String,
             category: DesktopArchiveInventory.Category
@@ -214,6 +225,24 @@ class DesktopWindowsStandaloneMatrixAuthorizedImportTest {
             assertEquals(listOf(true), usage.completed)
             assertTrue(journal.listPending().isEmpty())
             assertContentEquals(pcPes.bytes, Files.readAllBytes(selected))
+        }
+
+    @Test
+    fun unavailableV2BackendDoesNotCreateMarkerOrCallReserve() =
+        withLibrary { root, projects, fonts, journal ->
+            val selected = root.resolve("Lia.dst")
+            Files.write(selected, dst())
+            val usage = SyntheticFreeV2().also { it.preflightReady = false }
+            val importer = gate(usage, projects, fonts, journal)
+            assertFailsWith<IllegalStateException> {
+                importer.importOne(selected)
+            }
+            assertEquals(1, usage.preflightChecks)
+            assertEquals(0, usage.reserves)
+            assertTrue(usage.completed.isEmpty())
+            assertTrue(journal.listPending().isEmpty())
+            assertTrue(DesktopProjectCatalog.scan(projects).projects.isEmpty())
+            assertContentEquals(dst(), Files.readAllBytes(selected))
         }
 
     @Test
