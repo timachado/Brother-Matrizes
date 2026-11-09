@@ -15,8 +15,8 @@ assert set(workflow["on"]) == {"workflow_dispatch"}, "Never sign on push/PR"
 assert workflow["permissions"] == {"contents": "read"}
 assert workflow["concurrency"]["cancel-in-progress"] == "false"
 jobs = workflow["jobs"]
-assert set(jobs) == {"build", "sign"}
-build, sign = jobs["build"], jobs["sign"]
+assert set(jobs) == {"build", "sign", "publish"}
+build, sign, publish = jobs["build"], jobs["sign"], jobs["publish"]
 assert build["if"] == "github.ref == 'refs/heads/main'", "Only protected main"
 assert build["runs-on"].startswith("windows-")
 assert sign["needs"] == "build"
@@ -54,4 +54,26 @@ assert sign_action["with"]["path"] == "incoming/"
 assert sign["steps"][-2]["name"].startswith("Assinar e validar")
 assert "deploy" not in sign_action["name"].lower()
 assert "publish" not in sign_action["name"].lower()
+# Public release runs only after protected Authenticode signing and an
+# independently reviewed release environment on the protected main branch.
+assert publish["needs"] == "sign"
+assert publish["environment"] == "brother-windows-release-publication"
+assert publish["permissions"] == {"contents": "write"}
+assert "github.ref == 'refs/heads/main'" in publish["if"]
+assert "needs.sign.result == 'success'" in publish["if"]
+assert publish["runs-on"].startswith("windows-")
+assert not any(
+    step.get("uses", "").startswith("actions/checkout")
+    for step in publish["steps"]
+)
+release_commands = "\n".join(step.get("run", "") for step in publish["steps"])
+for required in (
+    "BM_PUBLISHING_ENABLED -ne 'approved'",
+    "Get-AuthenticodeSignature", "TimeStamperCertificate",
+    "verify /pa /all /tw /v", "SHA256SUMS.txt", "Compress-Archive",
+    "z.testzip() is None", "gh release create", "--latest=false",
+):
+    assert required in release_commands, f"Missing release safety gate: {required}"
+assert publish["steps"][-1]["env"]["GH_TOKEN"] == "$" + "{{ github.token }}"
+assert "secrets." not in raw
 print("BROTHER_WINDOWS_AUTHENTICODE_MANUAL_OV_HSM_POLICY_QA_OK")
