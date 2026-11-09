@@ -21,6 +21,19 @@ internal object DesktopWindowsAccountQaOptIn {
         }
     }
 
+    /**
+     * Operator-only confirmation that the OAuth redirect configuration has
+     * been manually reviewed with a dedicated QA account. This flag is NOT
+     * evidence that the Supabase allowlist is active or that commercial
+     * authentication has been homologated; it only allows an explicit test.
+     * Real Windows releases must not set it by default.
+     */
+    internal fun redirectReviewedForQa(
+        environment: Map<String, String> = System.getenv()
+    ): Boolean =
+        environment["BROTHER_WINDOWS_QA_REDIRECT_REVIEWED"] == "enabled" &&
+            publicKeyFromEnvironment(environment) != null
+
     // Read-only configuration identity. No second Supabase project required.
     internal fun targetForQa(environment: Map<String, String>): DesktopBrotherBackendTarget? {
         if (environment["BROTHER_WINDOWS_QA_GOOGLE_AUTH"] != "enabled") return null
@@ -141,6 +154,10 @@ internal object DesktopWindowsAccountQaOptIn {
         val environment = System.getenv()
         val key = publicKeyFromEnvironment(environment) ?: return null
         val target = targetForQa(environment) ?: return null
-        return DesktopWindowsGoogleQaEnvironment.openForQa(key, target)
+        return DesktopWindowsGoogleQaEnvironment.openForQa(
+            publishableKey = key,
+            target = target,
+            redirectReviewedForQa = redirectReviewedForQa(environment)
+        )
     }
 }
