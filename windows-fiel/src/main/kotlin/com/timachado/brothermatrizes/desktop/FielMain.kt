@@ -77,6 +77,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidProjectRecov
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupExporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidCompleteBackupRecovery
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecoveredAndroidFontPreflight
+import com.timachado.brothermatrizes.desktop.platform.DesktopRecoveredAndroidFontPreflight
 import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryActivityStore
 import com.timachado.brothermatrizes.desktop.platform.DesktopSentMatrixHistory
 import com.timachado.brothermatrizes.desktop.platform.DesktopRecentProjectRecovery
@@ -108,10 +109,13 @@ import java.awt.Toolkit
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.LinkOption
 import java.nio.file.StandardOpenOption
 import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 import javax.swing.JDialog
+import javax.swing.JScrollPane
+import javax.swing.JTextArea
 import javax.swing.filechooser.FileNameExtensionFilter
 import javax.imageio.ImageIO
 import org.jetbrains.skia.Image
@@ -255,6 +259,7 @@ fun main(args: Array<String>) = application {
         var drawingLaunchRequest by remember { mutableIntStateOf(0) }
         var libraryFolderRequest by remember { mutableIntStateOf(0) }
         var archiveLaunchRequest by remember { mutableIntStateOf(0) }
+        var recoveredFontsReviewRequest by remember { mutableIntStateOf(0) }
         if (!screenshotMode) {
             MenuBar {
                 Menu("Criar") {
@@ -264,6 +269,7 @@ fun main(args: Array<String>) = application {
                 Menu("Biblioteca") {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
                     Item("Analisar ZIP / RAR / 7Z (somente leitura)…", onClick = { archiveLaunchRequest++ })
+                    Item("Consultar fontes de backup Android (somente leitura)…", onClick = { recoveredFontsReviewRequest++ })
                 }
             }
         }
@@ -694,7 +700,8 @@ fun main(args: Array<String>) = application {
                 monogramLaunchRequest = monogramLaunchRequest,
                 drawingLaunchRequest = drawingLaunchRequest,
                 archiveLaunchRequest = archiveLaunchRequest,
-                libraryFolderRequest = libraryFolderRequest
+                libraryFolderRequest = libraryFolderRequest,
+                recoveredFontsReviewRequest = recoveredFontsReviewRequest
             )
         }
     }
@@ -769,7 +776,8 @@ private fun FielHomeHost(
     monogramLaunchRequest: Int = 0,
     drawingLaunchRequest: Int = 0,
     archiveLaunchRequest: Int = 0,
-    libraryFolderRequest: Int = 0
+    libraryFolderRequest: Int = 0,
+    recoveredFontsReviewRequest: Int = 0
 ) {
     // Shared QA-only Google/DPAPI controller: one lock per window, retained
     // while navigating Minha Conta -> Fontes. Default build remains OFF.
@@ -882,6 +890,52 @@ private fun FielHomeHost(
     var favorites by remember { mutableStateOf(initialData.favorites) }
     var recentProjectIds by remember { mutableStateOf(initialData.recents) }
     var selectedLibraryFolder by remember { mutableStateOf(initialData.selectedFolder) }
+    // Review only recovered Android backup fonts; this never imports or
+    // exposes them to the paid font catalog, nor requests Google/quotas.
+    LaunchedEffect(recoveredFontsReviewRequest) {
+        if (recoveredFontsReviewRequest > 0) {
+            val suggested = selectedLibraryFolder?.let { saved ->
+                runCatching { Path.of(saved).toAbsolutePath().normalize().resolve("fonts") }
+                    .getOrNull()
+            }
+            val folder = if (suggested != null &&
+                Files.isDirectory(suggested, LinkOption.NOFOLLOW_LINKS)) {
+                suggested
+            } else {
+                val picker = JFileChooser().apply {
+                    dialogTitle = "Selecionar a pasta fonts recuperada do backup Android"
+                    fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                }
+                if (picker.showOpenDialog(null) == JFileChooser.APPROVE_OPTION)
+                    picker.selectedFile.toPath().toAbsolutePath().normalize()
+                else null
+            }
+            if (folder != null) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        DesktopRecoveredAndroidFontPreflight.inspect(folder)
+                    }
+                }.fold(onSuccess = { report ->
+                    val textArea = JTextArea(report.displayText(), 18, 64).apply {
+                        isEditable = false
+                        lineWrap = true
+                        wrapStyleWord = true
+                        caretPosition = 0
+                    }
+                    JOptionPane.showMessageDialog(
+                        null, JScrollPane(textArea),
+                        "Brother Matrizes — fontes recuperadas (somente leitura)",
+                        JOptionPane.INFORMATION_MESSAGE
+                    )
+                }, onFailure = { error ->
+                    snackbar.showSnackbar(
+                        "Não foi possível consultar fontes do backup: " +
+                            (error.message ?: "pasta ou arquivo incompatível")
+                    )
+                })
+            }
+        }
+    }
     // Exact Android SentMatrixRecord fields, stored independently from FLP
     // metadata. Only a successful native Windows machine-file save adds a
     // history record; opening or previewing a file never counts as delivery.
