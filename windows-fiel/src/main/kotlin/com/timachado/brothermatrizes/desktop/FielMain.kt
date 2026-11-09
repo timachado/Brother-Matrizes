@@ -86,6 +86,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopLibraryRecentTracke
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveInventory
 import com.timachado.brothermatrizes.desktop.platform.DesktopEmbroideryFiles
 import com.timachado.brothermatrizes.desktop.platform.DesktopMachineTransferFile
+import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedMatrixExport
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsShareHandoff
 import com.timachado.brothermatrizes.desktop.platform.DesktopLaunchDocument
 import com.timachado.brothermatrizes.desktop.platform.DesktopNativeMatrixPicker
@@ -1515,7 +1516,11 @@ private fun FielHomeHost(
                         require(file.fileName.toString().lowercase().endsWith(
                             "." + targetFormat.lowercase()
                         )) { "Extensão do arquivo deve ser .$targetFormat." }
-                        Files.write(file, converted.bytes, StandardOpenOption.CREATE_NEW)
+                        withContext(Dispatchers.IO) {
+                            DesktopVerifiedMatrixExport.saveNew(
+                                converted.format, converted.bytes, file
+                            )
+                        }
                     }.onSuccess { saved ->
                         if (revealInExplorer) {
                             // A opção de compartilhar no Windows prepara uma
@@ -1538,7 +1543,8 @@ private fun FielHomeHost(
                         }
                     }.onFailure {
                         snackbar.showSnackbar(
-                            "Falha ao salvar a matriz: ${it.message}"
+                            "Falha ao salvar/verificar a matriz: " +
+                                (it.message ?: "verifique a proteção do Windows")
                         )
                     }
                 }
