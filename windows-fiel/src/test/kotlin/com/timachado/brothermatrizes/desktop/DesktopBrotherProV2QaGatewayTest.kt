@@ -7,12 +7,15 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaJournal
 import com.timachado.brothermatrizes.desktop.platform.DesktopArchiveQuotaStatus
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherProV2QaGateway
 import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedFontSession
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsStandaloneMatrixAuthorizedImport
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
+import java.util.Comparator
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -116,6 +119,54 @@ class DesktopBrotherProV2QaGatewayTest {
                 gateway.ensureV2Ready(token, "grant_pro")
             }
             assertEquals(0, attempts)
+        }
+
+    @Test
+    fun deniedProV2PreflightInStandaloneImportKeepsJournalAndLibraryEmpty() =
+        runBlocking {
+            // Full Windows gate with an explicitly staging-only fake HTTP server.
+            // The source is deliberately NOT a valid PES: the quota preflight
+            // must reject before opening, processing or publishing its bytes.
+            val root = Files.createTempDirectory("bm-pro-preflight-denied-")
+            val projects = Files.createDirectory(root.resolve("projects"))
+            val fonts = Files.createDirectory(root.resolve("fonts"))
+            val journal = DesktopArchiveQuotaJournal(
+                Files.createDirectory(root.resolve("journal"))
+            )
+            val source = root.resolve("matrix.pes")
+            Files.write(source, byteArrayOf(1, 2, 3))
+            val fake = FakeHttp(
+                URL("https://" + qaRef + ".supabase.co/functions/v1/brother-usage"),
+                body = """{"operation":"import_matrix","protocol":"pro_v2","ready":false}"""
+            )
+            try {
+                val importer = DesktopWindowsStandaloneMatrixAuthorizedImport(
+                    usage = client(fake),
+                    verifiedSession = DesktopVerifiedFontSession { token },
+                    journal = journal,
+                    projectFolder = projects,
+                    fontFolder = fonts
+                )
+                assertFailsWith<IllegalStateException> {
+                    importer.importOne(source)
+                }
+                assertEquals("preflight_v2",
+                    fake.payload()["action"]?.jsonPrimitive?.content)
+                assertEquals("import_matrix",
+                    fake.payload()["operation"]?.jsonPrimitive?.content)
+                assertEquals(2, fake.payload().keys.size)
+                assertFalse(fake.payload().containsKey("client_request_id"))
+                assertTrue(fake.closed)
+                assertTrue(journal.listPending().isEmpty())
+                assertEquals(0L, Files.list(projects).use { it.count() })
+                assertEquals(0L, Files.list(fonts).use { it.count() })
+                assertEquals(3L, Files.size(source))
+            } finally {
+                Files.walk(root).use { paths ->
+                    paths.sorted(Comparator.reverseOrder())
+                        .forEach { Files.deleteIfExists(it) }
+                }
+            }
         }
 
     @Test
