@@ -290,6 +290,22 @@ jobs:
           if (!(Test-Path $nameEditorScreenshot) -or (Get-Item $nameEditorScreenshot).Length -lt 10000) {
             throw "Editor de Nomes não renderizado no launcher portable."
           }
+          # Real Swing chooser, Windows Robot Enter and original Android
+          # parser/Viewer; synthetic PES and FLP, never a customer file.
+          foreach ($format in @("pes", "flp")) {
+            $flag = "--qa-open-chooser-$format"
+            $opened = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @($flag) -WorkingDirectory $working -PassThru -Wait
+            if ($opened.ExitCode -ne 0) {
+              throw "Abrir matriz $format falhou no Windows (exit $($opened.ExitCode))."
+            }
+            $marker = "windows-fiel/build/qa/chooser-$format-opened.txt"
+            $preview = "windows-fiel/build/qa/chooser-$format-viewer.png"
+            if (!(Test-Path $marker) -or !(Test-Path $preview) -or
+                (Get-Item $preview).Length -lt 10000) {
+              throw "Abrir matriz $format nao chegou ao Viewer."
+            }
+          }
+          "BROTHER_WINDOWS_CHOOSER_PES_FLP_REAL_SMOKE_OK"
           "BROTHER_WINDOWS_PORTABLE_LAUNCHER_SMOKE_OK"
       - name: Preparar pasta completa do executavel para QA (sem instalar)
         shell: pwsh
@@ -454,5 +470,7 @@ jobs:
             windows-fiel/build/qa/archive-inventory-windows-qa.png
             windows-fiel/build/qa/create-name-windows-original-port.png
             windows-fiel/build/qa/name-editor-windows-original-port.png
+          windows-fiel/build/qa/chooser-pes-viewer.png
+          windows-fiel/build/qa/chooser-flp-viewer.png
           if-no-files-found: warn
           retention-days: 7
