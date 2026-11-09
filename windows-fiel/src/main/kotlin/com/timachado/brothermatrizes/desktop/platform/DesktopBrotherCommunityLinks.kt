@@ -18,9 +18,23 @@ internal object DesktopBrotherCommunityLinks {
     internal const val PRODUCT_PAGE = "https://timachado.ifree.page/aplicativos/brother-matrizes/"
     private val approvedGroup = Regex("^https://chat\\.whatsapp\\.com/[A-Za-z0-9]{16,32}$")
 
-    fun group(): URI = URI(OFFICIAL_GROUP).also {
-        require(approvedGroup.matches(it.toString()))
-    }
+    fun group(): URI = checkNotNull(verifiedGroup(OFFICIAL_GROUP))
+
+    /**
+     * Matches the Android isOfficialGroup contract but refuses URL
+     * credentials, ports, queries, fragments and lookalike hosts.
+     * Only the official metadata resolver may supply a dynamic group.
+     */
+    fun verifiedGroup(candidate: String): URI? =
+        runCatching { URI(candidate) }.getOrNull()?.takeIf { uri ->
+            uri.scheme == "https" &&
+                uri.host == "chat.whatsapp.com" &&
+                uri.port == -1 &&
+                uri.rawUserInfo == null &&
+                uri.rawQuery == null &&
+                uri.rawFragment == null &&
+                approvedGroup.matches(uri.toString())
+        }
 
     fun updates(): URI = URI(PRODUCT_PAGE)
 
@@ -49,7 +63,7 @@ internal object DesktopBrotherCommunityLinks {
     fun openWebsite(uri: URI) {
         require(uri.scheme == "https" && uri.rawUserInfo == null &&
             uri.port == -1 && uri.fragment == null &&
-            (uri == group() || uri == updates() ||
+            (verifiedGroup(uri.toString()) == uri || uri == updates() ||
                 (uri.host == "wa.me" &&
                     uri.path == "/${BrotherFeedbackDelivery.WHATSAPP_PHONE}" &&
                     uri.rawQuery?.startsWith("text=") == true))) {
