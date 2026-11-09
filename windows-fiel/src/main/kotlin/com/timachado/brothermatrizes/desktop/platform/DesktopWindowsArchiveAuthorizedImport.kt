@@ -12,8 +12,8 @@ import java.nio.file.Path
  * Maps the SELECTED item from the original Android ArchiveExtractorScreen
  * to the crash-safe, server-authorized Windows importer.
  *
- * Only ZIP is enabled: encrypted RAR/7Z metadata can be viewed but the
- * Windows selective extraction does not yet accept an extraction password.
+ * ZIP, RAR/RAR5 and 7Z use the Android library's selected-item semantics.
+ * RAR/7Z passwords are passed only for the active operation and are never stored.
  * No file or quota can be published by this class without the injected
  * server gateway, verified token, persistent journal and durable sink.
  *
@@ -30,15 +30,18 @@ internal class DesktopWindowsArchiveAuthorizedImport(
     suspend fun importOne(
         originalArchive: Path,
         originalAndroidPreview: ArchiveInventory,
-        selected: ArchiveItem
+        selected: ArchiveItem,
+        password: CharArray? = null
     ): DesktopArchiveImportCommit {
         val source = originalArchive.toAbsolutePath().normalize()
         require(!Files.isSymbolicLink(source) &&
             Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS) &&
-            source.fileName.toString().endsWith(".zip", ignoreCase = true)) {
-            "Importação autorizada Windows suporta ZIP; RAR e 7Z permanecem para prévia."
+            listOf(".zip", ".rar", ".7z").any {
+                source.fileName.toString().endsWith(it, ignoreCase = true)
+            }) {
+            "Selecione um pacote ZIP, RAR/RAR5 ou 7Z regular."
         }
-        require(originalAndroidPreview.format == ArchiveFormat.ZIP &&
+        require(
             originalAndroidPreview.entries.count { it == selected } == 1) {
             "Seleção não corresponde ao pacote mostrado pelo Extrator Android."
         }
@@ -48,11 +51,16 @@ internal class DesktopWindowsArchiveAuthorizedImport(
             Files.isRegularFile(stagedOriginal, LinkOption.NOFOLLOW_LINKS)) {
             "A cópia temporária do pacote não está mais disponível."
         }
-        val inspected = DesktopArchiveInventory.inspect(source)
-        require(inspected.format == DesktopArchiveInventory.Format.ZIP &&
+        val inspected = DesktopArchiveInventory.inspect(source, password)
+        val expectedFormat = when (originalAndroidPreview.format) {
+            ArchiveFormat.ZIP -> DesktopArchiveInventory.Format.ZIP
+            ArchiveFormat.RAR -> DesktopArchiveInventory.Format.RAR
+            ArchiveFormat.SEVEN_Z -> DesktopArchiveInventory.Format.SEVEN_Z
+        }
+        require(inspected.format == expectedFormat &&
             inspected.archiveSha256 != null &&
             inspected.archiveSha256 == DesktopArchiveInventory.sha256(stagedOriginal)) {
-            "O ZIP mudou após a prévia original: nenhuma cota foi solicitada."
+            "O pacote mudou após a prévia original: nenhuma cota foi solicitada."
         }
 
         val match = inspected.entries.singleOrNull { candidate ->
@@ -65,7 +73,7 @@ internal class DesktopWindowsArchiveAuthorizedImport(
                     selected.category == ArchiveCategory.MATRIX) ||
                     (candidate.category == DesktopArchiveInventory.Category.FONT &&
                         selected.category == ArchiveCategory.FONT))
-        } ?: error("Item ZIP não corresponde ao que foi selecionado no Android.")
+        } ?: error("Item não corresponde ao que foi selecionado no Android.")
 
         // This layer never creates or overwrites the selected library folder.
         // The validated sink enforces local destination safety and CREATE_NEW.
@@ -74,7 +82,8 @@ internal class DesktopWindowsArchiveAuthorizedImport(
             expectedPreview = inspected,
             validatedSinkFactory = DesktopArchiveValidatedLibrarySinkFactory(
                 projectFolder = projectFolder, fontFolder = fontFolder
-            )
+            ),
+            archivePassword = password
         )
         return DesktopArchiveCommercialImportGate(
             usage = usage,
