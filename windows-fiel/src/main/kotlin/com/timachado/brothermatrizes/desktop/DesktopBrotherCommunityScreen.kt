@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherCommunityLinks
 import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialCommunityGroupResolver
 import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialReleaseNotice
+import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialWindowsReleaseNotice
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsLocalNotification
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
@@ -57,6 +58,8 @@ internal fun DesktopBrotherCommunityScreen(
         mutableStateOf<DesktopOfficialReleaseNotice.Notice?>(null)
     }
     var checkingNews by remember { mutableStateOf(false) }
+    var checkingWindowsNews by remember { mutableStateOf(false) }
+    var windowsReleaseInfo by remember { mutableStateOf<String?>(null) }
 
     // Same priority and fallback as the Android Community screen. Public
     // read-only metadata; never opens a browser automatically or joins groups.
@@ -161,7 +164,52 @@ internal fun DesktopBrotherCommunityScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Atualizações oficiais", fontWeight = FontWeight.Bold, color = FioText)
+                Text("Atualizações Brother Matrizes Windows",
+                    fontWeight = FontWeight.Bold, color = FioText)
+                Text(
+                    "Este canal é exclusivo do Windows. Nenhum APK Android " +
+                        "será oferecido como instalação para PC.",
+                    color = FioTextMuted
+                )
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !checkingWindowsNews,
+                    onClick = {
+                        scope.launch {
+                            checkingWindowsNews = true
+                            windowsReleaseInfo = null
+                            try {
+                                val published = DesktopOfficialWindowsReleaseNotice()
+                                    .checkPublishedWindowsRelease()
+                                windowsReleaseInfo = published?.displayText() ?:
+                                    "Nenhum manifesto de versão Windows estável " +
+                                        "foi publicado neste canal. O executável " +
+                                        "continua em homologação."
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                windowsReleaseInfo =
+                                    "Não foi possível verificar o canal Windows. " +
+                                        "Nenhuma atualização foi instalada."
+                            } finally {
+                                checkingWindowsNews = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (checkingWindowsNews) "Verificando…" else
+                        "Verificar novidades oficiais Windows")
+                }
+                windowsReleaseInfo?.let { Text(it, color = FioTextMuted) }
+            }
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = FioSurface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Atualizações oficiais Android",
+                    fontWeight = FontWeight.Bold, color = FioText)
                 Text("Versão instalada: $versionName", color = FioTextMuted)
                 Text(
                     "Acompanhe as versões publicadas e o que melhorou em cada uma.",
