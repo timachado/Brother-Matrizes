@@ -183,7 +183,7 @@ class DesktopWindowsAuthQaControllerTest {
             val sub = if (wrongSubject) "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" else id
             mockGet(
                 url,
-                """{"authenticated":true,"user":{"id":"$sub","email":"$email"},"planCode":"pro_lifetime","status":"active","pro":true}"""
+                """{"authenticated":true,"user":{"id":"$sub","email":"$email"},"planCode":"pro_lifetime","status":"active","pro":true,"commercialConfigured":true}"""
             )
         }
         DesktopWindowsAuthQaController.open(
