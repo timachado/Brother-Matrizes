@@ -27,6 +27,20 @@ internal class DesktopWindowsArchiveAuthorizedImport(
     private val projectFolder: Path,
     private val fontFolder: Path
 ) {
+    /**
+     * Telegram and local file picker share this exact archive quota journal.
+     * Never start a parallel ledger or bypass per-item server authorization.
+     */
+    suspend fun importStandaloneMatrix(
+        source: Path
+    ): DesktopArchiveImportCommit = DesktopWindowsStandaloneMatrixAuthorizedImport(
+        usage = usage,
+        verifiedSession = session,
+        journal = journal,
+        projectFolder = projectFolder,
+        fontFolder = fontFolder
+    ).importOne(source)
+
     suspend fun importOne(
         originalArchive: Path,
         originalAndroidPreview: ArchiveInventory,
