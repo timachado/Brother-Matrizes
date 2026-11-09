@@ -39,3 +39,18 @@ pode levar tempo para se estabelecer. Referências oficiais:
 
 Nenhuma alteração em produção, Supabase, licenças, APK Android ou site.
 A criação de atalhos é iniciada por ação explícita do usuário.
+
+## 09/11/2026 — gravação PES e envio para máquina sem bloqueio da UI
+
+- **Exportar matriz** (PES/DST/JEF) e **Enviar para a máquina** usam
+  `DesktopNativeMatrixPicker.chooseSave` com `SwingUtilities.invokeAndWait`
+  a partir de `Dispatchers.IO`, preservando o diálogo nativo do Windows.
+- Um único estado de salvamento evita sobreposição de diálogos quando o botão
+  é acionado mais de uma vez. O estado é limpo em `finally` após cancelar,
+  falhar ou concluir.
+- O caminho permanece escolhido pelo usuário; a camada `CREATE_NEW` continua
+  recusando sobrescritas. O PES gerado não é modificado ou camuflado contra o
+  Defender. O histórico de envio só é marcado após gravação bem-sucedida.
+- QA offline verifica filtros de Salvar como nos formatos PES/DST/JEF/FLP e
+  rejeição de nomes malformados, sem gravar ou enviar arquivos.
+- Salvar projeto FLP mantém seu próprio fluxo pré-existente, testado pelo CI.

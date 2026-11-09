@@ -1,5 +1,6 @@
 package com.timachado.brothermatrizes.desktop.platform
 
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -36,6 +37,49 @@ internal object DesktopNativeMatrixPicker {
         SwingUtilities.invokeAndWait {
             val chooser = configuredChooser(qaFile)
             if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                result = chooser.selectedFile?.toPath()?.toAbsolutePath()?.normalize()
+            }
+        }
+        result
+    }
+
+    /** Native save selector for PES/DST/JEF/FLP; does not touch any file. */
+    fun configuredSaveChooser(
+        suggestedName: String,
+        format: String,
+        title: String,
+    ): JFileChooser {
+        val extension = format.lowercase(Locale.ROOT)
+        require(extension in extensions &&
+            suggestedName.isNotBlank() &&
+            suggestedName == Path.of(suggestedName).fileName.toString() &&
+            suggestedName.lowercase(Locale.ROOT).endsWith(".$extension") &&
+            suggestedName.none { it == '\\u0000' || it == '\\n' || it == '\\r' }) {
+            "Nome e extensão de matriz incompatíveis com Salvar como."
+        }
+        return JFileChooser().apply {
+            dialogTitle = title
+            selectedFile = File(suggestedName)
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isAcceptAllFileFilterUsed = false
+            fileFilter = FileNameExtensionFilter(
+                if (extension == "flp") "Projetos Brother Matrizes (*.flp)"
+                else "Matriz ${format.uppercase(Locale.ROOT)} (*.$extension)",
+                extension
+            )
+        }
+    }
+
+    /** Modal Swing runs on EDT; coroutine awaits on IO, never Compose UI. */
+    suspend fun chooseSave(
+        suggestedName: String,
+        format: String,
+        title: String,
+    ): Path? = withContext(Dispatchers.IO) {
+        var result: Path? = null
+        SwingUtilities.invokeAndWait {
+            val chooser = configuredSaveChooser(suggestedName, format, title)
+            if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
                 result = chooser.selectedFile?.toPath()?.toAbsolutePath()?.normalize()
             }
         }

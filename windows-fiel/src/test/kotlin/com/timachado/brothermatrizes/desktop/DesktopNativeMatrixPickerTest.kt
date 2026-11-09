@@ -27,6 +27,28 @@ class DesktopNativeMatrixPickerTest {
     }
 
     @Test
+    fun saveChooserShowsNativeFiltersAndRejectsWrongNamesWithoutWriting() {
+        for (format in listOf("PES", "DST", "JEF", "FLP")) {
+            val suggested = "novo-nome.${format.lowercase()}"
+            val picker = DesktopNativeMatrixPicker.configuredSaveChooser(
+                suggested, format, "Salvar matriz de teste"
+            )
+            assertEquals(JFileChooser.FILES_ONLY, picker.fileSelectionMode)
+            assertFalse(picker.isAcceptAllFileFilterUsed)
+            assertEquals(suggested, picker.selectedFile.name)
+            assertTrue(picker.fileFilter.accept(File(suggested)))
+            assertFalse(picker.fileFilter.accept(File("program.exe")))
+        }
+        for (wrong in listOf("novo-nome.exe", "../novo-nome.pes", "nome.dst")) {
+            assertFailsWith<IllegalArgumentException> {
+                DesktopNativeMatrixPicker.configuredSaveChooser(
+                    wrong, "PES", "Salvar matriz"
+                )
+            }
+        }
+    }
+
+    @Test
     fun invalidSelectionNeverChangesLocalFilesOrBypassesFilter() {
         val root = Files.createTempDirectory("bm-open-matrix-")
         try {

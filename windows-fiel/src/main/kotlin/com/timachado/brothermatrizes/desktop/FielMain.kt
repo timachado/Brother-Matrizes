@@ -976,6 +976,7 @@ private fun FielHomeHost(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var matrixChooserOpen by remember { mutableStateOf(false) }
+    var matrixSaveChooserOpen by remember { mutableStateOf(false) }
     LaunchedEffect(shortcutLaunchRequest) {
         if (shortcutLaunchRequest <= 0) return@LaunchedEffect
         val status = withContext(Dispatchers.IO) {
@@ -1495,7 +1496,10 @@ private fun FielHomeHost(
         revealInExplorer: Boolean = false
     ) {
         val design = activeDesign ?: return
+        if (matrixSaveChooserOpen) return
+        matrixSaveChooserOpen = true
         scope.launch {
+            try {
             val generated = withContext(Dispatchers.Default) {
                 MatrixConverter.convert(
                     design, targetFormat,
@@ -1505,14 +1509,23 @@ private fun FielHomeHost(
                 )
             }
             generated.fold(onSuccess = { converted ->
-                // Usuário escolhe o caminho; CREATE_NEW protege o original.
-                val selected = JFileChooser().apply {
-                    dialogTitle = "Salvar matriz Brother Matrizes"
-                    selectedFile = File(converted.fileName)
+                // The modal dialog stays on the Swing EDT, not the Compose
+                // dispatcher. CREATE_NEW protects previous customer files.
+                val chosen = runCatching {
+                    DesktopNativeMatrixPicker.chooseSave(
+                        converted.fileName, converted.format,
+                        "Salvar matriz Brother Matrizes"
+                    )
+                }.getOrElse { error ->
+                    snackbar.showSnackbar(
+                        "Não foi possível escolher o destino: " +
+                            (error.message ?: "diálogo Windows indisponível")
+                    )
+                    null
                 }
-                if (selected.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                if (chosen != null) {
                     runCatching {
-                        val file = selected.selectedFile.toPath().toAbsolutePath().normalize()
+                        val file = chosen
                         require(file.fileName.toString().lowercase().endsWith(
                             "." + targetFormat.lowercase()
                         )) { "Extensão do arquivo deve ser .$targetFormat." }
@@ -1553,6 +1566,9 @@ private fun FielHomeHost(
                     "Conversão ${targetFormat.uppercase()} recusada: ${it.message}"
                 )
             })
+            } finally {
+                matrixSaveChooserOpen = false
+            }
         }
     }
 
@@ -1562,7 +1578,10 @@ private fun FielHomeHost(
         forMachineApp: Boolean
     ) {
         val design = activeDesign ?: return
+        if (matrixSaveChooserOpen) return
+        matrixSaveChooserOpen = true
         scope.launch {
+            try {
             // Same Android machine safety validator and converter used by
             // the original Transfer screen; no direct USB/Wi-Fi protocol.
             val prepared = runCatching {
@@ -1575,21 +1594,20 @@ private fun FielHomeHost(
                 )
                 return@launch
             }
-            val chooser = JFileChooser().apply {
-                dialogTitle = if (forMachineApp)
-                    "Salvar arquivo para importar no aplicativo da bordadeira"
-                else
-                    "Salvar matriz em arquivo ou pendrive selecionado"
-                selectedFile = File(prepared.suggestedName)
-                fileSelectionMode = JFileChooser.FILES_ONLY
-                isAcceptAllFileFilterUsed = false
-                fileFilter = FileNameExtensionFilter(
-                    "Matriz ${prepared.format} (*.${prepared.format.lowercase()})",
-                    prepared.format.lowercase()
+            val chosen = runCatching {
+                DesktopNativeMatrixPicker.chooseSave(
+                    prepared.suggestedName, prepared.format,
+                    if (forMachineApp)
+                        "Salvar arquivo para importar no aplicativo da bordadeira"
+                    else "Salvar matriz em arquivo ou pendrive selecionado"
                 )
-            }
-            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return@launch
-            val chosen = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+            }.getOrElse { error ->
+                snackbar.showSnackbar(
+                    "Não foi possível selecionar a pasta: " +
+                        (error.message ?: "diálogo Windows indisponível")
+                )
+                null
+            } ?: return@launch
             runCatching {
                 withContext(Dispatchers.IO) {
                     DesktopMachineTransferFile.saveNew(prepared, chosen)
@@ -1624,6 +1642,9 @@ private fun FielHomeHost(
                     "Arquivo não salvo: " + (error.message ?: "destino inválido")
                 )
             })
+            } finally {
+                matrixSaveChooserOpen = false
+            }
         }
     }
 
