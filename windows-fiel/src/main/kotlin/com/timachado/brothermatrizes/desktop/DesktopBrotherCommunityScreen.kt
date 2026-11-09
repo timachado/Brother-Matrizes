@@ -20,17 +20,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherCommunityLinks
 import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialCommunityGroupResolver
+import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialReleaseNotice
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsLocalNotification
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
 import java.net.URI
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /** Android BrotherCommunityScreen adapted to native Windows browser/mail apps. */
 @Composable
@@ -45,6 +50,11 @@ internal fun DesktopBrotherCommunityScreen(
     var category by remember { mutableStateOf("Sugestão") }
     var status by remember { mutableStateOf<String?>(null) }
     var officialGroup by remember { mutableStateOf(DesktopBrotherCommunityLinks.group()) }
+    val scope = rememberCoroutineScope()
+    var androidReleaseNotice by remember {
+        mutableStateOf<DesktopOfficialReleaseNotice.Notice?>(null)
+    }
+    var checkingNews by remember { mutableStateOf(false) }
 
     // Same priority and fallback as the Android Community screen. Public
     // read-only metadata; never opens a browser automatically or joins groups.
@@ -159,6 +169,55 @@ internal fun DesktopBrotherCommunityScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { browse(DesktopBrotherCommunityLinks.updates()) }
                 ) { Text("Ver notas e novidades") }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !checkingNews,
+                    onClick = {
+                        scope.launch {
+                            checkingNews = true
+                            androidReleaseNotice = null
+                            try {
+                                // Explicit read-only check. This feed currently
+                                // publishes ANDROID releases, not Windows EXEs.
+                                androidReleaseNotice =
+                                    DesktopOfficialReleaseNotice()
+                                        .checkAndroidAnnouncements()
+                                status = null
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                status = "Não foi possível consultar as novidades oficiais. " +
+                                    "O aplicativo continua funcionando normalmente."
+                            } finally {
+                                checkingNews = false
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (checkingNews) "Consultando…" else
+                        "Consultar avisos oficiais do Android")
+                }
+                androidReleaseNotice?.let { notice ->
+                    Text(notice.displayText(), color = FioTextMuted)
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val shown = runCatching {
+                                DesktopWindowsLocalNotification.showAfterUserClick(
+                                    title = "Brother Matrizes — novidades Android",
+                                    message = "Android ${notice.versionName} publicado. " +
+                                        "Versão Windows ainda em homologação."
+                                )
+                            }.getOrDefault(false)
+                            status = if (shown)
+                                "Notificação local solicitada ao Windows. " +
+                                    "Isso não ativa notificações push."
+                            else
+                                "O sistema não disponibilizou notificação nativa. " +
+                                    "O aviso permanece visível nesta tela."
+                        }
+                    ) { Text("Mostrar este aviso no Windows") }
+                }
             }
         }
         Card(
@@ -205,9 +264,11 @@ internal fun DesktopBrotherCommunityScreen(
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Notificações push", fontWeight = FontWeight.Bold, color = FioText)
                 Text(
-                    "A ativação de avisos Firebase no Windows ainda não foi homologada. " +
-                        "Os controles do Android permanecem como requisito de paridade; " +
-                        "não serão apresentados como ativos sem serviço de notificações real.",
+                    "Avisos locais do Windows podem ser solicitados manualmente " +
+                        "após consultar novidades. Não existe assinatura push, " +
+                        "verificação automática em segundo plano nem instalador " +
+                        "Windows publicado neste canal. O Firebase/FCM do Android " +
+                        "ainda depende de homologação de serviço específico no PC.",
                     color = FioTextMuted
                 )
             }
