@@ -64,7 +64,8 @@ internal class DesktopOfficialReleaseNotice(
                 conn.contentLengthLong < 0) { "Manifesto grande demais." }
             val mime = conn.contentType.orEmpty()
                 .substringBefore(';').trim().lowercase()
-            check(mime == "application/json" || mime.endsWith("+json")) {
+            check(mime == "application/json" || mime == "text/plain" ||
+                mime.endsWith("+json")) {
                 "Resposta oficial incompatível."
             }
             val root = Json.parseToJsonElement(readBounded(conn.inputStream)) as? JsonObject
