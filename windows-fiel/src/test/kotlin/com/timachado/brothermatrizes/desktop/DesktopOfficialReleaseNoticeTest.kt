@@ -62,6 +62,15 @@ class DesktopOfficialReleaseNoticeTest {
     }
 
     @Test
+    fun githubRawTextPlainStillRequiresValidatedJsonManifest() = runBlocking {
+        val notice = DesktopOfficialReleaseNotice { url ->
+            FakeConnection(url, json, mime = "text/plain; charset=utf-8")
+        }.checkAndroidAnnouncements()
+        assertEquals("1.11.8", notice.versionName)
+        assertEquals(195, notice.versionCode)
+    }
+
+    @Test
     fun wrongProductOrPlatformAndBogusFieldsFailClosed() = runBlocking {
         for (bad in listOf(
             json.replace("com.timachado.brothermatrizes", "com.evil"),
