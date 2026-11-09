@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { readKnownImportStatus } from "./read-status.ts";
-import { reserveImportV2 } from "./reserve-v2.ts";
+import { handleFreeV2Reserve } from "./free-v2-route.ts";
 import { handleProV2 } from "./pro-v2-route.ts";
 import { readProReceiptStatusV2 } from "./read-pro-status-v2.ts";
 import type { TrustedEntitlement } from "./pro-receipt-v2.ts";
@@ -98,6 +98,12 @@ Deno.serve(async (req: Request) => {
   // Never enable before the Pro receipt table/RPCs, entitlement checks,
   // staging, and Windows journal have been independently homologated.
   const proV2Enabled = Deno.env.get("BROTHER_PRO_V2_ENABLED") === "true";
+  // Explicit, independent server-only Free V2 rollout, default OFF.
+  // The official Android V1 paths remain unchanged.
+  const freeV2Enabled = Deno.env.get("BROTHER_FREE_V2_ENABLED") === "true";
+  if (payload.action === "reserve_v2" && !freeV2Enabled) {
+    return reply({ message: "Reserva Free V2 indisponível até homologação." }, 503);
+  }
   if (typeof payload.action === "string" &&
       ["reserve_pro_v2", "finalize_pro_v2", "status_pro_v2"].includes(payload.action) &&
       !proV2Enabled) {
@@ -228,11 +234,14 @@ Deno.serve(async (req: Request) => {
     if (isPro) return reply({
       message: "Reserva idempotente Pro ainda não homologada.",
     }, 503);
-    const response = await reserveImportV2({
+    const response = await handleFreeV2Reserve({
       authenticatedUserId: user.id,
       operation: payload.operation as "import_font" | "import_matrix",
       clientRequestId: payload.client_request_id as string,
-    }, async args => await admin.rpc("brother_matrizes_reserve_import_v2", args));
+    }, {
+      enabled: freeV2Enabled,
+      reserve: async args => await admin.rpc("brother_matrizes_reserve_import_v2", args),
+    });
     return reply(response.body, response.status);
   }
 
