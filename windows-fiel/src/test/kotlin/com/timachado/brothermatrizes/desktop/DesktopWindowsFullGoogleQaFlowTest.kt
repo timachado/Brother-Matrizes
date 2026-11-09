@@ -167,6 +167,33 @@ class DesktopWindowsFullGoogleQaFlowTest {
         }
 
     @Test
+    fun realGoogleBrowserIsBlockedBeforeAnyNetworkWithoutOperatorRedirectReview() =
+        windowsTemp { folder ->
+            var openedBrowser = 0
+            var requests = 0
+            DesktopWindowsGoogleQaEnvironment.openForQa(
+                publishableKey = key,
+                target = DesktopBrotherBackendTarget.official(),
+                folder = folder,
+                browser = DesktopExternalBrowser {
+                    openedBrowser++
+                    error("QA browser must not open")
+                },
+                connectionFactory = {
+                    requests++
+                    error("QA HTTP must not be called")
+                }
+            ).use { account ->
+                assertFailsWith<IllegalStateException> { account.signIn() }
+                assertFailsWith<IllegalStateException> {
+                    account.restoreAndVerify()
+                }
+                assertEquals(0, openedBrowser)
+                assertEquals(0, requests)
+            }
+        }
+
+    @Test
     fun qaFactoryOpensOfflineRestoresGoogleAndNeverAutoLaunchesBrowser() =
         windowsTemp { folder ->
             val workers = mutableListOf<Thread>()
