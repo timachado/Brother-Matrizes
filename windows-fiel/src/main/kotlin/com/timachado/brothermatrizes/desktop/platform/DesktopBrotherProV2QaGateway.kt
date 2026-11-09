@@ -113,7 +113,7 @@ internal class DesktopBrotherProV2QaGateway(
         check(result.bool("ok") == true &&
             result.text("operation") == operation &&
             result.text("request_key") == requestKey &&
-            result.text("state") == if (success) "completed" else "failed") {
+            result.text("state") == (if (success) "completed" else "failed")) {
             "Finalização Pro V2 não confirmada com estado esperado."
         }
         check(result.bool("replayed") != null) {
