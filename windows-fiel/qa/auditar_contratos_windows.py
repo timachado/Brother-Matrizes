@@ -81,10 +81,15 @@ require("Backend Windows tem o mesmo Supabase oficial do Android",
         "import_font" in gateway and
         "instanceFollowRedirects = false" in gateway and
         "conn.disconnect()" in gateway)
-require("Reserva real exige journal antes de acesso de rede",
+require("Reserva real Free V2 exige UUID persistido antes de acesso de rede",
         "usage !is DesktopBrotherFontUsageGateway || journal != null" in gate and
-        "journal?.begin(selected)" in gate and
-        gate.index("journal?.begin(selected)") < gate.index("usage.reserveFont(token)"))
+        "DesktopArchiveQuotaJournal.ReservationProtocol.FREE_V2" in gate and
+        "journal?.begin(selected, protocol)" in gate and
+        "usage is DesktopFontIdempotentUsageGateway" in gate and
+        "usage.reserveFontOnce(token, persisted.localId)" in gate and
+        gate.index("journal?.begin(selected, protocol)") <
+            gate.index("usage.reserveFontOnce(token, persisted.localId)") and
+        "else usage.reserveFont(token)" in gate)
 require("Registro de cotas exige confirmação e bloqueia fontes pendentes",
         all(s in gate for s in ("journal.verifyOutput(", ".finalizing(",
                                   ".completed(")) and
