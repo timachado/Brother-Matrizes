@@ -62,6 +62,18 @@ internal object DesktopWindowsLocalNotification {
         }
     }
 
+    /**
+     * Also permitted only AFTER a separate explicit persisted opt-in.
+     * The caller must enforce consent and application lifetime; there
+     * is no standalone scheduler or persistent system tray service.
+     */
+    fun showAfterUserConsent(
+        title: String,
+        message: String,
+        windowsName: String = System.getProperty("os.name"),
+        transport: Transport = AwtTransport
+    ): Boolean = showAfterUserClick(title, message, windowsName, transport)
+
     fun showAfterUserClick(
         title: String,
         message: String,
