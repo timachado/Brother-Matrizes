@@ -3,7 +3,7 @@ package com.timachado.brothermatrizes.desktop.platform
 import kotlinx.coroutines.CancellationException
 
 /**
- * Read-only post-crash quota inspection. QA-only, NOT wired to Windows UI.
+ * Read-only post-crash quota inspection. QA-only, available only behind explicit opt-in.
  *
  * All fresh reservations stay blocked while a journal marker survives.
  * The diagnostic must not call reserve, finalize, rollback, completed,
@@ -15,7 +15,9 @@ internal class DesktopArchiveQuotaReadOnlyDiagnostic(
     private val server: DesktopArchiveQuotaStatusReader,
     private val verifiedQaToken: suspend () -> String
 ) {
-    suspend fun inspectPending(): DesktopArchiveQuotaRecoveryAssessment.Assessment? {
+    suspend fun inspectPending(
+        expectedCategory: DesktopArchiveInventory.Category? = null
+    ): DesktopArchiveQuotaRecoveryAssessment.Assessment? {
         // OS-level lock prevents the journal from being modified by a second
         // Windows process while its evidence is being inspected.
         journal.acquireLease().use {
@@ -24,6 +26,9 @@ internal class DesktopArchiveQuotaReadOnlyDiagnostic(
                 "Mais de um recibo pendente. Reconciliação manual obrigatória."
             }
             val pending = records.singleOrNull() ?: return null
+            check(expectedCategory == null || pending.category == expectedCategory) {
+                "Categoria incompatível no registro. Diagnóstico bloqueado."
+            }
             val key = DesktopArchiveQuotaRecoveryAssessment
                 .diagnosticRequestKey(pending)
                 ?: return DesktopArchiveQuotaRecoveryAssessment.inspect(pending, null)
