@@ -671,7 +671,8 @@ val copyOfficialAndroidPlans by tasks.registering {
         base.resolve("AccountPremiumComponents.kt"),
         base.resolve("core/account/AccountModels.kt"),
         base.resolve("core/account/BrotherLaunchOfferCatalog.kt"),
-        base.resolve("core/account/BrotherPlanBenefits.kt")
+        base.resolve("core/account/BrotherPlanBenefits.kt"),
+        base.resolve("core/account/WordPressWebStore.kt")
     )
     outputs.dir(generatedOfficialPlans)
     doLast {
@@ -679,7 +680,8 @@ val copyOfficialAndroidPlans by tasks.registering {
             "AccountPremiumComponents.kt",
             "core/account/AccountModels.kt",
             "core/account/BrotherLaunchOfferCatalog.kt",
-            "core/account/BrotherPlanBenefits.kt"
+            "core/account/BrotherPlanBenefits.kt",
+            "core/account/WordPressWebStore.kt"
         )
         shared.forEach { path ->
             val target = out.resolve("com/timachado/brothermatrizes/$path")
