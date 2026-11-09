@@ -186,3 +186,14 @@ antes de distribuir o Windows comercial.
 **Proteção aplicada:** o controle de QA agora exige `BROTHER_WINDOWS_QA_REDIRECT_REVIEWED=enabled`, além de `BROTHER_WINDOWS_QA_GOOGLE_AUTH=enabled` e `BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY` válido, antes de abrir navegador Google ou recuperar sessão em `Minha Conta`. Sem a revisão explícita, `DesktopWindowsGoogleQaEnvironment.signIn()` e `restoreAndVerify()` falham **antes** de usar HTTP ou navegador, independentemente do estado da interface. Todos os flags ficam desligados no executável portátil por padrão. O operador deve configurar o flag **somente após conferir manualmente** o padrão candidato da URL de retorno e escolher uma conta de testes dedicada.
 
 A existência da flag **não** é prova de que a allowlist ativa corresponda ao padrão, nem comprova Google OAuth real ou funcionamento comercial. Não executar login de cliente, cobrança ou reserva de cotas antes da homologação. Testes `DesktopAccountQaScreenTest` e `DesktopWindowsFullGoogleQaFlowTest` verificam gate fechado sem aprovação, e o fluxo sintético aprovado apenas quando a opção de QA está explicitamente ativada. Não foram modificados GoTrue, Redirect URLs, Site URL, fornecedores Google, dados do Supabase ou Android comercial.
+
+
+## Bloqueio completo da sessão DPAPI sem revisão do retorno OAuth — 09/11/2026
+
+Auditoria de segurança da integração Windows: o controle `BROTHER_WINDOWS_QA_REDIRECT_REVIEWED=enabled` já impedia `signIn()` e `restoreAndVerify()`, mas **não** impedia o acesso a `verifiedAccessTokenForQa()` ou `accountPreview()` por uma sessão Google que tinha sido salva anteriormente no DPAPI. Os consumidores DaFont/Telegram/importadores podem usar esse método para obter o token. A simples presença de um DPAPI antigo não deve contornar a revisão do OAuth.
+
+**Correção:** `DesktopWindowsGoogleQaEnvironment` verifica agora a mesma revisão antes de **todas as quatro** operações autenticadas: login, recuperação, obtenção de token e consulta do plano. O endpoint público `/auth/v1/settings` permanece somente diagnóstico e pode ser inspecionado sem autenticação. `logout()` permanece disponível para revogação local, mesmo quando a revisão está ausente.
+
+**Teste obrigatório:** `DesktopWindowsFullGoogleQaFlowTest` exige zero chamadas de rede e zero abertura de navegador quando todas as operações autenticadas são invocadas sem a revisão; além disso, cria uma sessão DPAPI sintética previamente válida, reabre sem revisão, verifica que token/conta/recovery são bloqueados e que a sessão não é destruída pela inspeção. Quando o operador volta a marcar a revisão, a recuperação com verificação no servidor funciona no mesmo controller simulado.
+
+Nenhuma chave real, conta de cliente, reserva de cota ou alteração na lista de Redirect URLs do Supabase foi usada. Esta é **defesa em profundidade**, não comprovação de que os redirects estão configurados no serviço oficial ou de que o login real Google foi homologado.
