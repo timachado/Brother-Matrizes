@@ -84,7 +84,8 @@ internal object DesktopAccountPresentation {
 internal fun DesktopAccountQaScreen(
     onBack: () -> Unit,
     onPlans: () -> Unit,
-    qaEnvironment: DesktopWindowsGoogleQaEnvironment?
+    qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+    onServerAccountVerified: (DesktopServerAccountSnapshot?) -> Unit = {}
 ) {
     // The same QA environment is owned by FielHomeHost for the whole desktop
     // window, so switching to Fontes cannot close/relock the DPAPI session.
@@ -103,13 +104,15 @@ internal fun DesktopAccountQaScreen(
     var allowlistReview by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf("Nenhuma assinatura consultada nesta sessão.") }
 
-    fun runAccountAction(action: suspend () -> DesktopAccountPresentation.VerifiedSummary?) {
+    fun runAccountAction(action: suspend () -> DesktopServerAccountSnapshot?) {
         if (busy || qaEnvironment == null) return
         scope.launch {
             busy = true
             try {
                 remoteFontQuotaStatus = null
-                summary = action()
+                val account = action()
+                summary = account?.let(DesktopAccountPresentation::verified)
+                onServerAccountVerified(account)
                 info = if (summary == null) {
                     "Não existe uma sessão Google validada neste computador."
                 } else {
@@ -119,6 +122,7 @@ internal fun DesktopAccountQaScreen(
                 throw cancelled
             } catch (_: Exception) {
                 summary = null
+                onServerAccountVerified(null)
                 info = "Não foi possível validar a conta. Faça o login novamente."
             } finally {
                 busy = false
@@ -460,7 +464,7 @@ internal fun DesktopAccountQaScreen(
                 onClick = {
                     runAccountAction {
                         qaEnvironment.signIn()
-                        DesktopAccountPresentation.verified(qaEnvironment.accountPreview())
+                        qaEnvironment.accountPreview()
                     }
                 }
             ) {
@@ -474,9 +478,7 @@ internal fun DesktopAccountQaScreen(
                 onClick = {
                     runAccountAction {
                         if (qaEnvironment.restoreAndVerify()) {
-                            DesktopAccountPresentation.verified(
-                                qaEnvironment.accountPreview()
-                            )
+                            qaEnvironment.accountPreview()
                         } else null
                     }
                 }
@@ -487,7 +489,7 @@ internal fun DesktopAccountQaScreen(
                 enabled = !busy && summary != null,
                 onClick = {
                     runAccountAction {
-                        DesktopAccountPresentation.verified(qaEnvironment.accountPreview())
+                        qaEnvironment.accountPreview()
                     }
                 }
             ) { Text("Consultar assinatura novamente") }
@@ -501,10 +503,12 @@ internal fun DesktopAccountQaScreen(
                         try {
                             qaEnvironment.logout()
                             summary = null
+                            onServerAccountVerified(null)
                             remoteFontQuotaStatus = null
                             info = "Sessão Windows encerrada; credenciais locais removidas."
                         } catch (_: Exception) {
                             summary = null
+                            onServerAccountVerified(null)
                             info = "Não foi possível concluir o encerramento da sessão."
                         } finally {
                             busy = false
