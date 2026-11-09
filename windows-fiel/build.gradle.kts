@@ -908,7 +908,7 @@ val copyAndroidExtractorScreen by tasks.registering {
                 val chosen = archive.entries.filter { it.index in selected }
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !importing && archive.format == ArchiveFormat.ZIP &&
+                    enabled = !importing && archive.format == com.timachado.brothermatrizes.core.archive.ArchiveFormat.ZIP &&
                         chosen.size == 1,
                     onClick = {
                         val item = chosen.single()
