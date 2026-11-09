@@ -74,6 +74,24 @@ class DesktopOfficialCommunityGroupResolverTest {
     }
 
     @Test
+    fun githubRawPlainTextJsonIsAllowedButWordPressPlainTextIsNot() = runBlocking {
+        val githubText = DesktopOfficialCommunityGroupResolver { url ->
+            FakeResponse(url, mime = "text/plain; charset=utf-8", payload = validGitHub)
+        }.resolve()
+        assertEquals(URI(alternate), githubText)
+
+        val untrustedWordPressMime = DesktopOfficialCommunityGroupResolver { url ->
+            FakeResponse(
+                url,
+                status = if (url.toString() == github) 404 else 200,
+                mime = "text/plain; charset=utf-8",
+                payload = if (url.toString() == github) "{}" else validWordPress
+            )
+        }.resolve()
+        assertEquals(original, untrustedWordPressMime)
+    }
+
+    @Test
     fun invalidJsonUrlsMimeAndRedirectFallBackToAndroidInvite() = runBlocking {
         for ((status, mime, body) in listOf(
             Triple(200, "application/json", """{"product":"other","groupUrl":"$alternate"}"""),
