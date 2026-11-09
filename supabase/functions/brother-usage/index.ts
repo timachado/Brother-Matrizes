@@ -39,14 +39,16 @@ Deno.serve(async (req: Request) => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw Error("invalid");
     payload = parsed;
-    const validKeys = parsed.action === "reserve"
+    const validKeys = parsed.action === "preflight_v2"
+      ? ["action", "operation"]
+      : parsed.action === "reserve"
       ? ["action", "operation"]
       : ["reserve_v2", "reserve_pro_v2"].includes(parsed.action)
         ? ["action", "operation", "client_request_id"]
         : ["status", "status_pro_v2"].includes(parsed.action)
           ? ["action", "operation", "request_key"]
           : ["action", "operation", "request_key", "success"];
-    if (!["reserve", "reserve_v2", "reserve_pro_v2", "finalize",
+    if (!["preflight_v2", "reserve", "reserve_v2", "reserve_pro_v2", "finalize",
       "finalize_pro_v2", "status", "status_pro_v2"].includes(parsed.action) ||
       Object.keys(parsed).some(k => !validKeys.includes(k)) ||
       !validKeys.every(k => Object.hasOwn(parsed, k)) ||
@@ -198,6 +200,18 @@ Deno.serve(async (req: Request) => {
         .includes(body.planCode);
   } catch {
     return reply({ message: "Não foi possível verificar sua licença. Confira a internet e tente novamente." }, 503);
+  }
+
+  // Read-only capability check for Windows BEFORE it creates a quota journal
+  // record. Unlike reserve_v2, this action never mutates PostgreSQL and
+  // cannot spend a quota. Existing Android V1 actions are untouched.
+  // A Pro account must not be misled into the still-disabled Free V2 path.
+  if (payload.action === "preflight_v2") {
+    return reply({
+      operation: payload.operation,
+      protocol: "free_v2",
+      ready: freeV2Enabled && !isPro,
+    });
   }
 
   // Authenticated Pro V2 is staged behind an opt-in flag. All permission
