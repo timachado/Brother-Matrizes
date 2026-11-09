@@ -177,3 +177,12 @@ Supabase real, aprovação da allowlist nem assinatura comercial.
 Ainda é necessária conferência autenticada do dashboard, teste
 com conta dedicada de QA e aceite da paridade funcional completa
 antes de distribuir o Windows comercial.
+
+
+## Bloqueio de login sem revisão do redirect — 09/11/2026
+
+**Causa identificada:** na revisão anterior, os dois sinalizadores de Google QA e chave pública tornavam visível o botão *Entrar com Google — QA*, mesmo sem comprovar a configuração da allowlist em **Authentication → URL Configuration**. A leitura `/auth/v1/settings` comprova somente a existência do provedor Google, não a lista de Redirect URLs. A documentação oficial Supabase recomenda que o `redirectTo` corresponda a uma URL explicitamente permitida ([Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)).
+
+**Proteção aplicada:** o controle de QA agora exige `BROTHER_WINDOWS_QA_REDIRECT_REVIEWED=enabled`, além de `BROTHER_WINDOWS_QA_GOOGLE_AUTH=enabled` e `BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY` válido, antes de abrir navegador Google ou recuperar sessão em `Minha Conta`. Sem a revisão explícita, `DesktopWindowsGoogleQaEnvironment.signIn()` e `restoreAndVerify()` falham **antes** de usar HTTP ou navegador, independentemente do estado da interface. Todos os flags ficam desligados no executável portátil por padrão. O operador deve configurar o flag **somente após conferir manualmente** o padrão candidato da URL de retorno e escolher uma conta de testes dedicada.
+
+A existência da flag **não** é prova de que a allowlist ativa corresponda ao padrão, nem comprova Google OAuth real ou funcionamento comercial. Não executar login de cliente, cobrança ou reserva de cotas antes da homologação. Testes `DesktopAccountQaScreenTest` e `DesktopWindowsFullGoogleQaFlowTest` verificam gate fechado sem aprovação, e o fluxo sintético aprovado apenas quando a opção de QA está explicitamente ativada. Não foram modificados GoTrue, Redirect URLs, Site URL, fornecedores Google, dados do Supabase ou Android comercial.
