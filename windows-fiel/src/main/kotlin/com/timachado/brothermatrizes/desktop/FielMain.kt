@@ -90,6 +90,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsPreferences
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsNewsAutoCheck
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsOfficialReleaseAutoCheck
 import com.timachado.brothermatrizes.ui.theme.BrotherMatrizesTheme
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -816,6 +817,17 @@ private fun FielHomeHost(
     var automaticNewsEnabled by remember {
         mutableStateOf(initialNewsState.getOrNull()?.enabled == true)
     }
+    // Consent for official WINDOWS releases is independent of Android news.
+    // Both start disabled, have separate files and share no last-version ID.
+    val windowsReleasePreferences = remember {
+        DesktopWindowsNewsPreferences.forWindowsReleases()
+    }
+    var automaticWindowsReleaseEnabled by remember(windowsReleasePreferences) {
+        mutableStateOf(
+            runCatching { windowsReleasePreferences.load().enabled }
+                .getOrDefault(false)
+        )
+    }
     val normalWindowsSession = !disableRecentRecovery &&
         !startInCreate && !startInAccountQa && !startInFontsQa &&
         !startInTransferQa && !startInDrawingQa && !startInArchiveQa &&
@@ -836,6 +848,24 @@ private fun FielHomeHost(
                 // never claim a Windows release or repeatedly display errors.
             }
             // In-process only; closing the Compose host cancels this watcher.
+            delay(6L * 60 * 60 * 1_000)
+        }
+    }
+    LaunchedEffect(automaticWindowsReleaseEnabled, normalWindowsSession) {
+        if (!automaticWindowsReleaseEnabled || !normalWindowsSession) {
+            return@LaunchedEffect
+        }
+        val checker = DesktopWindowsOfficialReleaseAutoCheck(windowsReleasePreferences)
+        while (true) {
+            try {
+                withContext(Dispatchers.IO) { checker.checkOnce() }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // An offline/invalid/unpublished Windows channel is never a
+                // reason to advertise a release, download or install a file.
+            }
+            // No resident Windows process or timer outside Compose lifetime.
             delay(6L * 60 * 60 * 1_000)
         }
     }
@@ -2074,12 +2104,21 @@ private fun FielHomeHost(
                     versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL,
                     allowPublicGroupLookup = !startInCommunityQa,
                     automaticAndroidNewsEnabled = automaticNewsEnabled,
+                    automaticWindowsReleaseEnabled = automaticWindowsReleaseEnabled,
                     onAndroidNewsConsentChange = { enable ->
                         val applied = withContext(Dispatchers.IO) {
                             DesktopWindowsNewsAutoCheck(newsPreferences)
                                 .setEnabled(enable)
                         }
                         automaticNewsEnabled = applied
+                        true
+                    },
+                    onWindowsReleaseConsentChange = { enable ->
+                        val applied = withContext(Dispatchers.IO) {
+                            DesktopWindowsOfficialReleaseAutoCheck(windowsReleasePreferences)
+                                .setEnabled(enable)
+                        }
+                        automaticWindowsReleaseEnabled = applied
                         true
                     }
                 )
