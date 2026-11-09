@@ -16,6 +16,9 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsArchiveAutho
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Comparator
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
+import org.apache.commons.compress.archivers.sevenz.SevenZMethod
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
@@ -113,6 +116,51 @@ class DesktopWindowsArchiveAuthorizedImportTest {
             assertFalse(Files.exists(fonts.resolve("Maria.dst")))
         } finally {
             staged.sourceFile.delete()
+            Files.walk(root).use { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+            }
+        }
+    }
+
+    @Test
+    fun originalAndroid7zSelectionUsesSameDurableFreeV2Importer() = runBlocking {
+        val root = Files.createTempDirectory("bm-android-7z-authorized-")
+        val projects = Files.createDirectory(root.resolve("projects"))
+        val fonts = Files.createDirectory(root.resolve("fonts"))
+        val journal = DesktopArchiveQuotaJournal(
+            Files.createDirectory(root.resolve("journal"))
+        )
+        val archive = root.resolve("catalogo.7z")
+        SevenZOutputFile(archive.toFile()).use { seven ->
+            seven.setContentCompression(SevenZMethod.COPY)
+            seven.putArchiveEntry(SevenZArchiveEntry().apply {
+                name = "Colecao/Maria.dst"
+            })
+            seven.write(sampleDst())
+            seven.closeArchiveEntry()
+        }
+        val originalBytes = Files.readAllBytes(archive)
+        val androidPreview = SafeArchiveExtractor.stage(archive)
+        try {
+            val usage = FakeV2()
+            val gate = DesktopWindowsArchiveAuthorizedImport(
+                usage, DesktopVerifiedFontSession { "offline-verified-google-token" },
+                journal, projects, fonts
+            )
+            val imported = gate.importOne(
+                archive, androidPreview, androidPreview.entries.single(),
+                charArrayOf()
+            )
+            assertTrue(imported.created)
+            assertTrue(imported.itemId!!.endsWith(".flp"))
+            assertEquals(1, usage.reserveCount)
+            assertEquals(1, usage.finalCount)
+            assertTrue(journal.listPending().isEmpty())
+            assertEquals(1, DesktopProjectCatalog.scan(projects).projects.size)
+            assertContentEquals(originalBytes, Files.readAllBytes(archive))
+            assertFalse(Files.exists(root.resolve("Colecao")))
+        } finally {
+            androidPreview.sourceFile.delete()
             Files.walk(root).use { paths ->
                 paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
             }
