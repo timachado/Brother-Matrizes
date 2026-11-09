@@ -52,6 +52,55 @@ class DesktopBrotherFontUsageGatewayTest {
         }
 
     @Test
+    fun `preflight da fonte não consome cota e bloqueia contrato antigo`() = runBlocking {
+        val endpoint = URL(
+            "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
+        )
+        val success = FakeConnection(endpoint,
+            response = """{"operation":"import_font","protocol":"free_v2","ready":true}""")
+        client(success).ensureFreeV2Ready("verified-access-token", "import_font")
+        assertEquals(
+            """{"action":"preflight_v2","operation":"import_font"}""",
+            success.sentPayload()
+        )
+        assertTrue(success.disconnected)
+
+        for (body in listOf(
+            """{"operation":"import_font","protocol":"free_v2","ready":false}""",
+            """{"operation":"import_font","protocol":"free_v2","ready":"true"}""",
+            """{"operation":"import_matrix","protocol":"free_v2","ready":true}""",
+            """{"operation":"import_font","protocol":"legacy_v1","ready":true}"""
+        )) {
+            val fake = FakeConnection(endpoint, response = body)
+            assertFailsWith<IllegalStateException> {
+                client(fake).ensureFreeV2Ready("verified-access-token", "import_font")
+            }
+            assertEquals(
+                """{"action":"preflight_v2","operation":"import_font"}""",
+                fake.sentPayload()
+            )
+            assertTrue(fake.disconnected)
+        }
+
+        val oldServer = FakeConnection(endpoint, status = 400,
+            response = """{"message":"unsupported action"}""")
+        assertFailsWith<IllegalStateException> {
+            client(oldServer).ensureFreeV2Ready(
+                "verified-access-token", "import_font")
+        }
+        assertTrue(oldServer.disconnected)
+        var connections = 0
+        val gateway = DesktopBrotherFontUsageGateway(publishableKey, 196) {
+            connections++
+            error("Never connect")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            gateway.ensureFreeV2Ready("verified-access-token", "import_matrix")
+        }
+        assertEquals(0, connections)
+    }
+
+    @Test
     fun `reserva confirma contrato e headers autenticados`() = runBlocking {
         val fake = FakeConnection(
             URL("https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"),
