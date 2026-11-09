@@ -63,6 +63,31 @@ class DesktopAccountQaScreenTest {
     }
 
     @Test
+    fun googleQaSignInRemainsOffUntilIndependentRedirectReviewOptIn() {
+        val basic = mapOf(
+            "BROTHER_WINDOWS_QA_GOOGLE_AUTH" to "enabled",
+            "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY" to publicKey
+        )
+        val control = "BROTHER_WINDOWS_QA_REDIRECT_REVIEWED"
+        assertFalse(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(emptyMap()))
+        assertFalse(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(basic))
+        assertFalse(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(
+            basic + (control to "true")
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(
+            basic + (control to "enabled") -
+                "BROTHER_WINDOWS_QA_GOOGLE_AUTH"
+        ))
+        assertFalse(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(
+            basic + (control to "enabled") -
+                "BROTHER_WINDOWS_QA_SUPABASE_PUBLISHABLE_KEY"
+        ))
+        assertTrue(DesktopWindowsAccountQaOptIn.redirectReviewedForQa(
+            basic + (control to "enabled")
+        ))
+    }
+
+    @Test
     fun serverValidatedPlansHaveHumanReadableAndroidCommercialLabels() {
         val expected = mapOf(
             "pro_monthly" to "Brother Matrizes Pro mensal",
