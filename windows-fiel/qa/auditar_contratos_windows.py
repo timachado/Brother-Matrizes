@@ -118,6 +118,29 @@ require("Nenhum serviço/credencial privilegiada foi incorporado ao gate",
         "http://" not in gate and
         "https://" not in gate)
 
+
+# Duplicate explicit Kotlin imports previously blocked both the portable EXE
+# and quota QA before any test could run. Catch this cheaply before Gradle.
+# Source files only: no network, credentials, or generated Android code.
+duplicate_imports = []
+for kotlin_source in (WIN / "desktop").rglob("*.kt"):
+    if "build" in kotlin_source.parts:
+        continue
+    seen_imports = set()
+    for number, line in enumerate(kotlin_source.read_text(encoding="utf-8").splitlines(), 1):
+        cleaned = line.strip()
+        if not cleaned.startswith("import "):
+            continue
+        if cleaned in seen_imports:
+            duplicate_imports.append(f"{kotlin_source.relative_to(ROOT)}:{number}")
+        else:
+            seen_imports.add(cleaned)
+require("Importações Kotlin explícitas sem duplicatas na camada Windows",
+        not duplicate_imports)
+if duplicate_imports:
+    print("Arquivos com import repetido: " + ", ".join(duplicate_imports),
+          file=sys.stderr)
+
 if errors:
     print(f"CONTRATOS_WINDOWS_FALHARAM: {len(errors)} problema(s)", file=sys.stderr)
     sys.exit(1)
