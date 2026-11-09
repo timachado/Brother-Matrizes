@@ -20,14 +20,22 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
     private val account: DesktopWindowsAuthQaController,
     private val identityVerifier: DesktopSupabaseGoogleIdentityVerifier,
     private val entitlementReader: DesktopBrotherEntitlementReader,
-    private val googleProviderReadiness: DesktopGoogleProviderReadiness
+    private val googleProviderReadiness: DesktopGoogleProviderReadiness,
+    private val redirectReviewedForQa: Boolean
 ) : Closeable {
 
-    suspend fun signIn(): DesktopVerifiedGoogleIdentity =
-        account.loginAndVerifyGoogleForQa(identityVerifier)
+    suspend fun signIn(): DesktopVerifiedGoogleIdentity {
+        check(redirectReviewedForQa) {
+            "Login Google QA bloqueado: revisão da URL de retorno pendente."
+        }
+        return account.loginAndVerifyGoogleForQa(identityVerifier)
+    }
 
     /** Restored DPAPI credentials must be rechecked with Supabase Auth. */
     suspend fun restoreAndVerify(): Boolean {
+        check(redirectReviewedForQa) {
+            "Recuperação da sessão Google QA bloqueada até revisar o retorno OAuth."
+        }
         if (!account.recover()) return false
         account.verifyGoogleAccountForQa(identityVerifier)
         return true
@@ -68,7 +76,8 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
             browser: DesktopExternalBrowser = WindowsExternalBrowser,
             connectionFactory: (URL) -> HttpURLConnection = {
                 it.openConnection() as HttpURLConnection
-            }
+            },
+            redirectReviewedForQa: Boolean = false
         ): DesktopWindowsGoogleQaEnvironment {
             // A public key is supplied at runtime; never embed a service key.
             val client = DesktopSupabaseGooglePkceClient(
@@ -107,7 +116,8 @@ internal class DesktopWindowsGoogleQaEnvironment private constructor(
                 publishableKey, connectionFactory, projectRef = target.ref
             )
             return DesktopWindowsGoogleQaEnvironment(
-                account, identity, entitlement, readiness
+                account, identity, entitlement, readiness,
+                redirectReviewedForQa = redirectReviewedForQa
             )
         }
     }
