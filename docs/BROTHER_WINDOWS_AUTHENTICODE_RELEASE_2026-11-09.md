@@ -63,3 +63,31 @@ https://learn.microsoft.com/pt-br/windows/apps/package-and-deploy/code-signing-o
 https://learn.microsoft.com/pt-br/azure/artifact-signing/quickstart
 https://learn.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures
 https://learn.microsoft.com/en-us/windows/win32/seccrypto/using-signtool-to-verify-a-file-signature
+
+## Lançamento oficial por GitHub Releases (após assinatura)
+
+Terceiro job `publish` no mesmo workflow, condicionado a `sign=success`
+e a `github.ref=refs/heads/main`. O ambiente
+`brother-windows-release-publication` exige revisão/allowlist de branch
+configuradas pelo administrador da organização. A variável protegida
+`BM_PUBLISHING_ENABLED=approved` precisa ser ativada conscientemente; OFF
+por padrão. Sem certificado OV e HSM, não existe job de assinatura concluído
+e não há lançamento.
+
+Em runner Windows independente de quem assina, o publicador verifica
+outra vez `Get-AuthenticodeSignature` + SignTool `/pa /all /tw`,
+o relatório SHA256 do EXE, ausência de chaves privadas, diretórios app/runtime
+e integridade do ZIP resultante. Produz:
+- `Brother-Matrizes-Windows-X.Y.Z-OFICIAL-ASSINADO.zip` com runtime
+- `SHA256SUMS.txt` para verificação de integridade
+- Publicação em GitHub Releases com tag `windows-vX.Y.Z`, sem sobrescrever
+  releases anteriores e sem mudar a indicação "latest" Android.
+
+A publicação no WordPress da empresa é outro passo: a conexão WPVibe
+não estava autorizada e a URL oficial configurada no aplicativo não forneceu
+REST JSON válido na tentativa de ligação de 09/11/2026. **Não alterar o site
+nem inventar um endereço de download**. O pipeline GitHub publica apenas
+quando os pré-requisitos comerciais forem realmente completados.
+
+O teste automatizado de política de assinatura valida o novo job em modo
+offline; ele não dispõe de certificado e não executa assinatura real.
