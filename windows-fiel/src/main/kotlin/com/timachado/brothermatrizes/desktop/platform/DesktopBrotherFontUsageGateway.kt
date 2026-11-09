@@ -24,7 +24,7 @@ internal class DesktopBrotherFontUsageGateway(
     private val openConnection: (URL) -> HttpURLConnection = {
         it.openConnection() as HttpURLConnection
     }
-) : DesktopFontIdempotentUsageGateway {
+) : DesktopFontIdempotentUsageGateway, DesktopUsageFreeV2Preflight {
     private val endpoint = URL(
         "https://dwpcddiramxlhavdmmyn.supabase.co/functions/v1/brother-usage"
     )
@@ -49,6 +49,21 @@ internal class DesktopBrotherFontUsageGateway(
             endpoint.ref == null &&
             endpoint.path == "/functions/v1/brother-usage") {
             "Servidor de cotas inesperado."
+        }
+    }
+
+    /** Read-only: server must confirm Free V2 before a journal is created. */
+    override suspend fun ensureFreeV2Ready(accessToken: String, operation: String) {
+        require(operation == "import_font") {
+            "Diagnóstico V2 da fonte só permite import_font."
+        }
+        val response = post(accessToken,
+            """{"action":"preflight_v2","operation":"import_font"}""")
+        check(response.string("operation") == "import_font" &&
+            response.string("protocol") == "free_v2" &&
+            response.bool("ready")) {
+            "O serviço oficial ainda não disponibilizou importação de fontes Free V2 " +
+                "para Windows. Nenhuma reserva nem fonte foi criada."
         }
     }
 
