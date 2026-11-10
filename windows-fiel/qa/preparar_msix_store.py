@@ -31,7 +31,7 @@ for prefix, namespace in (("", NS), ("uap", UAP), ("uap10", UAP10), ("rescap", R
     ET.register_namespace(prefix, namespace)
 
 
-def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_ICON) -> Path:
+def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_ICON, *, store_candidate: bool = False) -> Path:
     source = app_image.resolve(strict=True)
     destination = target.resolve()
     if not source.is_dir() or destination == source or source in destination.parents or destination in source.parents:
@@ -66,6 +66,13 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     for size, name in logos:
         canvas.resize((size, size), Image.Resampling.LANCZOS).save(assets / name)
 
+    # Store candidate only changes manifest branding, never license logic or Android.
+    # Still unsigned, never uploads to Store, needs independent MSIX install/WACK.
+    display_name = "Brother Matrizes" if store_candidate else "Brother Matrizes Windows (QA MSIX)"
+    description = (
+        "Brother Matrizes para Windows."
+        if store_candidate else "MSIX para testar empacotamento. Nao distribuir."
+    )
     package = ET.Element(f"{{{NS}}}Package")
     ET.SubElement(package, f"{{{NS}}}Identity", {
         "Name": STORE_NAME, "Publisher": STORE_PUBLISHER,
@@ -73,9 +80,9 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     })
     props = ET.SubElement(package, f"{{{NS}}}Properties")
     for tag, value in (
-        ("DisplayName", "Brother Matrizes Windows (QA MSIX)"),
+        ("DisplayName", display_name),
         ("PublisherDisplayName", STORE_PUBLISHER_DISPLAY_NAME),
-        ("Description", "MSIX para testar empacotamento. Nao distribuir."),
+        ("Description", description),
         ("Logo", r"Assets\StoreLogo.png"),
     ):
         ET.SubElement(props, f"{{{NS}}}{tag}").text = value
@@ -95,8 +102,8 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
         f"{{{UAP10}}}TrustLevel": "mediumIL",
     })
     ET.SubElement(app, f"{{{UAP}}}VisualElements", {
-        "DisplayName": "Brother Matrizes Windows (QA MSIX)",
-        "Description": "QA sem assinatura - nao publicavel",
+        "DisplayName": display_name,
+        "Description": description,
         "Square150x150Logo": r"Assets\Square150x150Logo.png",
         "Square44x44Logo": r"Assets\Square44x44Logo.png",
         "BackgroundColor": "transparent",
@@ -116,10 +123,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--app-image", required=True, type=Path)
     parser.add_argument("--stage", required=True, type=Path)
+    parser.add_argument("--store-candidate", action="store_true", help="Store submission candidate, unsigned; no upload")
     args = parser.parse_args()
     try:
-        staged = stage_msix_qa(args.app_image, args.stage)
-        print("BROTHER_WINDOWS_MSIX_QA_STAGING_OK", staged, STORE_NAME)
+        staged = stage_msix_qa(args.app_image, args.stage, store_candidate=args.store_candidate)
+        print("BROTHER_WINDOWS_MSIX_STAGING_OK", staged, STORE_NAME,
+              "STORE-CANDIDATE" if args.store_candidate else "QA")
     except (OSError, ValueError, AssertionError) as error:
         print("BROTHER_WINDOWS_MSIX_QA_STAGING_FAIL:", error, file=sys.stderr)
         raise SystemExit(1)
