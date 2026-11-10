@@ -134,14 +134,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Falha no staging do candidato Store.' }
           $sdk = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
           $tools = @(Get-ChildItem $sdk -Recurse -File -Filter makeappx.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '\\x64\\makeappx\.exe        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Brother-Windows-MSIX-Failed-Tests
-          path: windows-fiel/build/test-results/test/*.xml
-          if-no-files-found: ignore
-          retention-days: 3
- } | Sort-Object FullName)
+            Where-Object { $_.DirectoryName.EndsWith('\\x64') } | Sort-Object FullName)
           if ($tools.Count -eq 0) { throw 'MakeAppx Windows SDK x64 ausente.' }
           $makeappx = $tools[-1].FullName
           $out = 'windows-fiel/build/qa/msix-store-candidate-output'
