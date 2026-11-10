@@ -175,3 +175,59 @@ para guardar token ou PIN, nem conectá-lo ao computador de cliente.
 Fontes normativas:
 https://cabforum.org/working-groups/code-signing/requirements/
 https://learn.microsoft.com/pt-br/windows/apps/package-and-deploy/code-signing-options
+
+## Alternativa para desenvolvedor autônomo sem CNPJ (10/11/2026)
+
+**Perfil declarado:** proprietário atua como pessoa física com CPF, sem CNPJ.
+**Não gravar CPF, RG, endereço pessoal ou documento no repositório.**
+
+### Constatação que altera a estratégia anterior
+
+- A documentação global da **Sectigo**, atualizada em 02/06/2026,
+  afirma explicitamente que Code Signing OV (não EV) **pode ser emitido
+  para indivíduos**, com verificação de identidade por documento com
+  foto/vídeo, endereço e contato verificado. Portanto, a exigência de
+  CNPJ não é universal para todos os emissores Code Signing:
+  https://www.sectigo.com/faqs/detail/OV-Code-Signing-Validation-for-Organizations-and-Individuals
+- **O revendedor Sectigo Brasil consultado não atende CPF**: o formulário
+  do distribuidor exige CNPJ e declara não emitir Code Signing para PF.
+  Não solicitar ali ou pagar sem aceite prévio por escrito:
+  https://www.sectigo.com.br/produtos/order.php
+- DigiCert e GlobalSign foram consultados em suas ofertas padrão,
+  voltadas a entidades empresariais; não presumir elegibilidade para
+  pessoa física no Brasil sem confirmação específica.
+- Microsoft Store **assina pacotes MSIX/AppX submetidos à Store**, mas
+  **não assina EXE/MSI avulsos nem o ZIP portátil distribuído pelo site**.
+  A Microsoft recomenda conta de Empresa para freelancers distribuindo
+  aplicativos em razão da própria profissão; conta Individual é destinada
+  sobretudo a projetos não comerciais/não relacionados à profissão.
+  Assim, não tratar Store como garantia de liberação comercial por CPF:
+  https://learn.microsoft.com/en-us/windows/apps/publish/faq/get-started-with-the-microsoft-store
+  https://learn.microsoft.com/pt-br/windows/apps/publish/faq/open-developer-account
+- Azure Artifact Signing Public Trust para pessoas físicas no Brasil
+  **não está disponível** na lista oficial de elegibilidade atual.
+
+### Próxima ação sem custo ou alteração de produção
+
+1. Contatar diretamente a **Sectigo internacional** ou um revendedor
+   autorizado de Code Signing e solicitar confirmação **por escrito** de
+   emissão **Code Signing não EV em nome de pessoa física residente no
+   Brasil (CPF, sem CNPJ)** e preço final, emissão, driver, token/HSM.
+2. Confirmar que o certificado será aceito pelo programa de raízes de
+   confiança da Microsoft para **EXE Authenticode** e que o `Subject`
+   apresentará o **nome civil validado** (a marca Brother Matrizes /
+   T.I. Machado permanece no aplicativo, não pode ser improvisada como
+   nome legal do editor no certificado).
+3. Só pedir documentos civis diretamente no portal seguro da CA; nunca
+   por chat, issue, commit, arquivo de build ou repositório.
+4. Se o emissor **não aceitar CPF brasileiro**, não comprar certificado
+   incompatível: comparar formalização opcional como MEI (apenas se a
+   atividade for permitida, com orientação contábil) versus publicar um
+   MSIX pela Store mediante conta elegível. Certificado ICP-Brasil e-CPF
+   de assinatura geral não substitui automaticamente Code Signing.
+5. O workflow `brother-windows-authenticode-release.yml` já compara
+   `BM_SIGNER_SUBJECT` com o `Subject` exato do certificado; configurar
+   apenas depois da emissão. Não afrouxar validação nem forjar subject.
+
+**Estado:** consulta de elegibilidade em aberto; sem compra, emissão,
+certificado, assinatura ou publicação.
