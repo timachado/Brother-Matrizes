@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -60,6 +62,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopOrientation
 import com.timachado.brothermatrizes.core.embroidery.HoopLayerPositioning
+import com.timachado.brothermatrizes.core.embroidery.shouldRotateHoop
 import com.timachado.brothermatrizes.core.embroidery.MatrixNameRotation
 import com.timachado.brothermatrizes.core.embroidery.NameAutoPlacement
 import com.timachado.brothermatrizes.core.embroidery.NameCompositionMode
@@ -97,6 +100,22 @@ private data class NameDraft(
     val y: Int
 )
 
+/** Real physical width/height fit for a chosen landscape hoop.
+ * Returns 1 without altering stitches when they already fit.
+ * Additional 2% margin prevents boundary rounding errors.
+ */
+internal fun landscapeHoopAutoScale(
+    designWidthMm: Float, designHeightMm: Float,
+    usableWidthMm: Float, usableHeightMm: Float
+): Float {
+    require(listOf(designWidthMm, designHeightMm,
+        usableWidthMm, usableHeightMm).all { it.isFinite() && it > 0f })
+    if (designWidthMm <= usableWidthMm &&
+        designHeightMm <= usableHeightMm) return 1f
+    return (minOf(usableWidthMm / designWidthMm,
+        usableHeightMm / designHeightMm) * 0.98f).coerceAtMost(1f)
+}
+
 private enum class NameEditorMoveMode { MATRIX, NAME }
 
 private const val MIN_LETTER_SCALE_PERCENT = 30
@@ -119,7 +138,9 @@ fun NameEditorScreen(
     original: EmbroideryDesign,
     referenceHoop: HoopProfile,
     onBack: () -> Unit,
-    onApply: (EmbroideryDesign) -> Unit
+    onApply: (EmbroideryDesign) -> Unit,
+    desktopFloatingPreview: Boolean = false,
+    desktopAutoFitLandscape: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -608,13 +629,13 @@ fun NameEditorScreen(
     }
 
 
-    /** Troca a orientação física do bastidor sem alterar nenhuma pontada. */
+    /** On desktop, physically fit the real stitches to a landscape hoop.
+     * Failed validation leaves the current project and undo history intact.
+     */
     fun chooseHoopOrientation(hoop: HoopProfile, orientation: HoopOrientation) {
         if (activeHoop == hoop && baseDesign.hoopOrientation == orientation) return
-        undo = (undo + snapshot()).takeLast(40)
-        redo = emptyList()
         val layer = baseDesign.editableName
-        baseDesign = baseDesign.copy(
+        val oriented = baseDesign.copy(
             hoopProfile = hoop,
             hoopOrientation = orientation,
             editableName = layer?.copy(
@@ -623,7 +644,47 @@ fun NameEditorScreen(
                 )
             )
         )
+        var next = oriented
+        var fittedPercent = letterScalePercent
+        if (desktopAutoFitLandscape && orientation == HoopOrientation.LANDSCAPE) {
+            val base = oriented.editableName?.original ?: oriented
+            val rotateHoop = base.shouldRotateHoop(hoop)
+            val maxWidth = if (rotateHoop) hoop.usableHeightMm else hoop.usableWidthMm
+            val maxHeight = if (rotateHoop) hoop.usableWidthMm else hoop.usableHeightMm
+            val factor = landscapeHoopAutoScale(
+                base.bounds.widthMm, base.bounds.heightMm, maxWidth, maxHeight
+            )
+            if (factor < 1f) {
+                val percent = (letterScalePercent * factor).roundToInt()
+                if (percent < MIN_LETTER_SCALE_PERCENT) {
+                    matrixRotationError =
+                        "A matriz não cabe no bastidor horizontal. Escolha um bastidor maior."
+                    return
+                }
+                next = MatrixNameRotation.resizeLetter(
+                    oriented, factor, hoop
+                ).getOrElse { failure ->
+                    matrixRotationError = failure.message ?:
+                        "Autoencaixe recusado: matriz fora da área segura."
+                    return
+                }
+                fittedPercent = percent
+            }
+            if (next.hoopPositionLocked) {
+                try {
+                    HoopLayerPositioning.validateHoop(next, hoop)
+                } catch (failure: IllegalArgumentException) {
+                    matrixRotationError = failure.message ?:
+                        "O desenho ultrapassa o bastidor físico."
+                    return
+                }
+            }
+        }
+        undo = (undo + snapshot()).takeLast(40)
+        redo = emptyList()
+        baseDesign = next
         activeHoop = hoop
+        letterScalePercent = fittedPercent
         autoFitEnabled = false
         matrixRotationError = null
         computed = null
@@ -844,13 +905,15 @@ fun NameEditorScreen(
             ) { Text("Refazer") }
         }
 
-        // Toda a área central rola em telas compactas e em fonte ampliada.
-        // Apenas a barra superior e o botão Aplicar ficam fixos.
-        // Não criar um segundo contêiner rolável com weight(1f): em aparelhos
-        // Samsung compactos a prévia ocupava todo o espaço e os ajustes
-        // acabavam com altura zero, impedindo a rolagem.
+        // Windows: sticky side-lane PiP only after scrolling the large hoop.
+        // Reserve 244dp so its live, read-only preview NEVER covers controls.
+        // Android keeps its original single scroll with no floating overlay.
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        val showDesktopPip = desktopFloatingPreview &&
+            maxWidth >= 760.dp && editorScroll.value >= 220
         Column(
-            modifier = Modifier.weight(1f).fillMaxWidth()
+            modifier = Modifier.fillMaxSize()
+                .padding(end = if (showDesktopPip) 244.dp else 0.dp)
                 .verticalScroll(editorScroll)
                 .testTag("brother_name_editor_scroll"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1620,6 +1683,35 @@ fun NameEditorScreen(
             }
         }
         } // fim do conteúdo rolável (prévia, abas e ajustes contextualizados)
+        if (showDesktopPip) {
+            Column(
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .width(232.dp).height(208.dp)
+                    .background(Color(0xFF142734))
+                    .padding(6.dp)
+                    .testTag("brother_name_editor_pip"),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Bastidor · prévia ao vivo", color = FioGold, fontSize = 11.sp)
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    EmbroideryCanvas(
+                        design = backgroundDesign, hoop = activeHoop,
+                        interactive = false,
+                        displayMode = EmbroideryDisplayMode.SOLID,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    if (!previewBusy && preview != null) {
+                        NameEditorStitchLayer(
+                            original = backgroundDesign, result = preview,
+                            hoop = activeHoop, modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+                Text("Prévia: sem alterar pontadas",
+                    color = FioTextMuted, fontSize = 9.sp, maxLines = 1)
+            }
+        }
+        } // fim da região PiP do Windows
         Button(
             onClick = { preview?.let(onApply) },
             enabled = preview != null && !previewBusy,

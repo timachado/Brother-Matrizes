@@ -1947,6 +1947,8 @@ private fun FielHomeHost(
                 // Importação TTF/OTF permanece bloqueada: nenhuma autorização
                 // nem cobrança de cota comercial é simulada.
                 NameEditorScreen(
+                    desktopFloatingPreview = true,
+                    desktopAutoFitLandscape = true,
                     original = checkNotNull(activeDesign),
                     referenceHoop = hoop,
                     onBack = { detail = ActiveDetail.VIEWER },
