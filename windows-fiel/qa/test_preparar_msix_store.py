@@ -50,6 +50,22 @@ class StageMsixQaTests(unittest.TestCase):
             with Image.open(self.stage / "Assets" / name) as image:
                 self.assertEqual(image.size, (size, size))
 
+    def test_store_candidate_uses_real_identity_and_commercial_listing_name(self):
+        stage_msix_qa(self.app, self.stage, self.icon, store_candidate=True)
+        parsed = ET.parse(self.stage / "AppxManifest.xml").getroot()
+        identity = parsed.find(f"{{{NS}}}Identity")
+        self.assertEqual(identity.attrib["Name"], STORE_NAME)
+        self.assertEqual(identity.attrib["Publisher"], STORE_PUBLISHER)
+        self.assertEqual(identity.attrib["Version"], "1.0.0.0")
+        props = parsed.find(f"{{{NS}}}Properties")
+        self.assertEqual(props.find(f"{{{NS}}}DisplayName").text, "Brother Matrizes")
+        self.assertEqual(props.find(f"{{{NS}}}PublisherDisplayName").text, "T.I. Machado Soluções em Tecnologia")
+        app = parsed.find(f"{{{NS}}}Applications/{{{NS}}}Application")
+        visual = app.find("{http://schemas.microsoft.com/appx/manifest/uap/windows10}VisualElements")
+        self.assertEqual(visual.attrib["DisplayName"], "Brother Matrizes")
+        self.assertTrue((self.stage / "BrotherMatrizes.exe").is_file())
+        self.assertTrue((self.stage / "runtime" / "fixture.dat").is_file())
+
     def test_missing_runtime_rejected(self):
         (self.app / "runtime" / "fixture.dat").unlink()
         (self.app / "runtime").rmdir()
