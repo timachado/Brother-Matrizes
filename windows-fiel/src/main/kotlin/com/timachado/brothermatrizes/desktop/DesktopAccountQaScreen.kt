@@ -202,13 +202,13 @@ internal fun DesktopAccountQaScreen(
         TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
         Text("Minha Conta", color = FioText, fontWeight = FontWeight.Bold)
         Text(
-            "Brother Matrizes • T.I. Machado Soluções em Tecnologia",
+            "Brother Matrizes Windows • T.I. Machado Soluções em Tecnologia",
             color = FioTextMuted
         )
         OutlinedButton(
             onClick = onPlans,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Planos e benefícios — versão original Android") }
+        ) { Text("Planos e benefícios — Brother Matrizes Windows") }
 
 
         Card(

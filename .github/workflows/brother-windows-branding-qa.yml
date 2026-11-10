@@ -1,0 +1,45 @@
+name: Brother Matrizes Windows - identidade e OAuth (QA)
+
+on:
+  push:
+    branches:
+      - refactor/windows-ui-platform-separation-20261110
+    paths:
+      - 'windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/**'
+      - 'windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/**'
+      - '.github/workflows/brother-windows-branding-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-windows-branding-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kotlin-windows:
+    name: Compilar e testar Windows sem login real
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+      - name: Compilar e executar testes priorizados sem dados comerciais
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopWindowsBrandingContractTest' --tests '*DesktopGooglePkceLoginCoordinatorTest' --tests '*DesktopWindowsAuthQaControllerTest' --tests '*DesktopAccountQaScreenTest'
+      - name: Guardar testes se houver falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Windows-Branding-OAuth-QA-Failures
+          path: windows-fiel/build/test-results/test/
+          if-no-files-found: ignore
+          retention-days: 7

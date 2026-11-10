@@ -352,14 +352,14 @@ internal fun DesktopFontCatalogScreen(
                         else
                             "Importação disponível somente neste ambiente QA " +
                                 "explicitamente autorizado, com confirmação da cota no " +
-                                "mesmo servidor utilizado pelo Android.",
+                                "servidor oficial do Brother Matrizes.",
                         color = FioText
                     )
                 }
                 if (importGate != null) {
                     Text(
                         "Modo QA autorizado: esta importação consulta o Google e pode " +
-                            "descontar uma cota REAL da mesma conta Brother Matrizes do Android.",
+                            "descontar uma cota REAL da conta Brother Matrizes.",
                         color = FioText
                     )
                     OutlinedButton(
@@ -432,7 +432,7 @@ internal fun DesktopFontCatalogScreen(
                     }
                     Text(
                         "DaFont: pesquisa com Google e reserva de cota no " +
-                            "mesmo Supabase do Android. NetFontes: busca após " +
+                            "mesmo servidor de autenticação oficial. NetFontes: busca após " +
                             "login Google, sem cota de pesquisa DaFont. " +
                             "Baixe no site oficial e confira a licença; " +
                             "a importação é autorizada separadamente.",
@@ -471,7 +471,7 @@ internal fun DesktopFontCatalogScreen(
                             else "Selecionar ZIP de fontes (sem importar)")
                     }
                     Text(
-                        "Analise primeiro o ZIP com as verificações do Android. " +
+                        "Analise primeiro o ZIP com as verificações de segurança. " +
                             "A seleção não consome cota; para importar uma fonte " +
                             "é necessário login verificado e confirmação explícita.",
                         color = FioTextMuted
@@ -616,7 +616,7 @@ internal fun DesktopFontCatalogScreen(
                                 else "Testar pontadas em memória (sem exportar)")
                         }
                         Text(
-                            "Amostra RUNNING calculada pelo motor vetorial do Android. " +
+                            "Amostra RUNNING calculada pelo motor vetorial do Brother Matrizes. " +
                                 "Não substitui o Satin de fontes importadas, " +
                                 "não cria DST, não altera a Biblioteca e não usa cotas.",
                             color = FioTextMuted

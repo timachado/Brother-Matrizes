@@ -121,7 +121,7 @@ internal fun DesktopTelegramMatrixSearchScreen(
             ) { Text("Importar matriz PES/DST/JEF com conta e cota") }
         }
         Text(
-            "Como no Android, a pesquisa em grupos privados ocorre no próprio Telegram. " +
+            "A pesquisa em grupos privados ocorre no próprio Telegram. " +
                 "O Windows não acessa suas mensagens. Abrir um arquivo permite visualizar " +
                 "a matriz; importar para a Biblioteca exige conta verificada, " +
                 "permissão comercial e cota do servidor.",
