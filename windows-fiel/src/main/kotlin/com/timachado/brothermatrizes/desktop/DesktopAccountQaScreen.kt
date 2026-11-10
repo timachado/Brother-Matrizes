@@ -212,7 +212,12 @@ internal fun DesktopAccountQaScreen(
                     fontWeight = FontWeight.Bold
                 )
                 if (summary == null) {
-                    Text("Conta Google não validada nesta tela.", color = FioText)
+                    Text(
+                        if (googleVerified)
+                            "Google conectado. Assinatura ainda não consultada."
+                        else "Conta Google não validada nesta tela.",
+                        color = FioText
+                    )
                 } else {
                     val state = checkNotNull(summary)
                     Text(state.planName, color = FioText, fontWeight = FontWeight.Bold)
