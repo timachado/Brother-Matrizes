@@ -63,10 +63,13 @@ class DesktopSupabaseGooglePkceClientTest {
             parts[0] to URLDecoder.decode(parts[1], StandardCharsets.UTF_8)
         }
         assertEquals("google", args["provider"])
+        // On Windows the user must be able to choose the Google account.
+        assertEquals("select_account", args["prompt"])
+        assertFalse(args.containsKey("login_hint"))
         assertEquals(flow.redirectUri.toASCIIString(), args["redirect_to"])
         assertEquals(flow.codeChallenge, args["code_challenge"])
         assertEquals("s256", args["code_challenge_method"])
-        assertEquals(4, args.size)
+        assertEquals(5, args.size)
         assertFalse(uri.toString().contains("code_verifier"))
     }
 
