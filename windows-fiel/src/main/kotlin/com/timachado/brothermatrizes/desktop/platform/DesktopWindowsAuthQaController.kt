@@ -117,7 +117,14 @@ internal class DesktopWindowsAuthQaController private constructor(
         } catch (cancelled: CancellationException) {
             keeper.clear()
             throw cancelled
+        } catch (temporary: DesktopEntitlementUnavailableException) {
+            // /auth/v1/user already confirmed the identity. If ONLY the
+            // entitlement service is temporarily unavailable, preserve the
+            // DPAPI Google session, but grant NO plan or import rights.
+            throw temporary
         } catch (_: Exception) {
+            // Mismatched subject, invalid Google identity or malformed data:
+            // fail closed and revoke local tokens rather than show Pro.
             keeper.clear()
             error("Não foi possível verificar sua assinatura. Entre novamente.")
         }

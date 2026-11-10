@@ -84,7 +84,11 @@ internal class DesktopPkceLoopbackListener private constructor(
                         .getOrNull()
                     if (exchange != null) {
                         checkActive()
-                        sendResponse(socket, 200, "Autenticacao recebida. Volte ao Brother Matrizes.")
+                        sendResponse(
+                            socket, 200,
+                            "Codigo do Google recebido. Volte ao Brother Matrizes. " +
+                                "A validacao da conta e da assinatura continua no aplicativo."
+                        )
                         return exchange
                     }
                 }

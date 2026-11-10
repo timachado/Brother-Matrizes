@@ -207,4 +207,47 @@ class DesktopWindowsAuthQaControllerTest {
         }
     }
 
+    @Test
+    fun temporaryEntitlement503KeepsGoogleDpapiButNeverGrantsPro() = withFolder { folder ->
+        val id = "11111111-2222-4333-8444-555555555555"
+        val email = "verified-unavailable@example.invalid"
+        val key = "sb_publishable_offline_test_key_1234567890"
+        val verifier = DesktopSupabaseGoogleIdentityVerifier(key) { url ->
+            object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun disconnect() = Unit
+                override fun usingProxy() = false
+                override fun getResponseCode() = 200
+                override fun getContentType() = "application/json"
+                override fun getInputStream(): InputStream =
+                    ByteArrayInputStream(
+                        """{"id":"$id","email":"$email","app_metadata":{"provider":"google"}}"""
+                            .toByteArray(StandardCharsets.UTF_8)
+                    )
+            }
+        }
+        val reader = DesktopBrotherEntitlementReader(key) { url ->
+            object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun disconnect() = Unit
+                override fun usingProxy() = false
+                override fun getResponseCode() = 503
+            }
+        }
+        DesktopWindowsAuthQaController.open(
+            DesktopQaSignIn { DesktopTransientAuthSession(token, refresh, 3600) },
+            DesktopSessionRefresher { error("No refresh expected") },
+            clock, folder
+        ).use { controller ->
+            controller.loginAndVerifyGoogleForQa(verifier)
+            assertFailsWith<
+                com.timachado.brothermatrizes.desktop.platform.DesktopEntitlementUnavailableException
+            > { controller.accountPreviewForQa(verifier, reader) }
+            assertTrue(Files.exists(folder.resolve("session.v1.dpapi")))
+            assertEquals(token, controller.verifiedAccessTokenForQa(verifier))
+            controller.logout()
+            assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
+        }
+    }
+
 }

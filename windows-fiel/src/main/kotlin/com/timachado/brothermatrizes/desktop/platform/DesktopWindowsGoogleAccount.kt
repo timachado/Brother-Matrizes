@@ -18,19 +18,32 @@ internal class DesktopWindowsGoogleAccount private constructor(
     private val entitlement: DesktopBrotherEntitlementReader,
     private val provider: DesktopGoogleProviderReadiness
 ) : Closeable {
-    suspend fun signInAndPreview(): DesktopServerAccountSnapshot {
+    /** Stage 1: Google verified by Supabase. No Pro/quotas inferred. */
+    suspend fun signInAndVerify(): DesktopVerifiedGoogleIdentity {
         check(provider.checkPublicGoogleProvider().googleProviderEnabled) {
             "Google não está habilitado no Supabase oficial."
         }
-        // User-triggered. Supabase Auth enforces the actual Redirect URLs
-        // allowlist. An unapproved callback fails WITHOUT issuing a session.
-        account.loginAndVerifyGoogleForQa(identity)
+        // The browser callback only returns an authorization code. PKCE token
+        // exchange, Google identity check and DPAPI storage happen afterwards.
+        return account.loginAndVerifyGoogleForQa(identity)
+    }
+
+    /** Stage 1 on restart: revalidate the protected current-user session. */
+    suspend fun restoreAndVerify(): DesktopVerifiedGoogleIdentity? {
+        if (!account.recover()) return null
+        return account.verifyGoogleAccountForQa(identity)
+    }
+
+    suspend fun verifiedGoogleIdentity(): DesktopVerifiedGoogleIdentity =
+        account.verifyGoogleAccountForQa(identity)
+
+    suspend fun signInAndPreview(): DesktopServerAccountSnapshot {
+        signInAndVerify()
         return account.accountPreviewForQa(identity, entitlement)
     }
 
     suspend fun restoreAndPreview(): DesktopServerAccountSnapshot? {
-        if (!account.recover()) return null
-        account.verifyGoogleAccountForQa(identity)
+        restoreAndVerify() ?: return null
         return account.accountPreviewForQa(identity, entitlement)
     }
 

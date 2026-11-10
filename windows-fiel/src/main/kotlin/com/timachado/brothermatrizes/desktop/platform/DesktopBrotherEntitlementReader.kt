@@ -29,6 +29,10 @@ internal class DesktopServerAccountSnapshot(
     override fun toString(): String = "DesktopServerAccountSnapshot(redacted)"
 }
 
+/** A temporary service failure does not revoke an already-verified Google login. */
+internal class DesktopEntitlementUnavailableException :
+    IllegalStateException("Conta Google autenticada. Consulta da assinatura indisponível.")
+
 /** No POST, no trial activation, no WordPress writes and no local Pro override. */
 internal class DesktopBrotherEntitlementReader(
     private val publishableKey: String,
@@ -81,7 +85,11 @@ internal class DesktopBrotherEntitlementReader(
         )) && identity.email.contains('@')) {
             "Identidade não verificada."
         }
-        val conn = connectionFactory(endpoint)
+        val conn = try {
+            connectionFactory(endpoint)
+        } catch (_: java.io.IOException) {
+            throw DesktopEntitlementUnavailableException()
+        }
         try {
             conn.requestMethod = "GET"
             conn.connectTimeout = 12_000
@@ -91,8 +99,8 @@ internal class DesktopBrotherEntitlementReader(
             conn.setRequestProperty("Accept", "application/json")
             conn.setRequestProperty("apikey", publishableKey)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
-            check(conn.responseCode == HttpURLConnection.HTTP_OK) {
-                "Não foi possível confirmar a assinatura no servidor."
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                throw DesktopEntitlementUnavailableException()
             }
             val mime = conn.contentType.orEmpty()
                 .substringBefore(';').trim().lowercase()
@@ -146,6 +154,8 @@ internal class DesktopBrotherEntitlementReader(
                 commercialConfigured = configured,
                 trialStatus = trial
             )
+        } catch (_: java.io.IOException) {
+            throw DesktopEntitlementUnavailableException()
         } finally {
             conn.disconnect()
         }

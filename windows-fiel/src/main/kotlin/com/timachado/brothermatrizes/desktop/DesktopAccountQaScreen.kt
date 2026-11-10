@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleAccount
+import com.timachado.brothermatrizes.desktop.platform.DesktopEntitlementUnavailableException
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPendingFontQuotaReview
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
@@ -97,6 +98,8 @@ internal fun DesktopAccountQaScreen(
         mutableStateOf<DesktopAccountPresentation.VerifiedSummary?>(null)
     }
     var busy by remember { mutableStateOf(false) }
+    // Distinguish verified Google identity from optional server plan preview.
+    var googleVerified by remember { mutableStateOf(false) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
     var pendingFontQuotaStatus by remember { mutableStateOf<String?>(null) }
     var remoteFontQuotaStatus by remember { mutableStateOf<String?>(null) }
@@ -125,6 +128,52 @@ internal fun DesktopAccountQaScreen(
                 summary = null
                 onServerAccountVerified(null)
                 info = "Não foi possível validar a conta. Faça o login novamente."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun runOfficialGoogleAction(mode: String) {
+        val client = officialGoogle ?: return
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                val authenticated = when (mode) {
+                    "login" -> client.signInAndVerify()
+                    "restore" -> client.restoreAndVerify()
+                    else -> client.verifiedGoogleIdentity()
+                }
+                if (authenticated == null) {
+                    googleVerified = false
+                    summary = null
+                    onServerAccountVerified(null)
+                    info = "Nenhuma sessão Google protegida encontrada. Entre com Google."
+                    return@launch
+                }
+                googleVerified = true
+                info = "Google autenticado. Consultando sua assinatura no servidor…"
+                try {
+                    val snapshot = client.accountPreview()
+                    summary = DesktopAccountPresentation.verified(snapshot)
+                    onServerAccountVerified(snapshot)
+                    info = "Google autenticado e assinatura consultada no servidor."
+                } catch (temporary: DesktopEntitlementUnavailableException) {
+                    // Keep Google session; never invent Free/Pro privileges.
+                    summary = null
+                    onServerAccountVerified(null)
+                    info = "Google autenticado. O serviço de assinaturas está " +
+                        "indisponível. Use Atualizar assinatura para consultar novamente."
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                googleVerified = false
+                summary = null
+                onServerAccountVerified(null)
+                info = "Não foi possível concluir ou manter a sessão Google. " +
+                    "Tente Entrar com Google novamente."
             } finally {
                 busy = false
             }
@@ -335,31 +384,38 @@ internal fun DesktopAccountQaScreen(
                                 "Entrar não consome cotas.",
                             color = FioTextMuted
                         )
+                        Text(
+                            if (googleVerified) "Conta Google confirmada pelo Supabase."
+                            else "Conta Google ainda não confirmada neste acesso.",
+                            color = FioTextMuted
+                        )
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !busy,
-                            onClick = {
-                                runAccountAction {
-                                    officialGoogle.signInAndPreview()
-                                }
-                            }
-                        ) { Text(if (busy) "Entrando…" else "Entrar com Google") }
+                            onClick = { runOfficialGoogleAction("login") }
+                        ) { Text(if (busy) "Verificando…" else "Entrar com Google") }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !busy,
-                            onClick = {
-                                runAccountAction { officialGoogle.restoreAndPreview() }
-                            }
+                            onClick = { runOfficialGoogleAction("restore") }
                         ) { Text("Restaurar sessão protegida") }
+                        if (googleVerified) {
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy,
+                                onClick = { runOfficialGoogleAction("refresh") }
+                            ) { Text("Atualizar assinatura") }
+                        }
                         OutlinedButton(
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy && summary != null,
+                            enabled = !busy && googleVerified,
                             onClick = {
                                 if (!busy) {
                                     busy = true
                                     scope.launch {
                                         try {
                                             officialGoogle.logout()
+                                            googleVerified = false
                                             summary = null
                                             onServerAccountVerified(null)
                                             info = "Você saiu da conta Google."
