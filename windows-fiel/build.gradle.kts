@@ -258,12 +258,12 @@ val copyAndroidCreateDrawing by tasks.registering {
                     onSuccess = { artwork ->
                         artwork.label + " • " + artwork.paths.size + " caminho(s)"
                     },
-                    onFailure = { error -> error.message ?: "SVG não suportado." }
+                    onFailure = { error -> DesktopSvgFilePicker.userMessage(error) }
                 )
             },
             onFailure = { error ->
                 importedArtwork = null
-                importMessage = error.message ?: "Não foi possível ler o SVG."
+                importMessage = DesktopSvgFilePicker.userMessage(error)
             }
         )
     }
