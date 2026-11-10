@@ -19,7 +19,7 @@ group = "com.timachado.brothermatrizes"
 // Sem -PbrotherStoreRelease=true, todas as tarefas QA preservam comportamento anterior.
 val brotherStoreRelease = providers.gradleProperty("brotherStoreRelease")
     .map { it == "true" }.getOrElse(false)
-version = if (brotherStoreRelease) "1.0.1" else "0.0.1-fidelidade-qa"
+version = if (brotherStoreRelease) "1.0.2" else "0.0.1-fidelidade-qa"
 
 kotlin {
     jvmToolchain(17)
@@ -256,7 +256,7 @@ val copyAndroidCreateDrawing by tasks.registering {
         val selected = DesktopSvgFilePicker.chooseFromDialog() ?: return
         selected.fold(
             onSuccess = { picked ->
-                val parsed = SimpleSvgParser.parse(picked.name, picked.bytes)
+                val parsed = DesktopSvgArtworkParser.parse(picked.name, picked.bytes)
                 importedArtwork = parsed.getOrNull()
                 importMessage = parsed.fold(
                     onSuccess = { artwork ->
@@ -286,7 +286,7 @@ val copyAndroidCreateDrawing by tasks.registering {
                 "import androidx.activity.result.contract.ActivityResultContracts\n", ""
             )
             .replace("import androidx.compose.ui.platform.LocalContext\n",
-                "import com.timachado.brothermatrizes.desktop.platform.DesktopSvgFilePicker\n")
+                "import com.timachado.brothermatrizes.desktop.platform.DesktopSvgFilePicker\nimport com.timachado.brothermatrizes.desktop.platform.DesktopSvgArtworkParser\n")
             .replace(launch, "requestSvgFromWindows()")
         check(!desktop.contains("android.provider.") &&
             !desktop.contains("rememberLauncherForActivityResult") &&
@@ -1867,7 +1867,7 @@ compose.desktop {
             // description and version; not a commercial signed release.
             // Launcher name remains ASCII for portable Windows paths.
             packageName = "BrotherMatrizes"
-            packageVersion = if (brotherStoreRelease) "1.0.1" else "0.0.1"
+            packageVersion = if (brotherStoreRelease) "1.0.2" else "0.0.1"
             description = if (brotherStoreRelease) "Brother Matrizes para Windows" else
                 "Brother Matrizes Windows - validacao interna QA"
             vendor = "T.I. Machado Solucoes em Tecnologia"
