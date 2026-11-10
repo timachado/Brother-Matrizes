@@ -72,6 +72,9 @@ internal class DesktopSupabaseGooglePkceClient(
         }
         val query = listOf(
             "provider" to "google",
+            // Google account chooser must appear even when Chrome has a session.
+            // Supabase forwards this provider query parameter to Google OAuth.
+            "prompt" to "select_account",
             "redirect_to" to callback.toASCIIString(),
             "code_challenge" to handshake.codeChallenge,
             "code_challenge_method" to "s256"
