@@ -1285,7 +1285,7 @@ private fun FielHomeHost(
     fun backupCompleteOrFlp() {
         // Android already offers complete backup; use its EXACT codecs.
         // Keep the existing local FLP ZIP action available without changes.
-        val options = arrayOf("Backup completo (Android)", "ZIP local FLP", "Cancelar")
+        val options = arrayOf("Backup completo (Android/Windows)", "ZIP local FLP", "Cancelar")
         val selected = JOptionPane.showOptionDialog(
             null,
             "Qual formato deseja exportar? O backup completo inclui projetos FLP e fontes TTF/OTF selecionadas.",
@@ -1350,7 +1350,7 @@ private fun FielHomeHost(
                 }
             }.fold(onSuccess = { result ->
                 snackbar.showSnackbar(
-                    "Backup Android compatível criado: " +
+                    "Backup Android/Windows compatível criado: " +
                         "${result.exportedProjects} projeto(s), " +
                         "${result.exportedFonts} fonte(s). Arquivo: ${result.destination}"
                 )
