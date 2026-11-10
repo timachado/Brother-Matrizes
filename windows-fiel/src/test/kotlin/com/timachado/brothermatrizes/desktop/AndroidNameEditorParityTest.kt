@@ -44,6 +44,13 @@ class AndroidNameEditorParityTest {
         assertTrue(desktop.contains("NamePersonalization.add("))
         assertTrue(desktop.contains("NameEditorStitchLayer("))
         assertTrue(desktop.contains("brother_name_editor_pip"))
+        // Windows PiP maior e adaptativo, preservando a UI Android original.
+        assertTrue(original.contains(".width(232.dp).height(208.dp)"))
+        assertTrue(desktop.contains("val pipWidth = if (maxWidth >= 1100.dp) 380.dp else 304.dp"))
+        assertTrue(desktop.contains("val pipHeight = if (maxWidth >= 1100.dp) 340.dp else 276.dp"))
+        assertTrue(desktop.contains(".padding(end = if (showDesktopPip) pipReserved else 0.dp)"))
+        assertTrue(desktop.contains(".width(pipWidth).height(pipHeight)"))
+        assertTrue(!desktop.contains(".width(232.dp).height(208.dp)"))
         assertTrue(desktop.contains("landscapeHoopAutoScale("))
         assertTrue(desktop.contains("onClick = { preview?.let(onApply) }"))
         assertTrue(desktop.contains("onApply(baseDesign)"))
