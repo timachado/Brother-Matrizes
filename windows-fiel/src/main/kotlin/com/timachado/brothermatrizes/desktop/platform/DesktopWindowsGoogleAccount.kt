@@ -20,8 +20,15 @@ internal class DesktopWindowsGoogleAccount private constructor(
 ) : Closeable {
     /** Stage 1: Google verified by Supabase. No Pro/quotas inferred. */
     suspend fun signInAndVerify(): DesktopVerifiedGoogleIdentity {
-        check(provider.checkPublicGoogleProvider().googleProviderEnabled) {
-            "Google não está habilitado no Supabase oficial."
+        val enabled = try {
+            provider.checkPublicGoogleProvider().googleProviderEnabled
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.PROVIDER)
+        }
+        if (!enabled) {
+            throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.PROVIDER)
         }
         // The browser callback only returns an authorization code. PKCE token
         // exchange, Google identity check and DPAPI storage happen afterwards.

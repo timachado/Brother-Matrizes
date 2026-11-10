@@ -47,8 +47,20 @@ internal class DesktopWindowsAuthQaController private constructor(
     ): DesktopVerifiedGoogleIdentity = exclusive {
         keeper.clear()
         val session = signIn.signIn()
-        val identity = verifier.verifyGoogleIdentity(session.accessToken)
-        keeper.install(session)
+        val identity = try {
+            verifier.verifyGoogleIdentity(session.accessToken)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.IDENTITY)
+        }
+        try {
+            keeper.install(session)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.STORAGE)
+        }
         identity
     }
 

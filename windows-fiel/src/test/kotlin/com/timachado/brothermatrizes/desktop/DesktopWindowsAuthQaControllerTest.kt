@@ -4,6 +4,8 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopQaSignIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopSessionRefresher
 import com.timachado.brothermatrizes.desktop.platform.DesktopTransientAuthSession
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAuthQaController
+import com.timachado.brothermatrizes.desktop.platform.DesktopGoogleLoginFailure
+import com.timachado.brothermatrizes.desktop.platform.DesktopGoogleLoginStage
 import com.timachado.brothermatrizes.desktop.platform.DesktopSupabaseGoogleIdentityVerifier
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherEntitlementReader
 import java.io.ByteArrayInputStream
@@ -123,9 +125,11 @@ class DesktopWindowsAuthQaControllerTest {
             DesktopSessionRefresher { error("No network refresh expected") },
             clock, folder
         ).use { controller ->
-            assertFailsWith<IllegalStateException> {
+            val failure = assertFailsWith<DesktopGoogleLoginFailure> {
                 controller.loginAndVerifyGoogleForQa(verifier("email"))
             }
+            assertEquals(DesktopGoogleLoginStage.IDENTITY, failure.stage)
+            assertTrue(failure.message.orEmpty().contains("GOOGLE-05"))
             assertFalse(Files.exists(folder.resolve("session.v1.dpapi")))
             assertFailsWith<IllegalStateException> { controller.accessTokenForQa() }
             val identity = controller.loginAndVerifyGoogleForQa(verifier("google"))

@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapsh
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleAccount
 import com.timachado.brothermatrizes.desktop.platform.DesktopEntitlementUnavailableException
+import com.timachado.brothermatrizes.desktop.platform.DesktopGoogleLoginFailure
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPendingFontQuotaReview
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
@@ -100,6 +102,7 @@ internal fun DesktopAccountQaScreen(
     var busy by remember { mutableStateOf(false) }
     // Distinguish verified Google identity from optional server plan preview.
     var googleVerified by remember { mutableStateOf(false) }
+    var googleAccountEmail by remember { mutableStateOf<String?>(null) }
     var googleProviderStatus by remember { mutableStateOf<String?>(null) }
     var pendingFontQuotaStatus by remember { mutableStateOf<String?>(null) }
     var remoteFontQuotaStatus by remember { mutableStateOf<String?>(null) }
@@ -147,12 +150,14 @@ internal fun DesktopAccountQaScreen(
                 }
                 if (authenticated == null) {
                     googleVerified = false
+                    googleAccountEmail = null
                     summary = null
                     onServerAccountVerified(null)
                     info = "Nenhuma sessão Google protegida encontrada. Entre com Google."
                     return@launch
                 }
                 googleVerified = true
+                googleAccountEmail = authenticated.email
                 info = "Google autenticado. Consultando sua assinatura no servidor…"
                 try {
                     val snapshot = client.accountPreview()
@@ -168,16 +173,25 @@ internal fun DesktopAccountQaScreen(
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 googleVerified = false
+                googleAccountEmail = null
                 summary = null
                 onServerAccountVerified(null)
-                info = "Não foi possível concluir ou manter a sessão Google. " +
-                    "Tente Entrar com Google novamente."
+                info = if (error is DesktopGoogleLoginFailure)
+                    error.message ?: "Falha identificada no login Google."
+                else "Não foi possível concluir a sessão Google. " +
+                    "Reinicie o login; caso persista, verifique a conexão com o Supabase."
             } finally {
                 busy = false
             }
         }
+    }
+
+    // Restore the current Windows user's DPAPI session when opening Minha
+    // Conta again. This does not open the browser or grant licensed features.
+    LaunchedEffect(officialGoogle) {
+        if (officialGoogle != null) runOfficialGoogleAction("restore")
     }
 
     Column(
@@ -235,6 +249,13 @@ internal fun DesktopAccountQaScreen(
                         else
                             "Nenhuma licença Pro ativa foi confirmada nesta consulta.",
                         color = FioTextMuted
+                    )
+                }
+                if (googleVerified && googleAccountEmail != null) {
+                    Text(
+                        "Conta Google: " + checkNotNull(googleAccountEmail),
+                        color = FioText,
+                        fontWeight = FontWeight.Medium
                     )
                 }
                 Text(info, color = FioTextMuted)
@@ -421,6 +442,7 @@ internal fun DesktopAccountQaScreen(
                                         try {
                                             officialGoogle.logout()
                                             googleVerified = false
+                                            googleAccountEmail = null
                                             summary = null
                                             onServerAccountVerified(null)
                                             info = "Você saiu da conta Google."
