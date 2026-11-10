@@ -237,15 +237,18 @@ internal fun DesktopFontCatalogScreen(
 
     fun openOfficialCatalog(source: FontCatalogSource) {
         if (catalogBusy) return
+        // Reserve the UI lock BEFORE launching a coroutine, preventing a
+        // second click from starting another metered DaFont search.
+        catalogBusy = true
+        val query = catalogQuery
         scope.launch {
-            catalogBusy = true
             catalogStatus = null
             try {
-                val opened = DesktopFontCatalogSearch.browse(
-                    source = source,
-                    query = catalogQuery,
-                    access = access
-                )
+                val opened = withContext(Dispatchers.IO) {
+                    DesktopFontCatalogSearch.browse(
+                        source = source, query = query, access = access
+                    )
+                }
                 catalogStatus =
                     "${source.displayName} aberto no navegador. Baixe a fonte manualmente " +
                         "e confira sua licença antes de solicitar importação."
