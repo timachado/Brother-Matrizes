@@ -27,9 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherCommunityLinks
 import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialCommunityGroupResolver
-import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialReleaseNotice
 import com.timachado.brothermatrizes.desktop.platform.DesktopOfficialWindowsReleaseNotice
-import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsLocalNotification
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
@@ -38,17 +36,15 @@ import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Android BrotherCommunityScreen adapted to native Windows browser/mail apps. */
+/** Windows community, support, feedback and official Windows update channel. */
 @Composable
 internal fun DesktopBrotherCommunityScreen(
     onBack: () -> Unit,
     versionName: String = "Windows QA",
     openBrowser: (URI) -> Unit = DesktopBrotherCommunityLinks::openWebsite,
     openMail: (URI) -> Unit = DesktopBrotherCommunityLinks::openEmailDraft,
-    automaticAndroidNewsEnabled: Boolean = false,
     automaticWindowsReleaseEnabled: Boolean = false,
     allowPublicGroupLookup: Boolean = true,
-    onAndroidNewsConsentChange: suspend (Boolean) -> Boolean = { false },
     onWindowsReleaseConsentChange: suspend (Boolean) -> Boolean = { false }
 ) {
     var feedbackOpen by remember { mutableStateOf(false) }
@@ -57,16 +53,12 @@ internal fun DesktopBrotherCommunityScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var officialGroup by remember { mutableStateOf(DesktopBrotherCommunityLinks.group()) }
     val scope = rememberCoroutineScope()
-    var androidReleaseNotice by remember {
-        mutableStateOf<DesktopOfficialReleaseNotice.Notice?>(null)
-    }
-    var checkingNews by remember { mutableStateOf(false) }
     var checkingWindowsNews by remember { mutableStateOf(false) }
     var savingWindowsConsent by remember { mutableStateOf(false) }
     var windowsReleaseInfo by remember { mutableStateOf<String?>(null) }
 
-    // Same priority and fallback as the Android Community screen. Public
-    // read-only metadata; never opens a browser automatically or joins groups.
+    // Public, read-only group metadata; never opens a browser automatically
+    // or joins groups.
     LaunchedEffect(allowPublicGroupLookup) {
         if (allowPublicGroupLookup) {
             officialGroup = DesktopOfficialCommunityGroupResolver().resolve()
