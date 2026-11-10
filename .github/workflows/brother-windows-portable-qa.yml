@@ -290,6 +290,16 @@ jobs:
           if (!(Test-Path $nameEditorScreenshot) -or (Get-Item $nameEditorScreenshot).Length -lt 10000) {
             throw "Editor de Nomes não renderizado no launcher portable."
           }
+          # Capture real scrolled editor on the Windows runner for PiP QA.
+          $scrolledScreenshot = "windows-fiel/build/qa/name-editor-windows-scrolled-qa.png"
+          $scrolledEditor = Start-Process -FilePath $env:BM_PORTABLE_EXE -ArgumentList @("--capture-name-editor-scroll-qa") -WorkingDirectory $working -PassThru -Wait
+          if ($scrolledEditor.ExitCode -ne 0) {
+            throw "Editor de Nomes com PiP nao passou no teste de rolagem."
+          }
+          if (!(Test-Path $scrolledScreenshot) -or (Get-Item $scrolledScreenshot).Length -lt 10000) {
+            throw "Captura de tela rolada com PiP nao foi gerada."
+          }
+          "BROTHER_WINDOWS_NAME_EDITOR_SCROLL_PIP_SMOKE_OK"
           # Real Swing chooser, Windows Robot Enter and original Android
           # parser/Viewer; synthetic PES and FLP, never a customer file.
           foreach ($format in @("pes", "flp")) {
@@ -470,6 +480,7 @@ jobs:
             windows-fiel/build/qa/archive-inventory-windows-qa.png
             windows-fiel/build/qa/create-name-windows-original-port.png
             windows-fiel/build/qa/name-editor-windows-original-port.png
+            windows-fiel/build/qa/name-editor-windows-scrolled-qa.png
             windows-fiel/build/qa/chooser-pes-viewer.png
             windows-fiel/build/qa/chooser-flp-viewer.png
           if-no-files-found: warn
