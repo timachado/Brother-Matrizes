@@ -33,6 +33,7 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopExternalFontRunning
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipPreview
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontZipAuthorizedImporter
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogSearch
+import com.timachado.brothermatrizes.desktop.platform.DesktopNativeFontPicker
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccess
 import com.timachado.brothermatrizes.desktop.platform.DesktopFontCatalogAccessUnavailable
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
@@ -91,21 +92,16 @@ internal fun DesktopFontCatalogScreen(
     /** Local validation does not reserve quotas or save font files. */
     fun chooseFontForAuthorizedImport() {
         if (importGate == null || importBusy) return
-        val picker = JFileChooser().apply {
-            dialogTitle = "Selecionar TTF/OTF para importar — exige cota real"
-            fileSelectionMode = JFileChooser.FILES_ONLY
-            isAcceptAllFileFilterUsed = false
-            fileFilter = FileNameExtensionFilter("Fontes TTF/OTF", "ttf", "otf")
-        }
-        if (picker.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
-        val selected = picker.selectedFile.toPath()
-        selectedForImport = null
-        selectedImportReport = null
-        importStatus = null
-        importBusy = true
+        importBusy = true // Protect native picker too, before first suspension.
         scope.launch {
             try {
-                // Test magic/signature and Skia before asking for a quota.
+                val selected = DesktopNativeFontPicker.chooseFont(
+                    "Selecionar TTF/OTF para importar — exige cota real"
+                ) ?: return@launch
+                selectedForImport = null
+                selectedImportReport = null
+                importStatus = null
+                // No quota request until the user later confirms the import.
                 val preview = withContext(Dispatchers.IO) {
                     DesktopReadOnlyFontAnalyzer.inspect(selected)
                 }
@@ -183,21 +179,14 @@ internal fun DesktopFontCatalogScreen(
 
     fun inspectFontZipReadOnly() {
         if (zipBusy) return
-        val chooser = JFileChooser().apply {
-            dialogTitle = "Inspecionar ZIP de fontes DaFont/NetFontes — sem importar"
-            fileSelectionMode = JFileChooser.FILES_ONLY
-            isAcceptAllFileFilterUsed = false
-            fileFilter = FileNameExtensionFilter("Arquivos ZIP de fontes (*.zip)", "zip")
-        }
-        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
-        val selected = chooser.selectedFile.toPath()
-        zipBusy = true
-        zipPreview = null
-        zipSelectedPath = null
-        zipImportStatus = null
-        zipError = null
+        zipBusy = true // A second click cannot open another modal ZIP picker.
         scope.launch {
             try {
+                val selected = DesktopNativeFontPicker.chooseZip() ?: return@launch
+                zipPreview = null
+                zipSelectedPath = null
+                zipImportStatus = null
+                zipError = null
                 val checked = withContext(Dispatchers.IO) {
                     DesktopFontZipPreview.inspect(selected)
                 }
@@ -206,9 +195,8 @@ internal fun DesktopFontCatalogScreen(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                zipError =
-                    "Não foi possível analisar o ZIP de fontes com segurança. " +
-                        "Nenhum arquivo foi extraído ou importado."
+                zipError = "Não foi possível analisar o ZIP de fontes com segurança. " +
+                    "Nenhum arquivo foi extraído ou importado."
             } finally {
                 zipBusy = false
             }
@@ -220,22 +208,11 @@ internal fun DesktopFontCatalogScreen(
         val source = zipSelectedPath ?: return
         val reviewed = zipPreview ?: return
         if (zipImportBusy || zipBusy || importBusy) return
-        val consent = JOptionPane.showConfirmDialog(
-            null,
-            "Importar a fonte ${font.name} do ZIP analisado?\\n" +
-                "Confirme que você possui autorização de uso.\\n" +
-                "Esta ação verificará a conta Google no servidor e poderá " +
-                "consumir uma cota de importação TTF/OTF.\\n" +
-                "Cancelar não consome cota.",
-            "Brother Matrizes — confirmar importação de fonte",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE
-        )
-        if (consent != JOptionPane.YES_OPTION) return
         zipImportBusy = true
-        zipImportStatus = "Validando pacote e autorização da conta…"
         scope.launch {
             try {
+                if (!DesktopNativeFontPicker.confirmImport(font.name)) return@launch
+                zipImportStatus = "Validando pacote e autorização da conta…"
                 val imported = withContext(Dispatchers.IO) {
                     DesktopFontZipAuthorizedImporter.importOne(
                         source, reviewed, font, gate
@@ -286,22 +263,17 @@ internal fun DesktopFontCatalogScreen(
 
     fun analyzeExternalFontReadOnly() {
         if (isAnalyzing) return
-        val chooser = JFileChooser().apply {
-            dialogTitle = "Analisar TTF/OTF sem importar fonte (QA)"
-            fileSelectionMode = JFileChooser.FILES_ONLY
-            isAcceptAllFileFilterUsed = false
-            fileFilter = FileNameExtensionFilter("Fontes TTF/OTF", "ttf", "otf")
-        }
-        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return
-        val selected = chooser.selectedFile.toPath()
-        isAnalyzing = true
-        analysis = null
-        analysisError = null
-        inspectedFontFile = null
-        runningReport = null
-        runningError = null
+        isAnalyzing = true // Guard the picker + analyzer, not just parsing.
         scope.launch {
             try {
+                val selected = DesktopNativeFontPicker.chooseFont(
+                    "Analisar TTF/OTF sem importar fonte"
+                ) ?: return@launch
+                analysis = null
+                analysisError = null
+                inspectedFontFile = null
+                runningReport = null
+                runningError = null
                 analysis = withContext(Dispatchers.IO) {
                     DesktopReadOnlyFontAnalyzer.inspect(selected)
                 }
