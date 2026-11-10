@@ -41,6 +41,19 @@ jobs:
               $main.Contains('title = "Brother Matrizes — Windows (QA interna)"')) {
             throw 'Versao QA nao pode ser assinada como comercial.'
           }
+          # Bloqueio adicional: o nome ou a versao comerciais nao bastam.
+          # Nao assinar se a implementacao Android->Windows ainda exibe
+          # funcionalidades essenciais explicitamente pendentes de QA.
+          $gates = @(
+            @{ name = 'Fontes TTF/OTF'; file = $build; marker = 'Importação TTF/OTF indisponível nesta QA Windows' },
+            @{ name = 'Importacao RAR'; file = $build; marker = 'Integração RAR/conta indisponível nesta versão de QA Windows' },
+            @{ name = 'Importacao comercial de fontes'; file = $main; marker = 'somente fontes EMBUTIDAS são funcionais nesta QA Windows' }
+          )
+          foreach ($gate in $gates) {
+            if ($gate.file.Contains($gate.marker)) {
+              throw "Funcionalidade comercial pendente: $($gate.name). Corrigir e homologar antes de assinar."
+            }
+          }
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -107,7 +120,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if ($env:BM_SIGNING_ENABLED -ne 'approved') { throw 'Assinatura comercial desabilitada.' }
           if ($env:BM_CERT_THUMBPRINT -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Thumbprint OV nao configurado.' }
-          if ([string]::IsNullOrWhiteSpace($env:BM_SIGNER_SUBJECT)) { throw 'Razao social exata ausente.' }
+          if ([string]::IsNullOrWhiteSpace($env:BM_SIGNER_SUBJECT)) { throw 'Nome legal do editor ausente (pessoa fisica ou empresa).' }
           if ($env:BM_RFC3161_TIMESTAMP -notmatch '^https?://[^/]+') { throw 'URL RFC3161 invalida.' }
           if (!(Get-Command signtool.exe -ErrorAction SilentlyContinue)) { throw 'SignTool nao instalado no signer.' }
       - uses: actions/download-artifact@v4
