@@ -95,8 +95,9 @@ jobs:
           }
           $manifest = Get-Content (Join-Path $unpacked 'AppxManifest.xml') -Raw
           if (!$manifest.Contains('T.I.MachadoSoluesemTecnol.BrotherMatrizes') -or
-              !$manifest.Contains('CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F')) {
-            throw 'Identidade do Partner Center nao corresponde ao MSIX preparado.'
+              !$manifest.Contains('CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F') -or
+              !$manifest.Contains('T.I. Machado Soluções em Tecnologia')) {
+            throw 'Name, Publisher ou PublisherDisplayName do Partner Center divergem do MSIX.'
           }
           $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash
           "$sha *$(Split-Path $package -Leaf)" | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
@@ -104,7 +105,7 @@ jobs:
             'BROTHER MATRIZES WINDOWS - MSIX QA SEM ASSINATURA'
             'ESTE NAO E O PACOTE DA MICROSOFT STORE. NAO PUBLICAR, INSTALAR OU DISTRIBUIR.'
             'Name e Publisher correspondem aos valores fornecidos pelo titular no Partner Center.'
-            'PublisherDisplayName do Partner Center ainda deve ser confirmado; o valor do manifesto e provisorio.'
+            'PublisherDisplayName confirmado pelo titular: T.I. Machado Soluções em Tecnologia.'
             'A versao MSIX e o proprio aplicativo ainda usam indicacoes QA; nao submeter como release comercial.'
             'O MSIX final aprovado pela Store sera assinado pela Microsoft.'
             'Conta Company profissional exige verificacao de empresa, mesmo com cadastro gratuito.'
