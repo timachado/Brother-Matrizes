@@ -1,0 +1,127 @@
+name: Brother Matrizes Windows - MSIX comercial para upload manual da Microsoft Store
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/qa/preparar_msix_store.py"
+      - ".github/workflows/brother-windows-store-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-windows-store-release
+  cancel-in-progress: true
+
+jobs:
+  msix-store-commercial:
+    name: Gerar pacote MSIX comercial sem publicacao automatica
+    runs-on: windows-2025
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Preparar icone oficial
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw 'Nao instalou Pillow.' }
+          python windows-fiel/qa/preparar_icone_windows.py --out windows-fiel/build/qa/brand/brother_matrizes.ico
+          if ($LASTEXITCODE -ne 0) { throw 'Icone oficial indisponivel.' }
+      - name: Compilar aplicativo comercial Windows com JVM
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:WIX_PATH = Join-Path $env:RUNNER_TEMP 'brother-store-no-external-installer'
+          New-Item -ItemType Directory -Force $env:WIX_PATH | Out-Null
+          gradle -p windows-fiel -PbrotherStoreRelease=true createDistributable --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar aplicativo comercial.' }
+          $exes = @(Get-ChildItem windows-fiel/build/compose/binaries -File -Recurse -Filter BrotherMatrizes.exe)
+          if ($exes.Count -ne 1) { throw 'Launcher comercial Windows ausente/duplicado.' }
+          $image = $exes[0].DirectoryName
+          foreach ($required in @('app','runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $image $required) -PathType Container)) {
+              throw "Aplicativo incompleto: $required"
+            }
+          }
+          $cfgs = @(Get-ChildItem -LiteralPath $image -File -Recurse -Filter BrotherMatrizes.cfg)
+          if ($cfgs.Count -ne 1) { throw 'Configuracao unica do launcher nao localizada.' }
+          if (!(Select-String -LiteralPath $cfgs[0].FullName -Pattern 'brother.windows.store.release=true' -SimpleMatch -Quiet)) {
+            throw 'Build nao recebeu chave comercial de apresentacao.'
+          }
+          'BROTHER_WINDOWS_COMMERCIAL_APP_IMAGE_OK'
+      - name: Empacotar MSIX comercial com identidade oficial
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exes = @(Get-ChildItem windows-fiel/build/compose/binaries -File -Recurse -Filter BrotherMatrizes.exe)
+          if ($exes.Count -ne 1) { throw 'Launcher unico Windows nao encontrado.' }
+          $stage = 'windows-fiel/build/store-release/msix-stage'
+          python windows-fiel/qa/preparar_msix_store.py --app-image $exes[0].DirectoryName --stage $stage --store-candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar manifesto comercial.' }
+          $sdk = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+          $tools = @(Get-ChildItem -LiteralPath $sdk -Recurse -File -Filter makeappx.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' } | Sort-Object FullName)
+          if ($tools.Count -eq 0) { throw 'MakeAppx x64 nao localizado.' }
+          $makeappx = $tools[-1].FullName
+          $out = 'windows-fiel/build/store-release/output'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $package = Join-Path $out 'Brother-Matrizes-Windows-1.0.0.0-STORE.msix'
+          & $makeappx pack /v /h SHA256 /d $stage /p $package /o
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx recusou MSIX comercial.' }
+          $unpacked = 'windows-fiel/build/store-release/unpacked'
+          & $makeappx unpack /p $package /d $unpacked /o
+          if ($LASTEXITCODE -ne 0) { throw 'MSIX gerado nao pode ser aberto.' }
+          foreach ($required in @('AppxManifest.xml','BrotherMatrizes.exe','app','runtime','Assets\Square150x150Logo.png')) {
+            if (!(Test-Path -LiteralPath (Join-Path $unpacked $required))) { throw "Arquivo ausente: $required" }
+          }
+          [xml]$manifest = Get-Content -LiteralPath (Join-Path $unpacked 'AppxManifest.xml') -Raw
+          if ($manifest.Package.Identity.Name -ne 'T.I.MachadoSoluesemTecnol.BrotherMatrizes' -or
+              $manifest.Package.Identity.Publisher -ne 'CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F' -or
+              $manifest.Package.Identity.Version -ne '1.0.0.0' -or
+              $manifest.Package.Identity.ProcessorArchitecture -ne 'x64' -or
+              $manifest.Package.Properties.PublisherDisplayName -ne 'T.I. Machado Soluções em Tecnologia' -or
+              $manifest.Package.Properties.DisplayName -ne 'Brother Matrizes') {
+            throw 'MSIX nao corresponde a identidade comercial oficial.'
+          }
+          $sha = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+          "$sha *$(Split-Path $package -Leaf)" | Set-Content -Path (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
+          @(
+            'BROTHER MATRIZES WINDOWS - PACOTE COMERCIAL MSIX 1.0.0.0'
+            'AUTORIZADO PELO PROPRIETARIO PARA ENVIO MANUAL A MICROSOFT STORE.'
+            'O MSIX NAO ESTA ASSINADO: ENVIE PELA STORE PARA CERTIFICACAO E ASSINATURA DA MICROSOFT.'
+            'Nao instale o MSIX unsigned diretamente. Nao e EXE portatil assinado.'
+            'Sem upload automatico: a Microsoft Store nao esta conectada ao workflow.'
+            'Name: T.I.MachadoSoluesemTecnol.BrotherMatrizes'
+            'Publisher: CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F'
+            'PublisherDisplayName: T.I. Machado Soluções em Tecnologia'
+            'Package version: 1.0.0.0; Windows x64'
+            "SHA256: $sha"
+            "Commit: $env:GITHUB_SHA"
+          ) | Set-Content -Path (Join-Path $out 'LEIA-ME-MSIX-STORE.txt') -Encoding utf8
+          'BROTHER_WINDOWS_STORE_COMMERCIAL_MSIX_VERIFIED_OK'
+      - name: Disponibilizar pacote comercial para upload manual
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Windows-1.0.0.0-MICROSOFT-STORE
+          path: windows-fiel/build/store-release/output/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
