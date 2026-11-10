@@ -94,17 +94,18 @@ jobs:
             }
           }
           $manifest = Get-Content (Join-Path $unpacked 'AppxManifest.xml') -Raw
-          if (!$manifest.Contains('com.timachado.brothermatrizes.msixqa') -or
-              !$manifest.Contains('CN=BrotherMatrizesQA-Untrusted')) {
-            throw 'Publisher reservado da Store nao foi fornecido: QA deve usar identidade falsa.'
+          if (!$manifest.Contains('T.I.MachadoSoluesemTecnol.BrotherMatrizes') -or
+              !$manifest.Contains('CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F')) {
+            throw 'Identidade do Partner Center nao corresponde ao MSIX preparado.'
           }
           $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash
           "$sha *$(Split-Path $package -Leaf)" | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
           @(
             'BROTHER MATRIZES WINDOWS - MSIX QA SEM ASSINATURA'
             'ESTE NAO E O PACOTE DA MICROSOFT STORE. NAO PUBLICAR, INSTALAR OU DISTRIBUIR.'
-            'Identity e Publisher sao apenas marcadores QA nao verificados.'
-            'Partner Center deve fornecer o Identity Name e Publisher reais.'
+            'Name e Publisher correspondem aos valores fornecidos pelo titular no Partner Center.'
+            'PublisherDisplayName do Partner Center ainda deve ser confirmado; o valor do manifesto e provisorio.'
+            'A versao MSIX e o proprio aplicativo ainda usam indicacoes QA; nao submeter como release comercial.'
             'O MSIX final aprovado pela Store sera assinado pela Microsoft.'
             'Conta Company profissional exige verificacao de empresa, mesmo com cadastro gratuito.'
             'Nenhuma chave, certificado Android, CPF ou arquivo de cliente foi usado.'
