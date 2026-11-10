@@ -52,6 +52,52 @@ class DesktopSvgFilePickerTest {
     }
 
     @Test
+    fun acceptsKnownSvgHeadersWithoutLoadingAnyDtdOrChangingOriginal() {
+        val folder = Files.createTempDirectory("bm-safe-svg-doctype-")
+        val svg = folder.resolve("logo.svg")
+        val headers = listOf(
+            "<!DOCTYPE svg>",
+            """<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">"""
+        )
+        try {
+            for (header in headers) {
+                val xml = header + "\n" + String(validSvg, Charsets.UTF_8)
+                Files.writeString(svg, xml)
+                val selected = DesktopSvgFilePicker.readVerified(svg)
+                assertFalse(String(selected.bytes, Charsets.UTF_8).contains("<!DOCTYPE"))
+                val artwork = SimpleSvgParser.parse(selected.name, selected.bytes).getOrThrow()
+                assertTrue(artwork.paths.isNotEmpty())
+                assertEquals(xml, Files.readString(svg))
+            }
+        } finally {
+            Files.deleteIfExists(svg)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
+    fun reportsUnsafeDoctypeInPlainPortugueseWithoutExposingParserInternals() {
+        val folder = Files.createTempDirectory("bm-rejected-svg-doctype-")
+        val svg = folder.resolve("unsafe.svg")
+        try {
+            val xml = "<!DOCTYPE svg SYSTEM 'https://example.invalid/custom.dtd'>" +
+                String(validSvg, Charsets.UTF_8)
+            Files.writeString(svg, xml)
+            val error = assertFailsWith<IllegalArgumentException> {
+                DesktopSvgFilePicker.readVerified(svg)
+            }
+            val message = DesktopSvgFilePicker.userMessage(error)
+            assertTrue(message.contains("SVG"))
+            assertTrue(message.contains("DTD"))
+            assertFalse(message.contains("apache.org"))
+            assertEquals(xml, Files.readString(svg))
+        } finally {
+            Files.deleteIfExists(svg)
+            Files.deleteIfExists(folder)
+        }
+    }
+
+    @Test
     fun rejectsMalformedInputsExtensionEmptyOversizedAndMissingFiles() {
         val folder = Files.createTempDirectory("bm-drawing-rejected-")
         val bad = folder.resolve("logo.exe")
