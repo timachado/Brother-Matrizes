@@ -80,6 +80,17 @@ class DesktopWindowsDpapiSessionStoreTest {
     }
 
     @Test
+    fun legacySupabaseRefreshTokenSurvivesEncryptedSaveAndRestore() = withFolder { folder ->
+        val legacy = "ab12cd34ef56"
+        val vault = DesktopWindowsDpapiSessionStore(folder, clock)
+        vault.save(DesktopTransientAuthSession(access, legacy, 3600))
+        val stored = Files.readAllBytes(folder.resolve("session.v1.dpapi"))
+        assertFalse(stored.toString(Charsets.ISO_8859_1).contains(legacy))
+        assertEquals(legacy, assertNotNull(vault.load()).session.refreshToken)
+        vault.clear()
+    }
+
+    @Test
     fun rejectsTamperingAndNeverFallsBackToUnencryptedData() = withFolder { folder ->
         val vault = DesktopWindowsDpapiSessionStore(folder, clock)
         vault.save(DesktopTransientAuthSession(access, refresh, 300))
