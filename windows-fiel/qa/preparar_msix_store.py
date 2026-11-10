@@ -9,6 +9,7 @@ Never sign, install, publish, or include customer/credential files here.
 """
 import argparse
 import base64
+import re
 from io import BytesIO
 from pathlib import Path
 import shutil
@@ -31,7 +32,16 @@ for prefix, namespace in (("", NS), ("uap", UAP), ("uap10", UAP10), ("rescap", R
     ET.register_namespace(prefix, namespace)
 
 
-def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_ICON, *, store_candidate: bool = False) -> Path:
+def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_ICON, *, store_candidate: bool = False, store_version: str | None = None) -> Path:
+    if store_version is not None:
+        if not store_candidate:
+            raise ValueError("Versao de release exige modo Store candidate.")
+        fields = store_version.split(".")
+        if (len(fields) != 4 or any(
+            not re.fullmatch(r"(0|[1-9][0-9]*)", field) or int(field) > 65535
+            for field in fields
+        ) or fields[3] != "0"):
+            raise ValueError("Versao MSIX Store invalida (A.B.C.0).")
     source = app_image.resolve(strict=True)
     destination = target.resolve()
     if not source.is_dir() or destination == source or source in destination.parents or destination in source.parents:
@@ -76,7 +86,7 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     package = ET.Element(f"{{{NS}}}Package")
     ET.SubElement(package, f"{{{NS}}}Identity", {
         "Name": STORE_NAME, "Publisher": STORE_PUBLISHER,
-        "Version": QA_VERSION, "ProcessorArchitecture": "x64",
+        "Version": store_version or QA_VERSION, "ProcessorArchitecture": "x64",
     })
     props = ET.SubElement(package, f"{{{NS}}}Properties")
     for tag, value in (
@@ -124,9 +134,10 @@ if __name__ == "__main__":
     parser.add_argument("--app-image", required=True, type=Path)
     parser.add_argument("--stage", required=True, type=Path)
     parser.add_argument("--store-candidate", action="store_true", help="Store submission candidate, unsigned; no upload")
+    parser.add_argument("--store-version", type=str, help="Commercial MSIX identity version A.B.C.0; candidate only")
     args = parser.parse_args()
     try:
-        staged = stage_msix_qa(args.app_image, args.stage, store_candidate=args.store_candidate)
+        staged = stage_msix_qa(args.app_image, args.stage, store_candidate=args.store_candidate, store_version=args.store_version)
         print("BROTHER_WINDOWS_MSIX_STAGING_OK", staged, STORE_NAME,
               "STORE-CANDIDATE" if args.store_candidate else "QA")
     except (OSError, ValueError, AssertionError) as error:
