@@ -1,0 +1,111 @@
+name: Brother Matrizes - Windows recuperacao de cotas (QA isolada)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopOpenTypeFontNames.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaJournalTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveValidatedLibrarySinkTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopImportedFontLibraryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOpenTypeFontNamesTest.kt"
+      - ".github/workflows/brother-windows-archive-recovery-qa.yml"
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaReadOnlyDiagnostic.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaReadOnlyDiagnosticTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveCommercialImportGate.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopOpenTypeFontNames.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaJournalTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveValidatedLibrarySinkTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopImportedFontLibraryTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopOpenTypeFontNamesTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaMultiprocessTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveQuotaProcessProbe.kt"
+      - "windows-fiel/build.gradle.kts"
+      - ".github/workflows/brother-windows-archive-recovery-qa.yml"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  durable-pending:
+    name: Journal atomico e bloqueio de reservas ambiguas (sem Supabase)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Confirmar modo fechado na interface e ausencia de tokens no journal
+        shell: pwsh
+        run: |
+          $ui = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt" -Raw
+          if ($ui.Contains('DesktopArchiveQuotaJournal') -or
+              $ui.Contains('DesktopArchiveCommercialImportGate') -or
+              $ui.Contains('DesktopBrotherArchiveUsageGateway')) {
+            throw "UI Windows nao pode executar quotas comerciais nesta QA."
+          }
+          $code = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveQuotaJournal.kt" -Raw
+          foreach ($required in @(
+            'RESERVE_UNKNOWN', 'FINALIZE_UNKNOWN', 'CLEANUP_UNKNOWN',
+            'StandardCopyOption.ATOMIC_MOVE', 'channel.force(true)',
+            'channel.tryLock()', 'entrySha256', 'reservationKey',
+            'outputSha256', 'outputNameHash', 'outputVerifiedNew', 'declareOutput',
+            'verifyOutput'
+          )) {
+            if (!$code.Contains($required)) { throw "Journal perdeu garantia: $required" }
+          }
+          foreach ($secret in @('"accessToken"', '"bearerToken"', '"clientSecret"', '"refreshToken"')) {
+            if ($code.Contains($secret)) { throw "Journal tentou persistir credencial: $secret" }
+          }
+          $reader = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt" -Raw
+          foreach ($required in @('conn.requestMethod = "GET"', 'nativeBoolean("pro")', 'nativeBoolean("authenticated")', 'if (value.isString) null')) {
+            if (!$reader.Contains($required)) { throw "Falha no contrato de leitura de conta: $required" }
+          }
+          "BROTHER_WINDOWS_DURABLE_QUOTA_JOURNAL_FAIL_CLOSED_OK"
+      - name: Testar reinicio e cancelamento com quotas simuladas e lock em JVMs independentes
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveQuotaJournalTest' --tests '*DesktopArchiveQuotaMultiprocessTest' --tests '*DesktopArchiveCommercialImportGateTest' --tests '*DesktopBrotherArchiveUsageGatewayTest' --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveQuotaRecoveryAssessmentTest' --tests '*DesktopArchiveQuotaReadOnlyDiagnosticTest' --tests '*DesktopImportedFontLibraryTest' --tests '*DesktopOpenTypeFontNamesTest' --tests '*DesktopBrotherEntitlementReaderTest' --tests '*DesktopWindowsAuthQaControllerTest'
+          if ($LASTEXITCODE -ne 0) { throw "Journal de recuperacao Windows falhou." }
+          "BROTHER_WINDOWS_DURABLE_RECOVERY_MULTIPROCESS_CRASH_QA_OK"
+      - name: Guardar apenas resultados de testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-quota-recovery-test-reports
+          path: windows-fiel/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Confirmar ausencia de instalador comercial
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador comercial inesperado."
+          }
+          "BROTHER_WINDOWS_JOURNAL_NO_PRODUCTION_NO_RELEASE_OK"

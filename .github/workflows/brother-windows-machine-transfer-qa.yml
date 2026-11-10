@@ -1,0 +1,80 @@
+name: Brother Matrizes - Windows enviar arquivo para maquina (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopMachineTransferFile.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopMachineTransferFileTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/MachineTransferScreen.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/MachineTransferValidator.kt"
+      - ".github/workflows/brother-windows-machine-transfer-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transfer:
+    name: Testar exportacao segura e tela Android original no Windows
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compilar tela oficial e testar PES DST JEF sem dispositivo ou rede
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopMachineTransferFileTest' --tests '*AndroidConverterParityTest'
+          if ($LASTEXITCODE -ne 0) { throw "QA de transferencia nao compilou." }
+          $source = "windows-fiel/build/generated/android-machine-transfer/kotlin/com/timachado/brothermatrizes/MachineTransferScreen.kt"
+          if (!(Test-Path $source)) { throw "Tela Android original nao foi compilada." }
+          $body = Get-Content $source -Raw
+          if (!$body.Contains("MachineTransferValidator") -or
+              !$body.Contains("onUsbOtg(format, hoop)") -or
+              !$body.Contains("onWifi(format, hoop)") -or
+              !$body.Contains("não detecta nem envia diretamente")) {
+            throw "Tela de envio perdeu validacao, bastidor selecionado ou avisos Windows."
+          }
+          if ($body.Contains("Conecte o pendrive ao celular.") -or
+              $body.Contains("apps compatíveis do Android")) {
+            throw "Instrucao Android indevida na tela Windows."
+          }
+      - name: Abrir tela real de envio no Windows usando matriz sintetica
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-machine-transfer-qa" --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Tela de transferencia nao abriu no Windows." }
+          $png = "windows-fiel/build/qa/machine-transfer-windows-qa.png"
+          if (!(Test-Path $png) -or (Get-Item $png).Length -lt 10000) {
+            throw "Captura da transferencia Windows ausente ou incompleta."
+          }
+      - name: Guardar captura visual apenas interna
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-machine-transfer-qa-screenshot
+          path: windows-fiel/build/qa/machine-transfer-windows-qa.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Nunca distribuir instalador em QA de envio
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "EXE comercial inesperado durante QA."
+          }
+          "BROTHER_WINDOWS_MACHINE_TRANSFER_FILE_ONLY_QA_OK"

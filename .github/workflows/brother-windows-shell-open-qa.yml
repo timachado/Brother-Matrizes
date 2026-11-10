@@ -1,0 +1,48 @@
+name: Brother Matrizes - Windows abrir arquivo Explorer (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopLaunchDocument.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopEmbroideryFiles.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopLaunchDocumentTest.kt"
+      - ".github/workflows/brother-windows-shell-open-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open-file:
+    name: Abrir matriz FLP DST PES JEF e verificar fonte intacta
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Compilar host Compose e testar argumentos do Windows Explorer
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace `
+            --tests '*DesktopLaunchDocumentTest' `
+            --tests '*DesktopEmbroideryFilesTest' `
+            --tests '*DesktopFlpProjectFilesTest'
+          if ($LASTEXITCODE -ne 0) { throw "Testes de abertura via Explorer falharam." }
+          gradle -p windows-fiel classes --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Compilacao do host Compose Windows falhou." }
+      - name: Garantir ausência de aplicativo comercial e executável
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Executavel nao deveria ser gerado pela QA de argumentos."
+          }
+          "BROTHER_WINDOWS_SHELL_OPEN_OFFLINE_QA_OK"

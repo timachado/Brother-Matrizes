@@ -1,0 +1,76 @@
+name: Brother Matrizes - Windows biblioteca validada (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopArchiveValidatedLibrarySinkTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopImportedFontLibrary.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopEmbroideryFiles.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveSelectiveImportFactory.kt"
+      - ".github/workflows/brother-windows-archive-validated-library-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validado-e-isolado:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Confirmar que motor Android e biblioteca validada seguem isolados
+        shell: pwsh
+        run: |
+          $sink = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopArchiveValidatedLibrarySink.kt" -Raw
+          foreach ($rule in @(
+            'DesktopEmbroideryFiles.open(source)',
+            'ProjectCodec.encode(design)',
+            'ProjectCodec.decode(bytes)',
+            'DesktopReadOnlyFontAnalyzer.inspect(source)',
+            'DesktopImportedFontLibrary(destination)',
+            'StandardOpenOption.CREATE_NEW',
+            'Files.delete(file)'
+          )) {
+            if (!$sink.Contains($rule)) { throw "Validação/persistência Windows mudou: $rule" }
+          }
+          $ui = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt" -Raw
+          if ($ui.Contains('DesktopArchiveValidatedLibrarySinkFactory') -or
+              $ui.Contains('DesktopArchiveSelectiveImportFactory') -or
+              $ui.Contains('DesktopArchiveCommercialImportGate')) {
+            throw "A UI Windows ainda não está autorizada a importar arquivos."
+          }
+          "BROTHER_WINDOWS_ARCHIVE_REAL_VALIDATORS_NOT_PRODUCTION_OK"
+      - name: Testar parsers Android reais e fonte Skia do Windows com cotas simuladas
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopArchiveValidatedLibrarySinkTest' --tests '*DesktopArchiveSelectiveImportFactoryTest' --tests '*DesktopArchiveSelectiveStagerTest' --tests '*DesktopEmbroideryFilesTest' --tests '*DesktopImportedFontLibraryTest'
+          if ($LASTEXITCODE -ne 0) { throw "Biblioteca validada Windows falhou QA." }
+          "BROTHER_WINDOWS_VALIDATED_ARCHIVE_LIBRARY_QA_OK"
+      - name: Guardar apenas relatórios de testes sintéticos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-validated-library-test-reports
+          path: windows-fiel/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Confirmar que esta QA não gera release comercial
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador Windows comercial inesperado."
+          }
+          "BROTHER_WINDOWS_VALIDATED_ARCHIVE_NO_COMMERCIAL_RELEASE_OK"

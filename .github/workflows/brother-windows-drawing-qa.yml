@@ -1,0 +1,81 @@
+name: Brother Matrizes - Windows criar desenho SVG (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSvgFilePicker.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSvgFilePickerTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/CreateDrawingScreen.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/VectorMatrixGenerator.kt"
+      - ".github/workflows/brother-windows-drawing-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  svg-freehand:
+    name: Validar importacao SVG e tela original Android no Windows
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      BROTHER_WINDOWS_QA_GOOGLE_AUTH: disabled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compilar desenho Android e validar SVG e motor vetorial
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopSvgFilePickerTest' --tests '*AndroidConverterParityTest'
+          if ($LASTEXITCODE -ne 0) { throw "Importacao SVG Windows ou motor Android falharam." }
+          $source = "windows-fiel/build/generated/android-drawing/kotlin/com/timachado/brothermatrizes/CreateDrawingScreen.kt"
+          if (!(Test-Path $source)) { throw "Tela original Android nao foi gerada." }
+          $body = Get-Content $source -Raw
+          if (!$body.Contains("fun CreateDrawingScreen(") -or
+              !$body.Contains("detectDragGestures(") -or
+              !$body.Contains("VectorMatrixGenerator") -or
+              !$body.Contains("requestSvgFromWindows()")) {
+            throw "Port do desenho perdeu tela/gestos/gerador Android."
+          }
+          if ($body.Contains("contentResolver") -or
+              $body.Contains("ActivityResultContracts") -or
+              $body.Contains("svgPicker.launch")) {
+            throw "Port do desenho manteve ponte Android indevida."
+          }
+      - name: Capturar tela Criar desenho original no Windows com SVG nao importado
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel run --args="--capture-create-drawing-qa" --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw "Tela Criar desenho nao abriu." }
+          $png = "windows-fiel/build/qa/create-drawing-windows-qa.png"
+          if (!(Test-Path $png) -or (Get-Item $png).Length -lt 10000) {
+            throw "Imagem real da tela Criar desenho nao foi gerada."
+          }
+      - name: Guardar captura de QA sem dados de clientes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-create-drawing-qa-screenshot
+          path: windows-fiel/build/qa/create-drawing-windows-qa.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Confirmar ausencia de instalador e dados comerciais
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "Instalador nao permitido nesta QA."
+          }
+          "BROTHER_WINDOWS_DRAWING_ANDROID_SOURCE_SVG_QA_OK"

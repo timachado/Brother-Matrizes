@@ -1,0 +1,57 @@
+name: Brother Matrizes - Windows ler backup completo Android (QA segura)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopAndroidBackupInspector.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopAndroidProjectRecovery.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAndroidBackupInspectorTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopAndroidProjectRecoveryTest.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/project/CompleteLibraryBackup.kt"
+      - "app/src/main/java/com/timachado/brothermatrizes/core/project/ProjectBackup.kt"
+      - ".github/workflows/brother-windows-android-backup-preview-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Confirmar compatibilidade Android ZIP original sem modificar arquivos
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Validar codecs Android, inspeção e recuperação FLP sem fontes
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace --tests '*DesktopAndroidBackupInspectorTest' --tests '*DesktopAndroidProjectRecoveryTest' --tests '*AndroidProjectLibraryParityTest' --tests '*DesktopFlpBackupRestorerTest'
+          if ($LASTEXITCODE -ne 0) { throw "Compatibilidade ou recuperação de backup Android não homologada." }
+      - name: Garantir fonte Android intocada e arquivos Windows gerados
+        shell: pwsh
+        run: |
+          $codec = "windows-fiel/build/generated/android-backup-codecs/kotlin/com/timachado/brothermatrizes/core/project"
+          if (!(Test-Path (Join-Path $codec "ProjectBackupCodec.kt"))) {
+            throw "Codec backup Android original não foi gerado."
+          }
+          if (!(Test-Path (Join-Path $codec "CompleteLibraryBackupCodec.kt"))) {
+            throw "Codec backup completo Android original não foi gerado."
+          }
+          $generated = Get-Content (Join-Path $codec "CompleteLibraryBackupCodec.kt") -Raw
+          if ($generated.Contains("android.content.Context") -or $generated.Contains("CompleteLibraryBackupStore")) {
+            throw "I/O de produção Android não pode entrar no port Windows."
+          }
+          git diff --exit-code -- app/src/main/java/com/timachado/brothermatrizes/core/project
+          if ($LASTEXITCODE -ne 0) { throw "Código-fonte original Android modificado." }
+          "BROTHER_WINDOWS_ANDROID_BACKUP_READONLY_QA_OK"

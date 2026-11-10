@@ -1,0 +1,186 @@
+name: Brother Matrizes Windows - pacote MSIX Store (QA sem publicacao)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/brother-windows-msix-store-qa.yml"
+      - "windows-fiel/qa/preparar_msix_store.py"
+      - "windows-fiel/qa/test_preparar_msix_store.py"
+      - "windows-fiel/build.gradle.kts"
+      - "windows-fiel/src/**"
+      - "branding/brother_bm_launcher_safe.webp.base64"
+      - "docs/BROTHER_WINDOWS_MSIX_STORE_PREPARACAO_2026-11-10.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-windows-msix-qa
+  cancel-in-progress: true
+
+jobs:
+  package-msix-qa:
+    name: Gerar e verificar MSIX unsigned no runner Windows
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/windows-fiel-android-1-11-8-20261106'
+    runs-on: windows-2025
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Testar gerador e converter o icone oficial Android
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencia Pillow indisponivel.' }
+          python -m unittest discover -s windows-fiel/qa -p test_preparar_msix_store.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Testes MSIX de seguranca falharam.' }
+          python windows-fiel/qa/preparar_icone_windows.py --out windows-fiel/build/qa/brand/brother_matrizes.ico
+          if ($LASTEXITCODE -ne 0) { throw 'Icone original do Brother Matrizes ausente.' }
+      - name: Compilar e testar o aplicativo Windows com runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gradle -p windows-fiel test --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Testes do aplicativo falharam.' }
+          $env:WIX_PATH = Join-Path $env:RUNNER_TEMP 'brother-no-installer'
+          New-Item -ItemType Directory -Force $env:WIX_PATH | Out-Null
+          gradle -p windows-fiel createDistributable --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'App-image Windows nao foi gerada.' }
+      - name: Criar MSIX de teste com MakeAppx do Windows SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exes = @(Get-ChildItem windows-fiel/build/compose/binaries -File -Recurse -Filter BrotherMatrizes.exe)
+          if ($exes.Count -ne 1) { throw 'Launcher Windows unico nao encontrado.' }
+          $image = $exes[0].DirectoryName
+          foreach ($folder in @('app', 'runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $image $folder) -PathType Container)) {
+              throw "App-image incompleta: $folder"
+            }
+          }
+          $stage = 'windows-fiel/build/qa/msix-stage'
+          python windows-fiel/qa/preparar_msix_store.py --app-image $image --stage $stage
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar manifest/Assets.' }
+          $sdk = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+          $tools = @(Get-ChildItem $sdk -Recurse -File -Filter makeappx.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\makeappx\.exe$' } | Sort-Object FullName)
+          if ($tools.Count -eq 0) { throw 'Windows SDK MakeAppx x64 indisponivel.' }
+          $makeappx = $tools[-1].FullName
+          $out = 'windows-fiel/build/qa/msix-output'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $package = Join-Path $out 'Brother-Matrizes-Windows-MSIX-QA-UNSIGNED.msix'
+          & $makeappx pack /v /h SHA256 /d $stage /p $package /o
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx rejeitou o MSIX.' }
+          $unpacked = 'windows-fiel/build/qa/msix-unpacked'
+          & $makeappx unpack /p $package /d $unpacked /o
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao reabrir o MSIX.' }
+          foreach ($name in @('AppxManifest.xml','BrotherMatrizes.exe','app','runtime','Assets\Square150x150Logo.png')) {
+            if (!(Test-Path -LiteralPath (Join-Path $unpacked $name))) {
+              throw "Arquivo essencial ausente no MSIX: $name"
+            }
+          }
+          $manifest = Get-Content (Join-Path $unpacked 'AppxManifest.xml') -Raw
+          if (!$manifest.Contains('T.I.MachadoSoluesemTecnol.BrotherMatrizes') -or
+              !$manifest.Contains('CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F') -or
+              !$manifest.Contains('T.I. Machado Soluções em Tecnologia')) {
+            throw 'Name, Publisher ou PublisherDisplayName do Partner Center divergem do MSIX.'
+          }
+          $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $package).Hash
+          "$sha *$(Split-Path $package -Leaf)" | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
+          @(
+            'BROTHER MATRIZES WINDOWS - MSIX QA SEM ASSINATURA'
+            'ESTE NAO E O PACOTE DA MICROSOFT STORE. NAO PUBLICAR, INSTALAR OU DISTRIBUIR.'
+            'Name e Publisher correspondem aos valores fornecidos pelo titular no Partner Center.'
+            'PublisherDisplayName confirmado pelo titular: T.I. Machado Soluções em Tecnologia.'
+            'A versao MSIX e o proprio aplicativo ainda usam indicacoes QA; nao submeter como release comercial.'
+            'O MSIX final aprovado pela Store sera assinado pela Microsoft.'
+            'Conta Company profissional exige verificacao de empresa, mesmo com cadastro gratuito.'
+            'Nenhuma chave, certificado Android, CPF ou arquivo de cliente foi usado.'
+            "SHA256: $sha"
+            "Commit: $env:GITHUB_SHA"
+          ) | Set-Content (Join-Path $out 'LEIA-ME-MSIX-QA.txt') -Encoding utf8
+          'BROTHER_WINDOWS_MSIX_MAKEAPPX_VERIFIED_QA_OK'
+      - name: Artefato MSIX QA interno, nunca Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Windows-MSIX-QA-UNSIGNED-NAO-PUBLICAVEL
+          path: windows-fiel/build/qa/msix-output/
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 1
+      - name: Gerar candidato Store unsigned e validar identidade completa
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exes = @(Get-ChildItem windows-fiel/build/compose/binaries -File -Recurse -Filter BrotherMatrizes.exe)
+          if ($exes.Count -ne 1) { throw 'Launcher unico ausente.' }
+          $stage = 'windows-fiel/build/qa/msix-store-candidate-stage'
+          python windows-fiel/qa/preparar_msix_store.py --app-image $exes[0].DirectoryName --stage $stage --store-candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar candidato Store.' }
+          $sdk = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+          $tools = @(Get-ChildItem -LiteralPath $sdk -Recurse -File -Filter makeappx.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' } | Sort-Object FullName)
+          if ($tools.Count -eq 0) { throw 'Windows SDK MakeAppx indisponivel.' }
+          $makeappx = $tools[-1].FullName
+          $out = 'windows-fiel/build/qa/msix-store-candidate-output'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $package = Join-Path $out 'Brother-Matrizes-Windows-1.0.0.0-STORE-CANDIDATE-UNSIGNED.msix'
+          & $makeappx pack /v /h SHA256 /d $stage /p $package /o
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx recusou candidato.' }
+          $unpacked = 'windows-fiel/build/qa/msix-store-candidate-unpacked'
+          & $makeappx unpack /p $package /d $unpacked /o
+          if ($LASTEXITCODE -ne 0) { throw 'Candidato nao pode ser reaberto.' }
+          foreach ($name in @('AppxManifest.xml','BrotherMatrizes.exe','app','runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $unpacked $name))) { throw "Arquivo ausente: $name" }
+          }
+          [xml]$xml = Get-Content (Join-Path $unpacked 'AppxManifest.xml') -Raw
+          if ($xml.Package.Identity.Name -ne 'T.I.MachadoSoluesemTecnol.BrotherMatrizes' -or
+              $xml.Package.Identity.Publisher -ne 'CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F' -or
+              $xml.Package.Identity.Version -ne '1.0.0.0' -or
+              $xml.Package.Properties.PublisherDisplayName -ne 'T.I. Machado Soluções em Tecnologia' -or
+              $xml.Package.Properties.DisplayName -ne 'Brother Matrizes') {
+            throw 'Identidade Partner Center nao corresponde ao candidato.'
+          }
+          $sha = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+          "$sha *$(Split-Path $package -Leaf)" | Set-Content -Path (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
+          @(
+            'CANDIDATO MICROSOFT STORE UNSIGNED - REVISAO INTERNA'
+            'NAO PUBLICADO. NAO DISTRIBUIR OU INSTALAR DIRETAMENTE.'
+            'Identidade real Partner Center conferida no manifesto.'
+            'Instalacao MSIX real e WACK ainda nao verificados.'
+            'O aplicativo ainda pode conter rotulos de QA.'
+            'A submissao a Store depende de revisao e acao manual do titular.'
+            "SHA256: $sha"
+            "Commit: $env:GITHUB_SHA"
+          ) | Set-Content (Join-Path $out 'LEIA-ME-CANDIDATO-STORE.txt') -Encoding utf8
+          'BROTHER_WINDOWS_MSIX_STORE_CANDIDATE_VERIFIED_UNSIGNED_OK'
+      - name: Artefato privado do candidato Store
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-MSIX-STORE-CANDIDATE-UNSIGNED-REVIEW
+          path: windows-fiel/build/qa/msix-store-candidate-output/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+      - name: Diagnostico Kotlin em falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Windows-MSIX-Failed-Tests
+          path: windows-fiel/build/test-results/test/*.xml
+          if-no-files-found: ignore
+          retention-days: 3

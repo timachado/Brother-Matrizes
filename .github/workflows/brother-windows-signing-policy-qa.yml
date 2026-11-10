@@ -1,0 +1,38 @@
+name: Brother Matrizes Windows - auditoria de assinatura comercial (sem certificado)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - ".github/workflows/brother-windows-authenticode-release.yml"
+      - ".github/workflows/brother-windows-signing-policy-qa.yml"
+      - "windows-fiel/qa/verificar_pipeline_assinatura.py"
+      - "docs/BROTHER_WINDOWS_AUTHENTICODE_RELEASE_2026-11-09.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/brother-windows-authenticode-release.yml"
+      - ".github/workflows/brother-windows-signing-policy-qa.yml"
+      - "windows-fiel/qa/verificar_pipeline_assinatura.py"
+      - "docs/BROTHER_WINDOWS_AUTHENTICODE_RELEASE_2026-11-09.md"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Validar YAML, bloqueio de QA, HSM e ausencia de secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Conferir politica Authenticode de assinatura comercial
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.3
+          python -X utf8 windows-fiel/qa/verificar_pipeline_assinatura.py

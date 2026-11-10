@@ -1,0 +1,89 @@
+name: Brother Matrizes - Windows OAuth e DPAPI (QA isolada)
+
+on:
+  push:
+    branches:
+      - feature/windows-fiel-android-1-11-8-20261106
+    paths:
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/Desktop*Session*.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/Desktop*Pkce*.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopGooglePkceLoginCoordinator.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopRedirectAllowlistReview.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopAccountQaScreen.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopRedirectAllowlistReviewTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Session*.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/Desktop*Pkce*.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopGooglePkceLoginCoordinatorTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsFullGoogleQaFlowTest.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsAuthQaController.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsGoogleQaEnvironment.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGoogleIdentityVerifier.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsAuthQaControllerTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSupabaseGoogleIdentityVerifierTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopBrotherEntitlementReaderTest.kt"
+      - "windows-fiel/build.gradle.kts"
+      - ".github/workflows/brother-windows-auth-dpapi-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-dpapi:
+    name: Compilar e testar OAuth, refresh e DPAPI do usuario Windows
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - name: Verificar isolamento da conta e leitura estrita de direitos
+        shell: pwsh
+        run: |
+          $ui = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt" -Raw
+          if ($ui.Contains('DesktopArchiveCommercialImportGate') -or
+              $ui.Contains('DesktopBrotherArchiveUsageGateway')) {
+            throw "A tela Windows QA conectou uma importação comercial sem homologação."
+          }
+          $reader = Get-Content "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopBrotherEntitlementReader.kt" -Raw
+          foreach ($needle in @('conn.requestMethod = "GET"', 'nativeBoolean("pro")',
+              'nativeBoolean("authenticated")', 'if (value.isString) null')) {
+            if (!$reader.Contains($needle)) { throw "Contrato de leitura segura perdido: $needle" }
+          }
+          if ($reader.Contains('conn.requestMethod = "POST"')) {
+            throw "Leitura de assinatura passou a efetuar operação de escrita."
+          }
+          "BROTHER_WINDOWS_ACCOUNT_READ_ONLY_FAIL_CLOSED_OK"
+      - name: Executar testes Windows OAuth, rede fake, concorrencia e DPAPI nativo
+        shell: pwsh
+        run: |
+          gradle -p windows-fiel test --no-daemon --stacktrace `
+            --tests '*DesktopWindowsAuthQaControllerTest' `
+            --tests '*DesktopSupabaseGoogleIdentityVerifierTest' `
+            --tests '*DesktopBrotherEntitlementReaderTest' `
+            --tests '*DesktopWindowsDpapiSessionStoreTest' `
+            --tests '*DesktopWindowsLockedSessionRuntimeTest' `
+            --tests '*DesktopTransientSessionKeeperTest' `
+            --tests '*DesktopSupabaseGooglePkceClientTest' `
+            --tests '*DesktopGooglePkceLoginCoordinatorTest' `
+            --tests '*DesktopWindowsFullGoogleQaFlowTest' `
+            --tests '*DesktopPkceHandshakeTest' `
+            --tests '*DesktopPkceRedirectPreflightTest' `
+            --tests '*DesktopRedirectAllowlistReviewTest' `
+            --tests '*DesktopPkceLoopbackListenerTest'
+      - name: Garantir que QA nao criou executavel comercial
+        shell: pwsh
+        run: |
+          if (Test-Path "windows-fiel/build/compose/binaries/main/exe") {
+            throw "EXE comercial inesperado durante QA de autenticacao."
+          }
+          "WINDOWS_AUTH_DPAPI_OFFLINE_QA_OK"

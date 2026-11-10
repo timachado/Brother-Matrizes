@@ -1,0 +1,269 @@
+name: Brother Matrizes Windows - assinatura comercial Authenticode OV
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versao comercial aprovada X.Y.Z"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-windows-commercial-signing
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build comercial isolado sem acesso a certificado
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Bloquear codigo QA e versao nao aprovada
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Versao X.Y.Z invalida.' }
+          $build = Get-Content 'windows-fiel/build.gradle.kts' -Raw
+          $main = Get-Content 'windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt' -Raw
+          if (!$build.Contains('packageVersion = "' + $env:RELEASE_VERSION + '"')) {
+            throw 'Versao comercial informada difere do pacote.'
+          }
+          if ($env:RELEASE_VERSION -eq '0.0.1' -or
+              $main.Contains('title = "Brother Matrizes — Windows (QA interna)"')) {
+            throw 'Versao QA nao pode ser assinada como comercial.'
+          }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compilar e testar em runner sem segredo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencia do icone indisponivel.' }
+          python windows-fiel/qa/preparar_icone_windows.py --out windows-fiel/build/qa/brand/brother_matrizes.ico
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar o icone.' }
+          gradle -p windows-fiel test --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Testes Windows falharam; nao assinar.' }
+          $env:WIX_PATH = Join-Path $env:RUNNER_TEMP 'brother-no-installer'
+          New-Item -ItemType Directory -Force $env:WIX_PATH | Out-Null
+          gradle -p windows-fiel createDistributable --no-daemon --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'APP-IMAGE nao gerado.' }
+          $exes = @(Get-ChildItem 'windows-fiel/build/compose/binaries' -File -Recurse -Filter 'BrotherMatrizes.exe')
+          if ($exes.Count -ne 1) { throw 'EXE ausente ou duplicado.' }
+          if ((Get-AuthenticodeSignature -LiteralPath $exes[0].FullName).Status -ne 'NotSigned') {
+            throw 'O build para assinatura deve iniciar sem assinatura.'
+          }
+          $src = $exes[0].DirectoryName
+          foreach ($folder in @('app', 'runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $src $folder) -PathType Container)) {
+              throw "Pasta portatil incompleta: $folder"
+            }
+          }
+          $out = 'windows-fiel/build/commercial/unsigned'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item -LiteralPath $src -Destination $out -Recurse -Force
+      - name: Transferir somente a imagem unsigned para o job protegido
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-windows-unsigned-for-signer
+          path: windows-fiel/build/commercial/unsigned/
+          retention-days: 1
+          if-no-files-found: error
+
+  sign:
+    name: Assinatura somente com aprovacao e chave HSM fora do GitHub
+    needs: build
+    environment: brother-windows-code-signing
+    runs-on: [self-hosted, Windows, X64, brother-signing]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      BM_SIGNING_ENABLED: ${{ vars.BM_SIGNING_ENABLED }}
+      BM_CERT_THUMBPRINT: ${{ vars.BM_CERT_THUMBPRINT }}
+      BM_SIGNER_SUBJECT: ${{ vars.BM_SIGNER_SUBJECT }}
+      BM_RFC3161_TIMESTAMP: ${{ vars.BM_RFC3161_TIMESTAMP }}
+    steps:
+      - name: Exigir assinatura autorizada e certificado configurado
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BM_SIGNING_ENABLED -ne 'approved') { throw 'Assinatura comercial desabilitada.' }
+          if ($env:BM_CERT_THUMBPRINT -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Thumbprint OV nao configurado.' }
+          if ([string]::IsNullOrWhiteSpace($env:BM_SIGNER_SUBJECT)) { throw 'Nome legal do editor ausente (pessoa fisica ou empresa).' }
+          if ($env:BM_RFC3161_TIMESTAMP -notmatch '^https?://[^/]+') { throw 'URL RFC3161 invalida.' }
+          if (!(Get-Command signtool.exe -ErrorAction SilentlyContinue)) { throw 'SignTool nao instalado no signer.' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: brother-windows-unsigned-for-signer
+          path: incoming
+      - name: Assinar e validar EXE com Authenticode SHA256 e RFC3161
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $launchers = @(Get-ChildItem 'incoming' -File -Recurse -Filter BrotherMatrizes.exe)
+          if ($launchers.Count -ne 1) { throw 'Pacote sem launcher unico.' }
+          $exe = $launchers[0].FullName
+          $root = $launchers[0].DirectoryName
+          foreach ($folder in @('app','runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $root $folder) -PathType Container)) {
+              throw "App-image incompleto: $folder"
+            }
+          }
+          if ((Get-AuthenticodeSignature -LiteralPath $exe).Status -ne 'NotSigned') {
+            throw 'EXE ja assinado antes de entrar no signer.'
+          }
+          $thumb = $env:BM_CERT_THUMBPRINT.ToUpperInvariant()
+          $userCerts = @(Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $thumb)
+          $machineCerts = @(Get-ChildItem Cert:\LocalMachine\My | Where-Object Thumbprint -eq $thumb)
+          if (($userCerts.Count + $machineCerts.Count) -ne 1) {
+            throw 'Certificado OV deve existir exatamente uma vez no store Windows.'
+          }
+          $cert = if ($userCerts.Count -eq 1) { $userCerts[0] } else { $machineCerts[0] }
+          if (!$cert.HasPrivateKey -or $cert.NotAfter -le [DateTime]::UtcNow -or
+              $cert.NotBefore -gt [DateTime]::UtcNow) { throw 'Certificado invalido ou inacessivel.' }
+          if (![string]::Equals($cert.Subject, $env:BM_SIGNER_SUBJECT,
+              [StringComparison]::OrdinalIgnoreCase)) { throw 'Editor nao corresponde a identidade aprovada.' }
+          $codeSigning = @($cert.EnhancedKeyUsageList | Where-Object ObjectId -eq '1.3.6.1.5.5.7.3.3')
+          if ($codeSigning.Count -ne 1) { throw 'Certificado sem EKU Code Signing.' }
+          $args = @('sign','/sha1',$thumb,'/fd','SHA256','/tr',
+              $env:BM_RFC3161_TIMESTAMP,'/td','SHA256')
+          if ($machineCerts.Count -eq 1) { $args += '/sm' }
+          $args += $exe
+          & signtool.exe @args
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na assinatura HSM.' }
+          & signtool.exe verify /pa /all /tw /v $exe
+          if ($LASTEXITCODE -ne 0) { throw 'Assinatura/timestamp nao validado pelo SignTool.' }
+          $sig = Get-AuthenticodeSignature -LiteralPath $exe
+          if ($sig.Status -ne 'Valid' -or !$sig.TimeStamperCertificate -or
+              !$sig.SignerCertificate -or
+              ![string]::Equals($sig.SignerCertificate.Subject, $env:BM_SIGNER_SUBJECT,
+                  [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Assinatura, timestamp ou editor incorretos: NAO PUBLICAR.'
+          }
+          $sha = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+          @(
+            'BROTHER MATRIZES WINDOWS - LAUNCHER AUTHENTICODE VALIDADO'
+            "SHA256 EXE: $sha"
+            "Editor: $($sig.SignerCertificate.Subject)"
+            'Carimbo RFC3161 validado.'
+            'Esta assinatura cobre o launcher, nao todos os arquivos de runtime.'
+            'SmartScreen ainda pode requerer reputacao.'
+          ) | Set-Content -LiteralPath (Join-Path $root 'ASSINATURA-VALIDADA.txt') -Encoding utf8
+          'BROTHER_WINDOWS_SIGNTOOL_AUTHENTICODE_VERIFIED'
+      - name: Artefato privado assinado sem publicacao automatica
+        uses: actions/upload-artifact@v4
+        with:
+          name: brother-matrizes-windows-authenticode-verificado
+          path: incoming/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publicacao oficial somente do EXE assinado e verificado
+    needs: sign
+    if: github.ref == 'refs/heads/main' && needs.sign.result == 'success'
+    environment: brother-windows-release-publication
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      BM_PUBLISHING_ENABLED: ${{ vars.BM_PUBLISHING_ENABLED }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: brother-matrizes-windows-authenticode-verificado
+          path: incoming
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Revalidar assinatura e criar ZIP com SHA256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BM_PUBLISHING_ENABLED -ne 'approved') {
+            throw 'Publicacao desabilitada no Environment protegido.'
+          }
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$' -or $env:RELEASE_VERSION -eq '0.0.1') {
+            throw 'Versao QA ou invalida.'
+          }
+          $launchers = @(Get-ChildItem incoming -Recurse -File -Filter BrotherMatrizes.exe)
+          if ($launchers.Count -ne 1) { throw 'Launcher ausente ou duplicado.' }
+          $exe = $launchers[0].FullName
+          $root = $launchers[0].DirectoryName
+          if ((Split-Path $root -Leaf) -ne 'BrotherMatrizes') { throw 'Diretorio invalido.' }
+          foreach ($folder in @('app','runtime')) {
+            if (!(Test-Path -LiteralPath (Join-Path $root $folder) -PathType Container)) {
+              throw "Runtime incompleto: $folder"
+            }
+          }
+          $sig = Get-AuthenticodeSignature -LiteralPath $exe
+          if ($sig.Status -ne 'Valid' -or !$sig.SignerCertificate -or !$sig.TimeStamperCertificate) {
+            throw 'Assinatura Authenticode nao confiavel ou sem timestamp.'
+          }
+          $proof = Join-Path $root 'ASSINATURA-VALIDADA.txt'
+          if (!(Test-Path -LiteralPath $proof)) { throw 'Relatorio de assinatura ausente.' }
+          $sha = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+          if (!(Get-Content -LiteralPath $proof -Raw).Contains("SHA256 EXE: $sha")) {
+            throw 'Hash nao corresponde ao arquivo assinado.'
+          }
+          $sdk = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          if ($sdk) { $signTool = $sdk.Source }
+          else {
+            $sdkBin = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+            $found = @(Get-ChildItem $sdkBin -Recurse -File -Filter signtool.exe -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -like '*\x64' })
+            if ($found.Count -eq 0) { throw 'SignTool ausente no runner publicador.' }
+            $signTool = $found[-1].FullName
+          }
+          & $signTool verify /pa /all /tw /v $exe
+          if ($LASTEXITCODE -ne 0) { throw 'SignTool negou Authenticode.' }
+          $sensitive = @(Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in @('.pfx','.p12','.pem','.key') })
+          if ($sensitive.Count -gt 0) { throw 'Credencial detectada no arquivo de distribuicao.' }
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          $filename = "Brother-Matrizes-Windows-$($env:RELEASE_VERSION)-OFICIAL-ASSINADO.zip"
+          $zip = Join-Path release $filename
+          Compress-Archive -LiteralPath $root -DestinationPath $zip -CompressionLevel Optimal
+          python -c "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;assert any(n.endswith('/BrotherMatrizes.exe') for n in z.namelist())" $zip
+          if ($LASTEXITCODE -ne 0) { throw 'ZIP nao passou na conferencia.' }
+          $checksum = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          "$checksum *$filename" | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding ascii
+          @(
+            "# Brother Matrizes Windows $($env:RELEASE_VERSION)"
+            "Publicador verificado: $($sig.SignerCertificate.Subject)"
+            "SHA256: $checksum"
+            "Extraia toda a pasta e execute BrotherMatrizes.exe."
+            "SmartScreen pode exigir reputacao, mesmo com Authenticode."
+          ) | Set-Content -LiteralPath release/RELEASE_NOTES.md -Encoding utf8
+          'BROTHER_SIGNED_WINDOWS_ZIP_RELEASE_VALIDATED'
+      - name: Publicar GitHub Release somente apos assinatura e revisoes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "windows-v$($env:RELEASE_VERSION)"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw 'Release anterior nao sera sobrescrito.' }
+          $zip = "release/Brother-Matrizes-Windows-$($env:RELEASE_VERSION)-OFICIAL-ASSINADO.zip"
+          gh release create $tag $zip release/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Brother Matrizes Windows $($env:RELEASE_VERSION) (Assinado)" --notes-file release/RELEASE_NOTES.md --latest=false
+          if ($LASTEXITCODE -ne 0) { throw 'Publicacao do release falhou.' }
+          'BROTHER_SIGNED_WINDOWS_GITHUB_RELEASE_PUBLISHED'
