@@ -119,7 +119,7 @@ internal class DesktopSupabaseGooglePkceClient(
      * apenas com armazenamento Windows protegido, nunca em texto puro.
      */
     suspend fun refreshSession(previous: DesktopTransientAuthSession): DesktopTransientAuthSession {
-        require(previous.refreshToken.isValidToken()) { "Refresh token inválido." }
+        require(previous.refreshToken.isValidRefreshToken()) { "Refresh token inválido." }
         return requestToken(
             refreshEndpoint,
             JsonObject(mapOf("refresh_token" to JsonPrimitive(previous.refreshToken))).toString()
@@ -169,7 +169,7 @@ internal class DesktopSupabaseGooglePkceClient(
             val expires = (json["expires_in"] as? JsonPrimitive)?.intOrNull
             check(tokenType.equals("bearer", ignoreCase = true) &&
                 expires != null && expires in 1..86_400 &&
-                access.isValidToken() && refresh.isValidToken()) {
+                access.isValidToken() && refresh.isValidRefreshToken()) {
                 "Supabase retornou uma sessão inválida."
             }
             DesktopTransientAuthSession(access, refresh, expires)
@@ -180,6 +180,12 @@ internal class DesktopSupabaseGooglePkceClient(
 
     private fun String.isValidToken(): Boolean =
         length in 16..8192 && all { it.code in 0x21..0x7e && it != '"' && it != '\\' }
+
+    // Supabase Auth accepts legacy 12-character refresh tokens; newer
+    // structured tokens can be longer. This is FORMAT validation only:
+    // the server remains authoritative for token validity and rotation.
+    private fun String.isValidRefreshToken(): Boolean =
+        if (length == 12) matches(Regex("[a-z0-9]{12}")) else isValidToken()
 
     private fun JsonObject.text(field: String): String =
         (this[field] as? JsonPrimitive)?.let {
