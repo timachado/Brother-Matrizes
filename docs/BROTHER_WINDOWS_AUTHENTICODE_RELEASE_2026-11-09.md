@@ -132,7 +132,13 @@ para guardar token ou PIN, nem conectá-lo ao computador de cliente.
    e como mostrar nome fantasia registrado, se permitido.
 2. Ter documentos de constituição/MEI e comprovantes que a CA solicitar,
    endereço físico verificável e contato empresarial independente para
-   confirmação por telefone/e-mail; representante autorizado.
+   confirmação por telefone/e-mail; representante autorizado. O formulário
+   consultado da oferta Sectigo Brasil solicita **CNPJ e razão social
+   coincidentes com a Receita Federal** e **e-mail não gratuito do
+   contato organizacional** (Gmail/Hotmail/Yahoo não aceitos ali).
+   Se ainda não houver domínio/e-mail corporativo, providenciar ou
+   negociar uma modalidade aceita pela autoridade antes do pagamento.
+   Fonte: https://www.sectigo.com.br/produtos/order.php
 3. Confirmar que o produto é **Code Signing OV para Authenticode EXE Windows**,
    e não SSL/TLS OV, e-CNPJ comum, S/MIME ou assinatura de PDF.
 4. Confirmar **token FIPS/CC compatível**, suporte a SignTool Windows,
