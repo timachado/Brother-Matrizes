@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleQaEnvironment
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleAccount
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPendingFontQuotaReview
 import com.timachado.brothermatrizes.desktop.platform.DesktopPkceLoopbackSelfTest
@@ -85,6 +86,7 @@ internal fun DesktopAccountQaScreen(
     onBack: () -> Unit,
     onPlans: () -> Unit,
     qaEnvironment: DesktopWindowsGoogleQaEnvironment?,
+    officialGoogle: DesktopWindowsGoogleAccount? = null,
     onServerAccountVerified: (DesktopServerAccountSnapshot?) -> Unit = {}
 ) {
     // The same QA environment is owned by FielHomeHost for the whole desktop
@@ -105,9 +107,9 @@ internal fun DesktopAccountQaScreen(
     var info by remember { mutableStateOf("Nenhuma assinatura consultada nesta sessão.") }
 
     fun runAccountAction(action: suspend () -> DesktopServerAccountSnapshot?) {
-        if (busy || qaEnvironment == null) return
+        if (busy || (qaEnvironment == null && officialGoogle == null)) return
+        busy = true
         scope.launch {
-            busy = true
             try {
                 remoteFontQuotaStatus = null
                 val account = action()
@@ -116,7 +118,7 @@ internal fun DesktopAccountQaScreen(
                 info = if (summary == null) {
                     "Não existe uma sessão Google validada neste computador."
                 } else {
-                    "Assinatura consultada no servidor em modo somente leitura (QA)."
+                    "Assinatura consultada no servidor em modo somente leitura."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -316,16 +318,66 @@ internal fun DesktopAccountQaScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "Google e licenciamento em homologação",
+                        "Entrar com Google — Brother Matrizes",
                         color = FioGold,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        "Esta versão Windows ainda não habilita autenticação comercial. " +
-                            "A configuração de retorno OAuth precisa ser verificada antes " +
-                            "de permitir login com contas reais.",
-                        color = FioText
-                    )
+                    if (officialGoogle == null) {
+                        Text(
+                            "Não foi possível preparar o login no perfil atual do Windows.",
+                            color = FioText
+                        )
+                    } else {
+                        Text(
+                            "O acesso usa navegador externo, PKCE e sessão Windows " +
+                                "protegida. O Supabase precisa aceitar o retorno OAuth. " +
+                                "Entrar não consome cotas.",
+                            color = FioTextMuted
+                        )
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                            onClick = {
+                                runAccountAction {
+                                    officialGoogle.signInAndPreview()
+                                }
+                            }
+                        ) { Text(if (busy) "Entrando…" else "Entrar com Google") }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy,
+                            onClick = {
+                                runAccountAction { officialGoogle.restoreAndPreview() }
+                            }
+                        ) { Text("Restaurar sessão protegida") }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && summary != null,
+                            onClick = {
+                                if (!busy) {
+                                    busy = true
+                                    scope.launch {
+                                        try {
+                                            officialGoogle.logout()
+                                            summary = null
+                                            onServerAccountVerified(null)
+                                            info = "Você saiu da conta Google."
+                                        } catch (_: Exception) {
+                                            info = "Não foi possível encerrar a sessão."
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
+                                }
+                            }
+                        ) { Text("Sair da conta") }
+                        Text(
+                            "DaFont e NetFontes usam a mesma conta verificada. " +
+                                "A importação de fontes continua dependente da " +
+                                "autorização de cotas Free/Pro no servidor.",
+                            color = FioTextMuted
+                        )
+                    }
                 }
             }
         } else {

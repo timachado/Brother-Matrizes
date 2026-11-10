@@ -93,6 +93,10 @@ import com.timachado.brothermatrizes.desktop.platform.DesktopNativeMatrixPicker
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPortableShortcuts
 import com.timachado.brothermatrizes.desktop.platform.DesktopAndroidBaseline
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsAccountQaOptIn
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGoogleAccount
+import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsGooglePublicClient
+import com.timachado.brothermatrizes.desktop.platform.DesktopBrotherDaFontUsageGateway
+import com.timachado.brothermatrizes.desktop.platform.DesktopVerifiedGoogleTokenSource
 import com.timachado.brothermatrizes.desktop.platform.DesktopServerAccountSnapshot
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsPlansPresentation
 import com.timachado.brothermatrizes.desktop.platform.DesktopWindowsWordPressHandoff
@@ -811,18 +815,40 @@ private fun FielHomeHost(
         runCatching { DesktopWindowsAccountQaOptIn.openWhenOptedIn() }
             .getOrNull()
     }
+    // Genuine Google login only after an explicit click. No startup network,
+    // automatic Pro unlock or import; the provider/redirect are server-gated.
+    val googleAccount = remember(accountQaEnvironment) {
+        if (accountQaEnvironment != null) null else runCatching {
+            DesktopWindowsGoogleAccount.open(
+                DesktopWindowsGooglePublicClient.key()
+            )
+        }.getOrNull()
+    }
+    DisposableEffect(googleAccount) {
+        onDispose { googleAccount?.close() }
+    }
     // In-memory, read-only server facts for the ORIGINAL Android plans UI.
     // Never saved as an entitlement and never passed to a quota/import gate.
-    var verifiedServerAccount by remember(accountQaEnvironment) {
+    var verifiedServerAccount by remember(accountQaEnvironment, googleAccount) {
         mutableStateOf<DesktopServerAccountSnapshot?>(null)
     }
     DisposableEffect(accountQaEnvironment) {
         onDispose { accountQaEnvironment?.close() }
     }
-    val fontCatalogAccess = remember(accountQaEnvironment) {
-        DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(
-            accountQaEnvironment
-        )
+    val fontCatalogAccess = remember(accountQaEnvironment, googleAccount) {
+        if (googleAccount == null) {
+            DesktopWindowsAccountQaOptIn.fontCatalogAccessForQa(accountQaEnvironment)
+        } else {
+            // Existing DaFont V1 quota reserve/finalize uses the SAME
+            // Google identity verified by Minha Conta. No import V2 bypass.
+            DesktopBrotherDaFontUsageGateway(
+                publishableKey = DesktopWindowsGooglePublicClient.key(),
+                versionCode = DesktopAndroidBaseline.VERSION_CODE,
+                verifiedGoogle = DesktopVerifiedGoogleTokenSource {
+                    googleAccount.verifiedToken()
+                }
+            )
+        }
     }
     val fontImportGate = remember(accountQaEnvironment) {
         DesktopWindowsAccountQaOptIn.fontImportGateForQa(accountQaEnvironment)
@@ -2347,13 +2373,16 @@ private fun FielHomeHost(
                             verifiedServerAccount = null
                             verifiedServerAccount = runCatching {
                                 withContext(Dispatchers.IO) {
-                                    accountQaEnvironment?.accountPreview()
+                                    if (accountQaEnvironment != null)
+                                        accountQaEnvironment.accountPreview()
+                                    else googleAccount?.accountPreview()
                                 }
                             }.getOrNull()
                             detail = ActiveDetail.PLANS
                         }
                     },
                     qaEnvironment = accountQaEnvironment,
+                    officialGoogle = googleAccount,
                     onServerAccountVerified = { verifiedServerAccount = it }
                 )
             } else if (area == HomeArea.FONTS) {
