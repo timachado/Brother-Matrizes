@@ -19,7 +19,7 @@ group = "com.timachado.brothermatrizes"
 // Sem -PbrotherStoreRelease=true, todas as tarefas QA preservam comportamento anterior.
 val brotherStoreRelease = providers.gradleProperty("brotherStoreRelease")
     .map { it == "true" }.getOrElse(false)
-version = if (brotherStoreRelease) "1.0.0" else "0.0.1-fidelidade-qa"
+version = if (brotherStoreRelease) "1.0.1" else "0.0.1-fidelidade-qa"
 
 kotlin {
     jvmToolchain(17)
@@ -448,7 +448,28 @@ val copyAndroidNameEditor by tasks.registering {
             "com/timachado/brothermatrizes/NameEditorScreen.kt"
         ).asFile
         output.parentFile.mkdirs()
-        output.writeText(clean, Charsets.UTF_8)
+        // Apenas Windows: PiP maior e adaptativo, sem editar a tela Android.
+        // Rejeitar qualquer desvio na fonte original em vez de aplicar substituição parcial.
+        val pipAnchor = """        val showDesktopPip = desktopFloatingPreview &&
+            maxWidth >= 760.dp && editorScroll.value >= 220"""
+        val pipUpgrade = """        val showDesktopPip = desktopFloatingPreview &&
+            maxWidth >= 760.dp && editorScroll.value >= 220
+        val pipWidth = if (maxWidth >= 1100.dp) 380.dp else 304.dp
+        val pipHeight = if (maxWidth >= 1100.dp) 340.dp else 276.dp
+        val pipReserved = pipWidth + 12.dp"""
+        val pipPadding = ".padding(end = if (showDesktopPip) 244.dp else 0.dp)"
+        val pipSize = ".width(232.dp).height(208.dp)"
+        check(clean.split(pipAnchor).size == 2 &&
+            clean.split(pipPadding).size == 2 &&
+            clean.split(pipSize).size == 2) {
+            "PiP Android alterado: revisar geometria antes de gerar Windows."
+        }
+        val desktopScreen = clean
+            .replace(pipAnchor, pipUpgrade)
+            .replace(pipPadding,
+                ".padding(end = if (showDesktopPip) pipReserved else 0.dp)")
+            .replace(pipSize, ".width(pipWidth).height(pipHeight)")
+        output.writeText(desktopScreen, Charsets.UTF_8)
     }
 }
 kotlin.sourceSets.getByName("main").kotlin.srcDir(generatedNameEditor)
@@ -1846,7 +1867,7 @@ compose.desktop {
             // description and version; not a commercial signed release.
             // Launcher name remains ASCII for portable Windows paths.
             packageName = "BrotherMatrizes"
-            packageVersion = if (brotherStoreRelease) "1.0.0" else "0.0.1"
+            packageVersion = if (brotherStoreRelease) "1.0.1" else "0.0.1"
             description = if (brotherStoreRelease) "Brother Matrizes para Windows" else
                 "Brother Matrizes Windows - validacao interna QA"
             vendor = "T.I. Machado Solucoes em Tecnologia"
