@@ -52,6 +52,9 @@ class NameEditorScreenshotQaTest {
         val yaml = Files.readString(root.resolve(
             "../.github/workflows/brother-windows-fiel-home-qa.yml"
         ))
+        val picker = Files.readString(root.resolve(
+            "src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopNativeMatrixPicker.kt"
+        ))
         assertTrue(host.contains("fun syntheticNameEditorQaDesign()"))
         assertTrue(host.contains("NamePersonalization.add("))
         assertTrue(host.contains("startInNameEditorQa"))
@@ -100,9 +103,10 @@ class NameEditorScreenshotQaTest {
         assertTrue(yaml.contains("name-editor-ctrl-a-applied-qa.png"))
         assertTrue(host.contains("--qa-open-chooser-pes"))
         assertTrue(host.contains("--qa-open-chooser-jef"))
-        assertTrue(host.contains("chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION"))
+        assertTrue(host.contains("DesktopNativeMatrixPicker.choose(startInChooserQaFile)"))
+        assertTrue(picker.contains("chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION"))
         assertTrue(host.contains("robot.keyPress(KeyEvent.VK_ENTER)"))
-        assertTrue(host.contains("currentDirectory = startInChooserQaFile.parent.toFile()"))
+        assertTrue(picker.contains("currentDirectory = qaFile.parent.toFile()"))
         assertTrue(host.contains("DesktopEmbroideryFiles.open(selected)"))
         assertTrue(host.contains("BROTHER_WINDOWS_CHOOSER_"))
         assertTrue(yaml.contains("chooser-pes-viewer.png"))
@@ -119,7 +123,8 @@ class NameEditorScreenshotQaTest {
         assertTrue(yaml.contains("chooser-flp-viewer.png"))
         assertTrue(host.contains("--qa-save-flp-dialog-new"))
         assertTrue(host.contains("--qa-save-flp-dialog-protect"))
-        assertTrue(host.contains("chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION"))
+        assertTrue(host.contains("DesktopNativeMatrixPicker.chooseSave("))
+        assertTrue(picker.contains("chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION"))
         assertTrue(host.contains("FileNameExtensionFilter("))
         assertTrue(host.contains("StandardOpenOption.CREATE_NEW"))
         assertTrue(host.contains("FileAlreadyExistsException"))
