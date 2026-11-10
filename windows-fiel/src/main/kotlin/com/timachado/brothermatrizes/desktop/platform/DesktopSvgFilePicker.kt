@@ -90,14 +90,14 @@ internal object DesktopSvgFilePicker {
             )
         }
         val encoding = Regex(
-            """(?is)^\\uFEFF?\\s*<\\?xml[^?]*encoding\\s*=\\s*['"]([^'"]+)['"]"""
+            """(?is)^\uFEFF?\s*<\?xml[^?]*encoding\s*=\s*['"]([^'"]+)['"]"""
         ).find(utf8)?.groupValues?.get(1)
         require(encoding == null || encoding.equals("utf-8", true) ||
             encoding.equals("utf8", true)) {
             "SVG com DOCTYPE deve declarar codificação UTF-8."
         }
         val known = Regex(
-            """(?is)<!DOCTYPE\\s+svg(?:\\s+PUBLIC\\s+['"]-//W3C//DTD SVG 1\\.1//EN['"]\\s+['"]https?://www\\.w3\\.org/Graphics/SVG/1\\.1/DTD/svg11\\.dtd['"])?\\s*>"""
+            """(?is)<!DOCTYPE\s+svg(?:\s+PUBLIC\s+['"]-//W3C//DTD SVG 1\.1//EN['"]\s+['"]https?://www\.w3\.org/Graphics/SVG/1\.1/DTD/svg11\.dtd['"])?\s*>"""
         )
         val header = known.find(utf8)
         require(header != null) {
