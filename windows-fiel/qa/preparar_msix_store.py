@@ -2,8 +2,9 @@
 """Stage the existing Windows jpackage app-image for an UNSIGNED MSIX QA.
 
 Name and Publisher are the exact values copied by the owner from Partner Center.
-This remains an unsigned internal QA package; the full Store publisher display
-name and final release version must be independently confirmed before submission.
+This remains an unsigned internal QA package; all three identity fields
+were supplied by the owner from Partner Center. The final release version
+must still be approved before submission.
 Never sign, install, publish, or include customer/credential files here.
 """
 import argparse
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OFFICIAL_ICON = ROOT / "branding" / "brother_bm_launcher_safe.webp.base64"
 STORE_NAME = "T.I.MachadoSoluesemTecnol.BrotherMatrizes"
 STORE_PUBLISHER = "CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F"
+STORE_PUBLISHER_DISPLAY_NAME = "T.I. Machado Soluções em Tecnologia"
 QA_VERSION = "1.0.0.0"  # provisional build; not a commercial submission
 NS = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
 UAP = "http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -72,7 +74,7 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     props = ET.SubElement(package, f"{{{NS}}}Properties")
     for tag, value in (
         ("DisplayName", "Brother Matrizes Windows (QA MSIX)"),
-        ("PublisherDisplayName", "T.I. Machado Soluções em Tecnologia"),  # provisional; compare to Partner Center
+        ("PublisherDisplayName", STORE_PUBLISHER_DISPLAY_NAME),
         ("Description", "MSIX para testar empacotamento. Nao distribuir."),
         ("Logo", r"Assets\StoreLogo.png"),
     ):
@@ -105,6 +107,7 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     parsed = ET.parse(manifest).getroot()
     assert parsed.find(f"{{{NS}}}Identity").attrib["Publisher"] == STORE_PUBLISHER
     assert parsed.find(f"{{{NS}}}Identity").attrib["Name"] == STORE_NAME
+    assert parsed.find(f"{{{NS}}}Properties/{{{NS}}}PublisherDisplayName").text == STORE_PUBLISHER_DISPLAY_NAME
     assert parsed.find(f"{{{NS}}}Applications/{{{NS}}}Application").attrib["Executable"] == "BrotherMatrizes.exe"
     return destination
 
