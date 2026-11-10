@@ -80,3 +80,26 @@ Canais oficiais:
   testes em MSIX instalado, submissão e publicação: **não confirmados**.
 - Microsoft Store não conectada; não realizar ações em conta ou Store
   usando credenciais não fornecidas.
+
+
+## Evidência do pacote gerado — 10/11/2026
+
+**GitHub Actions:** https://github.com/timachado/Brother-Matrizes/actions/runs/42762465675
+
+- Commit: `fec5a5ed00cc818ed1f02ad2cd29c31360aa3133`.
+- Resultado: **completed/success** em Windows 2025.
+- Testes do gerador/ícone, testes Windows/Gradle, criação e reabertura
+  com MakeAppx e upload do artefato: **aprovados**.
+- Artefato: `Brother-Matrizes-Windows-MSIX-QA-UNSIGNED-NAO-PUBLICAVEL`,
+  ID `13738562833`, 94.648.859 bytes (arquivo ZIP de artefato do Actions),
+  expiração informada pelo GitHub em 15/11/2026.
+- Artefato **sem assinatura**, com identidade fictícia; não instalar como
+  aplicativo confiável nem enviar para a Microsoft Store.
+- A PR #226 continua draft; nenhum release foi publicado, nenhuma
+  alteração na branch main, APK Android, Supabase ou certificado JKS.
+- Próximo bloqueio externo: Partner Center deve confirmar elegibilidade
+  de titular profissional brasileiro com CPF, sem CNPJ, para publicar
+  como empresa. Após aprovação, reservar app e obter Identity/Publisher.
+- **Aviso técnico:** sucesso em MakeAppx não demonstra instalação
+  MSIX, execução real sob isolamento de pacote, WACK ou aprovação Store.
+  Essas verificações devem usar uma identidade válida de publicador.
