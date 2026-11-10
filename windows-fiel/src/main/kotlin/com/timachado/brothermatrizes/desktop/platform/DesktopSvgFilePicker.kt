@@ -49,8 +49,86 @@ internal object DesktopSvgFilePicker {
         require(bytes.size.toLong() in 1..MAX_BYTES) {
             "O SVG mudou durante a leitura ou excede 2 MB."
         }
-        validateSafeXml(bytes)
-        return Selected(file.fileName.toString(), bytes)
+        // A DTD padrão do SVG 1.1 é apenas um cabeçalho: nunca a carregamos.
+        // Remove-se somente uma declaração conhecida antes de usar o parser
+        // original do Android. DTDs arbitrárias, subset e entidades seguem
+        // bloqueadas, sem rede ou alteração do arquivo selecionado.
+        val safeBytes = stripKnownSvgDoctype(bytes)
+        require(safeBytes.size.toLong() in 1..MAX_BYTES) {
+            "O SVG excede o limite de 2 MB."
+        }
+        try {
+            validateSafeXml(safeBytes)
+        } catch (invalid: Exception) {
+            throw IllegalArgumentException(
+                "SVG inválido ou com recursos XML não suportados. " +
+                    "Exporte como SVG simples, sem entidades externas.",
+                invalid
+            )
+        }
+        return Selected(file.fileName.toString(), safeBytes)
+    }
+
+    /**
+     * Aceita apenas DOCTYPE vazio ou o cabeçalho público W3C SVG 1.1,
+     * descartando-o sem consultar DTD. O conteúdo original em disco é mantido.
+     * Qualquer subset interno, SYSTEM ou DTD de terceiros permanece recusado.
+     */
+    private fun stripKnownSvgDoctype(bytes: ByteArray): ByteArray {
+        val latin1 = String(bytes, Charsets.ISO_8859_1)
+        if (!latin1.contains("<!DOCTYPE", ignoreCase = true)) return bytes
+
+        val utf8 = try {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (invalid: java.nio.charset.CharacterCodingException) {
+            throw IllegalArgumentException(
+                "SVG com DOCTYPE precisa estar em UTF-8. " +
+                    "Exporte novamente como SVG simples.", invalid
+            )
+        }
+        val encoding = Regex(
+            """(?is)^\\uFEFF?\\s*<\\?xml[^?]*encoding\\s*=\\s*['"]([^'"]+)['"]"""
+        ).find(utf8)?.groupValues?.get(1)
+        require(encoding == null || encoding.equals("utf-8", true) ||
+            encoding.equals("utf8", true)) {
+            "SVG com DOCTYPE deve declarar codificação UTF-8."
+        }
+        val known = Regex(
+            """(?is)<!DOCTYPE\\s+svg(?:\\s+PUBLIC\\s+['"]-//W3C//DTD SVG 1\\.1//EN['"]\\s+['"]https?://www\\.w3\\.org/Graphics/SVG/1\\.1/DTD/svg11\\.dtd['"])?\\s*>"""
+        )
+        val header = known.find(utf8)
+        require(header != null) {
+            "Este SVG contém DOCTYPE não suportado. " +
+                "Exporte como SVG simples, sem DTD ou entidades externas."
+        }
+        val cleaned = utf8.removeRange(header.range)
+        require(!cleaned.contains("<!DOCTYPE", ignoreCase = true) &&
+            !cleaned.contains("<!ENTITY", ignoreCase = true)) {
+            "SVG com entidades ou múltiplas declarações DOCTYPE não é permitido."
+        }
+        return cleaned.toByteArray(Charsets.UTF_8)
+    }
+
+    /** Mensagem de importação amigável, sem expor detalhes internos do XML. */
+    fun userMessage(error: Throwable): String {
+        val cause = error.message.orEmpty()
+        return when {
+            cause.contains("DOCTYPE", true) ||
+                cause.contains("DTD", true) ||
+                cause.contains("entity", true) ->
+                "Este SVG usa declarações XML não suportadas. " +
+                    "Salve novamente como SVG simples, sem DTD."
+            cause.contains("XML", true) ||
+                cause.contains("SAXParse", true) ->
+                "Não foi possível interpretar o SVG. " +
+                    "Exporte novamente como SVG simples."
+            else -> cause.ifBlank {
+                "Não foi possível importar o SVG. Verifique o arquivo."
+            }.take(220)
+        }
     }
 
     /**
