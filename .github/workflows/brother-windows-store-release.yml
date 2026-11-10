@@ -7,6 +7,13 @@ on:
     paths:
       - "windows-fiel/build.gradle.kts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/DesktopMouseRotatePanel.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSvgArtworkParser.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopMatrixMouseRotation.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopWindowsDpapiSessionStore.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSvgArtworkParserTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopMatrixMouseRotationTest.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopWindowsDpapiSessionStoreTest.kt"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGooglePkceClient.kt"
       - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSupabaseGooglePkceClientTest.kt"
       - "windows-fiel/qa/preparar_msix_store.py"
@@ -76,7 +83,7 @@ jobs:
           $exes = @(Get-ChildItem windows-fiel/build/compose/binaries -File -Recurse -Filter BrotherMatrizes.exe)
           if ($exes.Count -ne 1) { throw 'Launcher unico Windows nao encontrado.' }
           $stage = 'windows-fiel/build/store-release/msix-stage'
-          python windows-fiel/qa/preparar_msix_store.py --app-image $exes[0].DirectoryName --stage $stage --store-candidate --store-version 1.0.1.0
+          python windows-fiel/qa/preparar_msix_store.py --app-image $exes[0].DirectoryName --stage $stage --store-candidate --store-version 1.0.2.0
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar manifesto comercial.' }
           $sdk = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
           $tools = @(Get-ChildItem -LiteralPath $sdk -Recurse -File -Filter makeappx.exe -ErrorAction SilentlyContinue |
@@ -85,7 +92,7 @@ jobs:
           $makeappx = $tools[-1].FullName
           $out = 'windows-fiel/build/store-release/output'
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          $package = Join-Path $out 'Brother-Matrizes-Windows-1.0.1.0-STORE.msix'
+          $package = Join-Path $out 'Brother-Matrizes-Windows-1.0.2.0-STORE.msix'
           & $makeappx pack /v /h SHA256 /d $stage /p $package /o
           if ($LASTEXITCODE -ne 0) { throw 'MakeAppx recusou MSIX comercial.' }
           $unpacked = 'windows-fiel/build/store-release/unpacked'
@@ -97,7 +104,7 @@ jobs:
           [xml]$manifest = Get-Content -LiteralPath (Join-Path $unpacked 'AppxManifest.xml') -Raw
           if ($manifest.Package.Identity.Name -ne 'T.I.MachadoSoluesemTecnol.BrotherMatrizes' -or
               $manifest.Package.Identity.Publisher -ne 'CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F' -or
-              $manifest.Package.Identity.Version -ne '1.0.1.0' -or
+              $manifest.Package.Identity.Version -ne '1.0.2.0' -or
               $manifest.Package.Identity.ProcessorArchitecture -ne 'x64' -or
               $manifest.Package.Properties.PublisherDisplayName -ne 'T.I. Machado Soluções em Tecnologia' -or
               $manifest.Package.Properties.DisplayName -ne 'Brother Matrizes') {
@@ -106,7 +113,7 @@ jobs:
           $sha = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
           "$sha *$(Split-Path $package -Leaf)" | Set-Content -Path (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
           @(
-            'BROTHER MATRIZES WINDOWS - ATUALIZACAO COMERCIAL MSIX 1.0.1.0'
+            'BROTHER MATRIZES WINDOWS - ATUALIZACAO COMERCIAL MSIX 1.0.2.0'
             'AUTORIZADO PELO PROPRIETARIO PARA ENVIO MANUAL A MICROSOFT STORE.'
             'O MSIX NAO ESTA ASSINADO: ENVIE PELA STORE PARA CERTIFICACAO E ASSINATURA DA MICROSOFT.'
             'Nao instale o MSIX unsigned diretamente. Nao e EXE portatil assinado.'
@@ -114,7 +121,7 @@ jobs:
             'Name: T.I.MachadoSoluesemTecnol.BrotherMatrizes'
             'Publisher: CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F'
             'PublisherDisplayName: T.I. Machado Soluções em Tecnologia'
-            'Package version: 1.0.1.0; Windows x64'
+            'Package version: 1.0.2.0; Windows x64'
             "SHA256: $sha"
             "Commit: $env:GITHUB_SHA"
           ) | Set-Content -Path (Join-Path $out 'LEIA-ME-MSIX-STORE.txt') -Encoding utf8
@@ -122,7 +129,7 @@ jobs:
       - name: Disponibilizar pacote comercial para upload manual
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-Windows-1.0.1.0-MICROSOFT-STORE
+          name: Brother-Matrizes-Windows-1.0.2.0-MICROSOFT-STORE
           path: windows-fiel/build/store-release/output/
           if-no-files-found: error
           retention-days: 14
@@ -142,7 +149,7 @@ jobs:
           }
           $out = 'windows-fiel/build/store-release/portable-output'
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          $zip = Join-Path $out 'Brother-Matrizes-Windows-1.0.1-PORTABLE.zip'
+          $zip = Join-Path $out 'Brother-Matrizes-Windows-1.0.2-PORTABLE.zip'
           Compress-Archive -LiteralPath $image -DestinationPath $zip -CompressionLevel Fastest -Force
           if (!(Test-Path -LiteralPath $zip)) { throw 'ZIP nao gerado.' }
           $unpacked = 'windows-fiel/build/store-release/portable-check'
@@ -156,8 +163,8 @@ jobs:
           $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
           "$sha *$(Split-Path $zip -Leaf)" | Set-Content -Path (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
           @(
-            'BROTHER MATRIZES WINDOWS PORTABLE 1.0.1'
-            'CONTEM A MESMA COMPILACAO COM CORRECOES GOOGLE E PIP DO MSIX 1.0.1.0.'
+            'BROTHER MATRIZES WINDOWS PORTABLE 1.0.2'
+            'CONTEM A MESMA COMPILACAO COM CORRECOES GOOGLE E PIP DO MSIX 1.0.2.0.'
             'Feche o aplicativo antes de substituir a pasta da versao antiga.'
             'Nao execute diretamente de dentro do ZIP; extraia todo o conteudo.'
             'NAO ASSINADO PELO WINDOWS AUTHENTICODE. Use apenas se confiar na origem.'
@@ -170,7 +177,7 @@ jobs:
       - name: Disponibilizar a atualizacao portable para Windows
         uses: actions/upload-artifact@v4
         with:
-          name: Brother-Matrizes-Windows-1.0.1-PORTABLE-ATUALIZACAO
+          name: Brother-Matrizes-Windows-1.0.2-PORTABLE-ATUALIZACAO
           path: windows-fiel/build/store-release/portable-output/
           if-no-files-found: error
           retention-days: 14
