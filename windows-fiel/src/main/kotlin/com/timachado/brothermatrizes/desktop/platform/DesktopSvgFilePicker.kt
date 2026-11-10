@@ -49,11 +49,10 @@ internal object DesktopSvgFilePicker {
         require(bytes.size.toLong() in 1..MAX_BYTES) {
             "O SVG mudou durante a leitura ou excede 2 MB."
         }
-        // A DTD padrão do SVG 1.1 é apenas um cabeçalho: nunca a carregamos.
-        // Remove-se somente uma declaração conhecida antes de usar o parser
-        // original do Android. DTDs arbitrárias, subset e entidades seguem
-        // bloqueadas, sem rede ou alteração do arquivo selecionado.
-        val safeBytes = stripKnownSvgDoctype(bytes)
+        // Normaliza um cabeçalho DOCTYPE simples antes do parser vetorial,
+        // sem carregar DTD ou alterar o SVG original. Entidades e subsets
+        // internos seguem bloqueados.
+        val safeBytes = stripInertSvgDoctype(bytes)
         require(safeBytes.size.toLong() in 1..MAX_BYTES) {
             "O SVG excede o limite de 2 MB."
         }
@@ -70,11 +69,13 @@ internal object DesktopSvgFilePicker {
     }
 
     /**
-     * Aceita apenas DOCTYPE vazio ou o cabeçalho público W3C SVG 1.1,
-     * descartando-o sem consultar DTD. O conteúdo original em disco é mantido.
-     * Qualquer subset interno, SYSTEM ou DTD de terceiros permanece recusado.
+     * DOCTYPE externo não é necessário para desenhar SVG: alguns editores
+     * exportam um cabeçalho SYSTEM/PUBLIC mesmo quando nenhuma entidade é
+     * utilizada. Remove somente a declaração INERTE antes do parser.
+     * Não abre URLs externas, não aceita subsets internos/entidades e não
+     * altera o arquivo selecionado pelo usuário.
      */
-    private fun stripKnownSvgDoctype(bytes: ByteArray): ByteArray {
+    private fun stripInertSvgDoctype(bytes: ByteArray): ByteArray {
         val latin1 = String(bytes, Charsets.ISO_8859_1)
         if (!latin1.contains("<!DOCTYPE", ignoreCase = true)) return bytes
 
@@ -85,8 +86,8 @@ internal object DesktopSvgFilePicker {
                 .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
         } catch (invalid: java.nio.charset.CharacterCodingException) {
             throw IllegalArgumentException(
-                "SVG com DOCTYPE precisa estar em UTF-8. " +
-                    "Exporte novamente como SVG simples.", invalid
+                "Não foi possível interpretar o SVG. Verifique a codificação UTF-8.",
+                invalid
             )
         }
         val encoding = Regex(
@@ -94,20 +95,25 @@ internal object DesktopSvgFilePicker {
         ).find(utf8)?.groupValues?.get(1)
         require(encoding == null || encoding.equals("utf-8", true) ||
             encoding.equals("utf8", true)) {
-            "SVG com DOCTYPE deve declarar codificação UTF-8."
+            "O SVG declara uma codificação diferente de UTF-8."
         }
-        val known = Regex(
-            """(?is)<!DOCTYPE\s+svg(?:\s+PUBLIC\s+['"]-//W3C//DTD SVG 1\.1//EN['"]\s+['"]https?://www\.w3\.org/Graphics/SVG/1\.1/DTD/svg11\.dtd['"])?\s*>"""
-        )
-        val header = known.find(utf8)
-        require(header != null) {
-            "Este SVG contém DOCTYPE não suportado. " +
-                "Exporte como SVG simples, sem DTD ou entidades externas."
+
+        // Aceita cabeçalho vazio, SYSTEM ou PUBLIC. O endereço da DTD é
+        // descartado como texto e NUNCA aberto ou interpretado pelo XML.
+        val quotedId = """(?:"[^"'<>]+"|'[^"'<>]+')"""
+        val inertHeader = Regex(
+            """(?is)<!DOCTYPE\s+svg(?:\s+SYSTEM\s+$quotedId|\s+PUBLIC\s+$quotedId\s+$quotedId)?\s*>"""
+        ).find(utf8)
+        require(inertHeader != null &&
+            !inertHeader.value.contains('[') &&
+            !inertHeader.value.contains(']') &&
+            !inertHeader.value.contains('&')) {
+            "O SVG possui uma declaração XML incompatível com a importação segura."
         }
-        val cleaned = utf8.removeRange(header.range)
+        val cleaned = utf8.removeRange(inertHeader.range)
         require(!cleaned.contains("<!DOCTYPE", ignoreCase = true) &&
             !cleaned.contains("<!ENTITY", ignoreCase = true)) {
-            "SVG com entidades ou múltiplas declarações DOCTYPE não é permitido."
+            "O SVG contém entidades XML ou mais de uma declaração de tipo."
         }
         return cleaned.toByteArray(Charsets.UTF_8)
     }
