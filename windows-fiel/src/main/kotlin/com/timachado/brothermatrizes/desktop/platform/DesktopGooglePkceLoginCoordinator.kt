@@ -3,12 +3,29 @@ package com.timachado.brothermatrizes.desktop.platform
 import java.awt.Desktop
 import java.net.URI
 import java.time.Duration
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** External system browser only: never use a WebView to handle Google credentials. */
+/**
+ * Diagnostic stages: no Google code, verifier, JWT, refresh token or private
+ * provider error is ever included in a UI message.
+ */
+internal enum class DesktopGoogleLoginStage(val userMessage: String) {
+    PROVIDER("GOOGLE-01: Não foi possível verificar a configuração Google no Supabase."),
+    BROWSER("GOOGLE-02: O navegador não pôde abrir a autorização Google."),
+    CALLBACK("GOOGLE-03: O retorno local do Google não foi concluído."),
+    TOKEN("GOOGLE-04: O Windows não conseguiu trocar o código Google pela sessão Supabase."),
+    IDENTITY("GOOGLE-05: A identidade Google não foi confirmada pelo Supabase."),
+    STORAGE("GOOGLE-06: Não foi possível proteger a sessão no perfil do Windows.")
+}
+
+internal class DesktopGoogleLoginFailure(val stage: DesktopGoogleLoginStage) :
+    IllegalStateException(stage.userMessage)
+
 internal fun interface DesktopExternalBrowser {
     fun open(url: URI)
 }
@@ -55,15 +72,31 @@ internal class DesktopGooglePkceLoginCoordinator(
         withContext(Dispatchers.IO) {
             DesktopPkceLoopbackListener.open().use { callback ->
                 val loginUrl = auth.authorizationUrl(callback.handshake)
-                browser.open(loginUrl)
-                // ServerSocket.accept is blocking: poll coroutine cancellation
-                // so an aborted QA login cannot later exchange a stale code.
+                try {
+                    browser.open(loginUrl)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.BROWSER)
+                }
+                // The local callback only confirms receipt of the auth code;
+                // it does not prove an authenticated Supabase session.
                 val context = currentCoroutineContext()
-                val proof = callback.awaitCallback(callbackTimeout) {
-                    context.ensureActive()
+                val proof = try {
+                    callback.awaitCallback(callbackTimeout) { context.ensureActive() }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.CALLBACK)
                 }
                 context.ensureActive()
-                val session = auth.exchangeCode(proof)
+                val session = try {
+                    auth.exchangeCode(proof)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    throw DesktopGoogleLoginFailure(DesktopGoogleLoginStage.TOKEN)
+                }
                 context.ensureActive()
                 session
             }
