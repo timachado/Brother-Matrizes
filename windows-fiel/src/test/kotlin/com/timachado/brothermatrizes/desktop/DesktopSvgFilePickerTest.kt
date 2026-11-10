@@ -78,20 +78,23 @@ class DesktopSvgFilePickerTest {
     }
 
     @Test
-    fun reportsUnsafeDoctypeInPlainPortugueseWithoutExposingParserInternals() {
+    fun reportsUnsafeEntitySubsetInPlainPortugueseWithoutParserInternals() {
         val folder = Files.createTempDirectory("bm-rejected-svg-doctype-")
         val svg = folder.resolve("unsafe.svg")
         try {
-            val xml = "<!DOCTYPE svg SYSTEM 'https://example.invalid/custom.dtd'>" +
-                String(validSvg, Charsets.UTF_8)
+            // SYSTEM/PUBLIC sem subset são cabeçalhos inertes, aceitos acima.
+            // A declaração de entidade interna é um caso diferente: bloqueio.
+            val xml = "<!DOCTYPE svg SYSTEM 'https://example.invalid/custom.dtd' " +
+                "[<!ENTITY external SYSTEM 'file:///does-not-exist'>]>" +
+                "<svg xmlns='http://www.w3.org/2000/svg'>&external;</svg>"
             Files.writeString(svg, xml)
             val error = assertFailsWith<IllegalArgumentException> {
                 DesktopSvgFilePicker.readVerified(svg)
             }
             val message = DesktopSvgFilePicker.userMessage(error)
             assertTrue(message.contains("SVG"))
-            assertTrue(message.contains("DTD"))
             assertFalse(message.contains("apache.org"))
+            assertFalse(message.contains("file:///"))
             assertEquals(xml, Files.readString(svg))
         } finally {
             Files.deleteIfExists(svg)
