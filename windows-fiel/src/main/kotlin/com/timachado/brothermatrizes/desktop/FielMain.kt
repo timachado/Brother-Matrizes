@@ -1915,6 +1915,14 @@ private fun FielHomeHost(
           ) {
             if (detail == ActiveDetail.VIEWER && activeDesign != null) {
                 val design = checkNotNull(activeDesign)
+                Column(Modifier.fillMaxSize()) {
+                    DesktopMouseRotatePanel(
+                        design = design,
+                        hoop = hoop,
+                        onRotated = { activeDesign = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
                 ViewerScreen(
                     design = design,
                     displayMode = displayMode,
@@ -1946,6 +1954,8 @@ private fun FielHomeHost(
                     },
                     onPositionChange = { activeDesign = it }
                 )
+                    }
+                }
             } else if (detail == ActiveDetail.NAME_EDITOR && activeDesign != null) {
                 // Formulário oficial Android de personalização de matriz:
                 // somente fontes EMBUTIDAS são funcionais nesta QA Windows.
