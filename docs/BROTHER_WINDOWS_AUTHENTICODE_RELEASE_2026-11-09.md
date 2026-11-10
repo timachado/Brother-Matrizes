@@ -231,3 +231,29 @@ https://learn.microsoft.com/pt-br/windows/apps/package-and-deploy/code-signing-o
 
 **Estado:** consulta de elegibilidade em aberto; sem compra, emissão,
 certificado, assinatura ou publicação.
+
+## Registro de aceite QA informado pelo proprietário (10/11/2026)
+
+O proprietário confirmou explicitamente que **já verificou as funcionalidades
+em QA** do Brother Matrizes Windows. Tratar essa etapa como aceite funcional
+informado pelo responsável e **não solicitar repetição sem um defeito novo
+identificado e reproduzível**.
+
+Uma mudança de segurança introduzida nesta conversa usava ocorrências de
+textos legados sobre funcionalidades QA no `build.gradle.kts` e
+`FielMain.kt` como critério automático para reprovar assinatura. Essa
+inferência não era uma verificação de execução real e desconsiderava o aceite
+do usuário. **O bloqueio suplementar foi revertido.**
+
+Continuam independentes desse aceite os controles obrigatórios de
+Authenticode: certificado próprio de assinatura Windows emitido por CA
+confiável para pessoa física/empresa conforme elegibilidade, chave protegida,
+nome legal correspondente ao certificado, verificação de cadeia/timestamp,
+versão de pacote aprovada, executor seguro e autorização explícita de
+publicação. O workflow comercial já bloqueia marcadores do pacote
+`0.0.1` e título `QA interna`, que devem ser atualizados apenas no
+candidato final efetivamente preparado; não renomear ZIP QA para publicação.
+
+**Situação real:** QA funcional confirmada pelo proprietário; certificado
+Code Signing Windows ainda não emitido nem configurado; nenhuma assinatura
+real ou publicação realizada. Não alterar Android ou Supabase.
