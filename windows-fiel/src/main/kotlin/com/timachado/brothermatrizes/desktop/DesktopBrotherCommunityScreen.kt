@@ -157,12 +157,12 @@ internal fun DesktopBrotherCommunityScreen(
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar", color = FioGold) }
         Text(
-            "Comunidade Brother Matrizes",
+            "Comunidade Brother Matrizes Windows",
             color = FioText,
             style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
         )
         Text(
-            "Brother Matrizes para Android e Windows: novidades, tutoriais e suporte.",
+            "Brother Matrizes Windows: novidades, tutoriais e suporte.",
             color = FioTextMuted
         )
         Card(
@@ -173,8 +173,8 @@ internal fun DesktopBrotherCommunityScreen(
                 Text("Atualizações Brother Matrizes Windows",
                     fontWeight = FontWeight.Bold, color = FioText)
                 Text(
-                    "Este canal é exclusivo do Windows. Nenhum APK Android " +
-                        "será oferecido como instalação para PC.",
+                    "Este canal exibe exclusivamente informações sobre " +
+                        "a versão Windows do Brother Matrizes.",
                     color = FioTextMuted
                 )
                 OutlinedButton(
@@ -210,8 +210,7 @@ internal fun DesktopBrotherCommunityScreen(
                 Text(
                     "Opcional: verificar lançamentos oficiais Windows a cada " +
                         "6 horas enquanto o Brother Matrizes estiver aberto. " +
-                        "Este consentimento é independente dos avisos Android; " +
-                        "nunca faz download ou instalação automática.",
+                        "Nenhum download ou instalação é feito automaticamente.",
                     color = FioTextMuted
                 )
                 OutlinedButton(
@@ -262,73 +261,6 @@ internal fun DesktopBrotherCommunityScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Atualizações Android (APK)",
-                    fontWeight = FontWeight.Bold, color = FioText)
-                Text("Versão Windows em teste: $versionName", color = FioTextMuted)
-                Text(
-                    "Histórico oficial de versões Android. Para Windows, consulte o canal acima.",
-                    color = FioTextMuted
-                )
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { browse(DesktopBrotherCommunityLinks.updates()) }
-                ) { Text("Ver notas e novidades") }
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !checkingNews,
-                    onClick = {
-                        scope.launch {
-                            checkingNews = true
-                            androidReleaseNotice = null
-                            try {
-                                // Explicit read-only check. This feed currently
-                                // publishes ANDROID releases, not Windows EXEs.
-                                androidReleaseNotice =
-                                    DesktopOfficialReleaseNotice()
-                                        .checkAndroidAnnouncements()
-                                status = null
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Exception) {
-                                status = "Não foi possível consultar as novidades oficiais. " +
-                                    "O aplicativo continua funcionando normalmente."
-                            } finally {
-                                checkingNews = false
-                            }
-                        }
-                    }
-                ) {
-                    Text(if (checkingNews) "Consultando…" else
-                        "Consultar avisos oficiais do Android")
-                }
-                androidReleaseNotice?.let { notice ->
-                    Text(notice.displayText(), color = FioTextMuted)
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            val shown = runCatching {
-                                DesktopWindowsLocalNotification.showAfterUserClick(
-                                    title = "Brother Matrizes — novidades Android",
-                                    message = "Android ${notice.versionName} publicado. " +
-                                        "Versão Windows ainda em homologação."
-                                )
-                            }.getOrDefault(false)
-                            status = if (shown)
-                                "Notificação local solicitada ao Windows. " +
-                                    "Isso não ativa notificações push."
-                            else
-                                "O sistema não disponibilizou notificação nativa. " +
-                                    "O aviso permanece visível nesta tela."
-                        }
-                    ) { Text("Mostrar este aviso no Windows") }
-                }
-            }
-        }
-        Card(
-            colors = CardDefaults.cardColors(containerColor = FioSurface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Grupo oficial de feedbacks", fontWeight = FontWeight.Bold, color = FioText)
                 Text(
                     "Converse com outros usuários, relate erros e envie sugestões para as próximas versões.",
@@ -359,62 +291,6 @@ internal fun DesktopBrotherCommunityScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { browse(DesktopBrotherCommunityLinks.updates()) }
                 ) { Text("Abrir página do Brother Matrizes no site") }
-            }
-        }
-        Card(
-            colors = CardDefaults.cardColors(containerColor = FioSurface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Notificações push", fontWeight = FontWeight.Bold, color = FioText)
-                Text(
-                    "Avisos automáticos de novidades Android, enquanto este " +
-                        "aplicativo Windows estiver aberto. A verificação é " +
-                        "feita no máximo a cada 6 horas e cada versão é avisada " +
-                        "uma vez. Não instala serviço, não executa downloads " +
-                        "e não representa Firebase push ou atualização Windows.",
-                    color = FioTextMuted
-                )
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !checkingNews,
-                    onClick = {
-                        scope.launch {
-                            checkingNews = true
-                            try {
-                                val next = !automaticAndroidNewsEnabled
-                                val changed = onAndroidNewsConsentChange(next)
-                                status = if (changed && next)
-                                    "Avisos ativados. A versão Android atual foi " +
-                                        "registrada sem notificação antiga. " +
-                                        "O recurso para ao fechar o Brother Matrizes."
-                                else if (changed)
-                                    "Avisos automáticos desativados neste PC."
-                                else
-                                    "A opção automática não está disponível " +
-                                        "nesta execução do aplicativo."
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Exception) {
-                                status = "Não foi possível salvar a preferência " +
-                                    "de avisos ou verificar a versão oficial. " +
-                                    "Nenhuma mudança foi ativada."
-                            } finally {
-                                checkingNews = false
-                            }
-                        }
-                    }
-                ) {
-                    Text(if (automaticAndroidNewsEnabled)
-                        "Desativar avisos automáticos do Android"
-                    else "Ativar avisos automáticos do Android")
-                }
-                Text(
-                    "Consentimento: " + if (automaticAndroidNewsEnabled)
-                        "ativo para esta conta do Windows (não é assinatura Pro)"
-                    else "desativado por padrão",
-                    color = FioTextMuted
-                )
             }
         }
         status?.let { Text(it, color = FioGold) }
