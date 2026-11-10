@@ -2,6 +2,8 @@ package com.timachado.brothermatrizes.desktop
 
 import com.timachado.brothermatrizes.desktop.platform.DesktopExternalBrowser
 import com.timachado.brothermatrizes.desktop.platform.DesktopGooglePkceLoginCoordinator
+import com.timachado.brothermatrizes.desktop.platform.DesktopGoogleLoginFailure
+import com.timachado.brothermatrizes.desktop.platform.DesktopGoogleLoginStage
 import com.timachado.brothermatrizes.desktop.platform.DesktopSupabaseGooglePkceClient
 import com.timachado.brothermatrizes.desktop.platform.WindowsExternalBrowser
 import java.io.ByteArrayInputStream
@@ -162,4 +164,49 @@ class DesktopGooglePkceLoginCoordinatorTest {
             Socket("127.0.0.1", callbackPort.get()).use { }
         }
     }
+    @Test
+    fun successfulLocalCallbackAndFailedTokenNetworkShowSafeStage04() = runBlocking {
+        val client = DesktopSupabaseGooglePkceClient(testKey) { _ ->
+            throw ConnectException("simulated secret-free network outage")
+        }
+        val errors = mutableListOf<Throwable>()
+        var sender: Thread? = null
+        val browser = DesktopExternalBrowser { url ->
+            val params = url.rawQuery.split("&").associate {
+                val pair = it.split("=", limit = 2)
+                pair[0] to URLDecoder.decode(pair[1], StandardCharsets.UTF_8)
+            }
+            val redirect = URI(requireNotNull(params["redirect_to"]))
+            sender = thread(start = true, isDaemon = true) {
+                try {
+                    Socket("127.0.0.1", redirect.port).use { socket ->
+                        socket.soTimeout = 4000
+                        val target = redirect.rawPath + "?" +
+                            redirect.rawQuery + "&code=mock_google_auth_code"
+                        socket.getOutputStream().write(
+                            ("GET $target HTTP/1.1\r\n" +
+                                "Host: 127.0.0.1:${redirect.port}\r\n" +
+                                "Connection: close\r\n\r\n")
+                                .toByteArray(StandardCharsets.US_ASCII)
+                        )
+                        assertTrue(socket.getInputStream().readBytes()
+                            .toString(Charsets.UTF_8).startsWith("HTTP/1.1 200 OK"))
+                    }
+                } catch (error: Throwable) {
+                    synchronized(errors) { errors.add(error) }
+                }
+            }
+        }
+        val failure = assertFailsWith<DesktopGoogleLoginFailure> {
+            DesktopGooglePkceLoginCoordinator(
+                client, browser, Duration.ofSeconds(8)
+            ).signInForIsolatedQa()
+        }
+        sender?.join(5000)
+        assertTrue(errors.isEmpty(), errors.firstOrNull()?.message ?: "callback sender failed")
+        assertEquals(DesktopGoogleLoginStage.TOKEN, failure.stage)
+        assertTrue(failure.message.orEmpty().contains("GOOGLE-04"))
+        assertFalse(failure.message.orEmpty().contains("mock_google_auth_code"))
+    }
+
 }
