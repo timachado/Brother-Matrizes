@@ -66,6 +66,25 @@ class StageMsixQaTests(unittest.TestCase):
         self.assertTrue((self.stage / "BrotherMatrizes.exe").is_file())
         self.assertTrue((self.stage / "runtime" / "fixture.dat").is_file())
 
+    def test_commercial_update_version_and_invalid_versions(self):
+        stage_msix_qa(self.app, self.stage, self.icon,
+                      store_candidate=True, store_version="1.0.1.0")
+        parsed = ET.parse(self.stage / "AppxManifest.xml").getroot()
+        identity = parsed.find(f"{{{NS}}}Identity")
+        self.assertEqual(identity.attrib["Version"], "1.0.1.0")
+        self.assertEqual(identity.attrib["Name"], STORE_NAME)
+        self.assertEqual(identity.attrib["Publisher"], STORE_PUBLISHER)
+
+    def test_rejects_version_override_on_qa_and_invalid_commercial_versions(self):
+        for version, candidate in [
+            ("1.0.1.0", False), ("1.0.1.9", True),
+            ("1.0.01.0", True), ("65536.0.0.0", True),
+        ]:
+            with self.subTest(version=version, candidate=candidate):
+                with self.assertRaisesRegex(ValueError, "Versao"):
+                    stage_msix_qa(self.app, self.stage, self.icon,
+                                  store_candidate=candidate, store_version=version)
+
     def test_missing_runtime_rejected(self):
         (self.app / "runtime" / "fixture.dat").unlink()
         (self.app / "runtime").rmdir()
