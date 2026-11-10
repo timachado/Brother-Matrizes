@@ -95,7 +95,7 @@ internal class DesktopWindowsDpapiSessionStore(
     override fun save(session: DesktopTransientAuthSession) {
         require(session.expiresInSeconds in 1..86_400 &&
             session.accessToken.validSessionToken() &&
-            session.refreshToken.validSessionToken()) {
+            session.refreshToken.validRefreshToken()) {
             "Sessão não pode ser persistida."
         }
         validateStorageDirectory(create = true)
@@ -166,7 +166,7 @@ internal class DesktopWindowsDpapiSessionStore(
                 val refresh = (json["refresh_token"] as? JsonPrimitive)
                     ?.takeIf { it.isString }?.content.orEmpty()
                 val expiry = (json["expires_at"] as? JsonPrimitive)?.longOrNull
-                require(access.validSessionToken() && refresh.validSessionToken())
+                require(access.validSessionToken() && refresh.validRefreshToken())
                 require(expiry != null && expiry in 1L..4_102_444_800L)
                 val validUntil = Instant.ofEpochSecond(expiry)
                 require(!validUntil.isAfter(clock.instant().plusSeconds(86_400)))
@@ -208,6 +208,11 @@ internal class DesktopWindowsDpapiSessionStore(
     private fun String.validSessionToken(): Boolean =
         length in 16..8192 &&
             all { it.code in 0x21..0x7e && it != '"' && it != '\\' }
+
+    // Legacy Supabase refresh tokens are exactly 12 lowercase a-z/0-9.
+    // Modern refresh tokens remain subject to the existing bounded checks.
+    private fun String.validRefreshToken(): Boolean =
+        if (length == 12) matches(Regex("[a-z0-9]{12}")) else validSessionToken()
 
     override fun toString(): String = "DesktopWindowsDpapiSessionStore(redacted)"
 
