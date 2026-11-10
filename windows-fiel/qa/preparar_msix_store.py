@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Stage the existing Windows jpackage app-image for an UNSIGNED MSIX QA.
 
-Publisher identity is deliberately fake; Store submission requires the exact
-verified identity and publisher from the owner's Partner Center reservation.
+Name and Publisher are the exact values copied by the owner from Partner Center.
+This remains an unsigned internal QA package; the full Store publisher display
+name and final release version must be independently confirmed before submission.
 Never sign, install, publish, or include customer/credential files here.
 """
 import argparse
@@ -17,9 +18,9 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 OFFICIAL_ICON = ROOT / "branding" / "brother_bm_launcher_safe.webp.base64"
-QA_NAME = "com.timachado.brothermatrizes.msixqa"
-QA_PUBLISHER = "CN=BrotherMatrizesQA-Untrusted"
-QA_VERSION = "1.0.0.0"
+STORE_NAME = "T.I.MachadoSoluesemTecnol.BrotherMatrizes"
+STORE_PUBLISHER = "CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F"
+QA_VERSION = "1.0.0.0"  # provisional build; not a commercial submission
 NS = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
 UAP = "http://schemas.microsoft.com/appx/manifest/uap/windows10"
 UAP10 = "http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
@@ -65,13 +66,13 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
 
     package = ET.Element(f"{{{NS}}}Package")
     ET.SubElement(package, f"{{{NS}}}Identity", {
-        "Name": QA_NAME, "Publisher": QA_PUBLISHER,
+        "Name": STORE_NAME, "Publisher": STORE_PUBLISHER,
         "Version": QA_VERSION, "ProcessorArchitecture": "x64",
     })
     props = ET.SubElement(package, f"{{{NS}}}Properties")
     for tag, value in (
         ("DisplayName", "Brother Matrizes Windows (QA MSIX)"),
-        ("PublisherDisplayName", "T.I. Machado - identidade QA nao verificada"),
+        ("PublisherDisplayName", "T.I. Machado Soluções em Tecnologia"),  # provisional; compare to Partner Center
         ("Description", "MSIX para testar empacotamento. Nao distribuir."),
         ("Logo", r"Assets\StoreLogo.png"),
     ):
@@ -102,7 +103,8 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
     manifest = destination / "AppxManifest.xml"
     ET.ElementTree(package).write(manifest, encoding="utf-8", xml_declaration=True)
     parsed = ET.parse(manifest).getroot()
-    assert parsed.find(f"{{{NS}}}Identity").attrib["Publisher"] == QA_PUBLISHER
+    assert parsed.find(f"{{{NS}}}Identity").attrib["Publisher"] == STORE_PUBLISHER
+    assert parsed.find(f"{{{NS}}}Identity").attrib["Name"] == STORE_NAME
     assert parsed.find(f"{{{NS}}}Applications/{{{NS}}}Application").attrib["Executable"] == "BrotherMatrizes.exe"
     return destination
 
@@ -114,7 +116,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         staged = stage_msix_qa(args.app_image, args.stage)
-        print("BROTHER_WINDOWS_MSIX_QA_STAGING_OK", staged, QA_NAME)
+        print("BROTHER_WINDOWS_MSIX_QA_STAGING_OK", staged, STORE_NAME)
     except (OSError, ValueError, AssertionError) as error:
         print("BROTHER_WINDOWS_MSIX_QA_STAGING_FAIL:", error, file=sys.stderr)
         raise SystemExit(1)
