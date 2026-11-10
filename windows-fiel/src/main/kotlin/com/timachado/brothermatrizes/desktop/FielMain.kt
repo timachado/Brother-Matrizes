@@ -191,17 +191,17 @@ fun main(args: Array<String>) = application {
         else -> null
     }
     val chooserQaFile = chooserQaFormat?.let { format ->
-        val sampleFromAndroid = format == "PES" || format == "JEF"
-        val filename = if (sampleFromAndroid) "random1.${format.lowercase()}"
+        val sampleFromBaseline = format == "PES" || format == "JEF"
+        val filename = if (sampleFromBaseline) "random1.${format.lowercase()}"
                        else "qa-matriz-original.${format.lowercase()}"
         val target = Path.of("build/qa/chooser-fixtures", filename)
             .toAbsolutePath().normalize()
         Files.createDirectories(target.parent)
-        if (sampleFromAndroid) {
+        if (sampleFromBaseline) {
             val source = Path.of("../app/src/test/resources/samples", filename)
                 .toAbsolutePath().normalize()
             check(Files.isRegularFile(source) && !Files.isSymbolicLink(source)) {
-                "A referência Android do seletor não está disponível."
+                "A amostra de referência do seletor não está disponível."
             }
             // Copiar os binários de referência: nenhum original ou cliente é alterado.
             Files.copy(source, target)
@@ -450,7 +450,7 @@ fun main(args: Array<String>) = application {
                                     "random1.${format.lowercase()}"
                                 ))
                             )
-                        ) { "O arquivo Android de referência foi alterado." }
+                        ) { "O arquivo de referência foi alterado." }
                     }
                     println("BROTHER_WINDOWS_CHOOSER_${format}_VIEWER_OK")
                     exitProcess(0)
@@ -662,7 +662,7 @@ fun main(args: Array<String>) = application {
                         }
                     } else {
                         check(correctNav >= sampleX.size * 0.70) {
-                            "Captura rejeitada: navegação Android não está " +
+                            "Captura rejeitada: navegação Brother Matrizes não está " +
                                 "visível no rodapé do Windows (amostras=$correctNav/" +
                                 "${sampleX.size})."
                         }
