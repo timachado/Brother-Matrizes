@@ -61,7 +61,10 @@ class NameEditorScreenshotQaTest {
         // A captura de telas de detalhe inclui também a Comunidade;
         // manter a condição concreta e o isolamento visual, sem depender
         // da mesma formatação de linha do código-fonte.
-        assertTrue(Regex("""if\\s*\\(editorCapture\\s*\\|\\|\\s*transferScreenshot\\s*\\|\\|\\s*drawingScreenshot\\s*\\|\\|\\s*archiveScreenshot\\s*\\|\\|\\s*communityScreenshot\\s*\\)""").containsMatchIn(host))
+        assertTrue(host.replace(Regex("""\s+"""), " ").contains(
+            "if (editorCapture || transferScreenshot || drawingScreenshot || " +
+                "archiveScreenshot || communityScreenshot)"
+        ))
         assertTrue(host.contains("rgbColors.size >= 18"))
         assertTrue(host.contains("onEditName = { detail = ActiveDetail.NAME_EDITOR }"))
         assertTrue(host.contains("NameEditorScreen("))
