@@ -2361,7 +2361,8 @@ private fun FielHomeHost(
                     }
                 )
             } else if (area == HomeArea.ACCOUNT) {
-                // Minha Conta de QA: login somente por opt-in explícito.
+                // Minha Conta: Google normal com PKCE/DPAPI. A conta QA
+                // isolada continua disponível só com opt-in técnico.
                 // O preview do servidor não autoriza recursos comerciais.
                 DesktopAccountQaScreen(
                     onBack = { area = HomeArea.HOME },

@@ -431,11 +431,11 @@ internal fun DesktopFontCatalogScreen(
                         ) { Text("Buscar no NetFontes") }
                     }
                     Text(
-                        "Pesquisa DaFont: autenticação Google e reserva de cota " +
-                            "confirmada pelo mesmo Supabase do Android. " +
-                            "NetFontes: login Google sem cota de pesquisa DaFont. " +
-                            "Acesso disponível somente em QA autorizada; " +
-                            "downloads e importação de fontes permanecem separados.",
+                        "DaFont: pesquisa com Google e reserva de cota no " +
+                            "mesmo Supabase do Android. NetFontes: busca após " +
+                            "login Google, sem cota de pesquisa DaFont. " +
+                            "Baixe no site oficial e confira a licença; " +
+                            "a importação é autorizada separadamente.",
                         color = FioTextMuted
                     )
                     if (catalogStatus != null) {

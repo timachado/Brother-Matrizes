@@ -44,10 +44,9 @@ import kotlinx.coroutines.withContext
 /**
  * Windows account navigation, modeled after the Android Minha Conta tab.
  *
- * The only real authentication actions are restricted to an explicit QA
- * environment variable opt-in, never enabled in normal app startup.
- * The read-only entitlement snapshot is informational; it cannot unlock
- * commercial imports or act as a device-bound license.
+ * Normal Windows users can explicitly sign in with Google in Minha Conta.
+ * QA diagnostics retain their separate opt-in. No browser/network calls
+ * occur at startup. Server-only entitlements never grant imports locally.
  */
 internal object DesktopAccountPresentation {
     data class VerifiedSummary(
@@ -188,8 +187,9 @@ internal fun DesktopAccountQaScreen(
             }
         }
 
-        // Local-only OAuth diagnostics work even when no Supabase key or
-        // Google QA session is configured. This button never opens a browser.
+        // Technical QA diagnostics are hidden in the normal commercial
+        // login experience, while remaining available in the isolated QA UI.
+        if (qaEnvironment != null || officialGoogle == null) {
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
             enabled = !busy,
@@ -234,6 +234,7 @@ internal fun DesktopAccountQaScreen(
             color = FioTextMuted
         )
 
+        }
         // Manual-only checklist appears exclusively in the opted-in QA screen.
         // It never fetches the private Supabase Redirect URLs, starts Google,
         // changes account state or declares a commercial login ready.
