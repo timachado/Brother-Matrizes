@@ -45,8 +45,6 @@ class AndroidNameEditorParityTest {
         assertTrue(desktop.contains("NameEditorStitchLayer("))
         assertTrue(desktop.contains("brother_name_editor_pip"))
         assertTrue(desktop.contains("landscapeHoopAutoScale("))
-        assertTrue(host.contains("desktopFloatingPreview = true"))
-        assertTrue(host.contains("desktopAutoFitLandscape = true"))
         assertTrue(desktop.contains("onClick = { preview?.let(onApply) }"))
         assertTrue(desktop.contains("onApply(baseDesign)"))
         assertTrue(desktop.contains("requestFontImport()"))
@@ -56,6 +54,8 @@ class AndroidNameEditorParityTest {
         val host = Files.readString(root.resolve(
             "src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
         ))
+        assertTrue(host.contains("desktopFloatingPreview = true"))
+        assertTrue(host.contains("desktopAutoFitLandscape = true"))
         assertTrue(host.contains("onEditName = { detail = ActiveDetail.NAME_EDITOR }"))
         assertTrue(host.contains("activeDesign = personalized"))
     }
