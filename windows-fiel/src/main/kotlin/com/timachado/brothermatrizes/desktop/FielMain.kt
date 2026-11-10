@@ -254,7 +254,8 @@ fun main(args: Array<String>) = application {
     }
     Window(
         onCloseRequest = ::exitApplication,
-        title = "Brother Matrizes — Windows (QA interna)",
+        title = if (System.getProperty("brother.windows.store.release") == "true")
+            "Brother Matrizes" else "Brother Matrizes — Windows (QA interna)",
         icon = officialWindowIcon,
         state = WindowState(
             // Full desktop use begins maximized; screenshot QA stays deterministic.
@@ -1500,9 +1501,13 @@ private fun FielHomeHost(
     fun informNotPorted(feature: String) {
         scope.launch {
             snackbar.showSnackbar(
-                "$feature ainda não está disponível no Windows. " +
-                    "As funções prontas continuam acessíveis; este recurso " +
-                    "precisa de homologação antes da publicação comercial."
+                if (System.getProperty("brother.windows.store.release") == "true")
+                    "$feature não está disponível nesta edição para Windows. " +
+                        "As demais funções continuam acessíveis."
+                else
+                    "$feature ainda não está disponível no Windows. " +
+                        "As funções prontas continuam acessíveis; este recurso " +
+                        "precisa de homologação antes da publicação comercial."
             )
         }
     }
