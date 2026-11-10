@@ -244,6 +244,14 @@ internal fun DesktopFontCatalogScreen(
         scope.launch {
             catalogStatus = null
             try {
+                // Both catalogs require the same verified Google identity as
+                // Android. When absent, route to Minha Conta instead of
+                // leaving the user at a dead-end error on the Fonts screen.
+                if (!access.hasVerifiedGoogleSession()) {
+                    catalogStatus = "Entre com Google em Minha Conta para consultar fontes."
+                    onRequireGoogle()
+                    return@launch
+                }
                 val opened = withContext(Dispatchers.IO) {
                     DesktopFontCatalogSearch.browse(
                         source = source, query = query, access = access
