@@ -7,6 +7,8 @@ on:
     paths:
       - "windows-fiel/build.gradle.kts"
       - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/FielMain.kt"
+      - "windows-fiel/src/main/kotlin/com/timachado/brothermatrizes/desktop/platform/DesktopSupabaseGooglePkceClient.kt"
+      - "windows-fiel/src/test/kotlin/com/timachado/brothermatrizes/desktop/DesktopSupabaseGooglePkceClientTest.kt"
       - "windows-fiel/qa/preparar_msix_store.py"
       - ".github/workflows/brother-windows-store-release.yml"
   workflow_dispatch:
