@@ -6,7 +6,10 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from PIL import Image
-from preparar_msix_store import stage_msix_qa, NS, UAP10, STORE_NAME, STORE_PUBLISHER
+from preparar_msix_store import (
+    stage_msix_qa, NS, UAP10, STORE_NAME, STORE_PUBLISHER,
+    STORE_PUBLISHER_DISPLAY_NAME,
+)
 
 
 class StageMsixQaTests(unittest.TestCase):
@@ -35,6 +38,10 @@ class StageMsixQaTests(unittest.TestCase):
         self.assertEqual(STORE_NAME, "T.I.MachadoSoluesemTecnol.BrotherMatrizes")
         self.assertEqual(identity.attrib["Publisher"], STORE_PUBLISHER)
         self.assertEqual(STORE_PUBLISHER, "CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F")
+        display = parsed.find(f"{{{NS}}}Properties/{{{NS}}}PublisherDisplayName")
+        self.assertIsNotNone(display)
+        self.assertEqual(display.text, STORE_PUBLISHER_DISPLAY_NAME)
+        self.assertEqual(display.text, "T.I. Machado Soluções em Tecnologia")
         app = parsed.find(f"{{{NS}}}Applications/{{{NS}}}Application")
         self.assertEqual(app.attrib["Executable"], "BrotherMatrizes.exe")
         self.assertEqual(app.attrib[f"{{{UAP10}}}RuntimeBehavior"], "packagedClassicApp")
