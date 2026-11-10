@@ -47,7 +47,7 @@ def stage_msix_qa(app_image: Path, target: Path, icon_source: Path = OFFICIAL_IC
         if entry.is_file() and entry.suffix.lower() in (".pfx", ".p12", ".pem", ".key"):
             raise ValueError("Chave privada ou certificado nao podem entrar no MSIX.")
     data = base64.b64decode(icon_source.read_text(encoding="ascii").strip(), validate=True)
-    if len(data) < 128 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
         raise ValueError("Icone fonte nao e o WebP oficial Android.")
     with Image.open(BytesIO(data)) as image:
         if image.format != "WEBP" or min(image.size) < 64:
