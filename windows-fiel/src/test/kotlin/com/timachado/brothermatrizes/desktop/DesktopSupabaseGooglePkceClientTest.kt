@@ -105,6 +105,32 @@ class DesktopSupabaseGooglePkceClientTest {
     }
 
     @Test
+    fun acceptsLegacyTwelveCharacterSupabaseRefreshTokenAfterPkce() = runBlocking {
+        // Supabase legacy GoTrue issues exactly 12 lower-case alphanumeric chars.
+        val legacy = "ab12cd34ef56"
+        val token = FakeConnection(
+            URL("https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/token?grant_type=pkce"),
+            response = """{"access_token":"$access","refresh_token":"$legacy","expires_in":3600,"token_type":"bearer"}"""
+        )
+        val client = DesktopSupabaseGooglePkceClient(key) { token }
+        val session = client.exchangeCode(
+            DesktopPkceExchange("mock_auth_code_legacy", "z".repeat(43))
+        )
+        assertEquals(legacy, session.refreshToken)
+        assertTrue(token.closed)
+        val rotated = FakeConnection(
+            URL("https://dwpcddiramxlhavdmmyn.supabase.co/auth/v1/token?grant_type=refresh_token"),
+            response = """{"access_token":"$access","refresh_token":"gh78ij90kl12","expires_in":3600,"token_type":"bearer"}"""
+        )
+        val refreshClient = DesktopSupabaseGooglePkceClient(key) { rotated }
+        val newSession = refreshClient.refreshSession(session)
+        assertEquals("gh78ij90kl12", newSession.refreshToken)
+        assertEquals(legacy, (Json.parseToJsonElement(rotated.body()) as JsonObject)
+            ["refresh_token"]?.jsonPrimitive?.content)
+        assertTrue(rotated.closed)
+    }
+
+    @Test
     fun rejectsBadResponseCodesAndFormatsWithoutLeakingSession() = runBlocking {
         val cases = listOf(
             Triple(302, "application/json", """{"access_token":"$access"}"""),
