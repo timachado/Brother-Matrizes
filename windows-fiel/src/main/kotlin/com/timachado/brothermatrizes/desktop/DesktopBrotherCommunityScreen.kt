@@ -162,7 +162,7 @@ internal fun DesktopBrotherCommunityScreen(
             style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
         )
         Text(
-            "Novidades, tutoriais e sugestões para a evolução do seu aplicativo.",
+            "Brother Matrizes para Android e Windows: novidades, tutoriais e suporte.",
             color = FioTextMuted
         )
         Card(
@@ -262,11 +262,11 @@ internal fun DesktopBrotherCommunityScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Atualizações oficiais Android",
+                Text("Atualizações Android (APK)",
                     fontWeight = FontWeight.Bold, color = FioText)
-                Text("Versão instalada: $versionName", color = FioTextMuted)
+                Text("Versão Windows em teste: $versionName", color = FioTextMuted)
                 Text(
-                    "Acompanhe as versões publicadas e o que melhorou em cada uma.",
+                    "Histórico oficial de versões Android. Para Windows, consulte o canal acima.",
                     color = FioTextMuted
                 )
                 OutlinedButton(
