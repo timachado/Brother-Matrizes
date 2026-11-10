@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from PIL import Image
-from preparar_msix_store import stage_msix_qa, NS, UAP10, QA_NAME, QA_PUBLISHER
+from preparar_msix_store import stage_msix_qa, NS, UAP10, STORE_NAME, STORE_PUBLISHER
 
 
 class StageMsixQaTests(unittest.TestCase):
@@ -31,8 +31,10 @@ class StageMsixQaTests(unittest.TestCase):
         stage_msix_qa(self.app, self.stage, self.icon)
         parsed = ET.parse(self.stage / "AppxManifest.xml").getroot()
         identity = parsed.find(f"{{{NS}}}Identity")
-        self.assertEqual(identity.attrib["Name"], QA_NAME)
-        self.assertEqual(identity.attrib["Publisher"], QA_PUBLISHER)
+        self.assertEqual(identity.attrib["Name"], STORE_NAME)
+        self.assertEqual(STORE_NAME, "T.I.MachadoSoluesemTecnol.BrotherMatrizes")
+        self.assertEqual(identity.attrib["Publisher"], STORE_PUBLISHER)
+        self.assertEqual(STORE_PUBLISHER, "CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F")
         app = parsed.find(f"{{{NS}}}Applications/{{{NS}}}Application")
         self.assertEqual(app.attrib["Executable"], "BrotherMatrizes.exe")
         self.assertEqual(app.attrib[f"{{{UAP10}}}RuntimeBehavior"], "packagedClassicApp")
