@@ -108,27 +108,25 @@ Canais oficiais:
 ## Identidade real informada pelo proprietário — 10/11/2026
 
 O proprietário concluiu o cadastro de desenvolvedor Microsoft Store e criou
-o rascunho **Brother Matrizes**, tipo **Aplicativo MSIX ou PWA**. Forneceu
-os dois valores abaixo da página "Exibir a identidade do produto":
+o rascunho **Brother Matrizes**, tipo **Aplicativo MSIX ou PWA**. Confirmou
+os três valores da página "Exibir a identidade do produto":
 
 - `Package/Identity/Name`: `T.I.MachadoSoluesemTecnol.BrotherMatrizes`
 - `Package/Identity/Publisher`: `CN=353309CB-0CCB-4E2D-8F88-AF631DAA395F`
+- `Package/Properties/PublisherDisplayName`: `T.I. Machado Soluções em Tecnologia`
 
-Esses campos foram aplicados **literalmente** ao gerador
-`preparar_msix_store.py` e às validações do workflow e teste. Não corrigir
-ortografia dos identificadores, pois são valores técnicos reservados na Store.
-
-**Ainda é necessário conferir o terceiro campo oficial:**
-`Package/Properties/PublisherDisplayName`. O manifesto usa provisoriamente
-`T.I. Machado Soluções em Tecnologia`, como marca declarada pelo responsável,
-e não o identifica como valor confirmado pelo Partner Center.
-O proprietário pode localizá-lo no mesmo painel de identidade.
+Os três campos foram aplicados **literalmente** ao gerador
+`preparar_msix_store.py`, às verificações de XML e ao workflow.
+Não corrigir ortografia, diacríticos ou o GUID dos identificadores
+técnicos: precisam coincidir exatamente com o Partner Center.
 
 **Importante:** a versão `1.0.0.0`, os títulos "QA MSIX" no launcher
 e no manifesto, o fluxo de build e o artefato são de teste, sem assinatura.
-O pacote usa identidade real, mas continua não pronto para submissão até
-a confirmação do terceiro campo, preparação de versão comercial, testes
-MSIX de instalação e aprovação explícita de envio.
+O pacote agora contém a identidade real completa, mas não é ainda candidato
+comercial para submissão: faltam preparar a versão de release, executar
+testes de instalação de MSIX e confirmar os metadados de apresentação.
+Não confundir a validação do empacotamento MakeAppx com certificação Store.
+Qualquer envio ao Partner Center deve ser uma ação separada e autorizada.
 
 A conta foi criada/verificada pelo portal, mas o tipo
 `Individual` versus `Company` **não foi mostrado** ao assistente.
