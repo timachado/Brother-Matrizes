@@ -36,6 +36,16 @@ assert not any(
 build_steps = "\n".join(step.get("run", "") for step in build["steps"])
 sign_steps = "\n".join(step.get("run", "") for step in sign["steps"])
 assert "QA interna" in build_steps and "0.0.1" in build_steps
+# Non-commercial code paths are not made safe by changing the title/version.
+# Refuse signing until the feature gates are removed through real QA.
+for marker in (
+    "Importação TTF/OTF indisponível nesta QA Windows",
+    "Integração RAR/conta indisponível nesta versão de QA Windows",
+    "somente fontes EMBUTIDAS são funcionais nesta QA Windows",
+    "Funcionalidade comercial pendente:",
+):
+    assert marker in build_steps, f"Missing explicit QA feature release gate: {marker}"
+assert "Nome legal do editor ausente (pessoa fisica ou empresa)." in sign_steps
 assert "gradle -p windows-fiel test" in build_steps
 assert "createDistributable" in build_steps
 assert "Get-AuthenticodeSignature" in build_steps
