@@ -15,7 +15,11 @@ plugins {
 }
 
 group = "com.timachado.brothermatrizes"
-version = "0.0.1-fidelidade-qa"
+// Build comercial autorizado pelo titular: não altera o código Android nem autenticação.
+// Sem -PbrotherStoreRelease=true, todas as tarefas QA preservam comportamento anterior.
+val brotherStoreRelease = providers.gradleProperty("brotherStoreRelease")
+    .map { it == "true" }.getOrElse(false)
+version = if (brotherStoreRelease) "1.0.0" else "0.0.1-fidelidade-qa"
 
 kotlin {
     jvmToolchain(17)
@@ -397,7 +401,10 @@ val copyAndroidNameEditor by tasks.registering {
     // Fontes externas TTF/OTF são protegidas por licença e cotas Android.
     // Não simular login, importação, cobrança ou geração de pontadas.
     fun requestFontImport() {
-        fontImportStatus = "Importação TTF/OTF indisponível nesta QA Windows: autenticação e cotas ainda não homologadas."
+        fontImportStatus = if (System.getProperty("brother.windows.store.release") == "true")
+            "Importação TTF/OTF ainda não disponível nesta edição do Windows."
+        else
+            "Importação TTF/OTF indisponível nesta QA Windows: autenticação e cotas ainda não homologadas."
     }
 
 """.trimStart('\n')
@@ -1826,7 +1833,11 @@ tasks.test {
 compose.desktop {
     application {
         mainClass = "com.timachado.brothermatrizes.desktop.FielMainKt"
-        // SOMENTE imagem portable de QA, sem EXE de instalador ou MSI.
+        if (brotherStoreRelease) {
+            // Apenas identidade visual/versão; não libera licenças nem recursos protegidos.
+            jvmArgs += listOf("-Dbrother.windows.store.release=true")
+        }
+        // Imagem portable usada internamente ou como origem do MSIX Store.
         // createDistributable usa jpackage --type app-image: launcher Windows
         // + runtime JRE numa pasta movível; não modifica o registro.
         // Nenhum targetFormats é ativado e não existe release comercial.
@@ -1835,8 +1846,9 @@ compose.desktop {
             // description and version; not a commercial signed release.
             // Launcher name remains ASCII for portable Windows paths.
             packageName = "BrotherMatrizes"
-            packageVersion = "0.0.1"
-            description = "Brother Matrizes Windows - validacao interna QA"
+            packageVersion = if (brotherStoreRelease) "1.0.0" else "0.0.1"
+            description = if (brotherStoreRelease) "Brother Matrizes para Windows" else
+                "Brother Matrizes Windows - validacao interna QA"
             vendor = "T.I. Machado Solucoes em Tecnologia"
             // Mantém AWT/Swing (JFileChooser), JNA/DPAPI, Skia e TLS.
             // A redução de módulos fica para análise jdeps posterior.
