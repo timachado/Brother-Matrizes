@@ -289,7 +289,7 @@ fun main(args: Array<String>) = application {
                 Menu("Biblioteca") {
                     Item("Selecionar pasta FLP…", onClick = { libraryFolderRequest++ })
                     Item("Analisar ZIP / RAR / 7Z (somente leitura)…", onClick = { archiveLaunchRequest++ })
-                    Item("Consultar fontes de backup Android (somente leitura)…", onClick = { recoveredFontsReviewRequest++ })
+                    Item("Consultar fontes recuperadas de backup (somente leitura)…", onClick = { recoveredFontsReviewRequest++ })
                 }
                 Menu("Windows") {
                     Item("Criar atalhos no Menu Iniciar e Área de Trabalho",
@@ -858,17 +858,7 @@ private fun FielHomeHost(
         DesktopWindowsAccountQaOptIn.telegramSearchAccessForQa(accountQaEnvironment)
     }
 
-    // Optional public Android news alerts while THIS Windows UI is open.
-    // The default is OFF; screenshot QA and shell-file tests never poll.
-    val newsPreferences = remember { DesktopWindowsNewsPreferences() }
-    val initialNewsState = remember(newsPreferences) {
-        runCatching { newsPreferences.load() }
-    }
-    var automaticNewsEnabled by remember {
-        mutableStateOf(initialNewsState.getOrNull()?.enabled == true)
-    }
-    // Consent for official WINDOWS releases is independent of Android news.
-    // Both start disabled, have separate files and share no last-version ID.
+    // Windows-only release notifications; the legacy mobile feed is not loaded.
     val windowsReleasePreferences = remember {
         DesktopWindowsNewsPreferences.forWindowsReleases()
     }
@@ -885,22 +875,6 @@ private fun FielHomeHost(
         !startInNameEditorKeyboardQa && !startInNameEditorCtrlAQa &&
         startInChooserQaFile == null && startInLaunchDocument == null &&
         startInSaveDialogQaFile == null
-    LaunchedEffect(automaticNewsEnabled, normalWindowsSession) {
-        if (!automaticNewsEnabled || !normalWindowsSession) return@LaunchedEffect
-        val checker = DesktopWindowsNewsAutoCheck(newsPreferences)
-        while (true) {
-            try {
-                withContext(Dispatchers.IO) { checker.checkOnce() }
-            } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // Offline / temporary failure: preserve consent and marker,
-                // never claim a Windows release or repeatedly display errors.
-            }
-            // In-process only; closing the Compose host cancels this watcher.
-            delay(6L * 60 * 60 * 1_000)
-        }
-    }
     LaunchedEffect(automaticWindowsReleaseEnabled, normalWindowsSession) {
         if (!automaticWindowsReleaseEnabled || !normalWindowsSession) {
             return@LaunchedEffect
@@ -1043,7 +1017,7 @@ private fun FielHomeHost(
                 Files.isDirectory(suggested, LinkOption.NOFOLLOW_LINKS)) {
                 suggested
             } else DesktopNativeMatrixPicker.chooseDirectory(
-                "Selecionar pasta fonts recuperada do backup Android",
+                "Selecionar pasta de fontes recuperadas do backup",
                 selectedLibraryFolder?.let { Path.of(it) }
             )
             if (folder != null) {
@@ -1286,7 +1260,7 @@ private fun FielHomeHost(
     fun backupCompleteOrFlp() {
         // Android already offers complete backup; use its EXACT codecs.
         // Keep the existing local FLP ZIP action available without changes.
-        val options = arrayOf("Backup completo (Android/Windows)", "ZIP local FLP", "Cancelar")
+        val options = arrayOf("Backup completo Brother Matrizes", "ZIP local FLP", "Cancelar")
         val selected = JOptionPane.showOptionDialog(
             null,
             "Qual formato deseja exportar? O backup completo inclui projetos FLP e fontes TTF/OTF selecionadas.",
@@ -1314,7 +1288,7 @@ private fun FielHomeHost(
                 null,
                 "Deseja incluir fontes TTF/OTF de uma pasta deste PC? " +
                     "Sim: escolher a pasta de fontes. Não: exportar somente as matrizes. " +
-                    "O formato continuará compatível com o backup completo Android.",
+                    "O formato completo mantém compatibilidade com backups anteriores.",
                 "Fontes no backup completo",
                 JOptionPane.YES_NO_CANCEL_OPTION,
                 JOptionPane.QUESTION_MESSAGE
@@ -1332,7 +1306,7 @@ private fun FielHomeHost(
                 folder.selectedFile.toPath().toAbsolutePath().normalize()
             } else null
             val chooser = JFileChooser().apply {
-                dialogTitle = "Salvar backup completo no formato original Android"
+                dialogTitle = "Salvar backup completo Brother Matrizes"
                 selectedFile = File("Brother-Matrizes.brother_matrizes-fullbackup")
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
@@ -1351,7 +1325,7 @@ private fun FielHomeHost(
                 }
             }.fold(onSuccess = { result ->
                 snackbar.showSnackbar(
-                    "Backup Android/Windows compatível criado: " +
+                    "Backup completo compatível criado: " +
                         "${result.exportedProjects} projeto(s), " +
                         "${result.exportedFonts} fonte(s). Arquivo: ${result.destination}"
                 )
@@ -1368,11 +1342,11 @@ private fun FielHomeHost(
             // Original Android full backups restore both FLP and font files
             // to a new folder; no commercial import or quota grant is inferred.
             val sourceChooser = JFileChooser().apply {
-                dialogTitle = "Restaurar ZIP FLP ou backup completo original Android"
+                dialogTitle = "Restaurar ZIP FLP ou backup completo Brother Matrizes"
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
                 fileFilter = FileNameExtensionFilter(
-                    "FLP local ZIP ou backup Android", "zip",
+                    "FLP local ZIP ou backup completo", "zip",
                     "brother_matrizes-fullbackup", "brother_matrizes-backup"
                 )
             }
@@ -1389,7 +1363,7 @@ private fun FielHomeHost(
                     }
                 }.getOrElse { error ->
                     snackbar.showSnackbar(
-                        "Backup Android recusado: " +
+                        "Backup incompatível recusado: " +
                             (error.message ?: "formato inválido ou incompleto")
                     )
                     return@launch
@@ -1407,7 +1381,7 @@ private fun FielHomeHost(
                 }
                 val accepted = JOptionPane.showConfirmDialog(
                     null,
-                    "Backup Android verificado: " + checked.projectCount +
+                    "Backup compatível verificado: " + checked.projectCount +
                         " matriz(es), " + checked.fontCount + " fonte(s).\n" +
                         if (checked.kind == DesktopAndroidBackupInspector.Kind.ANDROID_COMPLETE)
                             "Recuperar matrizes FLP e arquivos TTF/OTF em uma NOVA pasta?\n" +
@@ -1416,7 +1390,7 @@ private fun FielHomeHost(
                         else
                             "Recuperar projetos FLP em NOVA pasta? " +
                                 "Conta e licenças não serão importadas.",
-                    "Recuperar matrizes do Android — confirmação",
+                    "Recuperar matrizes — confirmação",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
                 )
@@ -2348,16 +2322,7 @@ private fun FielHomeHost(
                     onBack = { detail = ActiveDetail.NONE },
                     versionName = DesktopAndroidBaseline.WINDOWS_QA_LABEL,
                     allowPublicGroupLookup = !startInCommunityQa,
-                    automaticAndroidNewsEnabled = automaticNewsEnabled,
                     automaticWindowsReleaseEnabled = automaticWindowsReleaseEnabled,
-                    onAndroidNewsConsentChange = { enable ->
-                        val applied = withContext(Dispatchers.IO) {
-                            DesktopWindowsNewsAutoCheck(newsPreferences)
-                                .setEnabled(enable)
-                        }
-                        automaticNewsEnabled = applied
-                        true
-                    },
                     onWindowsReleaseConsentChange = { enable ->
                         val applied = withContext(Dispatchers.IO) {
                             DesktopWindowsOfficialReleaseAutoCheck(windowsReleasePreferences)
