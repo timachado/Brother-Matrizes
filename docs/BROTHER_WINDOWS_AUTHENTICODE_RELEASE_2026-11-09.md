@@ -91,3 +91,81 @@ quando os pré-requisitos comerciais forem realmente completados.
 
 O teste automatizado de política de assinatura valida o novo job em modo
 offline; ele não dispõe de certificado e não executa assinatura real.
+
+## Preparação para emissão do certificado OV (10/11/2026)
+
+**Estado:** levantamento de fornecedores e requisitos concluído. Compra,
+validação da entidade, emissão, entrega, assinatura real e publicação
+**NÃO realizadas**. Sem dados pessoais ou credenciais no repositório.
+
+### Decisão técnica provisória
+
+Para primeiro lançamento com o workflow existente, priorizar **Code Signing
+OV com token criptográfico FIPS/CC fornecido pela CA**, desde que haja um
+Windows dedicado e controlado pela empresa. O pipeline existente usa
+`signtool.exe` e consulta o certificado no Windows Certificate Store;
+o token deve ser compatível com esse fluxo. Não usar GitHub-hosted runners
+para guardar token ou PIN, nem conectá-lo ao computador de cliente.
+
+- **Cotação inicial:** oferta Code Signing OV no portal Sectigo Brasil,
+  cerca de R$ 3.026/ano com dispositivo conforme FIPS, preço anunciado
+  e sujeito a confirmação de impostos, frete, validação e disponibilidade:
+  https://www.sectigo.com.br/produtos/certificado-codesigning.php
+- **Alternativa remota:** DigiCert Code Signing + KeyLocker, HSM em nuvem;
+  exige avaliar custo recorrente e adaptar o workflow para o serviço
+  de assinatura da CA, sem colocar chave privada no GitHub:
+  https://www.digicert.com/signing/compare-code-signing-certificates
+  https://docs.digicert.com/en/certcentral/get-started/set-up-your-certcentral-subscription/add-a-code-signing-certificate-subscription.html
+- **Outra cotação:** GlobalSign Code Signing OV, conferir opção com token,
+  logística nacional e razão social do editor:
+  https://www.globalsign.com/pt-br/code-signing-certificate
+- **Azure Artifact Signing Public Trust não elegível para entidade brasileira**
+  segundo a lista de países atual; a existência da região Brazil South
+  não equivale à elegibilidade da emissão Public Trust:
+  https://learn.microsoft.com/pt-br/azure/artifact-signing/quickstart
+
+### Verificações obrigatórias ANTES da compra
+
+1. Confirmar se há CNPJ ativo e qual é a **razão social legal exata**.
+   Não presumir que "T.I. Machado Soluções em Tecnologia" seja o nome
+   cadastrado. Perguntar à CA se aceita o tipo societário/MEI aplicável
+   e como mostrar nome fantasia registrado, se permitido.
+2. Ter documentos de constituição/MEI e comprovantes que a CA solicitar,
+   endereço físico verificável e contato empresarial independente para
+   confirmação por telefone/e-mail; representante autorizado.
+3. Confirmar que o produto é **Code Signing OV para Authenticode EXE Windows**,
+   e não SSL/TLS OV, e-CNPJ comum, S/MIME ou assinatura de PDF.
+4. Confirmar **token FIPS/CC compatível**, suporte a SignTool Windows,
+   Windows Certificate Store, entrega no Brasil, driver, suporte, frete,
+   prazo, impostos e política de reemissão. Solicitar **orçamento escrito**
+   e prova de que o emissor/cadeia é confiável para Windows.
+5. Registrar separadamente responsável pelo PIN e runner Windows
+   `self-hosted`, com acesso restrito. Nunca copiar PIN, PFX exportável,
+   segredo, service_role ou chave privada para GitHub, docs, logs ou chat.
+6. Certificado tem que possuir **EKU Code Signing** OID
+   `1.3.6.1.5.5.7.3.3`, editor correspondente à entidade jurídica
+   validada e assinatura com carimbo RFC 3161. Validade máxima das novas
+   emissões desde 01/03/2026 é **460 dias** (CA pode oferecer um ano).
+
+### Fluxo após emissão
+
+- Ativar runner Windows seguro com token, driver e Windows SDK/SignTool.
+  Verificar o certificado por thumbprint, sujeito, validade, EKU e
+  que a chave seja inacessível fora do módulo de hardware.
+- Concluir paridade comercial, autorizações Free/Pro, teste Google real
+  e aprovação do proprietário; retirar o marcador QA por alteração
+  revisada, nunca apenas renomeando um ZIP.
+- Proteger branch `main` e ambientes
+  `brother-windows-code-signing` e
+  `brother-windows-release-publication` com revisão e autorização.
+- Só então configurar variáveis sem segredos, executar manualmente
+  `.github/workflows/brother-windows-authenticode-release.yml`
+  na `main` com versão aprovada, verificar
+  `SignTool verify /pa /all /tw`, SHA256 e assinatura. Publicação
+  exige autorização separada e não pode sobrescrever o Android.
+- Mesmo com assinatura válida, não prometer ausência imediata de alertas
+  Microsoft SmartScreen: a reputação é construída com o histórico.
+
+Fontes normativas:
+https://cabforum.org/working-groups/code-signing/requirements/
+https://learn.microsoft.com/pt-br/windows/apps/package-and-deploy/code-signing-options
