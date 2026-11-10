@@ -52,12 +52,14 @@ class DesktopSvgFilePickerTest {
     }
 
     @Test
-    fun acceptsKnownSvgHeadersWithoutLoadingAnyDtdOrChangingOriginal() {
+    fun acceptsInertSvgHeadersWithoutLoadingDtdOrChangingOriginal() {
         val folder = Files.createTempDirectory("bm-safe-svg-doctype-")
         val svg = folder.resolve("logo.svg")
         val headers = listOf(
             "<!DOCTYPE svg>",
-            """<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">"""
+            """<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">""",
+            """<!DOCTYPE svg SYSTEM "https://example.invalid/other.dtd">""",
+            """<!DOCTYPE svg PUBLIC "-//Exportador//SVG 1.1//EN" "https://example.invalid/custom.dtd">"""
         )
         try {
             for (header in headers) {
@@ -137,8 +139,9 @@ class DesktopSvgFilePickerTest {
                 "<svg><path d='M 0 0'></svg",
                 "<!DOCTYPE svg [<!ENTITY external SYSTEM 'file:///does-not-exist'>]>" +
                     "<svg xmlns='http://www.w3.org/2000/svg'>&external;</svg>",
-                "<!DOCTYPE svg SYSTEM 'https://example.invalid/evil.dtd'>" +
-                    "<svg xmlns='http://www.w3.org/2000/svg'/>"
+                "<!DOCTYPE svg SYSTEM 'https://example.invalid/evil.dtd' " +
+                    "[<!ENTITY external SYSTEM 'file:///does-not-exist'>]>" +
+                    "<svg xmlns='http://www.w3.org/2000/svg'>&external;</svg>"
             )
             for (attempt in attacks) {
                 Files.writeString(svg, attempt)
