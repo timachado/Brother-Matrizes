@@ -6,7 +6,7 @@
   "minSupportedVersionCode": 0,
   "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.10/Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk",
   "sha256": "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401",
-  "releaseNotes": "Corrige a quebra das conexoes das fontes cursivas importadas nos modos Arco para cima e Arco para baixo.; Preserva a sequencia das pontadas Satin e os arremates originais.; Mantem a curvatura zero sem deformacoes e conserva o ajuste de bastidor.; Atualizacao assinada sobre a 1.11.9, com o mesmo identificador do aplicativo.",
+  "releaseNotes": "Atualização Brother Matrizes 1.11.10: correções no Criar Nome.\n• Arco para cima e arco para baixo agora preservam as ligações entre letras de fontes cursivas importadas.\n• Pontadas Satin e arremates originais preservados.\n• Curvatura zero e ajuste automático ao bastidor mantidos.\n• Instalação oficial por cima da versão 1.11.9, sem precisar desinstalar o aplicativo.",
   "publishedAt": "2026-11-15T07:14:23Z",
   "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.10/Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
