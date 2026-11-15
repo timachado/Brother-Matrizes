@@ -42,8 +42,8 @@ jobs:
         run: bash scripts/prepare_brand_assets.sh
       - name: Testar gerador de nomes e fontes
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
-      - name: Compilar APK Android para QA (nao distribuir)
-        run: gradle --no-daemon :app:assembleDebug --stacktrace
+      - name: Compilar APK QA paralelo sem substituir app comercial
+        run: gradle --no-daemon :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
       - name: Disponibilizar APK de testes sem assinatura comercial
         uses: actions/upload-artifact@v4
         with:
