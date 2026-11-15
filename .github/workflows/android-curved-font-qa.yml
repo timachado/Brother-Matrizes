@@ -42,6 +42,18 @@ jobs:
         run: bash scripts/prepare_brand_assets.sh
       - name: Testar gerador de nomes e fontes
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Configurar cliente Firebase apenas no workspace QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.nameqa" '
+            .client += [(.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.nameqa")' \
+            app/src/debug/google-services.json >/dev/null
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes NOMES QA"/' app/src/debug/AndroidManifest.xml
       - name: Compilar APK QA paralelo sem substituir app comercial
         run: gradle --no-daemon :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
       - name: Disponibilizar APK de testes sem assinatura comercial
