@@ -131,8 +131,6 @@ object TextLayoutGenerator {
 
             if (
                 wholeTextGenerator != null &&
-                options.layoutMode ==
-                    TextLayoutMode.STRAIGHT &&
                 !hasPerLetterChanges
             ) {
                 val direct =
@@ -152,6 +150,19 @@ object TextLayoutGenerator {
                         label =
                             sourceText
                     )
+
+                // Deformar a sequência completa mantém conexões, ligaduras,
+                // underlay e arremates do Satin de fontes cursivas importadas.
+                val laidOut =
+                    if (options.layoutMode == TextLayoutMode.STRAIGHT) {
+                        direct
+                    } else {
+                        curveWholeText(
+                            source = direct,
+                            layoutMode = options.layoutMode,
+                            arcHeightMm = options.arcHeightMm
+                        )
+                    }
 
                 val preserveDirectSatinSequence =
                     options
@@ -176,11 +187,11 @@ object TextLayoutGenerator {
                          * entrada/saída. Repassar pelo MachineFinishing
                          * duplicaria arremates e mudaria a sequência.
                          */
-                        direct
+                        laidOut
                     } else {
                         MachineFinishing
                             .apply(
-                                direct,
+                                laidOut,
                                 options
                                     .machineFinishingSettings
                             )
@@ -976,4 +987,81 @@ object TextLayoutGenerator {
 
             finished
         }
+
+    /**
+     * Curva o nome gerado como um único bloco, sem remontar os glifos.
+     * A normal local acompanha a tangente do arco, preservando a ordem e
+     * os comandos originais (STITCH/JUMP/TRIM/STOP/COLOR_CHANGE/END).
+     * O mesmo desenho deformado serve à prévia e à exportação.
+     */
+    private fun curveWholeText(
+        source: EmbroideryDesign,
+        layoutMode: TextLayoutMode,
+        arcHeightMm: Float
+    ): EmbroideryDesign {
+        if (layoutMode == TextLayoutMode.STRAIGHT || arcHeightMm == 0f) {
+            return source
+        }
+
+        val originalBounds = source.bounds
+        val fullWidth =
+            originalBounds.maxXUnits.toLong() -
+                originalBounds.minXUnits.toLong()
+        if (fullWidth < 2L || source.points.isEmpty()) return source
+
+        val halfWidth = fullWidth / 2.0
+        val sourceCenterX =
+            (originalBounds.minXUnits.toDouble() +
+                originalBounds.maxXUnits.toDouble()) / 2.0
+        val sourceCenterY =
+            (originalBounds.minYUnits.toDouble() +
+                originalBounds.maxYUnits.toDouble()) / 2.0
+        val arcUnits = arcHeightMm.toDouble() * 10.0
+        val direction =
+            if (layoutMode == TextLayoutMode.ARC_UP) 1.0 else -1.0
+
+        val curved = source.points.map { point ->
+            val x = point.xUnits - sourceCenterX
+            val y = point.yUnits - sourceCenterY
+            val t = (x / halfWidth).coerceIn(-1.0, 1.0)
+            val arcY = direction * arcUnits * (1.0 - t * t)
+            val slope = direction * (-2.0 * arcUnits * t / halfWidth)
+            val angle = kotlin.math.atan(slope)
+
+            // A normal conserva a altura de cada ponto e a continuidade
+            // das costuras de letras conectadas ao longo da curva.
+            point.copy(
+                xUnits = (x - y * sin(angle)).roundToInt(),
+                yUnits = (arcY + y * cos(angle)).roundToInt()
+            )
+        }
+
+        val drawable = curved.filter { it.command != StitchCommand.END }
+        if (drawable.isEmpty()) return source
+
+        val centerX =
+            (drawable.minOf { it.xUnits }.toDouble() +
+                drawable.maxOf { it.xUnits }.toDouble()) / 2.0
+        val centerY =
+            (drawable.minOf { it.yUnits }.toDouble() +
+                drawable.maxOf { it.yUnits }.toDouble()) / 2.0
+        val centered = curved.map { point ->
+            point.copy(
+                xUnits = (point.xUnits - centerX).roundToInt(),
+                yUnits = (point.yUnits - centerY).roundToInt()
+            )
+        }
+        val content = centered.filter { it.command != StitchCommand.END }
+        return source.copy(
+            points = centered,
+            bounds = EmbroideryBounds(
+                minXUnits = content.minOf { it.xUnits },
+                maxXUnits = content.maxOf { it.xUnits },
+                minYUnits = content.minOf { it.yUnits },
+                maxYUnits = content.maxOf { it.yUnits }
+            ),
+            isModified = true
+        )
+    }
+
 }

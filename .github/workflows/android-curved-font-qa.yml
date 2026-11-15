@@ -1,0 +1,64 @@
+name: Brother Android - QA curvatura cursiva (nao publicar)
+
+on:
+  push:
+    branches:
+      - fix/android-curved-imported-font-20261115
+    paths:
+      - "app/src/main/java/com/timachado/brothermatrizes/core/embroidery/TextLayoutGenerator.kt"
+      - "app/src/test/java/com/timachado/brothermatrizes/core/embroidery/ImportedFontArcPreservationTest.kt"
+      - ".github/workflows/android-curved-font-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-curved-font-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - name: Preparar identidade do Brother
+        run: bash scripts/prepare_brand_assets.sh
+      - name: Testar gerador de nomes e fontes
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Configurar cliente Firebase apenas no workspace QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.nameqa" '
+            .client += [(.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.nameqa")' \
+            app/src/debug/google-services.json >/dev/null
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes NOMES QA"/' app/src/debug/AndroidManifest.xml
+      - name: Compilar APK QA paralelo sem substituir app comercial
+        run: gradle --no-daemon :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
+      - name: Disponibilizar APK de testes sem assinatura comercial
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Android-curva-cursiva-QA-NAO-PUBLICAR
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
