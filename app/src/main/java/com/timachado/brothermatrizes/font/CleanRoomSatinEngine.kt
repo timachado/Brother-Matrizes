@@ -755,9 +755,35 @@ internal object CleanRoomSatinEngine {
                         middle.y in dot.top..dot.bottom
                 }
             }
-            // Um pingo superior é finalizado ANTES de descer a haste:
-            // nunca voltar para o topo depois de concluir a letra.
-            result.addAll(0, restoredDots.map { it.rails })
+            // Nunca colocar os pingos no início da sequência: em "Maria",
+            // isso fazia a máquina começar pelo 'i', antes de bordar o M.
+            // Manter cada detalhe após a haste correspondente e preservar
+            // as rotas já aprovadas, sem costurar ligações falsas.
+            restoredDots.sortedBy { it.left }.forEach { dot ->
+                val xCenter = (dot.left + dot.right) * .5f
+                val horizontalMargin = max(4f, (dot.right - dot.left) * .5f)
+                val supportingTrack = result.indexOfFirst { track ->
+                    track.any { rail ->
+                        rail.middle.x in
+                            (dot.left - horizontalMargin)..(dot.right + horizontalMargin) &&
+                            rail.middle.y > dot.bottom
+                    }
+                }
+                val insertion = if (supportingTrack >= 0) {
+                    supportingTrack + 1
+                } else {
+                    result.indexOfFirst { track ->
+                        track.first().middle.x > xCenter
+                    }.takeIf { it >= 0 } ?: result.size
+                }
+                // Quando existe uma inicial ornamental à esquerda, ela deve
+                // continuar sendo o primeiro movimento da agulha.
+                val safeIndex = if (result.isNotEmpty() &&
+                    result.first().first().middle.x < xCenter) {
+                    insertion.coerceAtLeast(1)
+                } else insertion
+                result.add(safeIndex, dot.rails)
+            }
         }
         return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
     }
