@@ -5,6 +5,8 @@ on:
       - fix/android-edvaldo-canonical-preview-20261118
     paths:
       - '.github/workflows/android-maria-glyph-qa-apk.yml'
+      - 'app/src/main/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngine.kt'
+      - 'app/src/test/java/com/timachado/brothermatrizes/font/CleanRoomSatinEngineTest.kt'
   workflow_dispatch:
 
 permissions:
