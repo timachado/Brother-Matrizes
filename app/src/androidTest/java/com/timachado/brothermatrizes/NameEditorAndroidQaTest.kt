@@ -1167,4 +1167,51 @@ class NameEditorAndroidQaTest {
         }
     }
 
+
+    @Test
+    fun edvaldoCreateNamePreviewSimulationAndCreationShareCanonicalPoints() {
+        var simulated: EmbroideryDesign? = null
+        var created: EmbroideryDesign? = null
+        composeRule.setContent {
+            CreateNameScreen(
+                onBack = {},
+                onSimulate = { design, _ -> simulated = design },
+                onCreate = { design, _ -> created = design }
+            )
+        }
+        // Exercita o mesmo caminho do defeito reportado: digitar Edvaldo,
+        // aguardar digitalização e clicar em Simular / Criar matriz.
+        composeRule.onNodeWithText("Maria")
+            .performTextClearance()
+        composeRule.onNodeWithText("Digite o nome")
+            .performTextInput("Edvaldo")
+
+        composeRule.waitUntil(timeoutMillis = 90_000) {
+            composeRule.onAllNodesWithText("▶ Simular")
+                .fetchSemanticsNodes().any { node ->
+                    !node.config.contains(SemanticsProperties.Disabled)
+                }
+        }
+        composeRule.onNodeWithText("▶ Simular")
+            .assertIsEnabled()
+            .performClick()
+        composeRule.waitForIdle()
+        val simulator = requireNotNull(simulated)
+        composeRule.onAllNodesWithText(
+            simulator.stitchCount.toString() + " pontos", substring = true
+        ).onFirst().assertExists()
+        composeRule.onNodeWithText("Criar matriz").performClick()
+        composeRule.waitForIdle()
+        val creation = requireNotNull(created)
+
+        assertEquals(simulator.stitchCount, creation.stitchCount)
+        assertEquals(simulator.points, creation.points)
+        assertTrue("A prévia deve vir do arquivo de máquina canônico.",
+            simulator.sourceBytes.isNotEmpty())
+        org.junit.Assert.assertArrayEquals(
+            simulator.sourceBytes,
+            creation.sourceBytes
+        )
+    }
+
 }
