@@ -1197,9 +1197,12 @@ class NameEditorAndroidQaTest {
             .performClick()
         composeRule.waitForIdle()
         val simulator = requireNotNull(simulated)
-        composeRule.onAllNodesWithText(
-            simulator.stitchCount.toString() + " pontos", substring = true
-        ).onFirst().assertExists()
+        assertTrue(
+            "A prévia deve exibir a contagem canônica usada pelo simulador.",
+            composeRule.onAllNodesWithText(
+                simulator.stitchCount.toString() + " pontos", substring = true
+            ).fetchSemanticsNodes().isNotEmpty()
+        )
         composeRule.onNodeWithText("Criar matriz").performClick()
         composeRule.waitForIdle()
         val creation = requireNotNull(created)
