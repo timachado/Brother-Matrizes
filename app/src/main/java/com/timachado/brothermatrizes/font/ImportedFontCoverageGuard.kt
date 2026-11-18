@@ -116,6 +116,34 @@ internal object ImportedFontCoverageGuard {
                     "O bordado foi bloqueado para evitar uma matriz ilegível. " +
                     "Experimente uma altura maior ou outra fonte."
             }
+
+            // A cobertura global pode passar mesmo quando as letras FINAIS
+            // desaparecem: um floreio inicial grande domina a área de texto.
+            // Conferir regiões ao longo do nome, sem modificar ou inventar
+            // uma única pontada. Se faltar cobertura, o gerador Satin tenta
+            // a sua rota vetorial alternativa antes de liberar a matriz.
+            val regions = 6
+            val regionExpected = IntArray(regions)
+            val regionMatched = IntArray(regions)
+            for (i in src.indices) {
+                val region = (i % bitmapW) * regions / bitmapW
+                if ((src[i] ushr 24) > 0) {
+                    regionExpected[region]++
+                    if ((dst[i] ushr 24) > 0) regionMatched[region]++
+                }
+            }
+            val significantPixels = maxOf(50, expectedPixels / 30)
+            regionExpected.indices.forEach { region ->
+                val expected = regionExpected[region]
+                if (expected >= significantPixels) {
+                    require(regionMatched[region] >= maxOf(2, expected / 32)) {
+                        "A fonte perdeu pontadas na região " +
+                            (region + 1) + "/" + regions +
+                            " do nome. Experimente uma altura maior " +
+                            "ou outra fonte."
+                    }
+                }
+            }
             return score
         } finally {
             original.recycle()
