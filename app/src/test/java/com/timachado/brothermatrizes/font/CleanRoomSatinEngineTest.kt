@@ -1007,4 +1007,29 @@ class CleanRoomSatinEngineTest {
             CleanRoomSatinEngine.vectorSpansAtY(listOf(outer), y = -8f))
     }
 
+    @Test
+    fun ornamentalCapitalDoesNotSuppressDotAboveLowercaseI() {
+        // Em Maria, a inicial ornamental pode começar acima do pingo do i.
+        // O teste anterior body.minY eliminava essa restauração e produzia
+        // uma risca curta, como na captura enviada pelo usuário.
+        val contours = listOf(
+            rectangle(0f, -105f, 22f, 200f), // inicial ornamental alta
+            rectangle(75f, 0f, 18f, 90f),     // haste da letra i
+            rectangle(79f, -26f, 9f, 10f)     // pingo acima da haste local
+        )
+        val plan = CleanRoomSatinEngine.planContours(
+            contours, densityMm = .4f, pullMm = .2f
+        )
+        val dots = plan.rails.flatten().filter { rail ->
+            rail.middle.y < -15f && rail.middle.x in 76f..90f
+        }
+        assertTrue(
+            "A inicial alta não pode reduzir o pingo do i a uma risca.",
+            dots.size >= 3
+        )
+        assertTrue("O pingo deve respeitar o contorno vetorial.",
+            dots.all { it.a.x >= 77.5f && it.b.x <= 89.5f })
+    }
+
+
 }
