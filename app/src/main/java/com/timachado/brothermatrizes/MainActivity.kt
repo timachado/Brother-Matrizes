@@ -2155,140 +2155,31 @@ private fun BrotherMatrizesApp(
 
                 Screen.CreateName -> {
                     CreateNameScreen(
-                        onBack = {
-                            goBack()
+                        onBack = { goBack() },
+                        onCreate = { canonical, displayMode ->
+                            // Criar Nome já converteu e reabriu a matriz final.
+                            // Uma segunda conversão poderia alterar os pontos.
+                            activateDesign(canonical)
+                            screen = Screen.Viewer(
+                                design = canonical,
+                                displayMode = displayMode
+                            )
                         },
-                        onCreate = {
-                                created,
-                                displayMode ->
-                            scope.launch {
-                                loading =
-                                    true
-
-                                val opened =
-                                    withContext(
-                                        Dispatchers.IO
-                                    ) {
-                                        GeneratedMatrixPipeline
-                                            .canonicalize(
-                                                design =
-                                                    created,
-                                                outputSuffix =
-                                                    "criado"
-                                            )
-                                    }
-
-                                loading =
-                                    false
-
-                                when (
-                                    opened
-                                ) {
-                                    is EmbroideryLoadResult
-                                        .Success -> {
-                                        activateDesign(
-                                            opened.design
-                                        )
-
-                                        screen =
-                                            Screen.Viewer(
-                                                design =
-                                                    opened.design,
-                                                displayMode =
-                                                    displayMode
-                                            )
-                                    }
-
-                                    is EmbroideryLoadResult
-                                        .Error -> {
-                                        snackbar.showSnackbar(
-                                            opened.userMessage
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        onSimulate = {
-                                created,
-                                displayMode ->
-                            /*
-                             * Criar Nome -> Simular deve atravessar exatamente
-                             * o mesmo caminho de uma matriz física aberta:
-                             *
-                             * criação interna -> PES/DST/JEF -> parser ->
-                             * EmbroideryDesign canônico -> Simulador.
-                             *
-                             * Isso elimina a divergência histórica em que a
-                             * prévia bruta era simulada com comandos diferentes
-                             * daqueles efetivamente gravados e reabertos.
-                             */
-                            scope.launch {
-                                loading =
-                                    true
-
-                                val opened =
-                                    withContext(
-                                        Dispatchers.IO
-                                    ) {
-                                        GeneratedMatrixPipeline
-                                            .canonicalize(
-                                                design =
-                                                    created,
-                                                outputSuffix =
-                                                    "simulado",
-                                                preserveGuidePoints =
-                                                    true
-                                            )
-                                    }
-
-                                loading =
-                                    false
-
-                                when (
-                                    opened
-                                ) {
-                                    is EmbroideryLoadResult
-                                        .Success -> {
-                                        val canonical =
-                                            opened.design
-
-                                        activateDesign(
-                                            canonical
-                                        )
-
-                                        DebugTelemetry
-                                            .captureSimulationOpened(
-                                                canonical
-                                            )
-
-                                        screen =
-                                            Screen.Simulator(
-                                                design =
-                                                    canonical,
-                                                displayMode =
-                                                    displayMode,
-                                                referenceHoop =
-                                                    canonical.hoopProfile
-                                                        ?: recommendedHoopFor(
-                                                            canonical
-                                                        ),
-                                                showConnections =
-                                                    false
-                                            )
-                                    }
-
-                                    is EmbroideryLoadResult
-                                        .Error -> {
-                                        snackbar.showSnackbar(
-                                            opened.userMessage
-                                        )
-                                    }
-                                }
-                            }
+                        onSimulate = { canonical, displayMode ->
+                            // Mesma instância canônica mostrada na prévia:
+                            // não regenerar, reconverter ou refazer Satin.
+                            activateDesign(canonical)
+                            DebugTelemetry.captureSimulationOpened(canonical)
+                            screen = Screen.Simulator(
+                                design = canonical,
+                                displayMode = displayMode,
+                                referenceHoop = canonical.hoopProfile
+                                    ?: recommendedHoopFor(canonical),
+                                showConnections = false
+                            )
                         }
                     )
                 }
-
                 Screen.CreateDrawing -> {
                     CreateDrawingScreen(
                         onBack = {
