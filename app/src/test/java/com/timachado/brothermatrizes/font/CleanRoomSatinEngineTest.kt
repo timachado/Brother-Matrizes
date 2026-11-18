@@ -1032,4 +1032,40 @@ class CleanRoomSatinEngineTest {
     }
 
 
+    @Test
+    fun mariaMustStartWithCapitalLetterAndSewDotAfterLocalIStem() {
+        // Regressão reportada no APK QA2: a antiga inserção
+        // result.addAll(0, restoredDots) iniciava a máquina pelo pingo do i.
+        val ornamentalM = rectangle(0f, -105f, 22f, 200f)
+        val iStem = rectangle(75f, 0f, 18f, 90f)
+        val iDot = rectangle(79f, -26f, 9f, 10f)
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(ornamentalM, iStem, iDot),
+            densityMm = .4f, pullMm = .2f
+        )
+        val rails = plan.rails
+        assertTrue("A primeira rota deve pertencer à inicial M.",
+            rails.first().first().middle.x < 35f)
+        val startX = rails.first().first().middle.x
+        assertTrue("O pingo não pode ser a primeira rota.",
+            startX !in 76f..91f)
+        val stitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        val first = stitches.first { it.command != StitchCommand.END }
+        assertTrue("Primeiro movimento da agulha deve bordar a inicial.",
+            first.xUnits < 35)
+        val stemStitch = stitches.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in 72..97 && it.yUnits > 0
+        }
+        val dotStitch = stitches.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in 76..91 && it.yUnits < -15
+        }
+        assertTrue("Haste do i precisa ser bordada.", stemStitch >= 0)
+        assertTrue("Pingo precisa de pontos bordáveis.", dotStitch >= 0)
+        assertTrue("Pingo deve vir APÓS sua haste, não antes do M.",
+            dotStitch > stemStitch)
+    }
+
+
 }
