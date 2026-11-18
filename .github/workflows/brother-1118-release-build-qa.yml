@@ -26,10 +26,10 @@ jobs:
           set -euo pipefail
           grep -Eq '^ *versionCode = 197 *$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.10"' app/build.gradle.kts
-          # The 1.11.9 release is live. Validate the currently published
-          # baseline before building a higher version.
-          test "$(jq -r .versionCode updates/stable.json)" = "196"
-          test "$(jq -r .versionName updates/stable.json)" = "1.11.9"
+          # A 1.11.10 está publicada. QA compila a correção isolada
+          # sem alterar o versionCode nem disparar uma nova release.
+          test "$(jq -r .versionCode updates/stable.json)" = "197"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.10"
           bash scripts/pre_release_static_check.sh
       - uses: actions/setup-java@v4
         with:
