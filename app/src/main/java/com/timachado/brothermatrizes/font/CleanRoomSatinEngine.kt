@@ -390,6 +390,47 @@ internal object CleanRoomSatinEngine {
         return spans
     }
 
+    /**
+     * Interseções horizontais exatas dos contornos TTF/OTF.
+     * Não amostrar largura de pingos e acentos pela máscara rasterizada:
+     * a expansão de um pixel se torna um traço Satin estranho no nome.
+     * Mantém a regra non-zero winding e os vazados existentes.
+     */
+    internal fun vectorSpansAtY(
+        contours: List<List<V>>,
+        y: Float
+    ): List<Pair<Float, Float>> {
+        val crossings = ArrayList<Pair<Float, Int>>()
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+                    val x = a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)
+                    if (x.isFinite()) crossings += x to if (b.y > a.y) 1 else -1
+                }
+            }
+        }
+        crossings.sortBy { it.first }
+        var winding = 0
+        val spans = ArrayList<Pair<Float, Float>>()
+        for (i in 0 until crossings.lastIndex) {
+            winding += crossings[i].second
+            if (winding != 0 && crossings[i + 1].first > crossings[i].first + .01f) {
+                val low = crossings[i].first
+                val high = crossings[i + 1].first
+                val previous = spans.lastOrNull()
+                if (previous != null && low <= previous.second + .02f) {
+                    spans[spans.lastIndex] = previous.first to high
+                } else {
+                    spans += low to high
+                }
+            }
+        }
+        return spans
+    }
+
     internal fun planContextualFill(
         contours: List<List<V>>,
         densityMm: Float
@@ -705,7 +746,7 @@ internal object CleanRoomSatinEngine {
         // single skeleton pixel. Such a pixel creates only one Satin bar and
         // turns the dot into a thin dash. Refill only these small, *detached*
         // upper accents, keeping all other glyph paths and needle routing.
-        val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm)
+        val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm, contours)
         if (restoredDots.isNotEmpty()) {
             result.removeAll { path ->
                 val middle = path.firstOrNull()?.middle
@@ -869,7 +910,8 @@ internal object CleanRoomSatinEngine {
     private fun buildDetachedDotRails(
         raster: Raster,
         densityMm: Float,
-        pullMm: Float
+        pullMm: Float,
+        contours: List<List<V>>
     ): List<DotRails> {
         val visited = BooleanArray(raster.mask.size)
         val islands = mutableListOf<FilledIsland>()
@@ -941,13 +983,29 @@ internal object CleanRoomSatinEngine {
                     val occupied = (island.minX..island.maxX)
                         .filter { x -> raster.inside(x, y) }
                     if (occupied.isEmpty()) return@mapNotNull null
-                    // Every bar follows the original mask width at this row.
-                    val left = raster.left + occupied.first() * raster.step
-                    val right = raster.left + occupied.last() * raster.step
+                    // O pixel da máscara pode ser maior que o pingo real
+                    // da fonte e criar traços soltos no fim de "Maria".
+                    // A agulha deve usar o contorno vetorial exato TTF/OTF.
+                    val maskLeft = raster.left +
+                        (occupied.first() - 0.55f) * raster.step
+                    val maskRight = raster.left +
+                        (occupied.last() + 0.55f) * raster.step
                     val atY = raster.top + y * raster.step
+                    val spans = vectorSpansAtY(contours, atY)
+                    val nearest = spans.filter { (a, b) ->
+                        b >= maskLeft && a <= maskRight
+                    }.minByOrNull { (a, b) ->
+                        kotlin.math.abs((a + b) * 0.5f -
+                            (maskLeft + maskRight) * 0.5f)
+                    } ?: return@mapNotNull null
+                    val width = nearest.second - nearest.first
+                    if (width < 0.35f) return@mapNotNull null
+                    // Nas ilhas pequenas o repuxo integral pode transformar
+                    // um ponto em barra alongada. Limitar só esse caso.
+                    val safePull = minOf(pullUnits, width * .15f, 1f)
                     Rail(
-                        V(left - raster.step * 0.45f - pullUnits, atY),
-                        V(right + raster.step * 0.45f + pullUnits, atY)
+                        V(nearest.first - safePull, atY),
+                        V(nearest.second + safePull, atY)
                     )
                 }
                 if (rails.isEmpty()) return@mapNotNull null
