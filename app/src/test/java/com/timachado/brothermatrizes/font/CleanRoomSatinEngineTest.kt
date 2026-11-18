@@ -973,4 +973,38 @@ class CleanRoomSatinEngineTest {
             underlayStitches < plainStitches * 1.5f
         )
     }
+    @Test
+    fun vectorDotRailKeepsOriginalOutlineWithoutRasterOvershoot() {
+        // Uma barra na letra i não pode aumentar 1 pixel raster de cada
+        // lado, mais todo o pull compensation, e virar um risco solto.
+        val stem = rectangle(0f, 0f, 18f, 92f)
+        val dot = rectangle(5f, -26f, 9f, 10f)
+        val spans = CleanRoomSatinEngine.vectorSpansAtY(listOf(stem, dot), -21f)
+        assertEquals(1, spans.size)
+        assertEquals(5f, spans.single().first, .01f)
+        assertEquals(14f, spans.single().second, .01f)
+
+        val planned = CleanRoomSatinEngine.planContours(
+            listOf(stem, dot), densityMm = .4f, pullMm = .2f
+        )
+        val accent = planned.rails.flatten().filter { it.middle.y < -15f }
+        assertTrue("O pingo deve continuar bordável.", accent.size >= 3)
+        assertTrue("Pingo não pode virar um risco maior que o contorno.",
+            accent.all { rail ->
+                rail.a.x >= 3.5f && rail.b.x <= 15.5f
+            })
+    }
+
+    @Test
+    fun vectorScanlineKeepsInteriorHoleAndSeparateAccents() {
+        val outer = rectangle(0f, 0f, 80f, 60f)
+        val counter = rectangle(25f, 20f, 30f, 20f).reversed()
+        val cuts = CleanRoomSatinEngine.vectorSpansAtY(
+            listOf(outer, counter), y = 30f
+        )
+        assertEquals(listOf(0f to 25f, 55f to 80f), cuts)
+        assertEquals(emptyList<Pair<Float, Float>>(),
+            CleanRoomSatinEngine.vectorSpansAtY(listOf(outer), y = -8f))
+    }
+
 }
