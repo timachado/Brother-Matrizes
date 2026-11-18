@@ -47,7 +47,7 @@ jobs:
           apk=app/build/outputs/apk/debug/app-debug.apk
           test -s "$apk"
           sdk="$ANDROID_HOME/build-tools/36.0.0"
-          badging="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
+          badging="$("$sdk/aapt" dump badging "$apk")"
           [[ "$badging" == *"name='com.timachado.brothermatrizes.nameqa'"* ]]
           [[ "$badging" == *"Brother Matrizes NOMES QA"* ]]
           "$sdk/apksigner" verify --verbose "$apk" > /tmp/verified.txt
