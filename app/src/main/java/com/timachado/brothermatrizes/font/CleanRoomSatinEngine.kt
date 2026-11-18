@@ -914,12 +914,16 @@ internal object CleanRoomSatinEngine {
         contours: List<List<V>>
     ): List<DotRails> {
         val visited = BooleanArray(raster.mask.size)
+        // Identificar qual componente ocupa cada pixel evita tratar um
+        // floreio solto como pingo de 'i' sem haste abaixo dele.
+        val componentAt = IntArray(raster.mask.size) { -1 }
         val islands = mutableListOf<FilledIsland>()
         for (seed in raster.mask.indices) {
             if (!raster.mask[seed] || visited[seed]) continue
             val queue = java.util.ArrayDeque<Int>()
             queue.add(seed)
             visited[seed] = true
+            componentAt[seed] = islands.size
             var count = 0
             var minX = raster.width
             var minY = raster.height
@@ -943,6 +947,7 @@ internal object CleanRoomSatinEngine {
                     val next = raster.index(nx, ny)
                     if (raster.mask[next] && !visited[next]) {
                         visited[next] = true
+                        componentAt[next] = islands.size
                         queue.add(next)
                     }
                 }
@@ -955,14 +960,37 @@ internal object CleanRoomSatinEngine {
         val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
         return islands.asSequence()
             .filter { island ->
-                if (island === body || island.maxY >= body.minY) return@filter false
+                if (island === body) return@filter false
                 val w = (island.maxX - island.minX + 1) * raster.step
                 val h = (island.maxY - island.minY + 1) * raster.step
                 val ratio = w / h
-                w <= minOf(55f, bodyHeight * 0.48f) &&
-                    h <= minOf(55f, bodyHeight * 0.48f) &&
-                    ratio in 0.45f..2.2f &&
-                    island.pixelCount * 4 < body.pixelCount
+                if (w > minOf(55f, bodyHeight * 0.48f) ||
+                    h > minOf(55f, bodyHeight * 0.48f) ||
+                    ratio !in 0.45f..2.2f ||
+                    island.pixelCount * 4 >= body.pixelCount
+                ) return@filter false
+
+                // O topo da letra ornamental M pode ser MAIS ALTO que
+                // o pingo do 'i'. Comparar só com body.minY fazia a
+                // recuperação ignorar o pingo e deixá-lo como uma risca.
+                // Exigir haste de outro componente abaixo, na mesma faixa X.
+                val maxGapCells = kotlin.math.ceil(
+                    minOf(90f, maxOf(14f, bodyHeight * .45f)) /
+                        raster.step
+                ).toInt()
+                val xMargin = max(2, (island.maxX - island.minX) / 3)
+                val left = (island.minX - xMargin).coerceAtLeast(1)
+                val right = (island.maxX + xMargin).coerceAtMost(raster.width - 2)
+                val top = island.maxY + 1
+                val bottom = (island.maxY + maxGapCells)
+                    .coerceAtMost(raster.height - 2)
+                top <= bottom && (top..bottom).any { y ->
+                    (left..right).any { x ->
+                        val owner = componentAt[raster.index(x, y)]
+                        owner >= 0 &&
+                            islands[owner].pixelCount >= island.pixelCount * 4
+                    }
+                }
             }
             .sortedBy { it.minX }
             .mapNotNull { island ->
