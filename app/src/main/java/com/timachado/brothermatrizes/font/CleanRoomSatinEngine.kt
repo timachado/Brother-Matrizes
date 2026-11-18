@@ -390,6 +390,47 @@ internal object CleanRoomSatinEngine {
         return spans
     }
 
+    /**
+     * Interseções horizontais exatas dos contornos TTF/OTF.
+     * Não amostrar largura de pingos e acentos pela máscara rasterizada:
+     * a expansão de um pixel se torna um traço Satin estranho no nome.
+     * Mantém a regra non-zero winding e os vazados existentes.
+     */
+    internal fun vectorSpansAtY(
+        contours: List<List<V>>,
+        y: Float
+    ): List<Pair<Float, Float>> {
+        val crossings = ArrayList<Pair<Float, Int>>()
+        for (ring in contours) {
+            if (ring.size < 3) continue
+            for (i in ring.indices) {
+                val a = ring[i]
+                val b = ring[(i + 1) % ring.size]
+                if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+                    val x = a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)
+                    if (x.isFinite()) crossings += x to if (b.y > a.y) 1 else -1
+                }
+            }
+        }
+        crossings.sortBy { it.first }
+        var winding = 0
+        val spans = ArrayList<Pair<Float, Float>>()
+        for (i in 0 until crossings.lastIndex) {
+            winding += crossings[i].second
+            if (winding != 0 && crossings[i + 1].first > crossings[i].first + .01f) {
+                val low = crossings[i].first
+                val high = crossings[i + 1].first
+                val previous = spans.lastOrNull()
+                if (previous != null && low <= previous.second + .02f) {
+                    spans[spans.lastIndex] = previous.first to high
+                } else {
+                    spans += low to high
+                }
+            }
+        }
+        return spans
+    }
+
     internal fun planContextualFill(
         contours: List<List<V>>,
         densityMm: Float
@@ -705,7 +746,7 @@ internal object CleanRoomSatinEngine {
         // single skeleton pixel. Such a pixel creates only one Satin bar and
         // turns the dot into a thin dash. Refill only these small, *detached*
         // upper accents, keeping all other glyph paths and needle routing.
-        val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm)
+        val restoredDots = buildDetachedDotRails(raster, densityMm, pullMm, contours)
         if (restoredDots.isNotEmpty()) {
             result.removeAll { path ->
                 val middle = path.firstOrNull()?.middle
@@ -714,9 +755,35 @@ internal object CleanRoomSatinEngine {
                         middle.y in dot.top..dot.bottom
                 }
             }
-            // Um pingo superior é finalizado ANTES de descer a haste:
-            // nunca voltar para o topo depois de concluir a letra.
-            result.addAll(0, restoredDots.map { it.rails })
+            // Nunca colocar os pingos no início da sequência: em "Maria",
+            // isso fazia a máquina começar pelo 'i', antes de bordar o M.
+            // Manter cada detalhe após a haste correspondente e preservar
+            // as rotas já aprovadas, sem costurar ligações falsas.
+            restoredDots.sortedBy { it.left }.forEach { dot ->
+                val xCenter = (dot.left + dot.right) * .5f
+                val horizontalMargin = max(4f, (dot.right - dot.left) * .5f)
+                val supportingTrack = result.indexOfFirst { track ->
+                    track.any { rail ->
+                        rail.middle.x in
+                            (dot.left - horizontalMargin)..(dot.right + horizontalMargin) &&
+                            rail.middle.y > dot.bottom
+                    }
+                }
+                val insertion = if (supportingTrack >= 0) {
+                    supportingTrack + 1
+                } else {
+                    result.indexOfFirst { track ->
+                        track.first().middle.x > xCenter
+                    }.takeIf { it >= 0 } ?: result.size
+                }
+                // Quando existe uma inicial ornamental à esquerda, ela deve
+                // continuar sendo o primeiro movimento da agulha.
+                val safeIndex = if (result.isNotEmpty() &&
+                    result.first().first().middle.x < xCenter) {
+                    insertion.coerceAtLeast(1)
+                } else insertion
+                result.add(safeIndex, dot.rails)
+            }
         }
         return PlannedGlyph(result, orderedRoutes.sumOf { it.size }, duplicates)
     }
@@ -869,15 +936,20 @@ internal object CleanRoomSatinEngine {
     private fun buildDetachedDotRails(
         raster: Raster,
         densityMm: Float,
-        pullMm: Float
+        pullMm: Float,
+        contours: List<List<V>>
     ): List<DotRails> {
         val visited = BooleanArray(raster.mask.size)
+        // Identificar qual componente ocupa cada pixel evita tratar um
+        // floreio solto como pingo de 'i' sem haste abaixo dele.
+        val componentAt = IntArray(raster.mask.size) { -1 }
         val islands = mutableListOf<FilledIsland>()
         for (seed in raster.mask.indices) {
             if (!raster.mask[seed] || visited[seed]) continue
             val queue = java.util.ArrayDeque<Int>()
             queue.add(seed)
             visited[seed] = true
+            componentAt[seed] = islands.size
             var count = 0
             var minX = raster.width
             var minY = raster.height
@@ -901,6 +973,7 @@ internal object CleanRoomSatinEngine {
                     val next = raster.index(nx, ny)
                     if (raster.mask[next] && !visited[next]) {
                         visited[next] = true
+                        componentAt[next] = islands.size
                         queue.add(next)
                     }
                 }
@@ -913,14 +986,37 @@ internal object CleanRoomSatinEngine {
         val rowPitch = max(1, (densityMm * 10f / raster.step).roundToInt())
         return islands.asSequence()
             .filter { island ->
-                if (island === body || island.maxY >= body.minY) return@filter false
+                if (island === body) return@filter false
                 val w = (island.maxX - island.minX + 1) * raster.step
                 val h = (island.maxY - island.minY + 1) * raster.step
                 val ratio = w / h
-                w <= minOf(55f, bodyHeight * 0.48f) &&
-                    h <= minOf(55f, bodyHeight * 0.48f) &&
-                    ratio in 0.45f..2.2f &&
-                    island.pixelCount * 4 < body.pixelCount
+                if (w > minOf(55f, bodyHeight * 0.48f) ||
+                    h > minOf(55f, bodyHeight * 0.48f) ||
+                    ratio !in 0.45f..2.2f ||
+                    island.pixelCount * 4 >= body.pixelCount
+                ) return@filter false
+
+                // O topo da letra ornamental M pode ser MAIS ALTO que
+                // o pingo do 'i'. Comparar só com body.minY fazia a
+                // recuperação ignorar o pingo e deixá-lo como uma risca.
+                // Exigir haste de outro componente abaixo, na mesma faixa X.
+                val maxGapCells = kotlin.math.ceil(
+                    minOf(90f, maxOf(14f, bodyHeight * .45f)) /
+                        raster.step
+                ).toInt()
+                val xMargin = max(2, (island.maxX - island.minX) / 3)
+                val left = (island.minX - xMargin).coerceAtLeast(1)
+                val right = (island.maxX + xMargin).coerceAtMost(raster.width - 2)
+                val top = island.maxY + 1
+                val bottom = (island.maxY + maxGapCells)
+                    .coerceAtMost(raster.height - 2)
+                top <= bottom && (top..bottom).any { y ->
+                    (left..right).any { x ->
+                        val owner = componentAt[raster.index(x, y)]
+                        owner >= 0 &&
+                            islands[owner].pixelCount >= island.pixelCount * 4
+                    }
+                }
             }
             .sortedBy { it.minX }
             .mapNotNull { island ->
@@ -941,13 +1037,29 @@ internal object CleanRoomSatinEngine {
                     val occupied = (island.minX..island.maxX)
                         .filter { x -> raster.inside(x, y) }
                     if (occupied.isEmpty()) return@mapNotNull null
-                    // Every bar follows the original mask width at this row.
-                    val left = raster.left + occupied.first() * raster.step
-                    val right = raster.left + occupied.last() * raster.step
+                    // O pixel da máscara pode ser maior que o pingo real
+                    // da fonte e criar traços soltos no fim de "Maria".
+                    // A agulha deve usar o contorno vetorial exato TTF/OTF.
+                    val maskLeft = raster.left +
+                        (occupied.first() - 0.55f) * raster.step
+                    val maskRight = raster.left +
+                        (occupied.last() + 0.55f) * raster.step
                     val atY = raster.top + y * raster.step
+                    val spans = vectorSpansAtY(contours, atY)
+                    val nearest = spans.filter { (a, b) ->
+                        b >= maskLeft && a <= maskRight
+                    }.minByOrNull { (a, b) ->
+                        kotlin.math.abs((a + b) * 0.5f -
+                            (maskLeft + maskRight) * 0.5f)
+                    } ?: return@mapNotNull null
+                    val width = nearest.second - nearest.first
+                    if (width < 0.35f) return@mapNotNull null
+                    // Nas ilhas pequenas o repuxo integral pode transformar
+                    // um ponto em barra alongada. Limitar só esse caso.
+                    val safePull = minOf(pullUnits, width * .15f, 1f)
                     Rail(
-                        V(left - raster.step * 0.45f - pullUnits, atY),
-                        V(right + raster.step * 0.45f + pullUnits, atY)
+                        V(nearest.first - safePull, atY),
+                        V(nearest.second + safePull, atY)
                     )
                 }
                 if (rails.isEmpty()) return@mapNotNull null

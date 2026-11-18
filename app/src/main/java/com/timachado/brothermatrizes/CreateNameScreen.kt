@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryDesign
+import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
+import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryFontPreset
 import com.timachado.brothermatrizes.core.embroidery.FabricProfile
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
@@ -571,9 +573,29 @@ fun CreateNameScreen(
         val resolvedHeight =
             generated.first
 
+        // A prévia exibe a MESMA sequência canônica que será simulada,
+        // criada, salva e exportada. PES/DST/JEF podem ajustar comandos
+        // e quantidade de pontos quando convertidos e reabertos.
+        // Canonicalizar só a geração final, depois da busca do autoajuste.
+        val canonicalResult =
+            withContext(Dispatchers.Default) {
+                generated.second.mapCatching { source ->
+                    when (
+                        val opened = GeneratedMatrixPipeline.canonicalize(
+                            design = source.copy(hoopProfile = hoopProfile),
+                            outputSuffix = "criado",
+                            preserveGuidePoints = true
+                        )
+                    ) {
+                        is EmbroideryLoadResult.Success -> opened.design
+                        is EmbroideryLoadResult.Error ->
+                            throw IllegalStateException(opened.userMessage)
+                    }
+                }
+            }
+
         val generatedDesign =
-            generated.second
-                .getOrNull()
+            canonicalResult.getOrNull()
 
         if (
             effectiveAutoFitToHoop &&
@@ -605,7 +627,7 @@ fun CreateNameScreen(
         }
 
         previewResult =
-            generated.second
+            canonicalResult
 
         previewUpdating =
             false

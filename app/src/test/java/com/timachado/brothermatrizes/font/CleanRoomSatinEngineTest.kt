@@ -973,4 +973,99 @@ class CleanRoomSatinEngineTest {
             underlayStitches < plainStitches * 1.5f
         )
     }
+    @Test
+    fun vectorDotRailKeepsOriginalOutlineWithoutRasterOvershoot() {
+        // Uma barra na letra i não pode aumentar 1 pixel raster de cada
+        // lado, mais todo o pull compensation, e virar um risco solto.
+        val stem = rectangle(0f, 0f, 18f, 92f)
+        val dot = rectangle(5f, -26f, 9f, 10f)
+        val spans = CleanRoomSatinEngine.vectorSpansAtY(listOf(stem, dot), -21f)
+        assertEquals(1, spans.size)
+        assertEquals(5f, spans.single().first, .01f)
+        assertEquals(14f, spans.single().second, .01f)
+
+        val planned = CleanRoomSatinEngine.planContours(
+            listOf(stem, dot), densityMm = .4f, pullMm = .2f
+        )
+        val accent = planned.rails.flatten().filter { it.middle.y < -15f }
+        assertTrue("O pingo deve continuar bordável.", accent.size >= 3)
+        assertTrue("Pingo não pode virar um risco maior que o contorno.",
+            accent.all { rail ->
+                rail.a.x >= 3.5f && rail.b.x <= 15.5f
+            })
+    }
+
+    @Test
+    fun vectorScanlineKeepsInteriorHoleAndSeparateAccents() {
+        val outer = rectangle(0f, 0f, 80f, 60f)
+        val counter = rectangle(25f, 20f, 30f, 20f).reversed()
+        val cuts = CleanRoomSatinEngine.vectorSpansAtY(
+            listOf(outer, counter), y = 30f
+        )
+        assertEquals(listOf(0f to 25f, 55f to 80f), cuts)
+        assertEquals(emptyList<Pair<Float, Float>>(),
+            CleanRoomSatinEngine.vectorSpansAtY(listOf(outer), y = -8f))
+    }
+
+    @Test
+    fun ornamentalCapitalDoesNotSuppressDotAboveLowercaseI() {
+        // Em Maria, a inicial ornamental pode começar acima do pingo do i.
+        // O teste anterior body.minY eliminava essa restauração e produzia
+        // uma risca curta, como na captura enviada pelo usuário.
+        val contours = listOf(
+            rectangle(0f, -105f, 22f, 200f), // inicial ornamental alta
+            rectangle(75f, 0f, 18f, 90f),     // haste da letra i
+            rectangle(79f, -26f, 9f, 10f)     // pingo acima da haste local
+        )
+        val plan = CleanRoomSatinEngine.planContours(
+            contours, densityMm = .4f, pullMm = .2f
+        )
+        val dots = plan.rails.flatten().filter { rail ->
+            rail.middle.y < -15f && rail.middle.x in 76f..90f
+        }
+        assertTrue(
+            "A inicial alta não pode reduzir o pingo do i a uma risca.",
+            dots.size >= 3
+        )
+        assertTrue("O pingo deve respeitar o contorno vetorial.",
+            dots.all { it.a.x >= 77.5f && it.b.x <= 89.5f })
+    }
+
+
+    @Test
+    fun mariaMustStartWithCapitalLetterAndSewDotAfterLocalIStem() {
+        // Regressão reportada no APK QA2: a antiga inserção
+        // result.addAll(0, restoredDots) iniciava a máquina pelo pingo do i.
+        val ornamentalM = rectangle(0f, -105f, 22f, 200f)
+        val iStem = rectangle(75f, 0f, 18f, 90f)
+        val iDot = rectangle(79f, -26f, 9f, 10f)
+        val plan = CleanRoomSatinEngine.planContours(
+            listOf(ornamentalM, iStem, iDot),
+            densityMm = .4f, pullMm = .2f
+        )
+        val rails = plan.rails
+        assertTrue("A primeira rota deve pertencer à inicial M.",
+            rails.first().first().middle.x < 35f)
+        val startX = rails.first().first().middle.x
+        assertTrue("O pingo não pode ser a primeira rota.",
+            startX !in 76f..91f)
+        val stitches = CleanRoomSatinEngine.stitchPlannedGlyphForTest(plan)
+        val first = stitches.first { it.command != StitchCommand.END }
+        assertTrue("Primeiro movimento da agulha deve bordar a inicial.",
+            first.xUnits < 35)
+        val stemStitch = stitches.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in 72..97 && it.yUnits > 0
+        }
+        val dotStitch = stitches.indexOfFirst {
+            it.command == StitchCommand.STITCH &&
+                it.xUnits in 76..91 && it.yUnits < -15
+        }
+        assertTrue("Haste do i precisa ser bordada.", stemStitch >= 0)
+        assertTrue("Pingo precisa de pontos bordáveis.", dotStitch >= 0)
+        assertTrue("Pingo deve vir APÓS sua haste, não antes do M.",
+            dotStitch > stemStitch)
+    }
+
+
 }

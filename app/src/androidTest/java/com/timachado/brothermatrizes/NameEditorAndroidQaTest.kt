@@ -1167,4 +1167,130 @@ class NameEditorAndroidQaTest {
         }
     }
 
+
+    @Test
+    fun edvaldoCreateNamePreviewSimulationAndCreationShareCanonicalPoints() {
+        var simulated: EmbroideryDesign? = null
+        var created: EmbroideryDesign? = null
+        composeRule.setContent {
+            CreateNameScreen(
+                onBack = {},
+                onSimulate = { design, _ -> simulated = design },
+                onCreate = { design, _ -> created = design }
+            )
+        }
+        // Exercita o mesmo caminho do defeito reportado: digitar Edvaldo,
+        // aguardar digitalização e clicar em Simular / Criar matriz.
+        composeRule.onNodeWithText("Maria")
+            .performTextClearance()
+        composeRule.onNodeWithText("Digite o nome")
+            .performTextInput("Edvaldo")
+
+        composeRule.waitUntil(timeoutMillis = 90_000) {
+            composeRule.onAllNodesWithText("▶ Simular")
+                .fetchSemanticsNodes().any { node ->
+                    !node.config.contains(SemanticsProperties.Disabled)
+                }
+        }
+        composeRule.onNodeWithText("▶ Simular")
+            .assertIsEnabled()
+            .performClick()
+        composeRule.waitForIdle()
+        val simulator = requireNotNull(simulated)
+        assertTrue(
+            "A prévia deve exibir a contagem canônica usada pelo simulador.",
+            composeRule.onAllNodesWithText(
+                simulator.stitchCount.toString() + " pontos", substring = true
+            ).fetchSemanticsNodes().isNotEmpty()
+        )
+        composeRule.onNodeWithText("Criar matriz").performClick()
+        composeRule.waitForIdle()
+        val creation = requireNotNull(created)
+
+        assertEquals(simulator.stitchCount, creation.stitchCount)
+        assertEquals(simulator.points, creation.points)
+        assertTrue("A prévia deve vir do arquivo de máquina canônico.",
+            simulator.sourceBytes.isNotEmpty())
+        org.junit.Assert.assertArrayEquals(
+            simulator.sourceBytes,
+            creation.sourceBytes
+        )
+    }
+
+
+    @Test
+    fun edvaldoImportedSatinPassesGeometryAndFileReopenChecks() {
+        // Fonte do sistema: referência reproduzível no emulador. A fonte
+        // exata do print não foi fornecida e requer teste físico separado.
+        val fontFile = listOf(
+            File("/system/fonts/DancingScript-Regular.ttf"),
+            File("/system/fonts/Roboto-Regular.ttf"),
+            File("/system/fonts/NotoSans-Regular.ttf")
+        ).firstOrNull { it.isFile }
+            ?: error("Emulador sem fonte de referência")
+        val font = ImportedFont(
+            id = fontFile.name,
+            displayName = fontFile.name,
+            fileName = fontFile.name,
+            extension = "ttf",
+            absolutePath = fontFile.absolutePath
+        )
+        val raw = ImportedFontMatrixGenerator.generateText(
+            font = font,
+            text = "Edvaldo",
+            options = TextMatrixOptions(
+                text = "Edvaldo",
+                heightMm = 18f,
+                style = TextStitchStyle.SATIN,
+                satinDensityMm = .4f,
+                satinPullCompensationMm = .2f,
+                outputFormat = "PES",
+                enforceHoop = false
+            )
+        ).getOrThrow()
+        val result = GeneratedMatrixPipeline.canonicalize(
+            raw, outputSuffix = "criado",
+            preserveGuidePoints = true
+        )
+        assertTrue("Edvaldo importado deve gerar matriz abrível.",
+            result is EmbroideryLoadResult.Success)
+        val canonical = (result as EmbroideryLoadResult.Success).design
+        assertTrue("Satin importado sem pontadas.", canonical.stitchCount > 50)
+        assertEquals(
+            canonical.points.count { it.command == StitchCommand.STITCH },
+            canonical.stitchCount
+        )
+        assertTrue("Exportação PES deve manter bytes.", canonical.sourceBytes.isNotEmpty())
+        assertTrue("A fonte não pode perder largura ao reabrir.",
+            canonical.bounds.widthMm > 10f)
+    }
+
+
+    @Test
+    fun importedFontQualityDetectsMissingFinalLettersDespiteGoodGlobalCoverage() {
+        // Regressão: uma inicial ornamental pode dominar a área total
+        // e esconder a perda de cobertura das letras finais.
+        val box = listOf(
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 40f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 40f)
+        )
+        // Bordar corretamente apenas a primeira metade da silhueta.
+        // A pontuação global é boa, mas o último setor está vazio.
+        val stitches = buildList {
+            for (x in 2..54 step 2) {
+                add(EmbroideryPoint(x, 1, StitchCommand.JUMP, 0))
+                add(EmbroideryPoint(x, 39, StitchCommand.STITCH, 0))
+            }
+        }
+        val error = runCatching {
+            com.timachado.brothermatrizes.font.ImportedFontCoverageGuard.check(
+                listOf(listOf(box)), stitches
+            )
+        }.exceptionOrNull()
+        assertTrue("Falta de pontadas na parte final deve ser bloqueada.",
+            error != null && error.message?.contains("região") == true)
+    }
+
 }

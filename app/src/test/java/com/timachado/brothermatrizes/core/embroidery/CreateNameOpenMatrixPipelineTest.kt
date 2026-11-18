@@ -336,4 +336,51 @@ class CreateNameOpenMatrixPipelineTest {
         )
     }
 
+
+    @Test
+    fun edvaldoPreviewAndSimulationUseOneFinalStitchSequenceForMachineFormats() {
+        // A simulação recebe o design canônico já preparado em Criar Nome.
+        // O arquivo não deve passar por nova conversão depois do clique.
+        for (format in MatrixConverter.supportedFormats) {
+            val generated = TextMatrixGenerator.generate(
+                TextMatrixOptions(
+                    text = "Edvaldo",
+                    heightMm = 18f,
+                    style = TextStitchStyle.SATIN,
+                    outputFormat = format,
+                    color = 0xE63946,
+                    enforceHoop = false
+                )
+            ).getOrThrow()
+
+            val prepared = GeneratedMatrixPipeline.canonicalize(
+                design = generated,
+                outputSuffix = "criado",
+                preserveGuidePoints = true
+            )
+            assertTrue("A conversão final falhou em $format",
+                prepared is EmbroideryLoadResult.Success)
+            val preview = (prepared as EmbroideryLoadResult.Success).design
+            val simulator = preview.copy(hoopProfile = HoopProfile.H130X180)
+            val created = preview.copy(hoopProfile = HoopProfile.H130X180)
+
+            assertTrue("APK real deve existir para $format",
+                preview.sourceBytes.isNotEmpty())
+            assertEquals("A prévia deve contar só STITCH em $format",
+                preview.points.count { it.command == StitchCommand.STITCH },
+                preview.stitchCount)
+            assertEquals("Prévia e simulação devem ter a mesma sequência em $format",
+                preview.points, simulator.points)
+            assertEquals("Simulação e matriz criada devem ser idênticas em $format",
+                simulator.points, created.points)
+            assertEquals(preview.stitchCount, simulator.stitchCount)
+            assertEquals(simulator.stitchCount, created.stitchCount)
+            org.junit.Assert.assertArrayEquals(
+                "A simulação não deve reescrever os bytes em $format",
+                preview.sourceBytes, simulator.sourceBytes
+            )
+        }
+    }
+
+
 }
