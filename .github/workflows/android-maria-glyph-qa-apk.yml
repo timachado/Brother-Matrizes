@@ -1,0 +1,64 @@
+name: Brother Matrizes Maria Glifos - APK QA isolado
+on:
+  push:
+    branches:
+      - fix/android-edvaldo-canonical-preview-20261118
+    paths:
+      - '.github/workflows/android-maria-glyph-qa-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compilar APK Maria QA, sem assinatura comercial
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Preparar SDK e aplicativo QA paralelo
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+          grep -Fq 'applicationIdSuffix = ".nameqa"' app/build.gradle.kts
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.nameqa" '
+            .client += [(.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes NOMES QA"/' app/src/debug/AndroidManifest.xml
+      - name: Testar e compilar sem alterar produto comercial
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug -PbrotherNameEditorQa=true --stacktrace
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          badging="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes.nameqa'"* ]]
+          [[ "$badging" == *"Brother Matrizes NOMES QA"* ]]
+          "$sdk/apksigner" verify --verbose "$apk" > /tmp/verified.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/verified.txt
+          mkdir -p dist-qa
+          cp "$apk" dist-qa/Brother-Matrizes-Maria-Glifos-QA2-NAO-COMERCIAL.apk
+          sha256sum dist-qa/*.apk > dist-qa/SHA256.txt
+      - name: Disponibilizar APK de teste isolado
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Maria-Glifos-QA2-NAO-COMERCIAL
+          path: dist-qa/
+          retention-days: 14
+          if-no-files-found: error
