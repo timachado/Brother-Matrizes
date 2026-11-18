@@ -1262,4 +1262,32 @@ class NameEditorAndroidQaTest {
             canonical.bounds.widthMm > 10f)
     }
 
+
+    @Test
+    fun importedFontQualityDetectsMissingFinalLettersDespiteGoodGlobalCoverage() {
+        // Regressão: uma inicial ornamental pode dominar a área total
+        // e esconder a perda de cobertura das letras finais.
+        val box = listOf(
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 0f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(100f, 40f),
+            com.timachado.brothermatrizes.font.AndroidSkiaOutlineExtractor.Point(0f, 40f)
+        )
+        // Bordar corretamente apenas a primeira metade da silhueta.
+        // A pontuação global é boa, mas o último setor está vazio.
+        val stitches = buildList {
+            for (x in 2..54 step 2) {
+                add(EmbroideryPoint(x, 1, StitchCommand.JUMP, 0))
+                add(EmbroideryPoint(x, 39, StitchCommand.STITCH, 0))
+            }
+        }
+        val error = runCatching {
+            com.timachado.brothermatrizes.font.ImportedFontCoverageGuard.check(
+                listOf(listOf(box)), stitches
+            )
+        }.exceptionOrNull()
+        assertTrue("Falta de pontadas na parte final deve ser bloqueada.",
+            error != null && error.message?.contains("região") == true)
+    }
+
 }
