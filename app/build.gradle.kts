@@ -63,6 +63,10 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherSvgQa").orNull == "true") {
+                // APK de testes SVG, com ID próprio para preservar app comercial e dados.
+                applicationIdSuffix = ".svgqa"
+                versionNameSuffix = "-SVGQA"
             } else if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.
