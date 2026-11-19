@@ -65,6 +65,7 @@ import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 
 private enum class DrawingSourceMode(
@@ -210,17 +211,23 @@ fun CreateDrawingScreen(
                 }.getOrNull()
                     ?: "logo.svg"
 
-            val bytes =
-                runCatching {
-                    context
-                        .contentResolver
-                        .openInputStream(
-                            uri
-                        )
-                        ?.use {
-                            it.readBytes()
+            // Limita os bytes durante a leitura: não carregar arquivos enormes na memória.
+            val readResult = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8_192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        require(output.size() + count <= 2_000_000) {
+                            "SVG maior que 2 MB. Reduza o arquivo antes de importar."
                         }
-                }.getOrNull()
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: error("O arquivo selecionado não pôde ser aberto.")
+            }
+            val bytes = readResult.getOrNull()
 
             if (
                 bytes ==
@@ -230,7 +237,7 @@ fun CreateDrawingScreen(
                     null
 
                 importMessage =
-                    "Não foi possível ler o SVG."
+                    readResult.exceptionOrNull()?.message ?: "Não foi possível ler o SVG."
             } else {
                 val parsed =
                     SimpleSvgParser
