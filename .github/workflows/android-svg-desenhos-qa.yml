@@ -41,6 +41,20 @@ jobs:
       - name: Preparar recursos de marca
         run: bash scripts/prepare_brand_assets.sh
 
+      - name: Preparar identidade Firebase isolada para SVG QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.svgqa" '
+            .client += [(.client[] |
+              select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.svgqa")' \
+            app/src/debug/google-services.json >/dev/null
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes SVG QA"/' app/src/debug/AndroidManifest.xml
+
       - name: Testes unitários Android
         run: gradle :app:testDebugUnitTest -PbrotherSvgQa=true --stacktrace
 
