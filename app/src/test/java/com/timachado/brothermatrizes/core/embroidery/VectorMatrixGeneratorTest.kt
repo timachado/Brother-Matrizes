@@ -205,6 +205,29 @@ class VectorMatrixGeneratorTest {
     }
 
     @Test
+    fun transformedSvgIsRejectedRatherThanStitchedIncorrectly() {
+        val svg = """
+            <svg xmlns="http://www.w3.org/2000/svg">
+              <g transform="translate(50, 10)">
+                <rect x="0" y="0" width="20" height="30"/>
+              </g>
+            </svg>
+        """.trimIndent().toByteArray()
+        assertTrue(SimpleSvgParser.parse("transform.svg", svg).isFailure)
+    }
+
+    @Test
+    fun svgUseElementIsNotSilentlyIgnored() {
+        val svg = """
+            <svg xmlns="http://www.w3.org/2000/svg">
+              <defs><path id="a" d="M0 0 L10 10"/></defs>
+              <use href="#a"/>
+            </svg>
+        """.trimIndent().toByteArray()
+        assertTrue(SimpleSvgParser.parse("use.svg", svg).isFailure)
+    }
+
+    @Test
     fun unsupportedSvgCommandReturnsFailure() {
         val svg =
             """
