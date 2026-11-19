@@ -58,6 +58,7 @@ import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixGenerator
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.VectorPath
+import com.timachado.brothermatrizes.core.embroidery.VectorSvgExporter
 import com.timachado.brothermatrizes.core.embroidery.VectorPoint
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
@@ -113,6 +114,9 @@ fun CreateDrawingScreen(
             "Nenhum SVG importado."
         )
     }
+
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+    var pendingSvgBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     var freehandPaths by remember {
         mutableStateOf<
@@ -256,6 +260,25 @@ fun CreateDrawingScreen(
                     )
             }
         }
+
+    val svgSaver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/svg+xml")
+    ) { uri ->
+        val bytes = pendingSvgBytes
+        pendingSvgBytes = null
+        if (uri == null) {
+            exportMessage = "Salvamento cancelado."
+        } else if (bytes != null) {
+            exportMessage = runCatching {
+                context.contentResolver.openOutputStream(uri, "w")?.use { stream ->
+                    stream.write(bytes)
+                } ?: error("Não foi possível abrir o arquivo de destino.")
+                "Desenho SVG salvo com sucesso."
+            }.getOrElse { error ->
+                "Não foi possível salvar o SVG: ${error.message ?: "erro desconhecido"}"
+            }
+        }
+    }
 
     val freehandArtwork =
         remember(
@@ -1069,6 +1092,43 @@ fun CreateDrawingScreen(
                         12.dp
                     )
                 )
+
+                OutlinedButton(
+                    onClick = {
+                        artwork?.let { source ->
+                            VectorSvgExporter.export(source, color).fold(
+                                onSuccess = { bytes ->
+                                    pendingSvgBytes = bytes
+                                    exportMessage = null
+                                    val filename = source.label
+                                        .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                        .trim('_')
+                                        .ifBlank { "desenho" }
+                                        .take(64)
+                                        .removeSuffix(".svg") + ".svg"
+                                    svgSaver.launch(filename)
+                                },
+                                onFailure = { error ->
+                                    exportMessage = error.message ?: "Não foi possível gerar o SVG."
+                                }
+                            )
+                        }
+                    },
+                    enabled = artwork != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Salvar desenho como SVG")
+                }
+
+                exportMessage?.let { message ->
+                    Text(
+                        text = message,
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
 
                 Button(
                     onClick = {
