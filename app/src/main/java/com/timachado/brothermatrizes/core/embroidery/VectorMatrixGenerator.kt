@@ -644,13 +644,23 @@ object SimpleSvgParser {
                         node as
                             org.w3c.dom.Element
 
-                    when (
-                        element.tagName
-                            .substringAfterLast(':')
-                            .lowercase(
-                                Locale.ROOT
-                            )
-                    ) {
+                    val tag = element.tagName.substringAfterLast(':')
+                        .lowercase(Locale.ROOT)
+
+                    // Não gerar pontos incorretos para geometrias que o parser
+                    // ainda não consegue interpretar fielmente.
+                    require(element.getAttribute("transform").isBlank()) {
+                        "Este SVG usa transformações ainda não suportadas."
+                    }
+                    if (tag in setOf("defs", "clipPath", "mask", "symbol", "pattern")
+                            .map { it.lowercase(Locale.ROOT) }) {
+                        return
+                    }
+                    require(tag !in setOf("use", "image", "text", "foreignobject")) {
+                        "Este SVG contém elementos ainda não suportados: $tag."
+                    }
+
+                    when (tag) {
                         "path" ->
                             element
                                 .getAttribute(
