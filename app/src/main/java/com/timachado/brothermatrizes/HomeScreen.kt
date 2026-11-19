@@ -63,6 +63,7 @@ import java.util.Locale
 fun HomeScreen(
     recent: EmbroideryDesign?,
     onCreateName: () -> Unit,
+    onCreateDrawing: () -> Unit,
     onFonts: () -> Unit,
     onTransfer: () -> Unit,
     onOpen: () -> Unit,
@@ -161,6 +162,17 @@ fun HomeScreen(
                 primary = true,
                 onClick =
                     onCreateName
+            )
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            ExpressiveFeatureCard(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
+                iconRes = R.drawable.ic_ms_edit_rounded,
+                title = "Criar desenho SVG",
+                subtitle = "Importe SVG ou desenhe à mão livre para criar matrizes.",
+                enabled = true,
+                onClick = onCreateDrawing
             )
         }
 
