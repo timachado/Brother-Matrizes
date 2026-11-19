@@ -1945,6 +1945,9 @@ private fun BrotherMatrizesApp(
                             screen =
                                 Screen.CreateName
                         },
+                        onCreateDrawing = {
+                            screen = Screen.CreateDrawing
+                        },
                         onFonts = {
                             screen =
                                 Screen.FontLibrary
