@@ -32,6 +32,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -95,7 +96,8 @@ private val drawingPalette =
 fun CreateDrawingScreen(
     onBack: () -> Unit,
     onCreate: (EmbroideryDesign) -> Unit,
-    onSimulate: (EmbroideryDesign) -> Unit
+    onSimulate: (EmbroideryDesign) -> Unit,
+    catalogArtwork: VectorArtwork? = null
 ) {
     val context =
         LocalContext.current
@@ -105,6 +107,8 @@ fun CreateDrawingScreen(
             DrawingSourceMode.SVG
         )
     }
+
+    var showCatalog by remember { mutableStateOf(false) }
 
     var importedArtwork by remember {
         mutableStateOf<
@@ -116,6 +120,15 @@ fun CreateDrawingScreen(
         mutableStateOf(
             "Nenhum SVG importado."
         )
+    }
+
+    LaunchedEffect(catalogArtwork) {
+        if (catalogArtwork != null) {
+            importedArtwork = catalogArtwork
+            sourceMode = DrawingSourceMode.SVG
+            importMessage = catalogArtwork.label + " • " +
+                catalogArtwork.paths.size + " caminho(s) • importado do catálogo SVG"
+        }
     }
 
     var exportMessage by remember { mutableStateOf<String?>(null) }
@@ -384,6 +397,20 @@ fun CreateDrawingScreen(
         hoopFit?.fits ==
             true
 
+    if (showCatalog) {
+        SvgSilhCatalogScreen(
+            onBack = { showCatalog = false },
+            onUseArtwork = { selected ->
+                importedArtwork = selected
+                sourceMode = DrawingSourceMode.SVG
+                importMessage = selected.label + " • " +
+                    selected.paths.size + " caminho(s) • importado do SVG Silh"
+                showCatalog = false
+            }
+        )
+        return
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -647,6 +674,14 @@ fun CreateDrawingScreen(
                             fontWeight =
                                 FontWeight.Bold
                         )
+                    }
+
+                    OutlinedButton(
+                        onClick = { showCatalog = true },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_svg_browse_online")
+                    ) {
+                        Text("Buscar imagens SVG online")
                     }
 
                     Text(
