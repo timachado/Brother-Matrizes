@@ -68,6 +68,49 @@ class VectorTatamiFillGeneratorTest {
     }
 
     @Test
+    fun importedSvgWithMicroscopicDetailsStillProducesTatami() {
+        // O SVG de referência 1299642.svg tem 14 caminhos, inclusive alguns
+        // que ficam menores do que 0,5 mm depois de ajustar a largura a 60 mm.
+        val contours = listOf(
+            rectangle(-300, -245, 300, 245),
+            rectangle(-215, 65, -189, 140).asReversed(),
+            rectangle(90, -85, 200, 30).asReversed(),
+            rectangle(74, 4, 76, 5),
+            rectangle(88, -8, 91, -4),
+            rectangle(65, -33, 66, -32),
+            rectangle(30, -38, 31, -37)
+        )
+        val generated = VectorTatamiFillGenerator.generate(
+            contours, rowSpacingUnits = 5, maxStitchLengthUnits = 30
+        ).getOrThrow()
+
+        assertTrue(generated.count { it.command == StitchCommand.STITCH } > 1_000)
+        assertTrue(generated.none { it.xUnits !in -300..300 || it.yUnits !in -245..245 })
+    }
+
+    @Test
+    fun microscopicOnlySvgStillFailsWithExplanation() {
+        val result = VectorTatamiFillGenerator.generate(
+            listOf(rectangle(0, 0, 2, 1), rectangle(3, 3, 5, 4)),
+            rowSpacingUnits = 5,
+            maxStitchLengthUnits = 30
+        )
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("pequenas demais") == true)
+    }
+
+    @Test
+    fun largeSelfIntersectingAreaIsRejectedRatherThanSilentlySkipped() {
+        // Área algébrica nula, mas grande extensão: não é microdetalhe.
+        val bowTie = listOf(
+            0 to 0, 200 to 200, 0 to 200, 200 to 0
+        )
+        assertTrue(VectorTatamiFillGenerator.generate(
+            listOf(bowTie), rowSpacingUnits = 5, maxStitchLengthUnits = 30
+        ).isFailure)
+    }
+
+    @Test
     fun concaveGeometryNeverStitchesAcrossCentralGap() {
         val uShape = listOf(
             0 to 0, 200 to 0, 200 to 200, 150 to 200,
