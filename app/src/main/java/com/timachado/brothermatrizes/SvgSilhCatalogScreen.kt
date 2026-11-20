@@ -210,7 +210,7 @@ fun SvgSilhCatalogScreen(
                     modifier = Modifier.testTag("svg_catalog_use_in_editor")
                 ) { Text("Usar no editor") }
                 OutlinedButton(
-                    onClick = { lastName?.let(saveLauncher::launch) }
+                    onClick = { lastName?.let { name -> saveLauncher.launch(name) } }
                 ) { Text("Baixar SVG") }
             }
         }
