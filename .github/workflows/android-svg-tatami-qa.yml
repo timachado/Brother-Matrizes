@@ -46,23 +46,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p app/src/debug
-          jq --arg pkg "com.timachado.brothermatrizes.svgqa" '
+          jq --arg pkg "com.timachado.brothermatrizes.tatamiqa" '
             .client += [(.client[] |
               select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
               .client_info.android_client_info.package_name = $pkg)]
           ' app/google-services.json > app/src/debug/google-services.json
-          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.svgqa")' \
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.tatamiqa")' \
             app/src/debug/google-services.json >/dev/null
-          sed -i 's/Brother Matrizes QA"/Brother Matrizes SVG QA"/' app/src/debug/AndroidManifest.xml
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes TATAMI QA"/' app/src/debug/AndroidManifest.xml
 
       - name: Testes unitários Android
-        run: gradle :app:testDebugUnitTest -PbrotherSvgQa=true --stacktrace
+        run: gradle :app:testDebugUnitTest -PbrotherTatamiQa=true --stacktrace
 
       - name: Lint Android
-        run: gradle :app:lintDebug -PbrotherSvgQa=true --stacktrace
+        run: gradle :app:lintDebug -PbrotherTatamiQa=true --stacktrace
 
       - name: Gerar APK SVG QA separado da versão comercial
-        run: gradle :app:assembleDebug -PbrotherSvgQa=true --stacktrace
+        run: gradle :app:assembleDebug -PbrotherTatamiQa=true --stacktrace
 
       - name: Validar assinatura debug e alinhamento
         shell: bash
@@ -94,4 +94,4 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            gradle :app:connectedDebugAndroidTest -PbrotherSvgQa=true '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.SvgDrawingAndroidQaTest' --stacktrace
+            gradle :app:connectedDebugAndroidTest -PbrotherTatamiQa=true '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.SvgDrawingAndroidQaTest' --stacktrace
