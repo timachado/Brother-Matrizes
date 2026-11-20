@@ -26,6 +26,8 @@ data class VectorArtwork(
     val label: String = "Desenho"
 )
 
+enum class VectorFillMode { NONE, TATAMI }
+
 data class VectorMatrixOptions(
     val widthMm: Float = 60f,
     val stitchStyle: TextStitchStyle =
@@ -39,7 +41,10 @@ data class VectorMatrixOptions(
         HoopProfile.H100X100,
     val fabricProfile: FabricProfile? =
         FabricProfile.COTTON,
-    val enforceHoop: Boolean = false
+    val enforceHoop: Boolean = false,
+    val fillMode: VectorFillMode = VectorFillMode.NONE,
+    val tatamiRowSpacingMm: Float = 0.5f,
+    val tatamiStitchLengthMm: Float = 3f
 )
 
 object VectorMatrixGenerator {
@@ -223,6 +228,34 @@ object VectorMatrixGenerator {
             var currentX = 0
             var currentY = 0
 
+            if (options.fillMode == VectorFillMode.TATAMI) {
+                require(options.tatamiRowSpacingMm in 0.3f..0.9f) {
+                    "Espaçamento Tatami inválido."
+                }
+                require(options.tatamiStitchLengthMm in 1.5f..4f) {
+                    "Comprimento máximo Tatami inválido."
+                }
+                require(usefulPaths.all { it.closed }) {
+                    "Para usar Tatami, feche todos os contornos do desenho."
+                }
+                val contours = usefulPaths.map { path ->
+                    path.points.map { point ->
+                        val x = ((point.x - minX) * scale - widthUnits / 2f +
+                            targetCenterX).roundToInt()
+                        val y = (heightUnits / 2f -
+                            (point.y - minY) * scale + targetCenterY).roundToInt()
+                        x to y
+                    }
+                }
+                val fill = VectorTatamiFillGenerator.generate(
+                    contours = contours,
+                    rowSpacingUnits = (options.tatamiRowSpacingMm * 10).roundToInt(),
+                    maxStitchLengthUnits = (options.tatamiStitchLengthMm * 10).roundToInt()
+                ).getOrThrow()
+                output.addAll(fill)
+                currentX = fill.last().xUnits
+                currentY = fill.last().yUnits
+            } else {
             usefulPaths.forEach {
                     path ->
                 val units =
@@ -366,6 +399,7 @@ object VectorMatrixGenerator {
                             result.currentY
                     }
                 }
+            }
             }
 
             output +=
