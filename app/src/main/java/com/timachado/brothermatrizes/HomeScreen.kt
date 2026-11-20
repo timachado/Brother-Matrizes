@@ -64,6 +64,7 @@ fun HomeScreen(
     recent: EmbroideryDesign?,
     onCreateName: () -> Unit,
     onCreateDrawing: () -> Unit,
+    onBrowseSvg: () -> Unit = onCreateDrawing,
     onFonts: () -> Unit,
     onTransfer: () -> Unit,
     onOpen: () -> Unit,
@@ -173,6 +174,18 @@ fun HomeScreen(
                 subtitle = "Importe SVG ou desenhe à mão livre para criar matrizes.",
                 enabled = true,
                 onClick = onCreateDrawing
+            )
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            ExpressiveFeatureCard(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp)
+                    .testTag("brother_svg_online_catalog_home"),
+                iconRes = R.drawable.ic_ms_search_rounded,
+                title = "Buscar imagens SVG",
+                subtitle = "Encontre, baixe e use desenhos do catálogo SVG Silh.",
+                enabled = true,
+                onClick = onBrowseSvg
             )
         }
 
