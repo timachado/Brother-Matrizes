@@ -672,7 +672,11 @@ fun CreateDrawingScreen(
                     )
 
                     Text(
-                        "Suporte: linhas, curvas, formas SVG e transformações 2D. O bordado utiliza contornos; áreas preenchidas e arcos SVG ainda não são digitalizados automaticamente.",
+                        if (fillMode == VectorFillMode.TATAMI) {
+                            "Suporte: formas SVG e transformações 2D. Preenchimento Tatami ativo para regiões fechadas. Arcos SVG, underlay automático e ajustes finais de tecido ainda não são suportados."
+                        } else {
+                            "Suporte: linhas, curvas, formas SVG e transformações 2D. Ponto corrido e Satin seguem os contornos; o preenchimento de áreas exige selecionar Tatami."
+                        },
                         color =
                             FioTextMuted,
                         fontSize =
@@ -856,15 +860,8 @@ fun CreateDrawingScreen(
                 }
 
                 if (fillMode == VectorFillMode.TATAMI) {
-                    Text(
-                        "Tatami preenche regiões fechadas com uma única cor. " +
-                            "Respeita furos com contornos de sentidos opostos (regra SVG non-zero). " +
-                            "Microdetalhes menores que 0,5 mm podem ficar sem preenchimento. " +
-                            "Não inclui underlay automático nem ajustes de produção. " +
-                            "Teste a matriz antes de bordar.",
-                        color = FioTextMuted,
-                        fontSize = 10.sp
-                    )
+                    // Deixar a ação principal antes do texto técnico, dentro
+                    // da área visível após selecionar o Tatami.
                     OutlinedButton(
                         onClick = { tatamiContourFinish = !tatamiContourFinish },
                         modifier = Modifier.fillMaxWidth()
@@ -883,6 +880,15 @@ fun CreateDrawingScreen(
                         } else {
                             "Desativado: somente preenchimento Tatami, como na versão aprovada."
                         },
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "Tatami preenche regiões fechadas com uma única cor. " +
+                            "Respeita furos com contornos de sentidos opostos (regra SVG non-zero). " +
+                            "Microdetalhes menores que 0,5 mm podem ficar sem preenchimento. " +
+                            "Não inclui underlay automático nem ajustes de produção. " +
+                            "Teste a matriz antes de bordar.",
                         color = FioTextMuted,
                         fontSize = 10.sp
                     )
