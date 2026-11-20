@@ -55,16 +55,29 @@ internal object VectorTatamiFillGenerator {
                     if (acc.lastOrNull() != point) acc.add(point)
                     acc
                 }
-            require(loop.size >= 3) { "Área fechada com menos de três vértices." }
+            require(loop.isNotEmpty()) { "Contorno SVG vazio." }
 
-            // Área quase nula não é preenchível com segurança.
-            val twiceArea = loop.indices.sumOf { i ->
-                val a = loop[i]
-                val b = loop[(i + 1) % loop.size]
-                a.first.toLong() * b.second - b.first.toLong() * a.second
-            }
-            require(abs(twiceArea) >= 16L) {
-                "Um caminho fechado possui área insuficiente para Tatami."
+            // Detalhes minúsculos do SVG podem desaparecer após a quantização
+            // de 0,1 mm. Ignorar somente as regiões REALMENTE microscópicas,
+            // sem invalidar todo o desenho. Contornos grandes de área nula
+            // (por exemplo, autointerseções) continuam sendo rejeitados.
+            val minContourX = loop.minOf { it.first }
+            val maxContourX = loop.maxOf { it.first }
+            val minContourY = loop.minOf { it.second }
+            val maxContourY = loop.maxOf { it.second }
+            val twiceArea = if (loop.size >= 3) {
+                loop.indices.sumOf { i ->
+                    val a = loop[i]
+                    val b = loop[(i + 1) % loop.size]
+                    a.first.toLong() * b.second - b.first.toLong() * a.second
+                }
+            } else 0L
+            if (loop.size < 3 || abs(twiceArea) < 16L) {
+                require(maxContourX - minContourX <= 5 &&
+                    maxContourY - minContourY <= 5) {
+                    "Contorno de área inconsistente; revise o SVG."
+                }
+                return@forEach
             }
             all.addAll(loop)
 
@@ -86,6 +99,9 @@ internal object VectorTatamiFillGenerator {
                     )
                 )
             }
+        }
+        require(all.isNotEmpty()) {
+            "As áreas deste SVG são pequenas demais para preencher com Tatami."
         }
         val minY = all.minOf { it.second }
         val maxY = all.maxOf { it.second }
