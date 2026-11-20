@@ -63,6 +63,10 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherTatamiContourQa").orNull == "true") {
+                // QA Tatami + contornos: ID distinto para preservar builds anteriores.
+                applicationIdSuffix = ".contourqa"
+                versionNameSuffix = "-CONTOURQA"
             } else if (providers.gradleProperty("brotherTatamiQa").orNull == "true") {
                 // APK Tatami QA isolado: não atualiza o SVG QA existente.
                 applicationIdSuffix = ".tatamiqa"
