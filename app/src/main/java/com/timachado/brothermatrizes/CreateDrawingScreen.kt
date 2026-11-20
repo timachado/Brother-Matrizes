@@ -145,6 +145,7 @@ fun CreateDrawingScreen(
 
     var fillMode by remember { mutableStateOf(VectorFillMode.NONE) }
     var tatamiRowSpacingMm by remember { mutableFloatStateOf(0.5f) }
+    var tatamiContourFinish by remember { mutableStateOf(false) }
 
     var color by remember {
         mutableIntStateOf(
@@ -348,7 +349,7 @@ fun CreateDrawingScreen(
 
     // Recalcular pontos somente quando o vetor ou seus parâmetros mudarem.
     val result = remember(artwork, widthMm, stitchStyle, fillMode,
-        tatamiRowSpacingMm, color, outputFormat, hoopProfile) {
+        tatamiRowSpacingMm, tatamiContourFinish, color, outputFormat, hoopProfile) {
         artwork?.let {
             VectorMatrixGenerator.generate(
                 it,
@@ -357,6 +358,7 @@ fun CreateDrawingScreen(
                     stitchStyle = stitchStyle,
                     fillMode = fillMode,
                     tatamiRowSpacingMm = tatamiRowSpacingMm,
+                    tatamiContourFinish = tatamiContourFinish,
                     color = color,
                     outputFormat = outputFormat,
                     hoopProfile = hoopProfile,
@@ -860,6 +862,27 @@ fun CreateDrawingScreen(
                             "Microdetalhes menores que 0,5 mm podem ficar sem preenchimento. " +
                             "Não inclui underlay automático nem ajustes de produção. " +
                             "Teste a matriz antes de bordar.",
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                    OutlinedButton(
+                        onClick = { tatamiContourFinish = !tatamiContourFinish },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_svg_tatami_detail_finish")
+                    ) {
+                        Text(
+                            (if (tatamiContourFinish) "● " else "") +
+                                "Acabamento: contornos e detalhes",
+                            color = if (tatamiContourFinish) FioGold else FioText
+                        )
+                    }
+                    Text(
+                        if (tatamiContourFinish) {
+                            "Ativado: acrescenta ponto corrido sobre os contornos, após o Tatami. " +
+                                "Microdetalhes muito pequenos são ignorados para evitar excesso de pontadas."
+                        } else {
+                            "Desativado: somente preenchimento Tatami, como na versão aprovada."
+                        },
                         color = FioTextMuted,
                         fontSize = 10.sp
                     )
