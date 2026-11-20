@@ -1,0 +1,97 @@
+name: Android SVG Catalogo - QA isolada
+
+on:
+  push:
+    branches:
+      - feature/android-svg-busca-catalogo-qa-20261120
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brother-catalogo-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-svg-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Preparar recursos de marca
+        run: bash scripts/prepare_brand_assets.sh
+
+      - name: Preparar identidade Firebase isolada para SVG QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/debug
+          jq --arg pkg "com.timachado.brothermatrizes.catalogqa" '
+            .client += [(.client[] |
+              select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes") |
+              .client_info.android_client_info.package_name = $pkg)]
+          ' app/google-services.json > app/src/debug/google-services.json
+          jq -e '.client[] | select(.client_info.android_client_info.package_name == "com.timachado.brothermatrizes.catalogqa")' \
+            app/src/debug/google-services.json >/dev/null
+          sed -i 's/Brother Matrizes QA"/Brother Matrizes CATALOGO SVG QA"/' app/src/debug/AndroidManifest.xml
+
+      - name: Testes unitários Android
+        run: gradle :app:testDebugUnitTest -PbrotherSvgCatalogQa=true --stacktrace
+
+      - name: Lint Android
+        run: gradle :app:lintDebug -PbrotherSvgCatalogQa=true --stacktrace
+
+      - name: Gerar APK SVG QA separado da versão comercial
+        run: gradle :app:assembleDebug -PbrotherSvgCatalogQa=true --stacktrace
+
+      - name: Validar assinatura debug e alinhamento
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+
+      - name: Disponibilizar APK somente para QA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-Android-SVG-CATALOGO-QA-NOT-COMMERCIAL
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Ativar virtualização para emulador Android
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Testar Tatami e editor SVG no emulador Android 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            gradle :app:connectedDebugAndroidTest -PbrotherSvgCatalogQa=true '-Pandroid.testInstrumentationRunnerArguments.class=com.timachado.brothermatrizes.SvgDrawingAndroidQaTest' --stacktrace
