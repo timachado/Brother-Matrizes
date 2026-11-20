@@ -41,6 +41,29 @@ class SvgDrawingAndroidQaTest {
     }
 
     @Test
+    fun tatamiIsOptInAndExposesDensityControls() {
+        composeRule.setContent {
+            CreateDrawingScreen(
+                onBack = {},
+                onCreate = {},
+                onSimulate = {}
+            )
+        }
+        composeRule.onNodeWithTag("brother_svg_tatami_mode")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Espaçamento das linhas Tatami: 0,5 mm")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("0,6 mm")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Espaçamento das linhas Tatami: 0,6 mm")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_svg_tatami_mode")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Ponto corrido segue o contorno/caminho importado.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun freehandStrokeEnablesSavingAsSvg() {
         composeRule.setContent {
             CreateDrawingScreen(
