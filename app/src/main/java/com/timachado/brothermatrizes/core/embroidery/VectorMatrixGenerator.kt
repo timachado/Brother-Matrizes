@@ -44,7 +44,8 @@ data class VectorMatrixOptions(
     val enforceHoop: Boolean = false,
     val fillMode: VectorFillMode = VectorFillMode.NONE,
     val tatamiRowSpacingMm: Float = 0.5f,
-    val tatamiStitchLengthMm: Float = 3f
+    val tatamiStitchLengthMm: Float = 3f,
+    val tatamiContourFinish: Boolean = false
 )
 
 object VectorMatrixGenerator {
@@ -255,6 +256,23 @@ object VectorMatrixGenerator {
                 output.addAll(fill)
                 currentX = fill.last().xUnits
                 currentY = fill.last().yUnits
+                if (options.tatamiContourFinish) {
+                    val finish = VectorContourFinishGenerator.generate(
+                        contours = contours,
+                        maxStitchLengthUnits = 20
+                    ).getOrThrow()
+                    // Separar a fase de preenchimento do acabamento em ponto
+                    // corrido: jamais costurar diretamente entre esses blocos.
+                    output.add(EmbroideryPoint(
+                        currentX, currentY, StitchCommand.TRIM, 0
+                    ))
+                    output.addAll(finish)
+                    currentX = finish.last().xUnits
+                    currentY = finish.last().yUnits
+                    require(output.size <= 85_000) {
+                        "Matriz combinada excedeu o limite de comandos QA."
+                    }
+                }
             } else {
             usefulPaths.forEach {
                     path ->
