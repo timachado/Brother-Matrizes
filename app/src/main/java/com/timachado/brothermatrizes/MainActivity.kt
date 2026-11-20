@@ -45,6 +45,7 @@ import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoadResult
 import com.timachado.brothermatrizes.core.embroidery.EmbroideryLoader
 import com.timachado.brothermatrizes.core.embroidery.GeneratedMatrixPipeline
 import com.timachado.brothermatrizes.core.embroidery.HoopProfile
+import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 import com.timachado.brothermatrizes.core.embroidery.MatrixConverter
 import com.timachado.brothermatrizes.core.embroidery.NamePersonalization
 import com.timachado.brothermatrizes.font.ImportedFontStore
@@ -298,6 +299,7 @@ private sealed interface Screen {
     data object CreateName : Screen
     data object CreateMonogram : Screen
     data object CreateDrawing : Screen
+    data object SvgCatalog : Screen
     data object FontLibrary : Screen
     data object ProjectLibrary : Screen
     data object TelegramSearch : Screen
@@ -397,6 +399,10 @@ private fun BrotherMatrizesApp(
         mutableStateOf<Screen>(
             Screen.Home
         )
+    }
+
+    var pendingCatalogArtwork by remember {
+        mutableStateOf<VectorArtwork?>(null)
     }
 
     var recent by remember {
@@ -733,7 +739,8 @@ private fun BrotherMatrizesApp(
                 Screen.FontLibrary,
                 Screen.CreateName,
                 Screen.CreateMonogram,
-                Screen.CreateDrawing ->
+                Screen.CreateDrawing,
+                Screen.SvgCatalog ->
                     Screen.Home
 
                 is Screen.ArchiveImport -> current.returnTo
@@ -1946,7 +1953,12 @@ private fun BrotherMatrizesApp(
                                 Screen.CreateName
                         },
                         onCreateDrawing = {
+                            pendingCatalogArtwork = null
                             screen = Screen.CreateDrawing
+                        },
+                        onBrowseSvg = {
+                            pendingCatalogArtwork = null
+                            screen = Screen.SvgCatalog
                         },
                         onFonts = {
                             screen =
@@ -2292,8 +2304,19 @@ private fun BrotherMatrizesApp(
                     )
                 }
 
+                Screen.SvgCatalog -> {
+                    SvgSilhCatalogScreen(
+                        onBack = { screen = Screen.Home },
+                        onUseArtwork = { artwork ->
+                            pendingCatalogArtwork = artwork
+                            screen = Screen.CreateDrawing
+                        }
+                    )
+                }
+
                 Screen.CreateDrawing -> {
                     CreateDrawingScreen(
+                        catalogArtwork = pendingCatalogArtwork,
                         onBack = {
                             goBack()
                         },
