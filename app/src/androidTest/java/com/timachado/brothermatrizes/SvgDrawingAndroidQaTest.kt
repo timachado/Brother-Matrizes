@@ -64,6 +64,30 @@ class SvgDrawingAndroidQaTest {
     }
 
     @Test
+    fun contourFinishIsOptInAndCanBeDisabledWithoutLosingTatami() {
+        composeRule.setContent {
+            CreateDrawingScreen(
+                onBack = {},
+                onCreate = {},
+                onSimulate = {}
+            )
+        }
+        composeRule.onNodeWithTag("brother_svg_tatami_mode")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Desativado: somente preenchimento Tatami, como na versão aprovada.")
+            .performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_svg_tatami_detail_finish")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText(
+            "● Acabamento: contornos e detalhes"
+        ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("brother_svg_tatami_detail_finish")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Desativado: somente preenchimento Tatami, como na versão aprovada.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun freehandStrokeEnablesSavingAsSvg() {
         composeRule.setContent {
             CreateDrawingScreen(
