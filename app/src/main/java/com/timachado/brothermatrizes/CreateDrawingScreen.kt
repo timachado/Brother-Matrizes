@@ -256,9 +256,8 @@ fun CreateDrawingScreen(
                                 artwork ->
                             artwork.label +
                                 " • " +
-                                artwork.paths
-                                    .size +
-                                " caminho(s)"
+                                artwork.paths.size +
+                                " caminho(s) • conversão de contornos (sem preenchimento automático)"
                         },
                         onFailure = {
                                 error ->
@@ -343,27 +342,22 @@ fun CreateDrawingScreen(
                 freehandArtwork
         }
 
-    val result =
+    // Recalcular pontos somente quando o vetor ou seus parâmetros mudarem.
+    val result = remember(artwork, widthMm, stitchStyle, color, outputFormat, hoopProfile) {
         artwork?.let {
-            VectorMatrixGenerator
-                .generate(
-                    it,
-                    VectorMatrixOptions(
-                        widthMm =
-                            widthMm,
-                        stitchStyle =
-                            stitchStyle,
-                        color =
-                            color,
-                        outputFormat =
-                            outputFormat,
-                        hoopProfile =
-                            hoopProfile,
-                        enforceHoop =
-                            false
-                    )
+            VectorMatrixGenerator.generate(
+                it,
+                VectorMatrixOptions(
+                    widthMm = widthMm,
+                    stitchStyle = stitchStyle,
+                    color = color,
+                    outputFormat = outputFormat,
+                    hoopProfile = hoopProfile,
+                    enforceHoop = false
                 )
+            )
         }
+    }
 
     val preview =
         result?.getOrNull()
@@ -659,7 +653,7 @@ fun CreateDrawingScreen(
                     )
 
                     Text(
-                        "Suporte inicial: path com linhas/curvas, line, polyline, polygon, rect, circle e ellipse. Arcos SVG e transforms complexos ficam para depois.",
+                        "Suporte: linhas, curvas, formas SVG e transformações 2D. O bordado utiliza contornos; áreas preenchidas e arcos SVG ainda não são digitalizados automaticamente.",
                         color =
                             FioTextMuted,
                         fontSize =
