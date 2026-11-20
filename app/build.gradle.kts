@@ -63,6 +63,10 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherSvgCatalogQa").orNull == "true") {
+                // Busca SVG Silh QA: instalação isolada de comercial e QA anteriores.
+                applicationIdSuffix = ".catalogqa"
+                versionNameSuffix = "-SVG-CATALOG-QA"
             } else if (providers.gradleProperty("brotherTatamiContourQa").orNull == "true") {
                 // QA Tatami + contornos: ID distinto para preservar builds anteriores.
                 applicationIdSuffix = ".contourqa"
