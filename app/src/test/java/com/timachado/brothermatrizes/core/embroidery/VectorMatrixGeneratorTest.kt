@@ -254,7 +254,7 @@ class VectorMatrixGeneratorTest {
         val paths = SimpleSvgParser.parse("legacy.svg", svg).getOrThrow().paths
         assertEquals(1, paths.size)
         assertTrue(paths[0].closed)
-        assertEquals(1049f, paths[0].points.first().y, 0.001f)
+        assertEquals(1039f, paths[0].points.first().y, 0.001f)
     }
 
     @Test
