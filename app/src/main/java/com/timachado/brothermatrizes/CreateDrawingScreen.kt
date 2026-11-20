@@ -57,6 +57,7 @@ import com.timachado.brothermatrizes.core.embroidery.SimpleSvgParser
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixGenerator
+import com.timachado.brothermatrizes.core.embroidery.VectorFillMode
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.VectorPath
 import com.timachado.brothermatrizes.core.embroidery.VectorSvgExporter
@@ -141,6 +142,9 @@ fun CreateDrawingScreen(
             TextStitchStyle.RUNNING
         )
     }
+
+    var fillMode by remember { mutableStateOf(VectorFillMode.NONE) }
+    var tatamiRowSpacingMm by remember { mutableFloatStateOf(0.5f) }
 
     var color by remember {
         mutableIntStateOf(
@@ -343,13 +347,16 @@ fun CreateDrawingScreen(
         }
 
     // Recalcular pontos somente quando o vetor ou seus parâmetros mudarem.
-    val result = remember(artwork, widthMm, stitchStyle, color, outputFormat, hoopProfile) {
+    val result = remember(artwork, widthMm, stitchStyle, fillMode,
+        tatamiRowSpacingMm, color, outputFormat, hoopProfile) {
         artwork?.let {
             VectorMatrixGenerator.generate(
                 it,
                 VectorMatrixOptions(
                     widthMm = widthMm,
                     stitchStyle = stitchStyle,
+                    fillMode = fillMode,
+                    tatamiRowSpacingMm = tatamiRowSpacingMm,
                     color = color,
                     outputFormat = outputFormat,
                     hoopProfile = hoopProfile,
@@ -778,13 +785,12 @@ fun CreateDrawingScreen(
                         .forEach {
                                 option ->
                             val selected =
-                                stitchStyle ==
-                                    option
+                                stitchStyle == option && fillMode == VectorFillMode.NONE
 
                             OutlinedButton(
                                 onClick = {
-                                    stitchStyle =
-                                        option
+                                    stitchStyle = option
+                                    fillMode = VectorFillMode.NONE
                                 },
                                 modifier =
                                     Modifier.weight(
@@ -815,21 +821,70 @@ fun CreateDrawingScreen(
                         }
                 }
 
-                Text(
-                    if (
-                        stitchStyle ==
-                            TextStitchStyle
-                                .SATIN
-                    ) {
-                        "Satin acompanha o traço do desenho; não transforma áreas fechadas em preenchimento automático."
-                    } else {
-                        "Ponto corrido segue o contorno/caminho importado."
+                OutlinedButton(
+                    onClick = {
+                        fillMode = if (fillMode == VectorFillMode.TATAMI) {
+                            VectorFillMode.NONE
+                        } else {
+                            VectorFillMode.TATAMI
+                        }
                     },
-                    color =
-                        FioTextMuted,
-                    fontSize =
-                        10.sp
-                )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("brother_svg_tatami_mode")
+                ) {
+                    Text(
+                        if (fillMode == VectorFillMode.TATAMI) {
+                            "● Preenchimento Tatami (experimental)"
+                        } else {
+                            "Preenchimento Tatami (experimental)"
+                        },
+                        color = if (fillMode == VectorFillMode.TATAMI) FioGold else FioText
+                    )
+                }
+
+                if (fillMode == VectorFillMode.TATAMI) {
+                    Text(
+                        "Tatami preenche regiões fechadas com uma única cor. " +
+                            "Respeita furos com contornos de sentidos opostos (regra SVG non-zero). " +
+                            "Não inclui underlay automático nem ajustes de produção. " +
+                            "Teste a matriz antes de bordar.",
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "Espaçamento das linhas Tatami: ${oneDecimal(tatamiRowSpacingMm)} mm",
+                        color = FioText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(0.4f, 0.5f, 0.6f).forEach { spacing ->
+                            OutlinedButton(
+                                onClick = { tatamiRowSpacingMm = spacing },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    (if (tatamiRowSpacingMm == spacing) "● " else "") +
+                                        oneDecimal(spacing) + " mm",
+                                    color = if (tatamiRowSpacingMm == spacing) FioGold else FioText
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        if (stitchStyle == TextStitchStyle.SATIN) {
+                            "Satin segue o traço: não preenche automaticamente áreas fechadas."
+                        } else {
+                            "Ponto corrido segue o contorno/caminho importado."
+                        },
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                }
 
                 Spacer(
                     Modifier.height(
