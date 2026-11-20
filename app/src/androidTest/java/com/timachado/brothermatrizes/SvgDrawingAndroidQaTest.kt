@@ -88,6 +88,25 @@ class SvgDrawingAndroidQaTest {
     }
 
     @Test
+    fun onlineSvgCatalogOpensAndReturnsToDrawingWithoutReset() {
+        composeRule.setContent {
+            CreateDrawingScreen(
+                onBack = {},
+                onCreate = {},
+                onSimulate = {}
+            )
+        }
+        composeRule.onNodeWithText("Buscar imagens SVG online")
+            .performScrollTo().performClick()
+        composeRule.onNodeWithText("Buscar desenhos SVG")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("‹ Voltar")
+            .performClick()
+        composeRule.onNodeWithText("Criar desenho/logo")
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun freehandStrokeEnablesSavingAsSvg() {
         composeRule.setContent {
             CreateDrawingScreen(
