@@ -120,8 +120,10 @@ internal object VectorTatamiFillGenerator {
                 val after = winding != 0
                 if (!before && after) fromX = x
                 if (before && !after) {
-                    val left = ceil(fromX).toInt()
-                    val right = floor(x).toInt()
+                    // Margem interna de 0,1 mm evita ligar linhas exatamente
+                    // sobre a borda, onde o teste de interior é ambíguo.
+                    val left = ceil(fromX).toInt() + 1
+                    val right = floor(x).toInt() - 1
                     if (right - left >= 2) spans.add(Span(left, right))
                 }
             }
