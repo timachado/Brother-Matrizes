@@ -503,14 +503,24 @@ fun CreateDrawingScreen(
                             .fillMaxSize()
                 )
             } else {
+                val generationError = result?.exceptionOrNull()?.message
                 Text(
-                    "Importe um SVG para visualizar.",
-                    modifier =
-                        Modifier.align(
-                            Alignment.Center
-                        ),
-                    color =
+                    text = if (generationError != null) {
+                        "Não foi possível gerar a prévia:\n" +
+                            generationError +
+                            "\n\nConfira o SVG ou selecione Ponto corrido."
+                    } else {
+                        "Importe um SVG para visualizar."
+                    },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                        .testTag("brother_svg_preview_feedback"),
+                    color = if (generationError != null) {
+                        Color(0xFFFF9F9A)
+                    } else {
                         FioTextMuted
+                    }
                 )
             }
         }
@@ -847,6 +857,7 @@ fun CreateDrawingScreen(
                     Text(
                         "Tatami preenche regiões fechadas com uma única cor. " +
                             "Respeita furos com contornos de sentidos opostos (regra SVG non-zero). " +
+                            "Microdetalhes menores que 0,5 mm podem ficar sem preenchimento. " +
                             "Não inclui underlay automático nem ajustes de produção. " +
                             "Teste a matriz antes de bordar.",
                         color = FioTextMuted,
