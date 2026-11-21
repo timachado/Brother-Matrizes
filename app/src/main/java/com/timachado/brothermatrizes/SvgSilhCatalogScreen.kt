@@ -4,9 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -64,6 +66,19 @@ fun SvgSilhCatalogScreen(
     var lastDownload by remember { mutableStateOf<ByteArray?>(null) }
     var lastName by remember { mutableStateOf<String?>(null) }
 
+    fun backWithinCatalogOrExit() {
+        val active = browser
+        if (active != null && active.canGoBack()) {
+            active.goBack()
+        } else {
+            onBack()
+        }
+    }
+
+    // Respeita o histórico do site também quando o usuário pressiona Voltar
+    // na navegação do próprio Android.
+    BackHandler { backWithinCatalogOrExit() }
+
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/svg+xml")
     ) { uri ->
@@ -102,7 +117,10 @@ fun SvgSilhCatalogScreen(
                             output.toByteArray()
                         } ?: error("Não foi possível abrir o arquivo.")
                     }
-                    onUseArtwork(SimpleSvgParser.parse("SVG baixado", bytes).getOrThrow())
+                    val artwork = withContext(Dispatchers.Default) {
+                        SimpleSvgParser.parse("SVG baixado", bytes).getOrThrow()
+                    }
+                    onUseArtwork(artwork)
                 } catch (error: Exception) {
                     status = "Falha ao importar: " + (error.message ?: "SVG incompatível")
                 } finally {
@@ -151,7 +169,10 @@ fun SvgSilhCatalogScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            OutlinedButton(onClick = onBack) { Text("‹ Voltar") }
+            OutlinedButton(
+                onClick = { backWithinCatalogOrExit() },
+                modifier = Modifier.testTag("svg_catalog_back")
+            ) { Text("‹ Voltar") }
             OutlinedButton(onClick = {
                 browser?.loadUrl(SvgSilhDownloader.HOME_URL)
             }) { Text("Início do catálogo") }
@@ -198,14 +219,25 @@ fun SvgSilhCatalogScreen(
                 OutlinedButton(
                     onClick = {
                         val bytes = lastDownload ?: return@OutlinedButton
+                        if (busy) return@OutlinedButton
                         val name = lastName ?: "Desenho SVG"
-                        SimpleSvgParser.parse(name, bytes).fold(
-                            onSuccess = onUseArtwork,
-                            onFailure = {
-                                status = "SVG salvo, porém incompatível com o editor: " +
-                                    (it.message ?: "geometria não suportada")
+                        scope.launch {
+                            busy = true
+                            try {
+                                val parsed = withContext(Dispatchers.Default) {
+                                    SimpleSvgParser.parse(name, bytes)
+                                }
+                                parsed.fold(
+                                    onSuccess = onUseArtwork,
+                                    onFailure = {
+                                        status = "SVG salvo, porém incompatível com o editor: " +
+                                            (it.message ?: "geometria não suportada")
+                                    }
+                                )
+                            } finally {
+                                busy = false
                             }
-                        )
+                        }
                     },
                     modifier = Modifier.testTag("svg_catalog_use_in_editor")
                 ) { Text("Usar no editor") }
@@ -238,10 +270,30 @@ fun SvgSilhCatalogScreen(
                                 return true
                             }
                             if (SvgSilhDownloader.isTrustedPage(url)) return false
-                            runCatching {
-                                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            if (SvgSilhDownloader.isSafeExternalBrowserLink(url)) {
+                                runCatching {
+                                    ctx.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                            .addCategory(Intent.CATEGORY_BROWSABLE)
+                                    )
+                                }.onFailure {
+                                    status = "Não foi possível abrir esse link no navegador."
+                                }
+                            } else {
+                                status = "Link bloqueado por segurança: somente páginas HTTPS."
                             }
                             return true
+                        }
+
+                        override fun onReceivedError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            error: WebResourceError?
+                        ) {
+                            super.onReceivedError(view, request, error)
+                            if (request?.isForMainFrame == true) {
+                                status = "Catálogo indisponível. Confira a internet e tente de novo."
+                            }
                         }
                     }
                     setDownloadListener { url, _, _, _, _ -> startDownload(url) }
