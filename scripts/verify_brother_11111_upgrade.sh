@@ -14,7 +14,7 @@ first_install_time() {
 }
 check_install() {
   local code="$1"
-  adb shell dumpsys package "$package" | grep -Eq "versionCode=\${code}([[:space:]]|$)"
+  adb shell dumpsys package "$package" | grep -Eq "versionCode=${code}([[:space:]]|$)"
   adb shell pm path "$package" | grep -q '^package:'
 }
 start_app() {
