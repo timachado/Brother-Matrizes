@@ -43,6 +43,39 @@ class SvgSilhDownloaderTest {
     }
 
     @Test
+    fun browserOnlyOpensExternalHttpsLinksWithoutCredentialsOrCustomSchemes() {
+        val accepted = listOf(
+            "https://example.org/",
+            "https://example.org:443/galeria/svg",
+            "https://github.com/timachado/Brother-Matrizes"
+        )
+        accepted.forEach { url ->
+            assertTrue("HTTPS externo deveria abrir: $url",
+                SvgSilhDownloader.isSafeExternalBrowserLink(url))
+        }
+
+        val blocked = listOf(
+            SvgSilhDownloader.HOME_URL,
+            "https://www.svgsilh.com/pt/",
+            "http://example.org/",
+            "https://example.org:8080/path",
+            "https://user:pass@example.org/path",
+            "intent://pay/#Intent;scheme=example;end",
+            "javascript:alert(1)",
+            "file:///data/data/private",
+            "content://com.example.provider/private",
+            "market://details?id=com.example",
+            "mailto:support@example.org",
+            "ftp://example.org/file.svg",
+            "https://"
+        )
+        blocked.forEach { url ->
+            assertFalse("Esquema externo deveria ser bloqueado: $url",
+                SvgSilhDownloader.isSafeExternalBrowserLink(url))
+        }
+    }
+
+    @Test
     fun svgByteValidationRejectsXmlPayloadsAndScripts() {
         assertTrue(SvgSilhDownloader.isSvgDocument(
             """<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0 L1 1"/></svg>"""
