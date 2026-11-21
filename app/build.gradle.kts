@@ -63,6 +63,10 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherSvgSuiteQa").orNull == "true") {
+                // Suite SVG unificada: APK de homologação, isolado da versão comercial.
+                applicationIdSuffix = ".svgsuiteqa"
+                versionNameSuffix = "-SVG-SUITE-QA"
             } else if (providers.gradleProperty("brotherSvgCatalogQa").orNull == "true") {
                 // Busca SVG Silh QA: instalação isolada de comercial e QA anteriores.
                 applicationIdSuffix = ".catalogqa"
