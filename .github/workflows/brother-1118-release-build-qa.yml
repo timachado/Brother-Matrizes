@@ -24,10 +24,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^ *versionCode = 198 * app/build.gradle.kts
+          grep -Eq '^ *versionCode = 198 *$' app/build.gradle.kts
           grep -Fq 'versionName = "1.11.11"' app/build.gradle.kts
-          # O baseline comercial publicado é 1.11.10 (197).
-          # Não publicar se o manifesto mudar inesperadamente.
+          # Baseline comercial publicada v1.11.10/197; impedir builds contra versao desatualizada.
           test "$(jq -r .versionCode updates/stable.json)" = "197"
           test "$(jq -r .versionName updates/stable.json)" = "1.11.10"
           test "$(jq -r .sha256 updates/stable.json)" = "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401"
@@ -65,54 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: brother-1118-unsigned-release-build-qa-report
-          path: |
-            app/build/reports/lint-results-debug.html
-            app/build/test-results/testDebugUnitTest/
-          retention-days: 7
-          if-no-files-found: ignore
- app/build.gradle.kts
-          grep -Fq 'versionName = "1.11.11"' app/build.gradle.kts
-          # O baseline comercial publicado é 1.11.10 (197).
-          # Não publicar se o manifesto mudar inesperadamente.
-          test "$(jq -r .versionCode updates/stable.json)" = "197"
-          test "$(jq -r .versionName updates/stable.json)" = "1.11.10"
-          test "$(jq -r .sha256 updates/stable.json)" = "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401"
-          bash scripts/pre_release_static_check.sh
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.6.0'
-      - name: Preparar SDK Android 36
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
-          "$sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
-      - name: Executar testes, lint e build release
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease -PbrotherCheckoutHandoff=true --stacktrace
-          apk=app/build/outputs/apk/release/app-release-unsigned.apk
-          test -s "$apk"
-          sdk="$ANDROID_HOME/build-tools/36.0.0"
-          badging="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
-          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
-          [[ "$badging" == *"versionCode='198'"* ]]
-          [[ "$badging" == *"versionName='1.11.11'"* ]]
-          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
-          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
-          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' app/build/generated/source/buildConfig/release
-          echo 'Build RELEASE nao assinado verificado. Nao instalar como substituto comercial.'
-      - name: Relatorio isolado de QA sem APK de distribuicao
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: brother-1118-unsigned-release-build-qa-report
+          name: brother-11111-unsigned-release-build-qa-report
           path: |
             app/build/reports/lint-results-debug.html
             app/build/test-results/testDebugUnitTest/
