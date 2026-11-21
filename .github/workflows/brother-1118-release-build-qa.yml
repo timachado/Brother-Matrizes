@@ -1,4 +1,4 @@
-name: Brother Matrizes 1.11.10 - build release sem segredos (QA)
+name: Brother Matrizes 1.11.11 - build release sem segredos (QA)
 
 on:
   pull_request:
@@ -24,12 +24,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^ *versionCode = 197 *$' app/build.gradle.kts
-          grep -Fq 'versionName = "1.11.10"' app/build.gradle.kts
-          # The 1.11.9 release is live. Validate the currently published
-          # baseline before building a higher version.
-          test "$(jq -r .versionCode updates/stable.json)" = "196"
-          test "$(jq -r .versionName updates/stable.json)" = "1.11.9"
+          grep -Eq '^ *versionCode = 198 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.11"' app/build.gradle.kts
+          # Baseline comercial publicada v1.11.10/197; impedir builds contra versao desatualizada.
+          test "$(jq -r .versionCode updates/stable.json)" = "197"
+          test "$(jq -r .versionName updates/stable.json)" = "1.11.10"
+          test "$(jq -r .sha256 updates/stable.json)" = "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401"
           bash scripts/pre_release_static_check.sh
       - uses: actions/setup-java@v4
         with:
@@ -54,8 +54,8 @@ jobs:
           sdk="$ANDROID_HOME/build-tools/36.0.0"
           badging="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
           [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
-          [[ "$badging" == *"versionCode='197'"* ]]
-          [[ "$badging" == *"versionName='1.11.10'"* ]]
+          [[ "$badging" == *"versionCode='198'"* ]]
+          [[ "$badging" == *"versionName='1.11.11'"* ]]
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' app/build/generated/source/buildConfig/release
           grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' app/build/generated/source/buildConfig/release
           grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' app/build/generated/source/buildConfig/release
@@ -64,7 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: brother-1118-unsigned-release-build-qa-report
+          name: brother-11111-unsigned-release-build-qa-report
           path: |
             app/build/reports/lint-results-debug.html
             app/build/test-results/testDebugUnitTest/

@@ -1,0 +1,248 @@
+name: Brother Matrizes 1.11.11 - assinatura e publicacao comercial protegidas
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brother-11111-release-commercial.yml'
+  workflow_dispatch:
+    inputs:
+      confirmacao:
+        description: "Digite PUBLICAR_V1_11_11 para autorizar a publicacao"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: brother-commercial-v1-11-11
+  cancel-in-progress: false
+
+jobs:
+  sign-verify-release:
+    name: Testar upgrade oficial, assinar e somente depois publicar
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.confirmacao == 'PUBLICAR_V1_11_11'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: brother-release-signing
+    steps:
+      - name: Checkout da revisao comercial exata
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verificar autorizacao, baseline, QA e versao
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -Eq '^ *versionCode = 198 *$' app/build.gradle.kts
+          grep -Fq 'versionName = "1.11.11"' app/build.gradle.kts
+          grep -Fq 'applicationId = "com.timachado.brothermatrizes"' app/build.gradle.kts
+          jq -e '.applicationId == "com.timachado.brothermatrizes" and
+            .channel == "stable" and .versionCode == 197 and .versionName == "1.11.10" and
+            .sha256 == "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401"' \
+            updates/stable.json >/dev/null
+
+          # Apenas a PR expressamente autorizada para esta versao pode ser publicada.
+          gh api "repos/$GH_REPO/pulls/241" > /tmp/brother-11111-pr.json
+          jq -e '.merged == true and .base.ref == "main" and
+            .head.ref == "release/brother-1-11-11-svg-suite-20261121"' \
+            /tmp/brother-11111-pr.json >/dev/null
+          approved_head="$(jq -r .head.sha /tmp/brother-11111-pr.json)"
+          git merge-base --is-ancestor "$approved_head" HEAD || {
+            echo "::error::Revisao auditada da PR nao consta na main"
+            exit 1
+          }
+
+          # Verificar o QA da suite SVG unificada que antecede a release.
+          gh api "repos/$GH_REPO/actions/runs/44878143071" > /tmp/brother-svg-suite-qa.json
+          jq -e '.status=="completed" and .conclusion=="success" and
+             .head_sha=="77e5b97ad726c5bc381bdae669063d4272243ab5"' \
+             /tmp/brother-svg-suite-qa.json >/dev/null
+          git merge-base --is-ancestor 77e5b97ad726c5bc381bdae669063d4272243ab5 HEAD
+
+          # Release build nao assinado deve estar verde no commit exato da PR.
+          gh api "repos/$GH_REPO/actions/workflows/brother-1118-release-build-qa.yml/runs?event=pull_request&per_page=100" \
+             > /tmp/brother-11111-build-qa.json
+          jq -e --arg sha "$approved_head" '
+            any(.workflow_runs[];
+              .head_sha == $sha and .status == "completed" and .conclusion == "success")
+          ' /tmp/brother-11111-build-qa.json >/dev/null || {
+            echo "::error::Release QA da revisao da PR nao foi aprovado"
+            exit 1
+          }
+
+          if gh release view v1.11.11 --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "::error::Versao comercial ja publicada; impedir duplicacao"
+            exit 1
+          fi
+          bash scripts/pre_release_static_check.sh
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Preparar SDK Android 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Testes, lint e APK release sem assinatura
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease \
+            -PbrotherCheckoutHandoff=true --stacktrace
+          cfg=app/build/generated/source/buildConfig/release
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_CHECKOUT_HANDOFF = true' "$cfg"
+          grep -R --include='BuildConfig.java' -Eq 'BETA_LOCAL_IMPORTS = false' "$cfg"
+          grep -R --include='BuildConfig.java' -Eq 'ENABLE_FCM_DIAGNOSTIC = false' "$cfg"
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Baixar e autenticar APK comercial 1.11.10 publicado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases/tags/v1.11.10" > /tmp/official-baseline.json
+          jq -e '.draft==false and .prerelease==false and
+            ([.assets[] | select(.name=="Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk" and
+             .digest=="sha256:8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401")] | length)==1' \
+            /tmp/official-baseline.json >/dev/null
+          mkdir -p baseline
+          gh release download v1.11.10 --repo "$GH_REPO" --dir baseline \
+            --pattern 'Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk'
+          old=baseline/Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk
+          echo "$(jq -r .sha256 updates/stable.json)  $old" | sha256sum -c -
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$old" > /tmp/old-cert.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/old-cert.txt
+          badging="$("$sdk/aapt" dump badging "$old" | head -n 1)"
+          [[ "$badging" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$badging" == *"versionCode='197'"* ]]
+          [[ "$badging" == *"versionName='1.11.10'"* ]]
+
+      - name: Assinar 1.11.11 apenas com chave comercial protegida
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.BROTHER_MATRIZES_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in KEYSTORE_B64 STORE_PASS KEY_ALIAS KEY_PASS; do
+            test -n "${!value:-}" || { echo "::error::Credencial comercial protegida indisponivel"; exit 1; }
+          done
+          sdk="$ANDROID_HOME/build-tools/36.0.0"
+          ks="$RUNNER_TEMP/brother-11111-release.jks"
+          aligned="$RUNNER_TEMP/brother-11111-aligned.apk"
+          trap 'rm -f "$ks" "$aligned"' EXIT
+          mkdir -p dist
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$ks"
+          chmod 600 "$ks"
+          test -s "$ks"
+          "$sdk/zipalign" -P 16 -f 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk "$aligned"
+          apk=dist/Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk
+          "$sdk/apksigner" sign --ks "$ks" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:STORE_PASS --key-pass env:KEY_PASS --out "$apk" "$aligned"
+          "$sdk/zipalign" -P 16 -c 4 "$apk"
+          "$sdk/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$apk" > /tmp/new-cert.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/new-cert.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: fac3e71b641805e1183e34a636e50e4890e8fe24873f53e85d863b934815de4a' /tmp/new-cert.txt
+          info="$("$sdk/aapt" dump badging "$apk" | head -n 1)"
+          [[ "$info" == *"name='com.timachado.brothermatrizes'"* ]]
+          [[ "$info" == *"versionCode='198'"* ]]
+          [[ "$info" == *"versionName='1.11.11'"* ]]
+          sha256sum "$apk" > dist/SHA256.txt
+
+      - name: Arquivar APK candidato assinado para auditoria
+        uses: actions/upload-artifact@v4
+        with:
+          name: Brother-Matrizes-1.11.11-candidato-comercial-assinado
+          path: |
+            dist/Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk
+            dist/SHA256.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Preparar emulador Android 35
+        shell: bash
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Validar upgrade assinado 1.11.10 para 1.11.11 sem apagar dados
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          emulator-boot-timeout: 1800
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash scripts/verify_brother_11111_upgrade.sh
+
+      - name: Publicar Release 1.11.11 somente apos todas as validacoes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          apk=dist/Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk
+          sha256sum -c dist/SHA256.txt
+          test -s "$apk"
+          cat > /tmp/brother-11111-notes.md <<'NOTES'
+          # Brother Matrizes 1.11.11 — Studio SVG
+          - Crie desenhos SVG, importe vetores e converta para matrizes de bordado.
+          - Use preenchimento Tatami experimental com densidade ajustável.
+          - Ative o acabamento opcional de contornos e detalhes em ponto corrido.
+          - Pesquise, baixe e importe desenhos SVG pelo catálogo SVG Silh.
+          - Prévia, simulação e exportação de matrizes PES, DST e JEF.
+          - Preserva criação de nomes, monogramas, fontes, biblioteca e recursos comerciais existentes.
+          - Atualização direta sobre 1.11.10, com assinatura original e sem reinstalação.
+          - Para bordado físico, valide densidade, detalhes e tecido antes de produção em escala.
+          NOTES
+          gh release create v1.11.11 "$apk" --repo "$GH_REPO" --target "$GITHUB_SHA" \
+            --title "Brother Matrizes 1.11.11 — Studio SVG" \
+            --notes-file /tmp/brother-11111-notes.md --latest
+          gh api "repos/$GH_REPO/releases/tags/v1.11.11" > /tmp/brother-11111-release.json
+          expected="sha256:$(cut -d' ' -f1 dist/SHA256.txt)"
+          jq -e --arg digest "$expected" '
+            .draft == false and .prerelease == false and .published_at != null and
+            ([.assets[] | select(.name == "Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk" and
+             .digest == $digest)] | length) == 1
+          ' /tmp/brother-11111-release.json >/dev/null
+
+      - name: Solicitar OTA apenas apos verificar Release publicado
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run brother-ota-after-published.yml \
+            --repo "$GH_REPO" --ref main -f tag=v1.11.11
+          echo "Release verificada; OTA solicitada em workflow independente e protegido."

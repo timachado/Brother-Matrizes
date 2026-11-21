@@ -20,8 +20,8 @@ android {
         applicationId = "com.timachado.brothermatrizes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 197
-        versionName = "1.11.10"
+        versionCode = 198
+        versionName = "1.11.11"
 
         // Acesso ao token FCM apenas no APK de homologação explicitamente construído
         // com -PbrotherFcmDiagnostic=true. Na versão pública o recurso é desativado.
@@ -63,6 +63,26 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherSvgSuiteQa").orNull == "true") {
+                // Suite SVG unificada: APK de homologação, isolado da versão comercial.
+                applicationIdSuffix = ".svgsuiteqa"
+                versionNameSuffix = "-SVG-SUITE-QA"
+            } else if (providers.gradleProperty("brotherSvgCatalogQa").orNull == "true") {
+                // Busca SVG Silh QA: instalação isolada de comercial e QA anteriores.
+                applicationIdSuffix = ".catalogqa"
+                versionNameSuffix = "-SVG-CATALOG-QA"
+            } else if (providers.gradleProperty("brotherTatamiContourQa").orNull == "true") {
+                // QA Tatami + contornos: ID distinto para preservar builds anteriores.
+                applicationIdSuffix = ".contourqa"
+                versionNameSuffix = "-CONTOURQA"
+            } else if (providers.gradleProperty("brotherTatamiQa").orNull == "true") {
+                // APK Tatami QA isolado: não atualiza o SVG QA existente.
+                applicationIdSuffix = ".tatamiqa"
+                versionNameSuffix = "-TATAMIQ"
+            } else if (providers.gradleProperty("brotherSvgQa").orNull == "true") {
+                // APK de testes SVG, com ID próprio para preservar app comercial e dados.
+                applicationIdSuffix = ".svgqa"
+                versionNameSuffix = "-SVGQA"
             } else if (providers.gradleProperty("brotherPremiumQaV2").orNull == "true") {
                 // Certificados debug de runners GitHub podem mudar. Um novo ID
                 // evita conflito com o APK QA anterior e preserva seus dados.

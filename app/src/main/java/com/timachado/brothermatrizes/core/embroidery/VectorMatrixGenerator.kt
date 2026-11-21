@@ -26,6 +26,8 @@ data class VectorArtwork(
     val label: String = "Desenho"
 )
 
+enum class VectorFillMode { NONE, TATAMI }
+
 data class VectorMatrixOptions(
     val widthMm: Float = 60f,
     val stitchStyle: TextStitchStyle =
@@ -39,7 +41,11 @@ data class VectorMatrixOptions(
         HoopProfile.H100X100,
     val fabricProfile: FabricProfile? =
         FabricProfile.COTTON,
-    val enforceHoop: Boolean = false
+    val enforceHoop: Boolean = false,
+    val fillMode: VectorFillMode = VectorFillMode.NONE,
+    val tatamiRowSpacingMm: Float = 0.5f,
+    val tatamiStitchLengthMm: Float = 3f,
+    val tatamiContourFinish: Boolean = false
 )
 
 object VectorMatrixGenerator {
@@ -223,6 +229,51 @@ object VectorMatrixGenerator {
             var currentX = 0
             var currentY = 0
 
+            if (options.fillMode == VectorFillMode.TATAMI) {
+                require(options.tatamiRowSpacingMm in 0.3f..0.9f) {
+                    "Espaçamento Tatami inválido."
+                }
+                require(options.tatamiStitchLengthMm in 1.5f..4f) {
+                    "Comprimento máximo Tatami inválido."
+                }
+                require(usefulPaths.all { it.closed }) {
+                    "Para usar Tatami, feche todos os contornos do desenho."
+                }
+                val contours = usefulPaths.map { path ->
+                    path.points.map { point ->
+                        val x = ((point.x - minX) * scale - widthUnits / 2f +
+                            targetCenterX).roundToInt()
+                        val y = (heightUnits / 2f -
+                            (point.y - minY) * scale + targetCenterY).roundToInt()
+                        x to y
+                    }
+                }
+                val fill = VectorTatamiFillGenerator.generate(
+                    contours = contours,
+                    rowSpacingUnits = (options.tatamiRowSpacingMm * 10).roundToInt(),
+                    maxStitchLengthUnits = (options.tatamiStitchLengthMm * 10).roundToInt()
+                ).getOrThrow()
+                output.addAll(fill)
+                currentX = fill.last().xUnits
+                currentY = fill.last().yUnits
+                if (options.tatamiContourFinish) {
+                    val finish = VectorContourFinishGenerator.generate(
+                        contours = contours,
+                        maxStitchLengthUnits = 20
+                    ).getOrThrow()
+                    // Separar a fase de preenchimento do acabamento em ponto
+                    // corrido: jamais costurar diretamente entre esses blocos.
+                    output.add(EmbroideryPoint(
+                        currentX, currentY, StitchCommand.TRIM, 0
+                    ))
+                    output.addAll(finish)
+                    currentX = finish.last().xUnits
+                    currentY = finish.last().yUnits
+                    require(output.size <= 85_000) {
+                        "Matriz combinada excedeu o limite de comandos QA."
+                    }
+                }
+            } else {
             usefulPaths.forEach {
                     path ->
                 val units =
@@ -366,6 +417,7 @@ object VectorMatrixGenerator {
                             result.currentY
                     }
                 }
+            }
             }
 
             output +=
@@ -561,6 +613,100 @@ object VectorMatrixGenerator {
             }
 }
 
+private data class SvgAffineTransform(
+    val a: Double = 1.0,
+    val b: Double = 0.0,
+    val c: Double = 0.0,
+    val d: Double = 1.0,
+    val e: Double = 0.0,
+    val f: Double = 0.0
+) {
+    // Matriz afim SVG: x'=a*x+c*y+e, y'=b*x+d*y+f.
+    // A composição A * B aplica B primeiro e depois A.
+    operator fun times(rhs: SvgAffineTransform) = SvgAffineTransform(
+        a = a * rhs.a + c * rhs.b,
+        b = b * rhs.a + d * rhs.b,
+        c = a * rhs.c + c * rhs.d,
+        d = b * rhs.c + d * rhs.d,
+        e = a * rhs.e + c * rhs.f + e,
+        f = b * rhs.e + d * rhs.f + f
+    )
+
+    fun map(point: VectorPoint): VectorPoint {
+        val x = a * point.x + c * point.y + e
+        val y = b * point.x + d * point.y + f
+        require(x.isFinite() && y.isFinite() &&
+            kotlin.math.abs(x) <= 1_000_000 && kotlin.math.abs(y) <= 1_000_000) {
+            "Transformação SVG gerou coordenadas inválidas."
+        }
+        return VectorPoint(x.toFloat(), y.toFloat())
+    }
+}
+
+private fun parseSvgTransform(raw: String): SvgAffineTransform {
+    if (raw.isBlank()) return SvgAffineTransform()
+    val transformPattern = Regex("""([a-zA-Z]+)\s*\(([^()]*)\)""")
+    val numberPattern = Regex("""[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?""")
+    var result = SvgAffineTransform()
+    var cursor = 0
+    var count = 0
+    for (match in transformPattern.findAll(raw)) {
+        require(raw.substring(cursor, match.range.first).all {
+            it.isWhitespace() || it == ','
+        }) { "Transformação SVG inválida." }
+        cursor = match.range.last + 1
+        require(++count <= 64) { "Transformações SVG em excesso." }
+        val args = match.groupValues[2]
+        require(args.replace(numberPattern, "").all {
+            it.isWhitespace() || it == ','
+        }) { "Parâmetros SVG inválidos." }
+        val n = numberPattern.findAll(args).map { it.value.toDouble() }.toList()
+        require(n.all { it.isFinite() && kotlin.math.abs(it) <= 1e9 }) {
+            "Valores de transformação SVG inválidos."
+        }
+        val local = when (match.groupValues[1].lowercase(Locale.ROOT)) {
+            "translate" -> {
+                require(n.size in 1..2)
+                SvgAffineTransform(e = n[0], f = n.getOrElse(1) { 0.0 })
+            }
+            "scale" -> {
+                require(n.size in 1..2)
+                SvgAffineTransform(a = n[0], d = n.getOrElse(1) { n[0] })
+            }
+            "matrix" -> {
+                require(n.size == 6)
+                SvgAffineTransform(n[0], n[1], n[2], n[3], n[4], n[5])
+            }
+            "rotate" -> {
+                require(n.size == 1 || n.size == 3)
+                val angle = Math.toRadians(n[0])
+                val rotation = SvgAffineTransform(
+                    a = kotlin.math.cos(angle), b = kotlin.math.sin(angle),
+                    c = -kotlin.math.sin(angle), d = kotlin.math.cos(angle)
+                )
+                if (n.size == 1) rotation else {
+                    SvgAffineTransform(e = n[1], f = n[2]) *
+                        rotation * SvgAffineTransform(e = -n[1], f = -n[2])
+                }
+            }
+            "skewx" -> {
+                require(n.size == 1)
+                SvgAffineTransform(c = kotlin.math.tan(Math.toRadians(n[0])))
+            }
+            "skewy" -> {
+                require(n.size == 1)
+                SvgAffineTransform(b = kotlin.math.tan(Math.toRadians(n[0])))
+            }
+            else -> error("Tipo de transformação SVG não suportado.")
+        }
+        result = result * local
+    }
+    require(count > 0 && raw.substring(cursor).all {
+        it.isWhitespace() || it == ','
+    }) { "Transformação SVG inválida." }
+    return result
+}
+
 object SimpleSvgParser {
 
     fun parse(
@@ -603,14 +749,22 @@ object SimpleSvgParser {
             factory.isExpandEntityReferences =
                 false
 
-            val document =
-                factory
-                    .newDocumentBuilder()
-                    .parse(
-                        ByteArrayInputStream(
-                            bytes
-                        )
-                    )
+            // Alguns editores (ex.: Potrace) emitem um DOCTYPE SVG 1.0
+            // público, sem entidades. Removemos somente esse cabeçalho
+            // conhecido ANTES da análise XML. Nenhum DTD é resolvido.
+            val legacyDoctype = Regex(
+                """<!DOCTYPE\s+svg\s+PUBLIC\s+"-//W3C//DTD SVG 20010904//EN"\s+"http://www\.w3\.org/TR/2001/REC-SVG-20010904/DTD/svg10\.dtd"\s*>""",
+                RegexOption.IGNORE_CASE
+            )
+            val xml = bytes.toString(Charsets.UTF_8).replace(legacyDoctype, "")
+            require(!Regex("""<!DOCTYPE\b""", RegexOption.IGNORE_CASE).containsMatchIn(xml)) {
+                "Este SVG contém um DOCTYPE não permitido."
+            }
+            val document = factory.newDocumentBuilder().apply {
+                setEntityResolver { _, _ ->
+                    throw IllegalArgumentException("Referências XML externas não são permitidas.")
+                }
+            }.parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
 
             val root =
                 document.documentElement
@@ -632,25 +786,28 @@ object SimpleSvgParser {
                 >()
 
             fun collect(
-                node:
-                    org.w3c.dom.Node
+                node: org.w3c.dom.Node,
+                parentTransform: SvgAffineTransform = SvgAffineTransform()
             ) {
-                if (
-                    node.nodeType ==
-                        org.w3c.dom.Node
-                            .ELEMENT_NODE
-                ) {
-                    val element =
-                        node as
-                            org.w3c.dom.Element
+                var nodeTransform = parentTransform
+                if (node.nodeType == org.w3c.dom.Node.ELEMENT_NODE) {
+                    val element = node as org.w3c.dom.Element
+                    val tag = element.tagName.substringAfterLast(':')
+                        .lowercase(Locale.ROOT)
 
-                    when (
-                        element.tagName
-                            .substringAfterLast(':')
-                            .lowercase(
-                                Locale.ROOT
-                            )
-                    ) {
+                    // Elementos de definição não são desenhados diretamente.
+                    if (tag in setOf("defs", "clippath", "mask", "symbol", "pattern")) {
+                        return
+                    }
+                    require(tag !in setOf("use", "image", "text", "foreignobject")) {
+                        "Este SVG contém elementos ainda não suportados: $tag."
+                    }
+
+                    nodeTransform = parentTransform * parseSvgTransform(
+                        element.getAttribute("transform")
+                    )
+                    val firstPathIndex = paths.size
+                    when (tag) {
                         "path" ->
                             element
                                 .getAttribute(
@@ -874,25 +1031,26 @@ object SimpleSvgParser {
                             }
                         }
                     }
+                    // Aplicar o transform uma só vez a cada caminho gerado
+                    // neste elemento. Caminhos filhos recebem a matriz herdada.
+                    for (index in firstPathIndex until paths.size) {
+                        val original = paths[index]
+                        paths[index] = original.copy(
+                            points = original.points.map(nodeTransform::map)
+                        )
+                    }
                 }
 
-                val children =
-                    node.childNodes
-
-                for (
-                    index in
-                        0 until
-                            children.length
-                ) {
-                    collect(
-                        children.item(
-                            index
-                        )
-                    )
+                val children = node.childNodes
+                for (index in 0 until children.length) {
+                    collect(children.item(index), nodeTransform)
                 }
             }
 
             collect(root)
+            require(paths.size <= 2_000 && paths.sumOf { it.points.size } <= 100_000) {
+                "SVG com geometria complexa demais para importar."
+            }
 
             require(
                 paths.isNotEmpty()

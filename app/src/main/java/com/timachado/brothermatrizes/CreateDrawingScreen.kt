@@ -32,6 +32,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,14 +58,17 @@ import com.timachado.brothermatrizes.core.embroidery.SimpleSvgParser
 import com.timachado.brothermatrizes.core.embroidery.TextStitchStyle
 import com.timachado.brothermatrizes.core.embroidery.VectorArtwork
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixGenerator
+import com.timachado.brothermatrizes.core.embroidery.VectorFillMode
 import com.timachado.brothermatrizes.core.embroidery.VectorMatrixOptions
 import com.timachado.brothermatrizes.core.embroidery.VectorPath
+import com.timachado.brothermatrizes.core.embroidery.VectorSvgExporter
 import com.timachado.brothermatrizes.core.embroidery.VectorPoint
 import com.timachado.brothermatrizes.ui.theme.FioBackground
 import com.timachado.brothermatrizes.ui.theme.FioGold
 import com.timachado.brothermatrizes.ui.theme.FioSurface
 import com.timachado.brothermatrizes.ui.theme.FioText
 import com.timachado.brothermatrizes.ui.theme.FioTextMuted
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 
 private enum class DrawingSourceMode(
@@ -91,7 +96,8 @@ private val drawingPalette =
 fun CreateDrawingScreen(
     onBack: () -> Unit,
     onCreate: (EmbroideryDesign) -> Unit,
-    onSimulate: (EmbroideryDesign) -> Unit
+    onSimulate: (EmbroideryDesign) -> Unit,
+    catalogArtwork: VectorArtwork? = null
 ) {
     val context =
         LocalContext.current
@@ -101,6 +107,8 @@ fun CreateDrawingScreen(
             DrawingSourceMode.SVG
         )
     }
+
+    var showCatalog by remember { mutableStateOf(false) }
 
     var importedArtwork by remember {
         mutableStateOf<
@@ -113,6 +121,18 @@ fun CreateDrawingScreen(
             "Nenhum SVG importado."
         )
     }
+
+    LaunchedEffect(catalogArtwork) {
+        if (catalogArtwork != null) {
+            importedArtwork = catalogArtwork
+            sourceMode = DrawingSourceMode.SVG
+            importMessage = catalogArtwork.label + " • " +
+                catalogArtwork.paths.size + " caminho(s) • importado do catálogo SVG"
+        }
+    }
+
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+    var pendingSvgBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     var freehandPaths by remember {
         mutableStateOf<
@@ -135,6 +155,10 @@ fun CreateDrawingScreen(
             TextStitchStyle.RUNNING
         )
     }
+
+    var fillMode by remember { mutableStateOf(VectorFillMode.NONE) }
+    var tatamiRowSpacingMm by remember { mutableFloatStateOf(0.5f) }
+    var tatamiContourFinish by remember { mutableStateOf(false) }
 
     var color by remember {
         mutableIntStateOf(
@@ -206,17 +230,23 @@ fun CreateDrawingScreen(
                 }.getOrNull()
                     ?: "logo.svg"
 
-            val bytes =
-                runCatching {
-                    context
-                        .contentResolver
-                        .openInputStream(
-                            uri
-                        )
-                        ?.use {
-                            it.readBytes()
+            // Limita os bytes durante a leitura: não carregar arquivos enormes na memória.
+            val readResult = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8_192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        require(output.size() + count <= 2_000_000) {
+                            "SVG maior que 2 MB. Reduza o arquivo antes de importar."
                         }
-                }.getOrNull()
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: error("O arquivo selecionado não pôde ser aberto.")
+            }
+            val bytes = readResult.getOrNull()
 
             if (
                 bytes ==
@@ -226,7 +256,7 @@ fun CreateDrawingScreen(
                     null
 
                 importMessage =
-                    "Não foi possível ler o SVG."
+                    readResult.exceptionOrNull()?.message ?: "Não foi possível ler o SVG."
             } else {
                 val parsed =
                     SimpleSvgParser
@@ -244,9 +274,8 @@ fun CreateDrawingScreen(
                                 artwork ->
                             artwork.label +
                                 " • " +
-                                artwork.paths
-                                    .size +
-                                " caminho(s)"
+                                artwork.paths.size +
+                                " caminho(s) • conversão de contornos (sem preenchimento automático)"
                         },
                         onFailure = {
                                 error ->
@@ -256,6 +285,25 @@ fun CreateDrawingScreen(
                     )
             }
         }
+
+    val svgSaver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/svg+xml")
+    ) { uri ->
+        val bytes = pendingSvgBytes
+        pendingSvgBytes = null
+        if (uri == null) {
+            exportMessage = "Salvamento cancelado."
+        } else if (bytes != null) {
+            exportMessage = runCatching {
+                context.contentResolver.openOutputStream(uri, "w")?.use { stream ->
+                    stream.write(bytes)
+                } ?: error("Não foi possível abrir o arquivo de destino.")
+                "Desenho SVG salvo com sucesso."
+            }.getOrElse { error ->
+                "Não foi possível salvar o SVG: ${error.message ?: "erro desconhecido"}"
+            }
+        }
+    }
 
     val freehandArtwork =
         remember(
@@ -312,27 +360,26 @@ fun CreateDrawingScreen(
                 freehandArtwork
         }
 
-    val result =
+    // Recalcular pontos somente quando o vetor ou seus parâmetros mudarem.
+    val result = remember(artwork, widthMm, stitchStyle, fillMode,
+        tatamiRowSpacingMm, tatamiContourFinish, color, outputFormat, hoopProfile) {
         artwork?.let {
-            VectorMatrixGenerator
-                .generate(
-                    it,
-                    VectorMatrixOptions(
-                        widthMm =
-                            widthMm,
-                        stitchStyle =
-                            stitchStyle,
-                        color =
-                            color,
-                        outputFormat =
-                            outputFormat,
-                        hoopProfile =
-                            hoopProfile,
-                        enforceHoop =
-                            false
-                    )
+            VectorMatrixGenerator.generate(
+                it,
+                VectorMatrixOptions(
+                    widthMm = widthMm,
+                    stitchStyle = stitchStyle,
+                    fillMode = fillMode,
+                    tatamiRowSpacingMm = tatamiRowSpacingMm,
+                    tatamiContourFinish = tatamiContourFinish,
+                    color = color,
+                    outputFormat = outputFormat,
+                    hoopProfile = hoopProfile,
+                    enforceHoop = false
                 )
+            )
         }
+    }
 
     val preview =
         result?.getOrNull()
@@ -349,6 +396,20 @@ fun CreateDrawingScreen(
     val fitsHoop =
         hoopFit?.fits ==
             true
+
+    if (showCatalog) {
+        SvgSilhCatalogScreen(
+            onBack = { showCatalog = false },
+            onUseArtwork = { selected ->
+                importedArtwork = selected
+                sourceMode = DrawingSourceMode.SVG
+                importMessage = selected.label + " • " +
+                    selected.paths.size + " caminho(s) • importado do SVG Silh"
+                showCatalog = false
+            }
+        )
+        return
+    }
 
     Column(
         Modifier
@@ -456,6 +517,7 @@ fun CreateDrawingScreen(
                     modifier =
                         Modifier
                             .fillMaxSize()
+                            .testTag("brother_svg_drawing_pad")
                 )
             } else if (
                 preview != null
@@ -470,14 +532,24 @@ fun CreateDrawingScreen(
                             .fillMaxSize()
                 )
             } else {
+                val generationError = result?.exceptionOrNull()?.message
                 Text(
-                    "Importe um SVG para visualizar.",
-                    modifier =
-                        Modifier.align(
-                            Alignment.Center
-                        ),
-                    color =
+                    text = if (generationError != null) {
+                        "Não foi possível gerar a prévia:\n" +
+                            generationError +
+                            "\n\nConfira o SVG ou selecione Ponto corrido."
+                    } else {
+                        "Importe um SVG para visualizar."
+                    },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                        .testTag("brother_svg_preview_feedback"),
+                    color = if (generationError != null) {
+                        Color(0xFFFF9F9A)
+                    } else {
                         FioTextMuted
+                    }
                 )
             }
         }
@@ -604,6 +676,14 @@ fun CreateDrawingScreen(
                         )
                     }
 
+                    OutlinedButton(
+                        onClick = { showCatalog = true },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_svg_browse_online")
+                    ) {
+                        Text("Buscar imagens SVG online")
+                    }
+
                     Text(
                         importMessage,
                         color =
@@ -627,7 +707,11 @@ fun CreateDrawingScreen(
                     )
 
                     Text(
-                        "Suporte inicial: path com linhas/curvas, line, polyline, polygon, rect, circle e ellipse. Arcos SVG e transforms complexos ficam para depois.",
+                        if (fillMode == VectorFillMode.TATAMI) {
+                            "Suporte: formas SVG e transformações 2D. Preenchimento Tatami ativo para regiões fechadas. Arcos SVG, underlay automático e ajustes finais de tecido ainda não são suportados."
+                        } else {
+                            "Suporte: linhas, curvas, formas SVG e transformações 2D. Ponto corrido e Satin seguem os contornos; o preenchimento de áreas exige selecionar Tatami."
+                        },
                         color =
                             FioTextMuted,
                         fontSize =
@@ -752,13 +836,12 @@ fun CreateDrawingScreen(
                         .forEach {
                                 option ->
                             val selected =
-                                stitchStyle ==
-                                    option
+                                stitchStyle == option && fillMode == VectorFillMode.NONE
 
                             OutlinedButton(
                                 onClick = {
-                                    stitchStyle =
-                                        option
+                                    stitchStyle = option
+                                    fillMode = VectorFillMode.NONE
                                 },
                                 modifier =
                                     Modifier.weight(
@@ -789,21 +872,94 @@ fun CreateDrawingScreen(
                         }
                 }
 
-                Text(
-                    if (
-                        stitchStyle ==
-                            TextStitchStyle
-                                .SATIN
-                    ) {
-                        "Satin acompanha o traço do desenho; não transforma áreas fechadas em preenchimento automático."
-                    } else {
-                        "Ponto corrido segue o contorno/caminho importado."
+                OutlinedButton(
+                    onClick = {
+                        fillMode = if (fillMode == VectorFillMode.TATAMI) {
+                            VectorFillMode.NONE
+                        } else {
+                            VectorFillMode.TATAMI
+                        }
                     },
-                    color =
-                        FioTextMuted,
-                    fontSize =
-                        10.sp
-                )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("brother_svg_tatami_mode")
+                ) {
+                    Text(
+                        if (fillMode == VectorFillMode.TATAMI) {
+                            "● Preenchimento Tatami (experimental)"
+                        } else {
+                            "Preenchimento Tatami (experimental)"
+                        },
+                        color = if (fillMode == VectorFillMode.TATAMI) FioGold else FioText
+                    )
+                }
+
+                if (fillMode == VectorFillMode.TATAMI) {
+                    // Deixar a ação principal antes do texto técnico, dentro
+                    // da área visível após selecionar o Tatami.
+                    OutlinedButton(
+                        onClick = { tatamiContourFinish = !tatamiContourFinish },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag("brother_svg_tatami_detail_finish")
+                    ) {
+                        Text(
+                            (if (tatamiContourFinish) "● " else "") +
+                                "Acabamento: contornos e detalhes",
+                            color = if (tatamiContourFinish) FioGold else FioText
+                        )
+                    }
+                    Text(
+                        if (tatamiContourFinish) {
+                            "Ativado: acrescenta ponto corrido sobre os contornos, após o Tatami. " +
+                                "Microdetalhes muito pequenos são ignorados para evitar excesso de pontadas."
+                        } else {
+                            "Desativado: somente preenchimento Tatami, como na versão aprovada."
+                        },
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "Tatami preenche regiões fechadas com uma única cor. " +
+                            "Respeita furos com contornos de sentidos opostos (regra SVG non-zero). " +
+                            "Microdetalhes menores que 0,5 mm podem ficar sem preenchimento. " +
+                            "Não inclui underlay automático nem ajustes de produção. " +
+                            "Teste a matriz antes de bordar.",
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "Espaçamento das linhas Tatami: ${oneDecimal(tatamiRowSpacingMm)} mm",
+                        color = FioText,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(0.4f, 0.5f, 0.6f).forEach { spacing ->
+                            OutlinedButton(
+                                onClick = { tatamiRowSpacingMm = spacing },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    (if (tatamiRowSpacingMm == spacing) "● " else "") +
+                                        oneDecimal(spacing) + " mm",
+                                    color = if (tatamiRowSpacingMm == spacing) FioGold else FioText
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        if (stitchStyle == TextStitchStyle.SATIN) {
+                            "Satin segue o traço: não preenche automaticamente áreas fechadas."
+                        } else {
+                            "Ponto corrido segue o contorno/caminho importado."
+                        },
+                        color = FioTextMuted,
+                        fontSize = 10.sp
+                    )
+                }
 
                 Spacer(
                     Modifier.height(
@@ -1069,6 +1225,43 @@ fun CreateDrawingScreen(
                         12.dp
                     )
                 )
+
+                OutlinedButton(
+                    onClick = {
+                        artwork?.let { source ->
+                            VectorSvgExporter.export(source, color).fold(
+                                onSuccess = { bytes ->
+                                    pendingSvgBytes = bytes
+                                    exportMessage = null
+                                    val filename = source.label
+                                        .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                        .trim('_')
+                                        .ifBlank { "desenho" }
+                                        .take(64)
+                                        .removeSuffix(".svg") + ".svg"
+                                    svgSaver.launch(filename)
+                                },
+                                onFailure = { error ->
+                                    exportMessage = error.message ?: "Não foi possível gerar o SVG."
+                                }
+                            )
+                        }
+                    },
+                    enabled = artwork != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Salvar desenho como SVG")
+                }
+
+                exportMessage?.let { message ->
+                    Text(
+                        text = message,
+                        color = FioTextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
 
                 Button(
                     onClick = {
