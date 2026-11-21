@@ -25,6 +25,19 @@ internal object SvgSilhDownloader {
             (uri.port == -1 || uri.port == 443)
     } ?: false
 
+    /**
+     * Externos podem ser abertos apenas no navegador do sistema por HTTPS.
+     * Nunca encaminhar intent:, javascript:, file:, content: ou esquemas
+     * personalizados vindos de uma página visitada no catálogo.
+     */
+    fun isSafeExternalBrowserLink(raw: String): Boolean = parseUri(raw)?.let { uri ->
+        uri.scheme.equals("https", ignoreCase = true) &&
+            !uri.host.isNullOrBlank() &&
+            uri.userInfo == null &&
+            (uri.port == -1 || uri.port == 443) &&
+            !isTrustedPage(raw)
+    } ?: false
+
     fun isDownloadLink(raw: String): Boolean {
         val uri = parseUri(raw) ?: return false
         return isTrustedPage(raw) && svgPath.matches(uri.path.orEmpty()) &&
