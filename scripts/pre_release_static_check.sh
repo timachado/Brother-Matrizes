@@ -26,6 +26,7 @@ fi
 HTTP_MATCHES="$(
   grep -RInE --include='*.kt' --include='*.kts' '"http://' app/src/main app/build.gradle.kts \
     | grep -vE 'http://apache\.org/xml/|http://xml\.org/sax/' \
+    | grep -vF 'xmlns=\"http://www.w3.org/2000/svg' \
     || true
 )"
 
