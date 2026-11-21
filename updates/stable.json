@@ -1,12 +1,12 @@
 {
   "applicationId": "com.timachado.brothermatrizes",
   "channel": "stable",
-  "versionName": "1.11.10",
-  "versionCode": 197,
+  "versionName": "1.11.11",
+  "versionCode": 198,
   "minSupportedVersionCode": 0,
-  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.10/Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk",
-  "sha256": "8b89720a7bb1cf42c69864bb49b3bc562f01482622f1fc47877d850e8ecb7401",
-  "releaseNotes": "Atualização Brother Matrizes 1.11.10: correções no Criar Nome.\n• Arco para cima e arco para baixo agora preservam as ligações entre letras de fontes cursivas importadas.\n• Pontadas Satin e arremates originais preservados.\n• Curvatura zero e ajuste automático ao bastidor mantidos.\n• Instalação oficial por cima da versão 1.11.9, sem precisar desinstalar o aplicativo.",
-  "publishedAt": "2026-11-15T07:14:23Z",
-  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.10/Brother-Matrizes-1.11.10-OFICIAL-COMERCIAL-ASSINADO.apk"
+  "downloadUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.11/Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk",
+  "sha256": "c7aa517ebd83ddeb62786110c6438ef113860c08db3033f72aaf2d2f603dabfd",
+  "releaseNotes": "Crie desenhos SVG, importe vetores e converta para matrizes de bordado.; Use preenchimento Tatami experimental com densidade ajustável.; Ative o acabamento opcional de contornos e detalhes em ponto corrido.; Pesquise, baixe e importe desenhos SVG pelo catálogo SVG Silh.; Prévia, simulação e exportação de matrizes PES, DST e JEF.; Preserva criação de nomes, monogramas, fontes, biblioteca e recursos comerciais existentes.",
+  "publishedAt": "2026-11-21T07:26:39Z",
+  "downloadApkUrl": "https://github.com/timachado/Brother-Matrizes/releases/download/v1.11.11/Brother-Matrizes-1.11.11-OFICIAL-COMERCIAL-ASSINADO.apk"
 }
