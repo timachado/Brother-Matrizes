@@ -38,6 +38,52 @@ class VectorTatamiFillGeneratorTest {
     }
 
     @Test
+    fun disconnectedIslandsDoNotJumpBetweenAreasOnEveryScanline() {
+        // Regressão baseada no PES real da Innov-is: 435 saltos/trim em
+        // 1.634 pontos. Duas regiões distantes precisam ser bordadas uma a
+        // uma, sem alternar de região a cada linha Tatami.
+        val points = VectorTatamiFillGenerator.generate(
+            contours = listOf(
+                rectangle(0, 0, 120, 140),
+                rectangle(280, 0, 400, 140)
+            ),
+            rowSpacingUnits = 5,
+            maxStitchLengthUnits = 30
+        ).getOrThrow()
+        val jumps = points.count { it.command == StitchCommand.JUMP }
+        val trims = points.count { it.command == StitchCommand.TRIM }
+
+        assertTrue("Duas ilhas não devem gerar dezenas de saltos: $jumps", jumps <= 3)
+        assertTrue("Somente a troca entre as duas ilhas pode exigir corte: $trims", trims <= 2)
+        val left = points.filter { it.command == StitchCommand.STITCH && it.xUnits <= 120 }
+        val right = points.filter { it.command == StitchCommand.STITCH && it.xUnits >= 280 }
+        assertTrue("Primeira ilha sumiu", left.size > 50)
+        assertTrue("Segunda ilha sumiu", right.size > 50)
+        assertTrue("Pontos foram criados no vão das duas ilhas",
+            points.none { it.command == StitchCommand.STITCH && it.xUnits in 145..255 })
+    }
+
+    @Test
+    fun connectedSlopingRowsUseShortSafeTravelStitches() {
+        // Uma borda inclinada desloca as extremidades das linhas mais de
+        // 1,2 mm: isso não deve obrigar a máquina a cortar a linha em toda
+        // passada se o pequeno conector permanece dentro da geometria.
+        val slope = listOf(
+            0 to 0, 150 to 0, 280 to 180, 130 to 180
+        )
+        val points = VectorTatamiFillGenerator.generate(
+            contours = listOf(slope),
+            rowSpacingUnits = 5,
+            maxStitchLengthUnits = 30
+        ).getOrThrow()
+        assertTrue(points.count { it.command == StitchCommand.STITCH } > 200)
+        assertTrue("Uma região conectada tem muitos saltos",
+            points.count { it.command == StitchCommand.JUMP } <= 12)
+        assertTrue("Uma região conectada tem muitos cortes",
+            points.count { it.command == StitchCommand.TRIM } <= 5)
+    }
+
+    @Test
     fun donutOppositeWindingKeepsHoleFreeOfStitches() {
         val outer = rectangle(0, 0, 200, 200)
         // Orientação inversa no anel interno (winding não-zero).
