@@ -29,6 +29,12 @@ internal object VectorTatamiFillGenerator {
     private data class Crossing(val x: Double, val winding: Int)
     private data class Span(val fromX: Int, val toX: Int)
 
+    private data class ScanRun(
+        val row: Int,
+        val y: Int,
+        val span: Span
+    )
+
     fun generate(
         contours: List<List<Pair<Int, Int>>>,
         rowSpacingUnits: Int,
@@ -182,51 +188,129 @@ internal object VectorTatamiFillGenerator {
             }
         }
 
+        /*
+         * Planejamento por ilha de preenchimento:
+         * o algoritmo antigo alternava entre TODOS os spans de uma mesma linha,
+         * mesmo que pertencessem a regiões desconectadas. Na Innov-is, cada
+         * salto entre regiões pode virar TRIM no PEC, repetido em cada passada.
+         *
+         * Unimos spans de linhas vizinhas somente quando suas projeções em X
+         * se sobrepõem. A ordem de costura percorre uma ilha por completo
+         * antes de começar outra. A regra non-zero e os furos não mudam.
+         */
+        val runs = mutableListOf<ScanRun>()
+        val parents = mutableListOf<Int>()
+        var previousRowIds = emptyList<Int>()
+
+        fun root(id: Int): Int {
+            var node = id
+            while (parents[node] != node) {
+                parents[node] = parents[parents[node]]
+                node = parents[node]
+            }
+            return node
+        }
+
+        fun union(left: Int, right: Int) {
+            val a = root(left)
+            val b = root(right)
+            if (a != b) parents[b] = a
+        }
+
         for (row in 0 until rows) {
             val y = minY + (row + 0.5) * rowSpacingUnits
             if (y >= maxY) break
-            val spans = spansFor(y)
-            val scanY = y.roundToInt()
-            val ordered = if (row % 2 == 0) spans else spans.asReversed()
-            for (span in ordered) {
-                val start = if (row % 2 == 0) span.fromX else span.toX
-                val finish = if (row % 2 == 0) span.toX else span.fromX
-                val first = start to scanY
-                val last = finish to scanY
-                if (first == last) continue
+            val currentIds = spansFor(y).map { span ->
+                require(runs.size < 40_000) {
+                    "SVG com regiões demais para ordenar o Tatami com segurança."
+                }
+                val id = runs.size
+                runs.add(ScanRun(row, y.roundToInt(), span))
+                parents.add(id)
+                id
+            }
 
-                if (current == null) {
-                    stitches.add(EmbroideryPoint(first.first, first.second, StitchCommand.JUMP, 0))
-                } else {
-                    val previous = current
-                    val distance = hypot(
-                        (first.first - previous.first).toDouble(),
-                        (first.second - previous.second).toDouble()
-                    )
-                    val connectable = distance <= max(12.0, rowSpacingUnits * 2.0) &&
-                        (1..3).all { step ->
-                            val t = step / 4.0
-                            inside(
-                                previous.first + (first.first - previous.first) * t,
-                                previous.second + (first.second - previous.second) * t
-                            )
-                        }
-                    if (connectable) {
-                        appendSegment(previous, first)
-                    } else {
-                        // Jamais atravessar vazios ou furos com ponto de costura.
-                        if (distance > 40.0) {
-                            stitches.add(
-                                EmbroideryPoint(previous.first, previous.second, StitchCommand.TRIM, 0)
-                            )
-                        }
+            // Lista ordenada por X; união em tempo linear por linha.
+            var prevIndex = 0
+            for (id in currentIds) {
+                val currentSpan = runs[id].span
+                while (prevIndex < previousRowIds.size &&
+                    runs[previousRowIds[prevIndex]].span.toX < currentSpan.fromX) {
+                    prevIndex++
+                }
+                var candidate = prevIndex
+                while (candidate < previousRowIds.size) {
+                    val otherId = previousRowIds[candidate]
+                    val other = runs[otherId].span
+                    if (other.fromX > currentSpan.toX) break
+                    if (currentSpan.fromX <= other.toX &&
+                        other.fromX <= currentSpan.toX) union(id, otherId)
+                    candidate++
+                }
+            }
+            previousRowIds = currentIds
+        }
+
+        val regions = runs.indices.groupBy { root(it) }.values.sortedWith(
+            compareBy<List<Int>>(
+                { ids -> ids.minOf { runs[it].row } },
+                { ids -> ids.minOf { runs[it].span.fromX } }
+            )
+        )
+        for (regionIds in regions) {
+            val byRow = regionIds.groupBy { runs[it].row }.toSortedMap()
+            val firstRow = byRow.firstKey()
+            for ((row, rowIds) in byRow) {
+                val forward = (row - firstRow) % 2 == 0
+                val ordered = if (forward) rowIds else rowIds.asReversed()
+                for (id in ordered) {
+                    val run = runs[id]
+                    val first = (if (forward) run.span.fromX else run.span.toX) to run.y
+                    val last = (if (forward) run.span.toX else run.span.fromX) to run.y
+                    if (first == last) continue
+
+                    if (current == null) {
                         stitches.add(
                             EmbroideryPoint(first.first, first.second, StitchCommand.JUMP, 0)
                         )
+                    } else {
+                        val previous = current
+                        val distance = hypot(
+                            (first.first - previous.first).toDouble(),
+                            (first.second - previous.second).toDouble()
+                        )
+                        // Travel stitches curtos dentro da área, segmentados e
+                        // verificados ao longo de todo o trajeto. Nunca cruzar
+                        // furos, regiões vazias ou caminhos desconectados.
+                        val samples = max(4, ceil(distance / 4.0).toInt())
+                        val connectable = distance <= 40.0 &&
+                            (1 until samples).all { step ->
+                                val t = step.toDouble() / samples
+                                inside(
+                                    previous.first + (first.first - previous.first) * t,
+                                    previous.second + (first.second - previous.second) * t
+                                )
+                            }
+                        if (connectable) {
+                            appendSegment(previous, first)
+                        } else {
+                            if (distance > 40.0) {
+                                stitches.add(
+                                    EmbroideryPoint(
+                                        previous.first, previous.second, StitchCommand.TRIM, 0
+                                    )
+                                )
+                            }
+                            stitches.add(
+                                EmbroideryPoint(
+                                    first.first, first.second, StitchCommand.JUMP, 0
+                                )
+                            )
+                        }
                     }
+                    appendSegment(first, last)
+                    current = last
                 }
-                appendSegment(first, last)
-                current = last
             }
         }
         require(stitches.count { it.command == StitchCommand.STITCH } >= 3) {

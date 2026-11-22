@@ -63,6 +63,11 @@ android {
                 // Este sufixo NUNCA é aplicado em release comercial.
                 applicationIdSuffix = ".nameqa"
                 versionNameSuffix = "-NAMEQA"
+            } else if (providers.gradleProperty("brotherInnovisTatamiQa").orNull == "true") {
+                // Hotfix experimental de saltos Tatami na Innov-is; não publica
+                // nem substitui a versão comercial ou QA anteriores.
+                applicationIdSuffix = ".innovisqa"
+                versionNameSuffix = "-INNOVIS-TATAMI-QA"
             } else if (providers.gradleProperty("brotherSvgSuiteQa").orNull == "true") {
                 // Suite SVG unificada: APK de homologação, isolado da versão comercial.
                 applicationIdSuffix = ".svgsuiteqa"
